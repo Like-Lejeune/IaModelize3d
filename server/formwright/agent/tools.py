@@ -42,6 +42,7 @@ class DesignState:
     facts: list[dict[str, Any]] = field(default_factory=list)
     printer: dict[str, Any] | None = None
     critic: dict[str, Any] | None = None
+    dossier: dict[str, Any] | None = None
 
 
 def fn(name: str, description: str, properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -384,6 +385,11 @@ async def _finish(ctx: JobContext, state: DesignState, summary: str) -> dict[str
             if look_pack and isinstance(score, (int, float)) and score < 8 and not major:
                 major = [{"severity": "major", "text": f"Match with the reference is only {score}/10.", "fix_hint": "; ".join(
                     i.get("text", "") for i in verdict.get("issues", []))[:500]}]
+                verdict["verdict"] = "revise"
+            # an item the reviewer found wrong against the photo does not block: the photo outranks the dossier
+            failed_musts = [c for c in verdict.get("checklist", []) if c.get("ok") is False and c.get("must") and c.get("valid") is not False]
+            if failed_musts:
+                major += [{"severity": "major", "text": f"Dossier check failed: {c.get('check', c.get('id'))} — {c.get('note', '')}", "fix_hint": c.get("note", "")} for c in failed_musts]
                 verdict["verdict"] = "revise"
             if verdict.get("verdict") == "revise" and major:
                 return {"accepted": False, "reason": "the reviewer found major problems", "issues": major}

@@ -17,6 +17,7 @@ from ..models import SendMessage
 from .examples import EXAMPLES_TEXT
 from .prompts import CLASSIFY, PACK_NAMES, PACKS, SYSTEM
 from .runner import JobContext, add_message
+from . import dossier as dossier_mod
 from . import narrate
 from .tools import TOOLS, DesignState, run_tool
 
@@ -130,6 +131,19 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     if scene:
         state.inputs.update(scene.get("inputs", {}))
     video_notes = await _video_notes(ctx, new_assets)
+    depth = dossier_mod.depth_for(pack, new_assets or all_assets, body.dossier or settings().dossier)
+    if depth != "off" and not (state.source and depth == "short"):
+        # follow-up edits of an existing model skip the short dossier; photos always get one
+        await set_stage("measure" if depth == "full" else "understand")
+        try:
+            state.dossier = await dossier_mod.build(ctx, pack=pack, request=body.text, assets=new_assets or all_assets, scene=scene,
+                                                    depth=depth, language=language)
+        except Exception:  # noqa: BLE001 - analysis improves the design but must never block it
+            log.exception("dossier failed")
+        if state.dossier:
+            await ctx.emit("dossier", state.dossier)
+            await ctx.emit("tool.result", {"name": "dossier", "kind": "scene", "ok": True, "title": dossier_mod.summary_title(state.dossier, language),
+                                           "summary": json.dumps({k: state.dossier.get(k) for k in ("motif", "size", "measured")}, ensure_ascii=False)[:600]})
     mem = await memory.recall(ctx.user["id"], body.text, pack)
     state.memory_ids = [m["id"] for items in mem.values() for m in items]
     await memory.mark_used(state.memory_ids)
@@ -154,6 +168,11 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         if scene.get("inputs", {}).get("outlines"):
             ctx_lines.append("Program inputs available: inputs.outlines." + ", inputs.outlines.".join(scene["inputs"]["outlines"]))
     ctx_lines.extend(video_notes)
+    if state.dossier:
+        ctx_lines.append(dossier_mod.for_designer(state.dossier))
+        ctx_lines.append("Use the dossier: start from its measured proportions, counts and most likely motif hypothesis, resolve its "
+                         "unknowns as it says, and aim to pass its checklist. It is the analyst's reading of the photo, not ground "
+                         "truth: where the photo clearly shows otherwise, follow the photo.")
     recalled = memory.format_recall(mem)
     if recalled:
         ctx_lines.append("# Memory (relevant)\n" + recalled)

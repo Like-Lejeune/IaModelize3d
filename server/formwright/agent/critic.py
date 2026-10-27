@@ -34,6 +34,14 @@ SCHEMA = {
     "required": ["verdict", "match_score", "issues"],
 }
 
+CHECKLIST_ITEM = {
+    "type": "object",
+    "properties": {"id": {"type": "string"}, "check": {"type": "string"}, "must": {"type": "boolean"},
+                   "valid": {"type": "boolean", "description": "false if the item itself contradicts the photo or request"},
+                   "ok": {"type": "boolean"}, "note": {"type": "string"}},
+    "required": ["id", "check", "must", "valid", "ok", "note"],
+}
+
 
 async def _photo_overlays(ctx: JobContext, state: Any, photos: list[dict[str, Any]]) -> list[str]:
     """For calibrated photos, the critic sees what the user sees in photo-AR."""
@@ -88,5 +96,16 @@ async def review(ctx: JobContext, state: Any) -> dict[str, Any]:
         content.append({"type": "input_text", "text": "The model drawn over the calibrated photo (orange outline = model edges). "
                                                       "Misalignment here is a real dimension error:"})
         content.append({"type": "input_image", "image_url": storage.data_url(overlay, 1280)})
+    schema = SCHEMA
+    checklist = (state.dossier or {}).get("checklist") or []
+    if checklist:
+        # the dossier written before modelling is the acceptance checklist
+        items = "\n".join(
+            f"- [{c.get('id')}]{' (must)' if c.get('must') else ''} {c.get('check')} (verify by {c.get('verify_by')})" for c in checklist[:12])
+        content[0]["text"] += ("\nAcceptance checklist, written by an analyst from the same photo before modelling. It can be wrong: "
+                               "form your own judgement from the photo first, then judge each item ok/not ok with a short note, "
+                               "and mark an item valid=false when the item itself contradicts the photo or request:\n" + items)
+        schema = {**SCHEMA, "properties": {**SCHEMA["properties"], "checklist": {"type": "array", "items": CHECKLIST_ITEM}},
+                  "required": [*SCHEMA["required"], "checklist"]}
     model = settings().model_critic or ctx.models.fast
-    return await meta().json(ctx.meter, model=model, system=CRITIC, content=content, schema=SCHEMA, name="critic", effort="low")
+    return await meta().json(ctx.meter, model=model, system=CRITIC, content=content, schema=schema, name="critic", effort="low")

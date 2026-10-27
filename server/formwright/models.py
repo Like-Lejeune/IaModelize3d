@@ -87,6 +87,8 @@ class SendMessage(BaseModel):
     asset_ids: list[str] = []
     # auto: agent picks; hard: allow the strongest (costlier) designer model
     effort: Literal["auto", "hard"] = "auto"
+    # analysis before modelling; None = server default (auto: depth by task)
+    dossier: Literal["auto", "full", "short", "off"] | None = None
 
 
 class Point(BaseModel):
