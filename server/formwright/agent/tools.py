@@ -151,9 +151,14 @@ async def commit_build(ctx: JobContext, state: DesignState, source: str, params:
         await memory.observe_fix(code, summary, state.pack, ctx.job_id)
     state.issue_codes = new_codes
     state.source, state.params, state.last_build, state.last_render = source, built["params"], built, rel
-    await ctx.emit("program.updated", {"version": state.version, "source": source, "params": built["params"], "paramSpecs": built["paramSpecs"],
-                                       "handles": built.get("handles", []), "checks": checks, "render": storage.url(rel), "cover": storage.url(cover),
-                                       "summary": summary, "author": author})
+    event = {"version": state.version, "source": source, "inputs": inputs, "params": built["params"], "paramSpecs": built["paramSpecs"],
+             "handles": built.get("handles", []), "checks": checks, "render": storage.url(rel), "cover": storage.url(cover),
+             "summary": summary, "author": author}
+    if len(json.dumps(inputs)) > 100_000:
+        # big heightmaps stay out of the event stream; the client fetches the version instead
+        event.pop("source")
+        event.pop("inputs")
+    await ctx.emit("program.updated", event)
     stats = checks.get("stats", {})
     result = {
         "ok": True,
