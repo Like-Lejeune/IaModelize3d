@@ -1,0 +1,27 @@
+[project]
+name = "formwright"
+version = "0.1.0"
+description = "Agent that designs printable 3D models from photos, measurements and ideas"
+requires-python = ">=3.12"
+license = { file = "../LICENSE" }
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "pydantic-settings",
+  "openai",
+  "httpx",
+  "aiosqlite",
+  "numpy",
+  "opencv-python-headless",
+  "pillow",
+  "scipy",
+  "python-multipart",
+  "meta-sam-parser",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

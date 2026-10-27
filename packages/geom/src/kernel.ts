@@ -34,13 +34,30 @@ function track<T>(value: T): T {
   return value;
 }
 
+// Programs run in a separate `vm` realm on the server. manifold's glue tests
+// `x instanceof Array`, which is false for arrays from another realm, so every
+// argument crossing into the kernel is rebuilt with this realm's constructors.
+function normalizeArg(v: any): any {
+  if (Array.isArray(v)) return Array.from(v, normalizeArg);
+  if (v !== null && typeof v === 'object' && !(v instanceof Object)) {
+    if (ArrayBuffer.isView(v)) {
+      const Ctor = (globalThis as any)[(v as any).constructor?.name];
+      return Ctor ? new Ctor(v) : v;
+    }
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(v)) out[k] = normalizeArg(v[k]);
+    return out;
+  }
+  return v;
+}
+
 // Instances carry the embind prototype, which is not `cls.prototype` after setup().
 function patchClass(cls: any, proto: any) {
   for (const key of Object.getOwnPropertyNames(cls)) {
     const fn = cls[key];
     if (typeof fn !== 'function' || key === 'prototype' || key === 'length' || key === 'name') continue;
     cls[key] = function (...args: unknown[]) {
-      return track(fn.apply(this, args));
+      return track(fn.apply(this, args.map(normalizeArg)));
     };
   }
   for (const key of Object.getOwnPropertyNames(proto)) {
@@ -49,7 +66,7 @@ function patchClass(cls: any, proto: any) {
     if (!desc || typeof desc.value !== 'function') continue;
     const fn = desc.value;
     proto[key] = function (...args: unknown[]) {
-      return track(fn.apply(this, args));
+      return track(fn.apply(this, args.map(normalizeArg)));
     };
   }
 }
@@ -79,7 +96,7 @@ function patchForCollection(wasm: any) {
     patchClass(Orig, protos[name]);
     // `new Manifold(mesh)` / `new CrossSection(polys)` must be tracked too.
     const Wrapped = function (this: unknown, ...args: unknown[]) {
-      return track(new Orig(...args));
+      return track(new Orig(...args.map(normalizeArg)));
     } as any;
     Object.setPrototypeOf(Wrapped, Orig);
     Wrapped.prototype = Orig.prototype;
