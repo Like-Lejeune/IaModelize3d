@@ -52,7 +52,7 @@ RU = {
     "Loading real elevation data": "Загружаю реальные высоты", "Saving a reusable module": "Сохраняю модуль", "Comparing your print with the target": "Сравниваю отпечаток с целью",
     "Final check before handing over": "Финальная проверка перед выдачей", "first version": "первая версия", "details": "детали", "parameters": "параметры",
     "Version": "Версия", "printable": "печатается", "problems to fix": "проблем", "notes": "замечаний",
-    "silhouette match": "совпадение силуэта", "Measured": "Измерено", "holes": "отверстий", "Found": "Найдено",
+    "silhouette match": "совпадение силуэта", "Measured": "Измерено", "holes": "отверстий", "cutouts": "вырезов", "Found": "Найдено",
     "no reference in the photo, sizes in pixels only": "нет эталона на фото, размеры только в пикселях", "Caliper reads": "Штангенциркуль показывает",
     "Couldn't read the caliper": "Не удалось прочитать штангенциркуль", "Dimensions found": "Найдено размеров", "(from memory)": "(из памяти)",
     "Standard values found": "Найдено в стандартах", "Not in the standards tables": "В таблицах стандартов нет",
@@ -133,8 +133,10 @@ def result_title(name: str, args: dict[str, Any], r: dict[str, Any]) -> str:
         return f"Version {r.get('version')} — {_size(r.get('size_mm'))}, {state}{extra}{fitted}"
     if name == "measure_photo":
         unc = r.get("uncertainty_mm")
-        holes = r.get("holes_mm") or []
+        holes = [h for h in (r.get("holes_mm") or []) if h.get("circular", True)]
+        cutouts = len(r.get("holes_mm") or []) - len(holes)
         hole_txt = f", holes: {len(holes)} × Ø{_mm(holes[0]['d'])}" if holes else ""
+        hole_txt += f", cutouts: {cutouts}" if cutouts else ""
         if r.get("calibrated") and r.get("size_mm"):
             return f"Measured {r.get('name', 'object')}: {_size(r['size_mm'])}{f' ±{_mm(unc)}' if unc else ''}{hole_txt}"
         return f"Found {r.get('name', 'the object')} (no reference in the photo, sizes in pixels only)"
