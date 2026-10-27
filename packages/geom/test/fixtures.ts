@@ -59,3 +59,22 @@ function build(p, lib) {
 }
 return { meta, params, build };
 `;
+
+export const CUBE_PLANTER = `
+const meta = { title: 'Cube-corner planter', pack: 'forms' };
+const params = {
+  height: { value: 110, min: 60, max: 200, unit: 'mm' },
+  radius: { value: 48, min: 30, max: 90, unit: 'mm' },
+  edge: { value: 9, min: 5, max: 16, unit: 'mm', label: 'Tile size' },
+};
+function build(p, lib) {
+  const { forms } = lib;
+  const shell = forms.surface({ height: p.height, mode: 'shell', wall: 2.1, bottom: 2.4, segments: 128, radius: () => p.radius });
+  const R = p.edge * Math.sqrt(2 / 3);
+  const perRow = Math.round((2 * Math.PI * p.radius) / (2 * R * Math.cos(Math.PI / 6)));
+  const rows = Math.floor((p.height - 2 * R - 6) / (1.5 * R)) + 1;
+  const relief = forms.tile({ radius: () => p.radius, element: forms.cubeCorner(p.edge), rows, perRow, z0: R + 4, z1: R + 4 + (rows - 1) * 1.5 * R, stagger: true });
+  return shell.add(relief);
+}
+return { meta, params, build };
+`;

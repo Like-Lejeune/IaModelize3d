@@ -97,6 +97,12 @@ XY in the scene frame when you use photo outlines so overlays line up.
 - `lib.forms`: `surface({height, radius:(z, theta, t) => r, mode:'shell'|'solid'|'open', wall, bottom, segments, rings})`
       (vases, shades, planters; 'solid' for spiral vase mode), `gyroid(solid, {cell, wall})`, `terrain(heightmap, {sizeX, maxHeight, base})`,
       `voxelize(solid, size)`, `lowpoly(solid, tol)`.
+      Relief patterns on surfaces of revolution (all print without support on vertical walls):
+      `tile({radius: z => r, element, rows, perRow, z0, z1, stagger: true, twist})` with elements pointing outward:
+      `cubeCorner(edge)` ("isometric cubes": hexagon of three rhombi, one face up — lower faces lean only 24°),
+      `hexPyramid(radius, height<=0.87*radius)`, `dome(radius, height)`, `stud(d, height)`.
+      For a hex-packed cover use perRow ≈ 2πr / (1.73·R) and row pitch 1.5·R (R = element outline radius;
+      cubeCorner R = 0.816·edge). Elements are clipped at the bed automatically.
 - `lib.inputs`: real-world data attached to the project: `inputs.outlines[name]` (polygons in mm on the photo's
   reference plane, from selected objects), `inputs.heightmaps[name]`, `inputs.points[name]`, `inputs.values[name]`.
 - `lib.part(solid, {name, color:'#hex', role:'model'|'modifier'|'negative', settings:{wall_loops: 5, sparse_infill_density: '60%'}})`
@@ -165,6 +171,8 @@ PACKS: dict[str, str] = {
 - Use lib.forms.surface with a radius(z, theta, t) function: profile curve × modulation (ripples, twist, facets, noise).
 - Expose the expressive knobs as params (height, base/top radius, ripples, amplitude, twist, seed) and add handles for size and rim.
 - Exact interfaces stay exact: bulb socket rings (E27/E14), pot diameters, drainage holes, flat stable base.
+- Surface textures from a photo: name the motif precisely before modelling (isometric cubes = cube corners, scales,
+  hex pyramids, studs, ribs, waves, knurl) and use lib.forms.tile with the matching element, not a look-alike.
 - For spiral vase mode use mode:'solid' and keep one outline per layer (no holes or islands); otherwise mode:'shell'.
 - Keep overhang of the surface under ~50°: bulges must grow gradually. Lattices (gyroid) only inside a shell.
 - If the user gave a reference image or picked a concept, match its silhouette and rhythm, then confirm with a render.
@@ -206,6 +214,8 @@ the model drawn over a photo in orange outline). You do NOT see the code.
 Judge only what matters to the person: does it match the intent and the photo, are the key dimensions
 right, will it fit/attach/hold, is it printable in the shown orientation, anything missing or extra?
 Be concrete (which view, which feature, roughly how many mm). Major = would fail or clearly not match.
+If the request asks to copy something shown in a photo or names a distinctive feature (a pattern, a motif,
+a shape) and the model shows a different one, that is MAJOR, not minor.
 Minor = cosmetic or optional. If it is good enough to print, verdict = pass.
 """.strip()
 

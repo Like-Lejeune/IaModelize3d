@@ -228,5 +228,64 @@ export function makeForms(wasm: Wasm) {
 
   const lowpoly = (solid: Manifold, tolerance = 1.5): Manifold => solid.simplify(tolerance);
 
-  return { surface, gyroid, terrain, voxelize, lowpoly, fromMesh };
+  // ---- relief elements: each points along +X, base on the x=0 plane (embedded 0.6 mm to fuse) ----
+  const EMBED = 0.6;
+  // Cube corner seen along its diagonal: a hexagon of three rhombi ("isometric cube" look).
+  // With one face up, the two lower faces lean only ~24° from vertical, so it prints without support.
+  const cubeCorner = (edge: number): Manifold => {
+    const R = edge * Math.sqrt(2 / 3);
+    const hMid = edge / Math.sqrt(3);
+    const hApex = (2 * edge) / Math.sqrt(3);
+    const at = (deg: number, r: number, x: number): V3 => [x, r * Math.cos((deg * Math.PI) / 180), r * Math.sin((deg * Math.PI) / 180)];
+    const pts: V3[] = [
+      [hApex, 0, 0],
+      at(90, R, 0), at(210, R, 0), at(330, R, 0), // rim on the wall; the top face's corner points up
+      at(30, R, hMid), at(150, R, hMid), at(270, R, hMid),
+      [0, 0, -(R + hMid)], // 45° skirt under the lowest corner
+      [-EMBED, 0, R], [-EMBED, 0, -(R + hMid)], [-EMBED, R, 0], [-EMBED, -R, 0],
+    ];
+    return M.hull(pts);
+  };
+  // Hexagonal pyramid; keep height <= apothem for support-free printing on vertical walls.
+  const hexPyramid = (radius: number, height?: number): Manifold => {
+    const h = height ?? radius * Math.cos(Math.PI / 6);
+    const pts: V3[] = [[h, 0, 0]];
+    for (let k = 0; k < 6; k++) {
+      const a = (Math.PI / 3) * k + Math.PI / 2;
+      pts.push([0, radius * Math.cos(a), radius * Math.sin(a)], [-EMBED, radius * Math.cos(a), radius * Math.sin(a)]);
+    }
+    return M.hull(pts);
+  };
+  const dome = (radius: number, height?: number): Manifold =>
+    M.sphere(radius, 32).scale([(height ?? radius * 0.7) / radius, 1, 1]).trimByPlane([1, 0, 0], -EMBED);
+  const stud = (d: number, height: number): Manifold =>
+    M.cylinder(height + EMBED, d / 2, d / 2 * 0.6, 24).rotate([0, 90, 0]).translate([-EMBED, 0, 0]);
+
+  // Tile a surface of revolution with relief elements on a (staggered) grid.
+  // radius(z) is the outer wall radius; elements are oriented radially outward.
+  const tile = (o: {
+    radius: (z: number) => number;
+    element: Manifold;
+    rows: number;
+    perRow: number;
+    z0: number;
+    z1: number;
+    stagger?: boolean;
+    twist?: number; // degrees added per row
+    floor?: number; // nothing below this z (default 0: the bed), so skirts never lift the body
+  }): Manifold => {
+    const items: Manifold[] = [];
+    const dz = o.rows > 1 ? (o.z1 - o.z0) / (o.rows - 1) : 0;
+    for (let i = 0; i < o.rows; i++) {
+      const z = o.z0 + i * dz;
+      const r = o.radius(z);
+      for (let j = 0; j < o.perRow; j++) {
+        const theta = (360 * (j + (o.stagger === false ? 0 : (i % 2) * 0.5))) / o.perRow + (o.twist ?? 0) * i;
+        items.push(o.element.rotate([0, 0, theta]).translate([r * Math.cos((theta * Math.PI) / 180), r * Math.sin((theta * Math.PI) / 180), z]));
+      }
+    }
+    return M.union(items).trimByPlane([0, 0, 1], o.floor ?? 0);
+  };
+
+  return { surface, gyroid, terrain, voxelize, lowpoly, fromMesh, cubeCorner, hexPyramid, dome, stud, tile };
 }

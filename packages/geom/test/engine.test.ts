@@ -90,3 +90,10 @@ test('issues are grouped by kind and the score counts kinds, not regions', () =>
   assert.equal(total, r.checks.issues.length);
   assert.ok(r.checks.score >= 0 && r.checks.score <= 100);
 });
+
+test('cube-corner relief planter prints without support errors', async () => {
+  const { CUBE_PLANTER } = await import('./fixtures.ts');
+  const r = engine.build({ source: CUBE_PLANTER, analyze: 'full' });
+  const bad = r.checks.issues.filter((i: any) => i.severity === 'error' || i.code === 'overhang').map((i: any) => i.message);
+  assert.deepEqual(bad, []);
+});

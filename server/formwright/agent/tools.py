@@ -378,6 +378,13 @@ async def _finish(ctx: JobContext, state: DesignState, summary: str) -> dict[str
             state.critic = verdict
             await ctx.emit("critic", {**verdict, "render": storage.url(state.last_render)})
             major = [i for i in verdict.get("issues", []) if i.get("severity") == "major"]
+            # copying a look needs a real match, not "close enough"
+            look_pack = state.pack in ("copy", "forms", "landmark", "stylize")
+            score = verdict.get("match_score")
+            if look_pack and isinstance(score, (int, float)) and score < 8 and not major:
+                major = [{"severity": "major", "text": f"Match with the reference is only {score}/10.", "fix_hint": "; ".join(
+                    i.get("text", "") for i in verdict.get("issues", []))[:500]}]
+                verdict["verdict"] = "revise"
             if verdict.get("verdict") == "revise" and major:
                 return {"accepted": False, "reason": "the reviewer found major problems", "issues": major}
     state.done = True
