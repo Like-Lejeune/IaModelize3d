@@ -3,6 +3,7 @@ import type { Manifold, Wasm } from '../kernel.ts';
 import { makeForms, makeNoise } from './forms.ts';
 import { makeMech } from './mech.ts';
 import { makeStd } from './std.ts';
+import { makeSketch } from './sketch.ts';
 import { makeThreads } from './threads.ts';
 
 export interface PrinterProfile {
@@ -65,7 +66,7 @@ export function makeLib(wasm: Wasm, ctx: LibContext) {
     CrossSection: wasm.CrossSection,
     M: wasm.Manifold,
     CS: wasm.CrossSection,
-    std: { ...std, ...threads, ...mech },
+    std: { ...std, ...threads, ...mech, sketch: makeSketch(wasm) },
     forms,
     printer: ctx.printer,
     inputs: ctx.inputs ?? {},

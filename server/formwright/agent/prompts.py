@@ -81,6 +81,12 @@ XY in the scene frame when you use photo outlines so overlays line up.
   Mechanisms: `gear({module, teeth, thickness, bore, helix})`, `gear2d(...)`, `hinge({length, d, knuckles, gap})` → [leafA, leafB],
       `snapHook({length, thickness, width, overhang})`, `dovetail2d({width, depth, angle, gap})`.
   Split: `splitWithPegs(solid, {at: z})` → [lower, upper] for parts larger than the bed.
+  Constraint sketch (use it for dimensioned profiles instead of computing coordinates yourself):
+      `const s = std.sketch(); const a = s.point(0,0,{fixed:true}), b = s.point(38,2) …; const ab = s.line(a,b) …;`
+      relations: `horizontal(l) vertical(l) length(l,d) distance(p,q,d) dx(p,q,d) dy(p,q,d) parallel perpendicular angle(l1,l2,deg)
+      equal(l1,l2) coincident(p,q) pointOnLine(p,l) midpoint(p,l) symmetric(p,q,axis) circle(center, r) radius(c,r) tangent(l,c) pointOnCircle(p,c)`;
+      `s.solve()` → {ok, unsatisfied}; then `s.polygon([a,b,c,…])` → CrossSection, `s.disc(circle)`, `s.at(p)` → [x,y].
+      Rough initial positions are fine; the solver finds the exact ones.
 - `lib.forms`: `surface({height, radius:(z, theta, t) => r, mode:'shell'|'solid'|'open', wall, bottom, segments, rings})`
       (vases, shades, planters; 'solid' for spiral vase mode), `gyroid(solid, {cell, wall})`, `terrain(heightmap, {sizeX, maxHeight, base})`,
       `voxelize(solid, size)`, `lowpoly(solid, tol)`.
@@ -119,6 +125,12 @@ PACKS: dict[str, str] = {
 - Load: ask or infer the load (bags, a router, a phone). Print orientation so layers follow the load; 3+ walls; fillets at roots.
 - For clamps on boards: gap = board thickness + fit('snug'); add a grip lip or a flexible tongue instead of relying on friction alone.
 - Prefer std holes and standards; reinforce screw areas with a modifier part (wall_loops 5-6, 100% infill around the hole).
+- Think like the person using it: a hook needs an upturned lip so loads cannot slide off; a clip needs a lead-in chamfer;
+  anything gripped by hand gets rounded edges.
+- If a photo shows where the original broke, diagnose the fracture before redesigning: clean flat break along layers →
+  layer adhesion, rotate the part so layers run along the load; break at a sharp inner corner → stress concentration,
+  add a fillet/rib; brittle shattered PLA → suggest PETG/ASA; deformed/creeped → heat or constant load, suggest PETG/ASA
+  and thicker sections. Say what you concluded and why.
 """,
     "copy": """
 # Pack: copy a part from photos

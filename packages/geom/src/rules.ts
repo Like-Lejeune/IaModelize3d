@@ -18,6 +18,7 @@ export const RULES: Record<string, Rule> = {
   long_bridge: { title: 'Bridge longer than the printer bridges cleanly', hints: ['Shorten the span or add a pillar/rib in the middle.', 'Use an arch or a 45° roof instead of a flat ceiling.'] },
   horizontal_hole: { title: 'Round horizontal hole', hints: ['Use std.holeH() which makes a teardrop pointing up.'] },
   too_thin: { title: 'Feature thinner than one extrusion line (slicer will drop it)', hints: ['Thicken to at least 2 line widths (~0.9 mm on a 0.4 nozzle).', 'Remove the feature if it is decorative.'] },
+  fine_detail: { title: 'Edge detail below one line width (will be rounded, e.g. thread crests)', hints: ['Usually fine. Thicken only if the sharp edge matters.'] },
   thin_wall: { title: 'Wall thinner than two lines', hints: ['Use multiples of the line width: 0.84, 1.26, 1.68 mm on a 0.4 nozzle.'] },
   small_text: { title: 'Text or relief too fine', hints: ['Stroke at least 0.5 mm and depth at least two layers.', 'Put text on a top face instead of a wall.'] },
   short_layer_time: { title: 'Very short layer time near the top', hints: ['Print several copies at once.', 'Profile: raise minimal layer time / slow down small layers.'] },

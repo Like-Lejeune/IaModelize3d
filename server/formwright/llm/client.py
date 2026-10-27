@@ -195,6 +195,8 @@ class MetaClient:
     ) -> dict[str, Any]:
         """One-shot structured call (critic, intake, classification).
         Reasoning tokens count against max_output_tokens; a truncated answer is retried with less reasoning."""
+        if self.open is not None and model == self.s.open_model:
+            return await self._open_json(meter, model=model, system=system, content=content, schema=schema, name=name, max_output_tokens=max_output_tokens)
         for attempt_effort in (effort, "minimal"):
             resp = await self.respond(
                 meter,
@@ -218,6 +220,29 @@ class MetaClient:
                         pass
             log.warning("structured call %s unparsable (status %s, %d chars), retrying", name, getattr(resp, "status", "?"), len(text))
         return {}
+
+    async def _open_json(self, meter: CostMeter, *, model: str, system: str, content: list[dict[str, Any]], schema: dict[str, Any],
+                         name: str, max_output_tokens: int) -> dict[str, Any]:
+        """Self-hosted open weights (Muse Glimmer / Spark Open behind vLLM, SGLang or llama.cpp):
+        Chat Completions with a JSON schema is the common denominator of those servers."""
+        parts: list[dict[str, Any]] = []
+        for c in content:
+            if c.get("type") == "input_text":
+                parts.append({"type": "text", "text": c["text"]})
+            elif c.get("type") == "input_image":
+                parts.append({"type": "image_url", "image_url": {"url": c["image_url"]}})
+        resp = await self._retry(model, lambda: self.open.chat.completions.with_raw_response.create(  # type: ignore[union-attr]
+            model=model, messages=[{"role": "system", "content": system}, {"role": "user", "content": parts}],
+            response_format={"type": "json_schema", "json_schema": {"name": name, "schema": schema}}, max_tokens=max_output_tokens,
+        ))
+        tin, tout, cached = _usage(resp)
+        meter.add(model, 0.0, tin, tout, cached)
+        text = resp.choices[0].message.content or "{}"
+        start, end = text.find("{"), text.rfind("}")
+        try:
+            return json.loads(text[start : end + 1]) if start >= 0 else {}
+        except json.JSONDecodeError:
+            return {}
 
     async def search(self, meter: CostMeter, query: str, *, model: str | None = None, country: str | None = None) -> dict[str, Any]:
         """Web search grounding: returns answer text + cited sources."""

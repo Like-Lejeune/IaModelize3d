@@ -188,7 +188,11 @@ export function analyze(wasm: Wasm, body: Manifold, printer: PrinterProfile, opt
         for (const piece of lost1.decompose()) {
           if (piece.area() < minArea / 2) continue;
           const b = piece.bounds();
-          acc.add('too_thin', z, step, { min: b.min as [number, number], max: b.max as [number, number] }, piece.area());
+          const bb = { min: b.min as [number, number], max: b.max as [number, number] };
+          // A sliver attached to printed material (thread crests, sharp tips) only gets rounded;
+          // a feature with nothing printable left disappears from the print.
+          const attached = !piece.offset(lw * 0.6, 'Round').intersect(single).isEmpty();
+          acc.add(attached ? 'fine_detail' : 'too_thin', z, step, bb, piece.area());
         }
         const double = cs.offset(-lw, 'Round').offset(lw, 'Round');
         const lost2 = cs.subtract(double.offset(0.02, 'Round')).subtract(lost1);
@@ -237,6 +241,7 @@ export function analyze(wasm: Wasm, body: Manifold, printer: PrinterProfile, opt
       const severityOf: Record<string, Severity> = {
         floating_island: 'error',
         too_thin: 'error',
+        fine_detail: 'info',
         thin_wall: 'warn',
         overhang: 'warn',
         long_bridge: 'warn',
@@ -244,7 +249,7 @@ export function analyze(wasm: Wasm, body: Manifold, printer: PrinterProfile, opt
         short_layer_time: 'info',
       };
       const ranked = acc.regions
-        .filter((r) => !(r.code === 'overhang' && r.area < minArea * 3))
+        .filter((r) => !(r.code === 'overhang' && r.area < minArea * 3) && !(r.code === 'fine_detail' && r.area < minArea * 20))
         .sort((a, b) => (severityOf[a.code] === 'error' ? 0 : 1) - (severityOf[b.code] === 'error' ? 0 : 1) || b.area - a.area)
         .slice(0, 12);
       for (const r of ranked) {

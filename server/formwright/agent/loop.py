@@ -178,6 +178,11 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
             elif t == "function_call":
                 calls.append(d)
         if not calls:
+            # The review gate lives in finish(); a model that just stops talking does not skip it.
+            if state.source and not state.done and state.finish_attempts == 0 and turn < max_turns - 1:
+                history.append({"type": "message", "role": "user", "content": [{"type": "input_text", "text":
+                                "Call finish with your summary; it runs the independent review and the final checks."}]})
+                continue
             break
         images: list[str] = []
         for call in calls:

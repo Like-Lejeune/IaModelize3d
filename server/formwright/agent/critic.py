@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from .. import storage
+from ..config import settings
 from ..db import get_db
 from ..llm.client import meta
 from .prompts import CRITIC
@@ -53,4 +54,5 @@ async def review(ctx: JobContext, state: Any) -> dict[str, Any]:
     if state.last_render:
         content.append({"type": "input_text", "text": "Renders of the model (6 views):"})
         content.append({"type": "input_image", "image_url": storage.data_url(state.last_render, None)})
-    return await meta().json(ctx.meter, model=ctx.models.fast, system=CRITIC, content=content, schema=SCHEMA, name="critic", effort="medium")
+    model = settings().model_critic or ctx.models.fast
+    return await meta().json(ctx.meter, model=model, system=CRITIC, content=content, schema=SCHEMA, name="critic", effort="medium")

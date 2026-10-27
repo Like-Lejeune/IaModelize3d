@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     open_base_url: str = ""
     open_api_key: str = ""
     open_model: str = ""
+    # route the independent critic to another model, e.g. the open-weights one
+    model_critic: str = ""
 
     # budgets (USD)
     job_budget_usd: float = 0.60

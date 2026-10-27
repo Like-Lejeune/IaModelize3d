@@ -74,6 +74,12 @@ CREATE TABLE IF NOT EXISTS spend (
 CREATE TABLE IF NOT EXISTS captures (
   token TEXT PRIMARY KEY, project_id TEXT NOT NULL, expires_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS logins (
+  token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS tg_chats (
+  chat_id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, project_id TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY, project_id TEXT NOT NULL, user_id TEXT NOT NULL, status TEXT NOT NULL,
   external_ref TEXT, checkout_url TEXT, quote TEXT NOT NULL DEFAULT '{}', created_at REAL NOT NULL

@@ -1,6 +1,7 @@
 """HTTP API. Run: uvicorn formwright.app:app --port 8000 (from server/)."""
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -9,7 +10,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import events, quotas
@@ -44,7 +45,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await get_db()
+    bot = None
+    if settings().telegram_token:
+        from .integrations.telegram import run_bot
+
+        bot = asyncio.create_task(run_bot())
     yield
+    if bot:
+        bot.cancel()
     await geom().close()
     await close_db()
 
@@ -102,6 +110,19 @@ def selection_out(s: dict[str, Any]) -> dict[str, Any]:
 async def latest_program(project_id: str) -> dict[str, Any] | None:
     db = await get_db()
     return await db.one("SELECT * FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", project_id)
+
+
+@app.get("/api/login/{token}")
+async def magic_login(token: str, next: str = "/"):
+    """One-time link (e.g. from the Telegram bot) that signs this browser in as that user."""
+    db = await get_db()
+    row = await db.one("SELECT * FROM logins WHERE token = ? AND expires_at > ?", token, now())
+    if not row:
+        raise HTTPException(404, "link expired")
+    target = next if next.startswith("/") and not next.startswith("//") else "/"
+    resp = RedirectResponse(target, status_code=303)
+    resp.set_cookie("fw_uid", row["user_id"], httponly=True, samesite="lax", max_age=3600 * 24 * 365)
+    return resp
 
 
 @app.get("/api/me")

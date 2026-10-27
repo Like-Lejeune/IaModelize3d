@@ -52,3 +52,31 @@ test('extrude keeps its cross-section (scalar scaleTop binding bug)', async () =
   assert.ok(Math.abs(box.volume() - 4000) < 1, String(box.volume()));
   assert.ok(Math.abs(lib.std.box([10, 10, 40]).volume() - 4000) < 1);
 });
+
+test('constraint sketch solves a dimensioned bracket with a tangent', async () => {
+  const { makeLib, DEFAULT_PRINTER } = await import('../src/index.ts');
+  const lib = makeLib(engine.wasm, { printer: DEFAULT_PRINTER });
+  const s = lib.std.sketch();
+  // rough guesses on purpose; relations fix the exact shape
+  const a = s.point(0, 0, { fixed: true }), b = s.point(37, 3), c = s.point(41, 22), d = s.point(2, 18);
+  const ab = s.line(a, b), bc = s.line(b, c), cd = s.line(c, d), da = s.line(d, a);
+  s.horizontal(ab); s.vertical(bc); s.horizontal(cd); s.vertical(da);
+  s.length(ab, 40); s.length(bc, 20);
+  const hole = s.circle(s.point(30, 8), 3);
+  s.radius(hole, 4); s.tangent(bc, hole); s.dy(a, hole.c, 10);
+  const r = s.solve();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const [cx, cy] = s.at(c);
+  assert.ok(Math.abs(cx - 40) < 1e-6 && Math.abs(cy - 20) < 1e-6, `${cx},${cy}`);
+  const [hx, hy] = s.at(hole.c);
+  assert.ok(Math.abs(hx - 36) < 1e-5 && Math.abs(hy - 10) < 1e-5, `${hx},${hy}`);
+  const plate = s.polygon([a, b, c, d]).subtract(s.disc(hole));
+  assert.ok(Math.abs(plate.area() - (800 - Math.PI * 16)) < 0.6);
+});
+
+test('thread crests are fine detail, not errors', () => {
+  const src = `return { meta: {}, params: {}, build: (p, lib) => lib.std.thread({ d: 6, pitch: 1, length: 12 }) };`;
+  const r = engine.build({ source: src, analyze: 'full' });
+  const errors = r.checks.issues.filter((i: any) => i.severity === 'error').map((i: any) => i.message);
+  assert.deepEqual(errors, []);
+});
