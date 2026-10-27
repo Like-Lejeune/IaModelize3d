@@ -23,6 +23,7 @@ def blur_regions(img: np.ndarray, masks: list[np.ndarray]) -> np.ndarray:
 
 
 async def blur_people(meter: CostMeter, image: np.ndarray) -> tuple[np.ndarray, int]:
-    """SAM 3.1 'face' concept → blur every match. Returns (image, faces blurred)."""
-    masks = [m.mask for m in await segment(meter, image, text="face") if m.score >= 0.4]
+    """SAM 3.1 'human face' concept → blur every match. Returns (image, faces blurred).
+    A bare 'face' also matches pets and toys, which hides exactly what the user wants modelled."""
+    masks = [m.mask for m in await segment(meter, image, text="human face") if m.score >= 0.5]
     return blur_regions(image, masks), len(masks)

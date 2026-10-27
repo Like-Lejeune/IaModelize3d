@@ -12,7 +12,10 @@
   }: { store: ProjectStore; onAction: (a: string) => void; onUseConcept?: (url: string) => void } = $props();
 
   let scroller: HTMLDivElement;
+  let feed: HTMLDivElement;
   let zoom = $state<string | null>(null);
+  let copied = $state<string | null>(null);
+  // follow new output only while the user is at the bottom
   let stuck = true;
 
   type Entry = { type: 'item'; key: string; ts: number; item: TimelineItem } | { type: 'job'; key: string; ts: number; job: JobInfo; items: TimelineItem[] };
@@ -39,57 +42,98 @@
     return out.sort((a, b) => a.ts - b.ts);
   });
 
-  const assetUrl = (id: string) => {
-    const a = store.assets.find((x) => x.id === id);
-    return a ? { url: a.thumb_url ?? a.url, kind: a.kind } : null;
-  };
+  const lastJob = $derived([...entries].reverse().find((e) => e.type === 'job')?.key);
+  const userCount = $derived(store.timeline.filter((i) => i.kind === 'user').length);
 
+  const asset = (id: string) => store.assets.find((x) => x.id === id);
+  const isImage = (kind: string) => ['photo', 'sketch', 'caliper', 'concept', 'print'].includes(kind);
+
+  function atBottom() {
+    return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 24;
+  }
+  function toBottom() {
+    scroller.scrollTop = scroller.scrollHeight;
+  }
+
+  // Any growth of the feed (new steps, expanded groups, late images) keeps a stuck view pinned.
   $effect(() => {
-    void store.timeline.length;
-    void store.status;
-    queueMicrotask(() => {
-      if (scroller && stuck) scroller.scrollTop = scroller.scrollHeight;
-    });
+    const ro = new ResizeObserver(() => stuck && toBottom());
+    ro.observe(feed);
+    ro.observe(scroller);
+    return () => ro.disconnect();
   });
 
-  function onScroll() {
-    stuck = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120;
+  // Sending a message always brings the view back down.
+  $effect(() => {
+    void userCount;
+    stuck = true;
+    queueMicrotask(toBottom);
+  });
+
+  async function copy(key: string, text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = key;
+      setTimeout(() => copied === key && (copied = null), 1500);
+    } catch {
+      /* clipboard blocked */
+    }
   }
 </script>
 
-<div class="log" bind:this={scroller} onscroll={onScroll}>
-  {#if !entries.length}
-    <div class="empty">
-      <span class="badge"><Icon name="message" size={22} /></span>
-      <h3>{t('empty_chat_t')}</h3>
-      <p class="muted small">{t('empty_chat_d')}</p>
-    </div>
-  {/if}
-  {#each entries as e (e.key)}
-    {#if e.type === 'job'}
-      <JobCard {store} job={e.job} items={e.items} onZoom={(u) => (zoom = u)} {onAction} {onUseConcept} />
-    {:else if e.item.kind === 'user'}
-      <div class="user">
-        {#if e.item.assets?.length}
-          <div class="atts">
-            {#each e.item.assets as id (id)}
-              {@const a = assetUrl(id)}
-              {#if a && ['photo', 'sketch', 'caliper', 'concept', 'print'].includes(a.kind)}
-                <button class="att" onclick={() => (zoom = a.url)}><img src={a.url} alt={a.kind} loading="lazy" /></button>
-              {:else if a}
-                <span class="chip">{t(a.kind === 'audio' ? 'voice' : a.kind)}</span>
-              {/if}
-            {/each}
-          </div>
-        {/if}
-        {#if e.item.text}<div class="bubble">{e.item.text}</div>{/if}
+<div class="log" bind:this={scroller} onscroll={() => (stuck = atBottom())}>
+  <!-- opening a step group or a step is reading, not new output: let it grow downward instead of pinning the bottom -->
+  <div class="feed" bind:this={feed} onclickcapture={(e) => (e.target as Element).closest('[aria-expanded]') && (stuck = false)}>
+    {#if !entries.length}
+      <div class="empty">
+        <span class="badge"><Icon name="message" size={22} /></span>
+        <h3>{t('empty_chat_t')}</h3>
+        <p class="muted small">{t('empty_chat_d')}</p>
       </div>
-    {:else if e.item.kind === 'agent'}
-      <div class="agent md">{@html markdown(e.item.text)}</div>
-    {:else if e.item.kind === 'error'}
-      <div class="error small" role="alert"><Icon name="alert" size={15} /> {e.item.text}</div>
     {/if}
-  {/each}
+    {#each entries as e (e.key)}
+      {#if e.type === 'job'}
+        <JobCard {store} job={e.job} items={e.items} last={e.key === lastJob} onZoom={(u) => (zoom = u)} {onAction} {onUseConcept} />
+      {:else if e.item.kind === 'user'}
+        {@const u = e.item}
+        {@const files = (u.assets ?? []).map(asset).filter((a) => !!a)}
+        <div class="user">
+          {#if files.length}
+            <div class="atts">
+              {#each files as a (a.id)}
+                {#if isImage(a.kind)}
+                  <button class="att" onclick={() => (zoom = a.url)}><img src={a.thumb_url ?? a.url} alt={a.kind} loading="lazy" /></button>
+                {:else}
+                  <span class="chip">{t(a.kind === 'audio' ? 'voice' : a.kind)}</span>
+                {/if}
+              {/each}
+            </div>
+            {#if files.some((a) => a.meta?.faces_blurred)}<span class="xs muted"><Icon name="lock" size={11} /> {t('faces_blurred')}</span>{/if}
+          {:else if u.previews?.length}
+            <div class="atts">
+              {#each u.previews as src (src)}<span class="att loading"><img {src} alt="" /></span>{/each}
+            </div>
+          {/if}
+          {#if u.text}<div class="bubble">{u.text}</div>{/if}
+          {#if u.text}
+            <div class="actions">
+              <button class="act" onclick={() => copy(u.key, u.text)} title={t('copy')} aria-label={t('copy')}><Icon name={copied === u.key ? 'check' : 'copy'} size={14} /></button>
+              {#if !store.replaying}
+                <button class="act" onclick={() => (store.draft = u.text)} title={t('edit')} aria-label={t('edit')}><Icon name="pencil" size={13} /></button>
+              {/if}
+            </div>
+          {/if}
+        </div>
+        {#if store.starting && e === entries[entries.length - 1]}
+          <div class="live shimmer" aria-live="polite">{store.starting}</div>
+        {/if}
+      {:else if e.item.kind === 'agent'}
+        <div class="agent md">{@html markdown(e.item.text)}</div>
+      {:else if e.item.kind === 'error'}
+        <div class="error small" role="alert"><Icon name="alert" size={15} /> {e.item.text}</div>
+      {/if}
+    {/each}
+  </div>
 </div>
 
 {#if zoom}
@@ -100,12 +144,15 @@
   .log {
     flex: 1;
     overflow-y: auto;
-    padding: 14px;
+    min-height: 0;
+    overflow-anchor: none;
+  }
+  .feed {
+    padding: 16px 16px 12px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    min-height: 0;
-    scroll-behavior: smooth;
+    gap: 14px;
+    min-height: 100%;
   }
   .empty {
     margin: auto;
@@ -141,12 +188,39 @@
     gap: 6px;
   }
   .bubble {
-    background: var(--accent-soft);
+    background: var(--panel-3);
     color: var(--text);
     padding: 8px 12px;
-    border-radius: 14px 14px 4px 14px;
+    border-radius: 14px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .actions {
+    display: flex;
+    gap: 2px;
+    margin-top: -4px;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  .user:hover .actions,
+  .actions:focus-within {
+    opacity: 1;
+  }
+  .act {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: none;
+    background: none;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .act:hover {
+    background: var(--panel-3);
+    color: var(--text);
   }
   .atts {
     display: flex;
@@ -163,17 +237,23 @@
     height: 72px;
     cursor: zoom-in;
   }
+  .att.loading {
+    cursor: default;
+    opacity: 0.6;
+  }
   .att img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
   }
+  .live {
+    width: fit-content;
+    font-size: var(--fs-sm);
+  }
   .agent {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 10px 12px;
+    font-size: var(--fs-md);
+    line-height: 1.55;
   }
   .error {
     color: var(--err);

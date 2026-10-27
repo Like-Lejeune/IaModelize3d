@@ -14,6 +14,7 @@
   import MorePanel from '$lib/components/MorePanel.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import { ProjectStore } from '$lib/project.svelte';
+  import { takeFirst } from '$lib/pending';
   import { api, download, errorText } from '$lib/api';
   import { t, projectTitle, unitLabel } from '$lib/i18n.svelte';
   import type { AssetOut, Calibration, Issue } from '$lib/types';
@@ -32,7 +33,8 @@
     const id = page.params.id!;
     const s = new ProjectStore(id);
     store = s;
-    s.load();
+    const first = takeFirst(id);
+    s.load().then(() => first && s.sendFiles(first.text, first.files));
     return () => s.dispose();
   });
 

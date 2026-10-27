@@ -3,7 +3,7 @@
 import { api, errorText } from './api';
 import { GeomClient } from './geom/client';
 import { t } from './i18n.svelte';
-import { prefs } from './session.svelte';
+import { chosenModel, prefs, refreshMe } from './session.svelte';
 import { streamEvents, type EventStream } from './sse';
 import { KIND_STAGE, kindOf } from './steps';
 import type { AssetOut, BuildResult, CheckReport, EventRow, ProjectDetail, SelectionOut } from './types';
@@ -13,9 +13,9 @@ type Base = { key: string; ts: number; job?: string | null };
 const optionLabel = (o: any): string => (typeof o === 'string' ? o : String(o?.label ?? o?.value ?? ''));
 
 export type TimelineItem =
-  | (Base & { kind: 'user'; text: string; assets?: string[] })
+  | (Base & { kind: 'user'; text: string; assets?: string[]; previews?: string[] })
   | (Base & { kind: 'agent'; text: string })
-  | (Base & { kind: 'status'; text: string })
+  | (Base & { kind: 'status'; text: string; say?: boolean })
   | (Base & { kind: 'thinking'; text: string })
   | (Base & { kind: 'tool'; id: string; name: string; tkind: string; title?: string; args: any; result?: { ok: boolean; summary?: string; image?: string; title?: string } })
   | (Base & { kind: 'critic'; verdict: string; score?: number | null; issues: { severity: string; text: string; fix_hint?: string }[]; render?: string })
@@ -91,6 +91,10 @@ export class ProjectStore {
   lastRender = $state<string | null>(null);
   /** A replayed agent run is playing back: nothing can be sent or answered. */
   replaying = $state(false);
+  /** Files of the first message are uploading; the job starts after them. */
+  starting = $state<string | null>(null);
+  /** Text for the composer to pick up (editing an earlier message). */
+  draft = $state<string | null>(null);
 
   geom = new GeomClient();
   private stream: EventStream | null = null;
@@ -116,7 +120,7 @@ export class ProjectStore {
     return this.fullChecks ?? this.build?.checks ?? null;
   }
   get running(): boolean {
-    return !!this.jobId;
+    return !!this.jobId || !!this.starting;
   }
   get currentJob(): JobInfo | null {
     return this.jobId ? this.jobs[this.jobId] ?? null : null;
@@ -253,6 +257,7 @@ export class ProjectStore {
           if (d.cost) j.cost = d.cost;
           if (j.status === 'done') this.setStage(j, 'done');
         }
+        refreshMe();
         if (!jid || jid === this.jobId) {
           this.jobId = null;
           this.jobKind = null;
@@ -263,14 +268,14 @@ export class ProjectStore {
         break;
       }
       case 'user.message':
-        if (!this.timeline.some((x) => x.kind === 'user' && x.text === d.text && Math.abs(x.ts - ts) < 60)) this.push({ kind: 'user', key, ts, job: null, text: d.text, assets: d.asset_ids });
+        if (!this.timeline.some((x) => x.kind === 'user' && x.text === d.text && Math.abs(x.ts - ts) < 600)) this.push({ kind: 'user', key, ts, job: null, text: d.text, assets: d.asset_ids });
         break;
       case 'agent.message':
         this.push({ kind: 'agent', key, ts, job: jid, text: d.text ?? '' });
         break;
       case 'agent.status':
         this.status = d.text ?? null;
-        this.push({ kind: 'status', key, ts, job: jid, text: d.text ?? '' });
+        this.push({ kind: 'status', key, ts, job: jid, text: d.text ?? '', say: d.say });
         break;
       case 'agent.thinking':
         this.push({ kind: 'thinking', key, ts, job: jid, text: d.text ?? '' });
@@ -447,14 +452,39 @@ export class ProjectStore {
     }
   }
 
-  async send(text: string, assetIds: string[] = [], effort: 'auto' | 'hard' = 'auto') {
+  async send(text: string, assetIds: string[] = []) {
     if (this.replaying) return;
     const ts = Date.now() / 1000;
     this.push({ kind: 'user', key: `local${ts}`, ts, job: null, text, assets: assetIds });
+    await this.startJob(text, assetIds, ts);
+  }
+
+  /** First message from the home page: shown at once with local previews, the job starts once the files are in. */
+  async sendFiles(text: string, files: File[]) {
+    const ts = Date.now() / 1000;
+    const key = `local${ts}`;
+    const previews = files.filter((f) => f.type.startsWith('image/')).map((f) => URL.createObjectURL(f));
+    this.push({ kind: 'user', key, ts, job: null, text, assets: [], previews });
+    const ids: string[] = [];
     try {
-      // "Think harder" in the studio overrides the picked model with the strongest one
-      const model = effort === 'hard' ? 'wonder' : prefs.model === 'wonder' ? 'spark' : prefs.model;
-      const r = await api.send(this.id, text, assetIds, { model, reasoning: prefs.reasoning });
+      for (const [i, f] of files.entries()) {
+        this.starting = files.length > 1 ? t('uploading_n', { i: i + 1, n: files.length }) : t('uploading_one');
+        const kind = f.type.startsWith('video/') ? 'video' : f.type.startsWith('audio/') ? 'audio' : 'photo';
+        const a = await this.upload(f, kind);
+        if (a) ids.push(a.id);
+      }
+      const item = this.timeline.find((x) => x.key === key);
+      if (item?.kind === 'user') item.assets = ids;
+      this.starting = t('agent_starting');
+      await this.startJob(text, ids, ts);
+    } finally {
+      this.starting = null;
+    }
+  }
+
+  private async startJob(text: string, assetIds: string[], ts: number) {
+    try {
+      const r = await api.send(this.id, text, assetIds, { model: chosenModel(), reasoning: prefs.reasoning });
       this.jobId = r.job_id;
       this.jobKind = 'design';
       this.job(r.job_id, ts + 0.001, 'design');

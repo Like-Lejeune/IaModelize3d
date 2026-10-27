@@ -292,7 +292,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
                 text = " ".join(c.get("text", "") for c in d.get("content", []) if isinstance(c, dict))
                 if text.strip():
                     final_text = text.strip()
-                    await ctx.emit("agent.status", {"text": final_text[:400]})
+                    await ctx.emit("agent.status", {"text": final_text[:4000], "say": True})
             elif t == "function_call":
                 calls.append(d)
         if not calls:

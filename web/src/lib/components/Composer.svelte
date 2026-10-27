@@ -1,36 +1,63 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import Picker from './Picker.svelte';
   import CaptureTips from './CaptureTips.svelte';
   import PhotoSelect from './PhotoSelect.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { prefs } from '$lib/session.svelte';
+  import { t, fmtDuration } from '$lib/i18n.svelte';
+  import { prefs, setPref, models, modelName, REASONING } from '$lib/session.svelte';
   import type { ProjectStore } from '$lib/project.svelte';
   import type { AssetOut } from '$lib/types';
 
   let { store }: { store: ProjectStore } = $props();
   let text = $state('');
-  let hard = $state(prefs.model === 'wonder');
   let uploading = $state(0);
   let menu = $state(false);
   let tips = $state(false);
+  let dragging = $state(false);
   let selecting = $state<AssetOut | null>(null);
   let rec: MediaRecorder | null = null;
   let recording = $state(false);
   let recStart = $state(0);
   let now = $state(Date.now());
   let area: HTMLTextAreaElement;
+  let menuWrap: HTMLDivElement;
 
-  const waiting = $derived(store.currentJob?.status === 'waiting');
   const hasModel = $derived(!!store.source);
-  const suggestions = $derived(
-    hasModel
-      ? [t('suggest_stronger'), t('suggest_lighter'), t('suggest_round'), t('suggest_explain')].map((s) => ({ label: s, text: s, send: true }))
-      : [
-          { label: t('suggest_size'), text: t('suggest_size_t'), send: false },
-          { label: t('suggest_mount'), text: t('suggest_mount_t'), send: false },
-          { label: t('suggest_load'), text: t('suggest_load_t'), send: false },
-        ],
+  const ready = $derived((!!text.trim() || !!store.tray.length) && !uploading && !store.replaying);
+  const modelOptions = $derived(
+    models().map((m) => ({
+      value: m.key,
+      title: modelName(m.id),
+      short: modelName(m.id).replace(/^Muse /, ''),
+      hint: t(m.available ? `model_${m.key}_d` : 'model_locked'),
+      disabled: !m.available,
+    })),
   );
+  const reasoningOptions = $derived(REASONING.map((r) => ({ value: r, title: t(`reasoning_${r}`) })));
+
+  // status line: the current run, or the last one once it is over
+  const job = $derived(store.currentJob ?? Object.values(store.jobs).sort((a, b) => b.started - a.started)[0] ?? null);
+  const elapsed = $derived(job ? (job.finished ?? now / 1000) - job.started : 0);
+  const tokens = $derived(job?.cost ? (job.cost.tokens_in ?? 0) + (job.cost.tokens_out ?? 0) : 0);
+
+  $effect(() => {
+    if (!store.running && !recording) return;
+    const id = setInterval(() => (now = Date.now()), 1000);
+    return () => clearInterval(id);
+  });
+
+  // "Edit" on a message or a fill-in suggestion hands its text over
+  $effect(() => {
+    const d = store.draft;
+    if (d == null) return;
+    store.draft = null;
+    text = d;
+    queueMicrotask(() => {
+      fit();
+      area?.focus();
+      area?.setSelectionRange(text.length, text.length);
+    });
+  });
 
   const SOURCES = [
     { kind: 'photo', icon: 'image', accept: 'image/*', capture: undefined },
@@ -40,7 +67,14 @@
     { kind: 'video', icon: 'video', accept: 'video/mp4,video/quicktime,video/*', capture: 'environment' },
   ];
 
-  async function addFiles(kind: string, list: FileList | null) {
+  function fit() {
+    if (!area) return;
+    area.style.height = 'auto';
+    area.style.height = `${Math.min(area.scrollHeight, 200)}px`;
+    area.style.overflowY = area.scrollHeight > 200 ? 'auto' : 'hidden';
+  }
+
+  async function addFiles(kind: string, list: FileList | File[] | null | undefined) {
     menu = false;
     if (!list) return;
     for (const f of Array.from(list)) {
@@ -76,117 +110,133 @@
       rec.start();
       recording = true;
       recStart = Date.now();
-      const tick = setInterval(() => {
-        now = Date.now();
-        if (!recording) clearInterval(tick);
-      }, 250);
+      now = recStart;
     } catch (e: any) {
       store.addError(e?.message ?? String(e));
     }
   }
 
   async function send() {
+    if (!ready || store.running) return;
     const v = text.trim();
-    if ((!v && !store.tray.length) || uploading) return;
     const ids = store.tray.map((a) => a.id);
     text = '';
     store.tray = [];
-    await store.send(v || '(see attached)', ids, hard ? 'hard' : 'auto');
+    queueMicrotask(fit);
+    await store.send(v || '(see attached)', ids);
   }
 
-  function suggest(s: { text: string; send: boolean }) {
-    if (s.send) {
-      text = s.text;
-      send();
-      return;
-    }
-    text = (text.trim() ? text.trim() + '. ' : '') + s.text;
-    area?.focus();
+  function fmtTokens(n: number) {
+    return n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}k` : String(n);
   }
 
   const isImage = (a: AssetOut) => ['photo', 'sketch', 'caliper', 'print', 'concept'].includes(a.kind);
   const selCount = (a: AssetOut) => store.selections.filter((s) => s.asset_id === a.id).length;
 </script>
 
+<svelte:window onclick={(e) => menu && !menuWrap?.contains(e.target as Node) && (menu = false)} />
+
 <div class="composer">
   {#if store.replaying}
     <div class="replay small"><Icon name="play" size={14} /> {t('replay_banner')}</div>
   {/if}
-  {#if store.tray.length || uploading || recording}
-    <div class="tray" aria-label={t('attached')}>
-      {#each store.tray as a (a.id)}
-        <div class="att">
-          {#if isImage(a)}
-            <button class="thumb" onclick={() => (selecting = a)} title={t('select_object')}>
-              <img src={a.thumb_url ?? a.url} alt={a.kind} />
-              {#if a.meta?.calibration}<span class="cal" title={t('calibrated')}><Icon name="ruler" size={11} stroke={2.2} /></span>{/if}
-              {#if selCount(a)}<span class="sel">{selCount(a)}</span>{/if}
-            </button>
-          {:else}
-            <span class="file"><Icon name={a.kind === 'audio' ? 'mic' : 'video'} size={16} /></span>
-          {/if}
-          <button class="x" onclick={() => (store.tray = store.tray.filter((x) => x.id !== a.id))} aria-label={t('remove')}><Icon name="x" size={11} stroke={2.4} /></button>
-        </div>
-      {/each}
-      {#if uploading}<div class="att busy"><span class="spin"></span></div>{/if}
-      {#if recording}
-        <button class="btn small rec" onclick={toggleRecord}><Icon name="stop" size={12} /> {t('recording', { s: Math.round((now - recStart) / 1000) })}</button>
-      {/if}
-      {#if store.tray.some((a) => isImage(a) && !selCount(a))}<span class="xs muted hint">{t('select_object_hint')}</span>{/if}
-    </div>
-  {/if}
-
   {#if tips}
     <div class="tipbox card"><CaptureTips compact /><button class="btn small ghost close" onclick={() => (tips = false)} aria-label={t('close')}><Icon name="x" size={14} /></button></div>
   {/if}
-
-  {#if waiting}<div class="waitnote xs"><Icon name="help" size={13} /> {t('answer')} ↑</div>{/if}
-
-  <textarea
-    bind:this={area}
-    bind:value={text}
-    rows="2"
-    placeholder={t(hasModel ? 'message_placeholder' : 'message_placeholder_new')}
-    aria-label={t(hasModel ? 'message_placeholder' : 'message_placeholder_new')}
-    disabled={store.replaying}
-    onkeydown={(e) => {
-      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-        e.preventDefault();
-        send();
-      }
-    }}
-  ></textarea>
-
-  {#if !store.running && !store.replaying && !text.trim()}
-    <div class="sugg" role="group">
-      {#each suggestions as s (s.label)}<button class="chip sbtn" onclick={() => suggest(s)}>{s.label}</button>{/each}
+  {#if job}
+    <div class="meta">
+      <span>{fmtDuration(elapsed)}</span>
+      {#if tokens}<span>{fmtTokens(tokens)} {t('tokens')}</span>{/if}
     </div>
   {/if}
 
-  <div class="bar">
-    <div class="addwrap">
-      <button class="btn icon small" onclick={() => (menu = !menu)} aria-expanded={menu} aria-label={t('add')} title={t('add')}><Icon name="plus" size={17} /></button>
-      {#if menu}
-        <div class="menu card" role="group" aria-label={t('add')}>
-          {#each SOURCES as s (s.kind)}
-            <label class="mi">
-              <Icon name={s.icon} size={16} /> {t(s.kind)}
-              <input class="sr-only" type="file" accept={s.accept} capture={s.capture as any} multiple={s.kind !== 'video'} onchange={(e) => addFiles(s.kind, (e.currentTarget as HTMLInputElement).files)} />
-            </label>
-          {/each}
-          <button class="mi" onclick={toggleRecord}><Icon name="mic" size={16} /> {t('record')}</button>
-          <button class="mi tipsbtn" onclick={() => ((tips = true), (menu = false))}><Icon name="help" size={16} /> {t('tips')}</button>
-        </div>
+  <div
+    class="box"
+    class:dragging
+    role="group"
+    aria-label={t(hasModel ? 'message_placeholder' : 'message_placeholder_new')}
+    ondragover={(e) => {
+      e.preventDefault();
+      dragging = true;
+    }}
+    ondragleave={() => (dragging = false)}
+    ondrop={(e) => {
+      e.preventDefault();
+      dragging = false;
+      addFiles('photo', e.dataTransfer?.files);
+    }}
+  >
+    {#if store.tray.length || uploading || recording}
+      <div class="tray" aria-label={t('attached')}>
+        {#each store.tray as a (a.id)}
+          <div class="att">
+            {#if isImage(a)}
+              <button class="thumb" onclick={() => (selecting = a)} title={t('select_object')}>
+                <img src={a.thumb_url ?? a.url} alt={a.kind} />
+                {#if a.meta?.calibration}<span class="cal" title={t('calibrated')}><Icon name="ruler" size={11} stroke={2.2} /></span>{/if}
+                {#if selCount(a)}<span class="sel">{selCount(a)}</span>{/if}
+              </button>
+            {:else}
+              <span class="file"><Icon name={a.kind === 'audio' ? 'mic' : 'video'} size={16} /></span>
+            {/if}
+            <button class="x" onclick={() => (store.tray = store.tray.filter((x) => x.id !== a.id))} aria-label={t('remove')}><Icon name="x" size={11} stroke={2.4} /></button>
+          </div>
+        {/each}
+        {#if uploading}<div class="att busy"><span class="spin"></span></div>{/if}
+        {#if recording}
+          <button class="btn small rec" onclick={toggleRecord}><Icon name="stop" size={12} /> {t('recording', { s: Math.round((now - recStart) / 1000) })}</button>
+        {/if}
+      </div>
+    {/if}
+
+    <textarea
+      bind:this={area}
+      bind:value={text}
+      rows="1"
+      placeholder={t(hasModel ? 'message_placeholder' : 'message_placeholder_new')}
+      aria-label={t(hasModel ? 'message_placeholder' : 'message_placeholder_new')}
+      disabled={store.replaying}
+      oninput={fit}
+      onpaste={(e) => {
+        const imgs = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'));
+        if (imgs.length) addFiles('photo', imgs);
+      }}
+      onkeydown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+          e.preventDefault();
+          send();
+        }
+      }}
+    ></textarea>
+
+    <div class="row">
+      <div class="addwrap" bind:this={menuWrap}>
+        <button class="round" onclick={() => (menu = !menu)} aria-expanded={menu} aria-label={t('add')} title={t('add')}><Icon name="plus" size={19} stroke={2} /></button>
+        {#if menu}
+          <div class="menu card" role="group" aria-label={t('add')}>
+            {#each SOURCES as s (s.kind)}
+              <label class="mi">
+                <Icon name={s.icon} size={16} /> {t(s.kind)}
+                <input class="sr-only" type="file" accept={s.accept} capture={s.capture as any} multiple={s.kind !== 'video'} onchange={(e) => addFiles(s.kind, (e.currentTarget as HTMLInputElement).files)} />
+              </label>
+            {/each}
+            <button class="mi tipsbtn" onclick={() => ((tips = true), (menu = false))}><Icon name="help" size={16} /> {t('tips')}</button>
+          </div>
+        {/if}
+      </div>
+      <button class="round" class:on={recording} onclick={toggleRecord} aria-label={t('record')} title={t('record')}><Icon name="mic" size={17} /></button>
+      <span class="spacer"></span>
+      {#if store.running && !store.replaying}
+        <button class="round send stop" onclick={() => store.cancel()} aria-label={t('stop')} title={t('stop')}><Icon name="stop" size={13} stroke={2.6} /></button>
+      {:else}
+        <button class="round send" onclick={send} disabled={!ready} aria-label={t('send')} title={t('send')}><Icon name="arrow-up" size={18} stroke={2.2} /></button>
       {/if}
     </div>
-    <label class="hard xs" title={t('hard_mode_hint')}><input type="checkbox" bind:checked={hard} /> {t('hard_mode')}</label>
-    <span class="spacer"></span>
-    {#if store.running && !store.replaying}
-      <button class="btn small" onclick={() => store.cancel()}><Icon name="stop" size={12} /> {t('stop')}</button>
-    {/if}
-    <button class="btn primary small send" onclick={send} disabled={(!text.trim() && !store.tray.length) || !!uploading || store.replaying} aria-label={t('send')}>
-      <Icon name="send" size={14} /> <span class="lbl">{t('send')}</span>
-    </button>
+  </div>
+
+  <div class="meta pickers">
+    <Picker label={t('model')} value={prefs.model} options={modelOptions} up onpick={(v) => setPref('model', v)} />
+    <Picker label={t('reasoning')} value={prefs.reasoning} options={reasoningOptions} quiet up onpick={(v) => setPref('reasoning', v)} />
   </div>
 </div>
 
@@ -196,42 +246,110 @@
 
 <style>
   .composer {
-    border-top: 1px solid var(--line);
-    padding: 10px 12px 12px;
+    padding: 8px 12px 10px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    background: var(--panel);
+    gap: 6px;
     position: relative;
   }
-  textarea {
-    width: 100%;
-    min-height: 46px;
-    max-height: 180px;
-    border-radius: 12px;
+  .box {
     background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    transition: border-color 0.12s;
+  }
+  .box:focus-within {
+    border-color: var(--line-strong);
+  }
+  .box.dragging {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  textarea {
+    display: block;
+    width: 100%;
+    border: none;
+    background: transparent;
+    resize: none;
+    font-size: var(--fs-md);
+    line-height: 22px;
+    padding: 10px 12px 2px;
+    /* two lines from the start: the placeholder fits and the first typed line does not shrink the box */
+    min-height: 56px;
+    max-height: 200px;
+    overflow-y: hidden;
+  }
+  textarea:focus-visible {
+    outline: none;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 6px 6px;
+    min-width: 0;
+  }
+  .round {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    transition:
+      background 0.12s,
+      color 0.12s;
+  }
+  .round:hover:not(:disabled) {
+    background: var(--panel-3);
+    color: var(--text);
+  }
+  .round.on {
+    color: var(--err);
+  }
+  .send {
+    color: var(--text);
+    margin-left: 2px;
+  }
+  .send:disabled {
+    cursor: default;
+    opacity: 0.4;
+  }
+  .send.stop {
+    background: var(--text);
+    color: var(--panel);
+  }
+  .send.stop:hover {
+    background: var(--text-2);
+    color: var(--panel);
   }
   .tray {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
     align-items: center;
+    padding: 10px 10px 0;
   }
   .att {
     position: relative;
-    width: 58px;
-    height: 58px;
+    width: 52px;
+    height: 52px;
   }
   .thumb,
   .file,
   .att.busy {
-    width: 58px;
-    height: 58px;
+    width: 52px;
+    height: 52px;
     border-radius: 10px;
     border: 1px solid var(--line);
     overflow: hidden;
     padding: 0;
-    background: var(--panel-2);
+    background: var(--panel);
     display: grid;
     place-items: center;
     position: relative;
@@ -275,9 +393,6 @@
     place-items: center;
     padding: 0;
   }
-  .hint {
-    flex-basis: 100%;
-  }
   .rec {
     color: var(--err);
     border-color: var(--err);
@@ -299,31 +414,6 @@
     color: var(--info);
     border-radius: 10px;
     padding: 8px 10px;
-  }
-  .waitnote {
-    color: var(--accent);
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    font-weight: 600;
-  }
-  .sugg {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .sbtn {
-    cursor: pointer;
-    background: var(--panel);
-  }
-  .sbtn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-  .bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
   .addwrap {
     position: relative;
@@ -361,17 +451,29 @@
     border-radius: 0 0 8px 8px;
     margin-top: 4px;
   }
-  .hard {
+  /* text lines up with the textarea's 12px inset, clear of the box's 14px corners */
+  .meta {
     display: flex;
-    gap: 5px;
-    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    font-size: 11.5px;
     color: var(--muted);
-    cursor: pointer;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  @media (max-width: 420px) {
-    .send .lbl {
-      display: none;
-    }
+  .pickers {
+    justify-content: flex-end;
+    gap: 0;
+    /* plus each picker's own 6px padding = the same 12px inset */
+    padding: 0 6px;
+  }
+  .pickers :global(.cur) {
+    font-size: 11.5px;
+    padding: 1px 6px;
+    color: var(--muted);
+  }
+  .pickers :global(.cur:hover),
+  .pickers :global(.cur[aria-expanded='true']) {
+    color: var(--text);
   }
 </style>

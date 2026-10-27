@@ -50,6 +50,9 @@ export const prefs = $state<{ model: ModelKey; reasoning: Reasoning }>({
   reasoning: saved('fw_reasoning', REASONING, 'medium'),
 });
 
+/** The picked model, or the default one when the plan does not include it. */
+export const chosenModel = (): ModelKey => (models().find((m) => m.key === prefs.model)?.available ? prefs.model : 'contributor');
+
 export function setPref<K extends keyof typeof prefs>(key: K, value: (typeof prefs)[K]) {
   prefs[key] = value;
   try {

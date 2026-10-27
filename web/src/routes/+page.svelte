@@ -4,6 +4,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import Picker from '$lib/components/Picker.svelte';
   import { api, errorText } from '$lib/api';
+  import { stashFirst } from '$lib/pending';
   import { t } from '$lib/i18n.svelte';
   import { prefs, setPref, refreshMe, models, modelName, REASONING } from '$lib/session.svelte';
 
@@ -32,12 +33,6 @@
     files = [...files, ...add].slice(0, 12);
   }
 
-  function kindOf(f: File) {
-    if (f.type.startsWith('video/')) return 'video';
-    if (f.type.startsWith('audio/')) return 'audio';
-    return 'photo';
-  }
-
   function fit() {
     input.style.height = 'auto';
     input.style.height = `${Math.min(input.scrollHeight, 220)}px`;
@@ -49,11 +44,9 @@
     busy = true;
     error = null;
     try {
+      // the studio uploads and starts the job, so the user sees progress instead of a spinner here
       const p = await api.createProject();
-      const ids: string[] = [];
-      for (const f of files) ids.push((await api.upload(p.id, f.file, kindOf(f.file))).id);
-      const model = models().find((m) => m.key === prefs.model)?.available ? prefs.model : 'contributor';
-      await api.send(p.id, text.trim() || t('tmpl.copy'), ids, { model, reasoning: prefs.reasoning });
+      stashFirst(p.id, text.trim() || t('tmpl.copy'), files.map((f) => f.file));
       goto(`/p/${p.id}`);
     } catch (e) {
       error = errorText(e);

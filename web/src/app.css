@@ -460,3 +460,24 @@ h4 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* live text: the agent is working on this line */
+.shimmer {
+  background: linear-gradient(90deg, var(--muted) 0%, var(--text) 50%, var(--muted) 100%) 0 0 / 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: fw-shimmer 1.6s linear infinite;
+}
+@keyframes fw-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+    color: var(--muted);
+    background: none;
+  }
+}

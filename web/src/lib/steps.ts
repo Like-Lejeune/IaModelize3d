@@ -158,6 +158,7 @@ export function resultTitle(name: string, args: any, summary: string | undefined
 // Fixed progress lines the server emits in English; the agent's own words pass through untouched.
 const RU_STATUS: [RegExp, string | ((m: RegExpMatchArray) => string)][] = [
   [/^Understanding the request$/, 'Разбираю задачу'],
+  [/^Measuring the photos$/, 'Измеряю фото'],
   [/^Looking for a reference object to calibrate the photo$/, 'Ищу на фото эталон для масштаба'],
   [/^Reading the caliper$/, 'Читаю показания штангенциркуля'],
   [/^Watching the video$/, 'Смотрю видео'],
@@ -171,6 +172,11 @@ const RU_STATUS: [RegExp, string | ((m: RegExpMatchArray) => string)][] = [
   [/^Fitting parameters to the photo silhouette$/, 'Подгоняю размеры под силуэт на фото'],
 ];
 
+/** Progress lines the server writes itself, as opposed to what the model says. */
+export function isSystemStatus(text: string): boolean {
+  return RU_STATUS.some(([re]) => re.test(text));
+}
+
 export function statusLine(text: string): string {
   if (i18n.lang !== 'ru' || looksRu(text)) return text;
   for (const [re, out] of RU_STATUS) {
@@ -178,4 +184,42 @@ export function statusLine(text: string): string {
     if (m) return typeof out === 'string' ? out : out(m);
   }
   return text;
+}
+
+// What a folded group of steps did, in the spirit of "Read 3 files, ran 2 commands".
+type Phrase = { en: [string, (n: number) => string]; ru: [string, (n: number) => string] };
+const ruN = (n: number, w: [string, string, string]) => {
+  const m10 = n % 10, m100 = n % 100;
+  return `${n} ${m10 === 1 && m100 !== 11 ? w[0] : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? w[1] : w[2]}`;
+};
+const PHRASE: Record<string, Phrase> = {
+  build: { en: ['wrote the model', (n) => `wrote ${n} versions`], ru: ['написал модель', (n) => `написал ${ruN(n, ['версию', 'версии', 'версий'])}`] },
+  edit: { en: ['edited the model', (n) => `made ${n} edits`], ru: ['поправил модель', (n) => `внёс ${ruN(n, ['правку', 'правки', 'правок'])}`] },
+  params: { en: ['tuned parameters', () => 'tuned parameters'], ru: ['подстроил параметры', () => 'подстроил параметры'] },
+  look: { en: ['took a look', (n) => `took ${n} looks`], ru: ['посмотрел', (n) => `посмотрел ${ruN(n, ['раз', 'раза', 'раз'])}`] },
+  inspect: { en: ['measured the model', () => 'measured the model'], ru: ['измерил модель', () => 'измерил модель'] },
+  measure: { en: ['measured the photo', (n) => `took ${n} measurements`], ru: ['измерил фото', (n) => `сделал ${ruN(n, ['замер', 'замера', 'замеров'])}`] },
+  search: { en: ['looked up sizes', () => 'looked up sizes'], ru: ['нашёл размеры', () => 'нашёл размеры'] },
+  memory: { en: ['checked memory', () => 'checked memory'], ru: ['проверил память', () => 'проверил память'] },
+  ask: { en: ['asked you', () => 'asked you'], ru: ['спросил вас', () => 'спросил вас'] },
+  finish: { en: ['ran the final review', (n) => `ran ${n} final reviews`], ru: ['прошёл финальную проверку', (n) => `${ruN(n, ['финальная проверка', 'финальные проверки', 'финальных проверок'])}`] },
+  concepts: { en: ['sketched concepts', () => 'sketched concepts'], ru: ['нарисовал эскизы', () => 'нарисовал эскизы'] },
+  probe: { en: ['prepared a test piece', () => 'prepared test pieces'], ru: ['подготовил пробник', () => 'подготовил пробники'] },
+  terrain: { en: ['loaded terrain', () => 'loaded terrain'], ru: ['загрузил рельеф', () => 'загрузил рельеф'] },
+  skill: { en: ['saved a module', () => 'saved modules'], ru: ['сохранил модуль', () => 'сохранил модули'] },
+};
+const GROUP_OF: Record<string, string> = {
+  render: 'look', compare: 'look', fit: 'measure', caliper: 'measure', scene: 'measure', standard: 'search',
+};
+
+export function groupSummary(items: { kind: string; tkind?: string }[]): string {
+  const counts = new Map<string, number>();
+  for (const it of items) {
+    const k = it.kind === 'tool' ? (GROUP_OF[it.tkind ?? ''] ?? it.tkind ?? 'build') : null;
+    if (k && PHRASE[k]) counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const lang = i18n.lang === 'ru' ? 'ru' : 'en';
+  const parts = [...counts].map(([k, n]) => (n === 1 ? PHRASE[k][lang][0] : PHRASE[k][lang][1](n)));
+  const s = parts.join(', ') || (lang === 'ru' ? 'подготовка' : 'getting ready');
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
