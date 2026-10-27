@@ -189,3 +189,15 @@ test('close-up renders: any angle, a part, a section cut', () => {
   assert.ok(zoom.png.length > 1000);
   assert.throws(() => engine.render({ source: BAG_HOOK, focus: { part: 'nope' } }), /no part/);
 });
+
+test('pillow body has no creases to its outline and onSurface pads fuse without slivers', async () => {
+  const { sdf, std } = await lib();
+  const plan = std.poly(std.spline2d([[0, 60], [28, 40], [31, 0], [30, -40], [0, -60], [-30, -40], [-31, 0], [-28, 40]]));
+  const t0 = Date.now();
+  const body = sdf.pillow(plan, (x: number, y: number) => 36 - Math.abs(y) * 0.15, { edge: 20, r: 3 }).mesh({ edge: 0.7 });
+  assert.ok(Date.now() - t0 < 5000, `pillow took ${Date.now() - t0} ms`);
+  assert.equal(body.genus(), 0);
+  assert.ok(Math.abs(body.boundingBox().max[2] - 36) < 0.6);
+  const pad = std.onSurface(body, std.rect(16, 6, { r: 2 }).translate([0, 12]), 1.2, { dir: '-x' });
+  assert.equal(body.add(pad).decompose().length, 1);
+});

@@ -291,7 +291,6 @@ export function makeShape(wasm: Wasm) {
 
   // ---------- surface-following features ----------
   type Dir = 'z' | '-z' | 'x' | '-x' | 'y' | '-y';
-  const dirVec = (d: Dir): V3 => ({ z: [0, 0, 1], '-z': [0, 0, -1], x: [1, 0, 0], '-x': [-1, 0, 0], y: [0, 1, 0], '-y': [0, -1, 0] } as Record<Dir, V3>)[d];
   // 2D shape seen from `dir`, extruded through the whole solid along it.
   const prism = (solid: Manifold, shape: CrossSection, dir: Dir) => {
     const b = solid.boundingBox();
@@ -406,9 +405,15 @@ export function makeShape(wasm: Wasm) {
   /** Raise a shape by `height` on the curved surface facing `dir` (logos, grips, ribs, side buttons). */
   const emboss = (solid: Manifold, shape: CrossSection, height: number, o: { dir?: Dir; step?: number } = {}) =>
     solid.add(surfacePlate(solid, shape, o.dir ?? 'z', -0.3, height, o.step));
-  /** The part of a separate piece that sits on the surface: a plate following it (pads, button caps). */
-  const onSurface = (solid: Manifold, shape: CrossSection, thickness: number, o: { dir?: Dir; gap?: number; step?: number } = {}) =>
-    surfacePlate(solid, shape, o.dir ?? 'z', o.gap ?? 0, (o.gap ?? 0) + thickness, o.step);
+  /**
+   * A separate piece that sits on the surface (pads, button caps, inlays in another colour). With gap 0
+   * its underside is the solid's own surface, exactly: a sampled copy would leave slivers on union.
+   */
+  const onSurface = (solid: Manifold, shape: CrossSection, thickness: number, o: { dir?: Dir; gap?: number; step?: number } = {}) => {
+    const gap = o.gap ?? 0;
+    if (gap > 0) return surfacePlate(solid, shape, o.dir ?? 'z', gap, gap + thickness, o.step);
+    return surfacePlate(solid, shape, o.dir ?? 'z', -0.5, thickness, o.step).subtract(solid);
+  };
   /** Height of the top surface at (x, y), or null if the solid is not there. */
   const surfaceZ = (solid: Manifold, x: number, y: number, o: { from?: 'top' | 'bottom' } = {}) => {
     const b = solid.boundingBox();

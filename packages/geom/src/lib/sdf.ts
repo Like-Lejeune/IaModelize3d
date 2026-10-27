@@ -55,13 +55,38 @@ function transformBox(b: Box, f: (p: V3) => V3): Box {
   return out!;
 }
 
+// Cache for 2D functions sampled by a 3D grid: every z of a column asks the same (x, y),
+// so outlines with hundreds of segments cost one evaluation per column, not per point.
+export function memo2(fn: (x: number, y: number) => number): (x: number, y: number) => number {
+  let rows = new Map<number, Map<number, number>>();
+  let size = 0;
+  return (x, y) => {
+    let row = rows.get(x);
+    if (!row) {
+      if (size > 4e6) {
+        rows = new Map();
+        size = 0;
+      }
+      row = new Map();
+      rows.set(x, row);
+    }
+    let v = row.get(y);
+    if (v === undefined) {
+      v = fn(x, y);
+      row.set(y, v);
+      size++;
+    }
+    return v;
+  };
+}
+
 // 2D signed distance to polygon loops (even-odd fill), negative inside.
 export function polygonSdf(loops: V2[][]): (x: number, y: number) => number {
   const segs: number[] = [];
   for (const loop of loops)
     for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) segs.push(loop[j][0], loop[j][1], loop[i][0], loop[i][1]);
   const n = segs.length / 4;
-  return (x, y) => {
+  return memo2((x, y) => {
     let best = Infinity;
     let inside = false;
     for (let s = 0; s < n; s++) {
@@ -75,7 +100,7 @@ export function polygonSdf(loops: V2[][]): (x: number, y: number) => number {
     }
     const d = Math.sqrt(best);
     return inside ? -d : d;
-  };
+  });
 }
 
 const loopsOf = (shape: CrossSection | V2[] | V2[][]): V2[][] => {
@@ -359,7 +384,8 @@ export function makeSdf(wasm: Wasm) {
    * Solid between z=0 and a top surface z = top(x, y) inside a plan outline: mice, soap,
    * handles, palm rests. r rounds where the top meets the side walls.
    */
-  const heightfield = (shape: CrossSection | V2[] | V2[][], top: (x: number, y: number) => number, o: { r?: number; maxHeight?: number } = {}) => {
+  const heightfield = (shape: CrossSection | V2[] | V2[][], topFn: (x: number, y: number) => number, o: { r?: number; maxHeight?: number } = {}) => {
+    const top = memo2(topFn);
     const loops = loopsOf(shape);
     const d2 = polygonSdf(loops);
     const { x0, y0, x1, y1 } = loopsBox(loops);
@@ -375,11 +401,30 @@ export function makeSdf(wasm: Wasm) {
       return Math.max(smax(side, lid, r), -z);
     }, boxOf([x0, y0, 0], [x1, y1, zmax * 1.05 + 1]));
   };
+  /**
+   * A soft product body over a plan outline: full height h(x, y) inside, falling to the outline along a
+   * quarter circle `edge` mm wide (by distance from the outline, so it follows any plan shape without
+   * creases). Mice, remotes, soap, pebbles, grips. height: number or (x, y) => mm; r softens the foot.
+   */
+  const pillow = (shape: CrossSection | V2[] | V2[][], height: number | ((x: number, y: number) => number), o: { edge?: number; r?: number } = {}) => {
+    const loops = loopsOf(shape);
+    const d2 = polygonSdf(loops);
+    const { x0, y0, x1, y1 } = loopsBox(loops);
+    const edge = Math.max(0.5, o.edge ?? Math.min(x1 - x0, y1 - y0) * 0.35);
+    const h = typeof height === 'number' ? () => height : height;
+    let zmax = 0;
+    for (let i = 0; i <= 24; i++)
+      for (let j = 0; j <= 24; j++) zmax = Math.max(zmax, h(x0 + ((x1 - x0) * i) / 24, y0 + ((y1 - y0) * j) / 24));
+    return heightfield(shape, (x, y) => {
+      const t = Math.min(1, Math.max(0, -d2(x, y) / edge));
+      return h(x, y) * Math.sqrt(1 - (1 - t) * (1 - t));
+    }, { r: o.r ?? 0, maxHeight: zmax });
+  };
   /** Union of many fields with a common blend radius. */
   const blend = (fields: Field[], k: number) => fields.slice(1).reduce((acc, f) => acc.smoothUnion(f, k), fields[0]);
   const union = (fields: Field[]) => fields[0].union(...fields.slice(1));
   /** Wrap any distance function (negative inside) with explicit bounds. */
   const custom = (fn: (p: V3) => number, min: V3, max: V3) => F((x, y, z) => fn([x, y, z]), boxOf(min, max));
 
-  return { sphere, ellipsoid, box, cylinder, cone, capsule, torus, halfspace, extrude, revolve, heightfield, blend, union, custom, smin };
+  return { sphere, ellipsoid, box, cylinder, cone, capsule, torus, halfspace, extrude, revolve, heightfield, pillow, blend, union, custom, smin };
 }
