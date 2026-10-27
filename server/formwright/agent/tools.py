@@ -291,6 +291,8 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
     """Returns (result for the model, image refs). Image refs are relative file paths or data URLs."""
     ctx.check_cancelled()
     if name == "write_program":
+        if not str(args.get("source") or "").strip():
+            return {"ok": False, "error": "source is empty: pass the complete program"}, []
         state.params = {}
         return await commit_build(ctx, state, args["source"], {}, args.get("summary", ""))
     if name == "edit_program":
