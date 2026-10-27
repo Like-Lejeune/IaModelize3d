@@ -134,6 +134,7 @@ class Bot:
         db = await get_db()
         last = (await db.one("SELECT COALESCE(MAX(seq), 0) AS s FROM events WHERE project_id = ?", project_id))["s"] - 50  # type: ignore[index]
         last_status = ""
+        stage_label = ""
         cover = None
         while True:
             rows = await events.since(project_id, max(0, last))
@@ -142,10 +143,16 @@ class Bot:
                 if r["job_id"] != job_id:
                     continue
                 d = r["data"]
-                if r["type"] == "agent.status" and status_id and d.get("text") and d["text"] != last_status:
-                    last_status = d["text"]
-                    await self.call("editMessageText", chat_id=chat_id, message_id=status_id, text=f"⏳ {last_status[:300]}")
-                elif r["type"] == "program.updated":
+                line = None
+                if r["type"] == "job.stage":
+                    stage_label = d.get("label", "")
+                    line = f"⏳ {stage_label}"
+                elif r["type"] in ("tool.call", "tool.result") and d.get("title"):
+                    line = f"⏳ {stage_label}\n{'→' if r['type'] == 'tool.call' else '✓'} {d['title']}"
+                if line and status_id and line != last_status:
+                    last_status = line
+                    await self.call("editMessageText", chat_id=chat_id, message_id=status_id, text=line[:1000])
+                if r["type"] == "program.updated":
                     cover = d.get("cover")
                 elif r["type"] == "ask":
                     kb = [[{"text": o[:60], "callback_data": f"a|{job_id}|{i}"}] for i, o in enumerate(d.get("options", [])[:6])]
