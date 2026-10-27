@@ -537,17 +537,23 @@ async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], r
                                           box=req.box if not req.text else None)
         masks = [m for m in masks if m.score >= 0.2] or masks
         cal = (asset.get("meta") or {}).get("calibration") or {}
+        only_reference = False
         if req.role != "reference":
             if not cal.get("ok") and not cal.get("reason"):
                 cal = await calibrate(meter, asset)
-            masks = without_reference(masks, cal)
+            kept = without_reference(masks, cal)
+            only_reference, masks = bool(masks) and not kept, kept
         if not masks and req.text:
             # SAM's concept prompts miss unusual objects; let Spark ground the phrase to a box, then SAM refines it.
             box = await _ground_box(meter, img, req.text, choice.fast)
             if box:
                 masks = await segment(meter, img, box=box)
                 if req.role != "reference":
-                    masks = without_reference(masks, cal)
+                    kept = without_reference(masks, cal)
+                    only_reference, masks = only_reference or (bool(masks) and not kept), kept
+        if not masks and only_reference:
+            raise ValueError(f"only the {cal.get('reference', 'reference')} sheet matches '{req.text}'; it is the scale reference. "
+                             "Name the object lying on it instead, e.g. by its colour or shape")
         if not masks:
             raise ValueError("nothing found there; tap the middle of the object or drag a box around it")
         mask = masks[0].mask

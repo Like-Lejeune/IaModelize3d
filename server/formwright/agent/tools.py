@@ -305,7 +305,15 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
     if name == "set_params":
         if not state.source:
             return {"ok": False, "error": "no program yet"}, []
-        return await commit_build(ctx, state, state.source, {**state.params, **(args.get("values") or {})}, args.get("summary", "params"))
+        values = args.get("values") or {}
+        if isinstance(values, str):  # some models send the object as a JSON string
+            try:
+                values = json.loads(values)
+            except json.JSONDecodeError:
+                values = None
+        if not isinstance(values, dict):
+            return {"ok": False, "error": "values must be an object: {param name: value}"}, []
+        return await commit_build(ctx, state, state.source, {**state.params, **values}, args.get("summary", "params"))
     if name == "inspect_model":
         if not state.source:
             return {"ok": False, "error": "no program yet"}, []

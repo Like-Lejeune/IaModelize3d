@@ -122,6 +122,32 @@ async def test_select_never_returns_the_reference_sheet(env, monkeypatch):
     assert abs(sel["data"]["size_mm"][0] - 60) < 0.6 and abs(sel["data"]["size_mm"][1] - 40) < 0.6
 
 
+async def test_select_says_when_only_the_sheet_matches(env, monkeypatch):
+    from formwright.db import get_db
+    from formwright.models import SelectRequest
+    from formwright.vision import ingest, scene
+    from formwright.vision.sam import Mask
+
+    img, sheet, part, R, t = syn.scene()
+    ys, xs = np.nonzero(sheet)
+    as_sheet = Mask(id="s", bbox_px=[int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1], score=0.9, mask=sheet)
+
+    async def fake_segment(meter, image, *, text=None, points=None, box=None):
+        return [as_sheet]
+
+    async def fake_ground(meter, image, text, model):
+        return as_sheet.bbox_px
+
+    monkeypatch.setattr(scene, "segment", fake_segment)
+    monkeypatch.setattr(scene, "_ground_box", fake_ground)
+    db = await get_db()
+    await db.insert("users", {"id": "u1", "tier": "anon", "created_at": 0})
+    user = await db.one("SELECT * FROM users WHERE id = 'u1'")
+    asset = await ingest.ingest_asset("p1", "photo", "a.jpg", jpeg_with_exif(img), "image/jpeg")
+    with pytest.raises(ValueError, match="scale reference"):
+        await scene.select(user, "p1", asset, SelectRequest(text="white plate", role="target"))
+
+
 def test_overlay_blend():
     from formwright.vision.overlay import blend
 

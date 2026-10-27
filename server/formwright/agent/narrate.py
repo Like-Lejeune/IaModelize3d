@@ -97,7 +97,7 @@ def call_title(name: str, args: dict[str, Any]) -> str:
     return {
         "write_program": f"Writing the model: {a.get('summary') or 'first version'}",
         "edit_program": f"Changing: {a.get('summary') or 'details'}",
-        "set_params": f"Adjusting {', '.join((a.get('values') or {}).keys()) or 'parameters'}",
+        "set_params": f"Adjusting {', '.join(a['values'] if isinstance(a.get('values'), dict) else []) or 'parameters'}",
         "inspect_model": "Measuring my own model",
         "look": {"compare": "Comparing the model with the photo", "model": "Looking at the model from all sides"}.get(
             str(a.get("what")), "Taking a closer look at the photo"),
