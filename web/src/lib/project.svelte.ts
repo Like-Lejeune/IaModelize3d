@@ -3,6 +3,7 @@
 import { api, errorText } from './api';
 import { GeomClient } from './geom/client';
 import { t } from './i18n.svelte';
+import { prefs } from './session.svelte';
 import { streamEvents, type EventStream } from './sse';
 import { KIND_STAGE, kindOf } from './steps';
 import type { AssetOut, BuildResult, CheckReport, EventRow, ProjectDetail, SelectionOut } from './types';
@@ -451,7 +452,9 @@ export class ProjectStore {
     const ts = Date.now() / 1000;
     this.push({ kind: 'user', key: `local${ts}`, ts, job: null, text, assets: assetIds });
     try {
-      const r = await api.send(this.id, text, assetIds, effort);
+      // "Think harder" in the studio overrides the picked model with the strongest one
+      const model = effort === 'hard' ? 'wonder' : prefs.model === 'wonder' ? 'spark' : prefs.model;
+      const r = await api.send(this.id, text, assetIds, { model, reasoning: prefs.reasoning });
       this.jobId = r.job_id;
       this.jobKind = 'design';
       this.job(r.job_id, ts + 0.001, 'design');

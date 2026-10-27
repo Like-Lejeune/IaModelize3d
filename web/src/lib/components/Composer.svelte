@@ -3,12 +3,13 @@
   import CaptureTips from './CaptureTips.svelte';
   import PhotoSelect from './PhotoSelect.svelte';
   import { t } from '$lib/i18n.svelte';
+  import { prefs } from '$lib/session.svelte';
   import type { ProjectStore } from '$lib/project.svelte';
   import type { AssetOut } from '$lib/types';
 
   let { store }: { store: ProjectStore } = $props();
   let text = $state('');
-  let hard = $state(false);
+  let hard = $state(prefs.model === 'wonder');
   let uploading = $state(0);
   let menu = $state(false);
   let tips = $state(false);

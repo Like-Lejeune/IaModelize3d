@@ -85,11 +85,26 @@ async def settle(user_id: str, usd: float) -> None:
     )
 
 
-async def choose_models(user: dict, effort: str = "auto") -> ModelChoice:
+def model_options(user: dict) -> list[dict]:
+    s = settings()
+    strong = TIERS.get(user["tier"], TIERS["anon"])[2]
+    options = [
+        {"key": "contributor", "id": s.model_free, "available": True},
+        {"key": "spark", "id": s.model_designer, "available": True},
+        {"key": "wonder", "id": s.model_designer_hard, "available": strong},
+    ]
+    # dev configs may route the designer to the contributor model too; do not list it twice
+    return [o for i, o in enumerate(options) if o["id"] not in {p["id"] for p in options[:i]}]
+
+
+async def choose_models(user: dict, effort: str = "auto", model: str | None = None) -> ModelChoice:
     s = settings()
     _, _, strong = TIERS.get(user["tier"], TIERS["anon"])
     near_cap = await global_spent_today() > s.daily_budget_usd * 0.8
-    contributor = bool(user.get("contributor_consent")) and user["tier"] in ("anon", "free")
+    if model is None:
+        consent = bool(user.get("contributor_consent")) and user["tier"] in ("anon", "free")
+        model = "wonder" if effort == "hard" else "contributor" if consent else "spark"
+    contributor = model == "contributor"
     fast = s.model_free if contributor else s.model_fast
-    designer = s.model_designer_hard if (effort == "hard" and strong and not near_cap) else (s.model_free if contributor else s.model_designer)
+    designer = s.model_designer_hard if (model == "wonder" and strong and not near_cap) else (s.model_free if contributor else s.model_designer)
     return ModelChoice(designer=designer, fast=fast, contributor=contributor)

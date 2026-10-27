@@ -145,7 +145,8 @@ async def magic_login(token: str, next: str = "/"):
 async def me(user=Depends(current_user)) -> Usage:
     usd, jobs = await quotas.spent_today(user["id"])
     limit = quotas.TIERS.get(user["tier"], quotas.TIERS["anon"])[0]
-    return Usage(user_id=user["id"], tier=user["tier"], today_usd=round(usd, 4), limit_usd=limit, jobs_today=jobs, contributor_consent=bool(user["contributor_consent"]))
+    return Usage(user_id=user["id"], tier=user["tier"], today_usd=round(usd, 4), limit_usd=limit, jobs_today=jobs,
+                 contributor_consent=bool(user["contributor_consent"]), models=quotas.model_options(user))
 
 
 @app.post("/api/me/consent")

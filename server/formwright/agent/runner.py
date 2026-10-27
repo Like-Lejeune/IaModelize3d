@@ -63,13 +63,14 @@ _jobs: dict[str, JobContext] = {}
 _tasks: dict[str, asyncio.Task] = {}
 
 
-async def _create(user: dict[str, Any], project: dict[str, Any], kind: str, payload: dict[str, Any], budget: float, effort: str = "auto") -> JobContext:
+async def _create(user: dict[str, Any], project: dict[str, Any], kind: str, payload: dict[str, Any], budget: float, effort: str = "auto",
+                  model: str | None = None) -> JobContext:
     budget = await quotas.reserve(user, budget)
     db = await get_db()
     job_id = new_id("j_")
     await db.insert("jobs", {"id": job_id, "project_id": project["id"], "user_id": user["id"], "kind": kind, "status": "running",
                              "input": payload, "reserved_usd": budget, "created_at": now()})
-    models = await quotas.choose_models(user, effort)
+    models = await quotas.choose_models(user, effort, model)
     ctx = JobContext(job_id=job_id, kind=kind, project=project, user=user, meter=CostMeter(budget_usd=budget), models=models)
     _jobs[job_id] = ctx
     await db.update("projects", "id", project["id"], {"status": "working", "updated_at": now()})
@@ -121,8 +122,9 @@ async def add_message(project_id: str, role: str, text: str, data: dict[str, Any
 async def start_design_job(user: dict[str, Any], project: dict[str, Any], body: SendMessage) -> str:
     from .loop import design
 
-    budget = settings().job_budget_usd * (2.5 if body.effort == "hard" else 1.0)
-    ctx = await _create(user, project, "design", body.model_dump(), budget, body.effort)
+    strongest = body.model == "wonder" or (body.model is None and body.effort == "hard")
+    budget = settings().job_budget_usd * (2.5 if strongest else 1.0) * {"high": 1.5, "xhigh": 2.0, "max": 3.0}.get(body.reasoning, 1.0)
+    ctx = await _create(user, project, "design", body.model_dump(), budget, body.effort, body.model)
     await add_message(project["id"], "user", body.text, {"asset_ids": body.asset_ids})
     await ctx.emit("user.message", {"text": body.text, "asset_ids": body.asset_ids})
     _spawn(ctx, lambda c: design(c, body))

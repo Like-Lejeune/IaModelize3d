@@ -6,6 +6,13 @@
     <meta name="theme-color" content="#1f2328" />
     <link rel="icon" href="%sveltekit.assets%/favicon.svg" />
     <title>Formwright</title>
+    <script>
+      // apply the saved theme before first paint; pages without the header rely on this
+      try {
+        var th = localStorage.getItem('fw_theme');
+        if (th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th);
+      } catch (e) {}
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

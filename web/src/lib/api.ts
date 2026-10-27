@@ -56,8 +56,8 @@ export const api = {
   select: (id: string, assetId: string, body: SelectBody) => req<SelectionOut>('POST', `/api/projects/${id}/assets/${assetId}/select`, body),
   deleteSelection: (id: string, selId: string) => req<{ ok: boolean }>('DELETE', `/api/projects/${id}/selections/${selId}`),
 
-  send: (id: string, text: string, asset_ids: string[] = [], effort: 'auto' | 'hard' = 'auto') =>
-    req<{ job_id: string }>('POST', `/api/projects/${id}/messages`, { text, asset_ids, effort }),
+  send: (id: string, text: string, asset_ids: string[] = [], opts: { model?: string; reasoning?: string } = {}) =>
+    req<{ job_id: string }>('POST', `/api/projects/${id}/messages`, { text, asset_ids, ...opts }),
   fingerprint: (printerId: string, assetId: string) =>
     req<Record<string, any>>('POST', `/api/printers/${encodeURIComponent(printerId)}/fingerprint`, { asset_id: assetId }),
   answer: (jobId: string, answer: string) => req<{ ok: boolean }>('POST', `/api/jobs/${jobId}/answer`, { answer }),

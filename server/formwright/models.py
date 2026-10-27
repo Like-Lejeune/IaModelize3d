@@ -87,6 +87,10 @@ class SendMessage(BaseModel):
     asset_ids: list[str] = []
     # auto: agent picks; hard: allow the strongest (costlier) designer model
     effort: Literal["auto", "hard"] = "auto"
+    # picked in the composer; None keeps the old rule (account consent + effort)
+    model: Literal["contributor", "spark", "wonder"] | None = None
+    # how long the designer thinks on each turn; every Muse model accepts these
+    reasoning: Literal["minimal", "low", "medium", "high", "xhigh", "max"] = "medium"
 
 
 class Point(BaseModel):
@@ -145,6 +149,12 @@ class BreedRequest(BaseModel):
     n: int = 6
 
 
+class ModelOption(BaseModel):
+    key: Literal["contributor", "spark", "wonder"]
+    id: str
+    available: bool
+
+
 class Usage(BaseModel):
     user_id: str
     tier: str
@@ -152,3 +162,4 @@ class Usage(BaseModel):
     limit_usd: float
     jobs_today: int
     contributor_consent: bool
+    models: list[ModelOption] = []

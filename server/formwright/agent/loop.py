@@ -256,9 +256,9 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     final_text: str | None = None
     for turn in range(max_turns):
         ctx.check_cancelled()
-        effort = "medium" if turn < max_turns - 2 else "low"
+        effort = body.reasoning if turn < max_turns - 2 or body.reasoning == "minimal" else "low"
         resp = await meta().respond(ctx.meter, model=model, instructions=instructions, input=history, tools=tools, effort=effort,
-                                    max_output_tokens=12000, cache_key=f"fw-agent-{pack}-{int(has_photos)}{int(has_prints)}")
+                                    max_output_tokens={"high": 20000, "xhigh": 28000, "max": 32000}.get(effort, 12000), cache_key=f"fw-agent-{pack}-{int(has_photos)}{int(has_prints)}")
         calls = []
         for item in resp.output or []:
             d = _item_dict(item)

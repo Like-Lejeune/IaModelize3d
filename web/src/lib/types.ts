@@ -67,6 +67,13 @@ export interface Usage {
   limit_usd: number;
   jobs_today: number;
   contributor_consent: boolean;
+  models: ModelOption[];
+}
+
+export interface ModelOption {
+  key: 'contributor' | 'spark' | 'wonder';
+  id: string;
+  available: boolean;
 }
 
 export interface EventRow {
