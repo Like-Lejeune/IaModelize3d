@@ -34,6 +34,10 @@ every version passes a slicer-like printability check and an independent critic.
 - **Memory that does not bloat.** Measured interfaces of your world, lessons from repeated fixes and
   tested skills enter memory only with evidence, leave it when unused, and only relevant items reach the
   prompt.
+- **Readable work log.** Every job shows its stage (understand → measure → design → check → review → ready),
+  each step as a sentence in your language, the model's reasoning summaries, and a result card with key
+  dimensions, their sources, printability and cost. Any public project can be replayed step by step without
+  spending tokens.
 - **Order a print.** Download STL/3MF (with print settings), or order printing and delivery in Kazakhstan
   through Axo. A Telegram bot accepts photos and voice notes too.
 
@@ -81,6 +85,10 @@ echo META_API_KEY=... > ../.env
 Open http://localhost:8000. For UI development run `npm run dev -w web` (port 5173, proxies the API).
 
 Container: `docker build --build-arg ORCA_APPIMAGE_URL=<OrcaSlicer Linux AppImage> -t formwright .`
+
+For cheap development runs point the models at the Contributor tier (content may be used to train Meta
+models): `FW_MODEL_DESIGNER=muse-spark-1.3-contributor FW_MODEL_FAST=muse-spark-1.3-contributor
+FW_MODEL_CRITIC=muse-spark-1.3-contributor` — a full design job then costs well under a cent.
 
 Useful settings (environment, prefix `FW_`): `FW_ORCA_BIN`, `FW_ORCA_PROFILES`, `FW_DAILY_BUDGET_USD`,
 `FW_TELEGRAM_TOKEN`, `FW_AXO_API_URL` / `FW_AXO_API_KEY`, `FW_OPEN_BASE_URL` / `FW_OPEN_MODEL` /
