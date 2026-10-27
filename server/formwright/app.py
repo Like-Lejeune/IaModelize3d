@@ -45,12 +45,24 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await get_db()
+    async def sleep_cycle() -> None:
+        from .memory.sleep import consolidate
+
+        while True:
+            await asyncio.sleep(6 * 3600)
+            try:
+                log.info("memory consolidation: %s", await consolidate())
+            except Exception:  # noqa: BLE001 - never take the API down for housekeeping
+                log.exception("memory consolidation failed")
+
+    sleeper = asyncio.create_task(sleep_cycle())
     bot = None
     if settings().telegram_token:
         from .integrations.telegram import run_bot
 
         bot = asyncio.create_task(run_bot())
     yield
+    sleeper.cancel()
     if bot:
         bot.cancel()
     await geom().close()
@@ -67,13 +79,17 @@ def file_url(path: str | None) -> str | None:
 
 
 # ------------------------------------------------------------------ session
+def client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
 async def current_user(request: Request, response: Response) -> dict[str, Any]:
     db = await get_db()
     uid = request.cookies.get("fw_uid")
     user = await db.one("SELECT * FROM users WHERE id = ?", uid) if uid else None
     if not user:
         uid = new_id("u_")
-        await db.insert("users", {"id": uid, "tier": "anon", "created_at": now()})
+        await db.insert("users", {"id": uid, "tier": "anon", "ip": client_ip(request), "created_at": now()})
         user = await db.one("SELECT * FROM users WHERE id = ?", uid)
         response.set_cookie("fw_uid", uid, httponly=True, samesite="lax", max_age=3600 * 24 * 365)
     return user  # type: ignore[return-value]
@@ -193,6 +209,47 @@ async def update_project(project_id: str, body: dict[str, Any], user=Depends(cur
     db = await get_db()
     await db.update("projects", "id", project_id, {**fields, "updated_at": now()})
     return project_out(await db.one("SELECT * FROM projects WHERE id = ?", project_id))  # type: ignore[arg-type]
+
+
+REPLAY_SKIP = {"cost"}
+
+
+async def _replay(src_id: str, dst_id: str, speed: float) -> None:
+    """Re-emit a finished project's event log into a new project: watch how it was made, no tokens spent."""
+    db = await get_db()
+    rows = await db.all("SELECT * FROM events WHERE project_id = ? ORDER BY seq", src_id)
+    prev_ts = rows[0]["ts"] if rows else now()
+    try:
+        for r in rows:
+            await asyncio.sleep(min(max(r["ts"] - prev_ts, 0) / speed, 2.5))
+            prev_ts = r["ts"]
+            if r["type"] in REPLAY_SKIP:
+                continue
+            if r["type"] == "program.updated":
+                v = r["data"].get("version")
+                prog = await db.one("SELECT * FROM programs WHERE project_id = ? AND version = ?", src_id, v)
+                if prog and not await db.one("SELECT 1 AS x FROM programs WHERE project_id = ? AND version = ?", dst_id, v):
+                    await db.insert("programs", {**{k: prog[k] for k in ("version", "source", "params", "inputs", "summary", "checks", "author")},
+                                                 "project_id": dst_id, "created_at": now()})
+                    await db.update("projects", "id", dst_id, {"version": v, "updated_at": now()})
+            await events.emit(dst_id, r["type"], {**r["data"], "replay": True}, r["job_id"])
+        for m in await db.all("SELECT * FROM messages WHERE project_id = ? ORDER BY created_at", src_id):
+            await db.insert("messages", {"id": new_id("msg_"), "project_id": dst_id, "role": m["role"], "text": m["text"], "data": m["data"], "created_at": now()})
+    finally:
+        await db.update("projects", "id", dst_id, {"status": "idle", "updated_at": now()})
+
+
+@app.post("/api/projects/{project_id}/replay")
+async def replay(project_id: str, speed: float = 4.0, user=Depends(current_user)):
+    """A copy of a public (or own) project whose timeline plays back the original agent run."""
+    src = await load_project(project_id, user)
+    db = await get_db()
+    pid = new_id("p_")
+    t = now()
+    await db.insert("projects", {"id": pid, "user_id": user["id"], "title": src["title"], "pack": src["pack"], "replay_of": project_id,
+                                 "status": "working", "cover": src["cover"], "created_at": t, "updated_at": t})
+    asyncio.create_task(_replay(project_id, pid, max(1.0, min(speed, 20.0))))
+    return project_out(await db.one("SELECT * FROM projects WHERE id = ?", pid))  # type: ignore[arg-type]
 
 
 @app.post("/api/projects/{project_id}/fork")

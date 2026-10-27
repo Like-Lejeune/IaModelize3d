@@ -86,6 +86,11 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 """
 
+MIGRATIONS = [
+    ("users", "ip", "TEXT"),
+    ("projects", "replay_of", "TEXT"),
+]
+
 JSON_COLUMNS = {"brief", "meta", "prompt", "data", "params", "inputs", "checks", "input", "result", "body", "preset", "fingerprint", "quote"}
 
 
@@ -125,7 +130,17 @@ class Database:
         self.conn = await aiosqlite.connect(self.path)
         self.conn.row_factory = aiosqlite.Row
         await self.conn.executescript(SCHEMA)
+        await self._migrate()
         await self.conn.commit()
+
+    async def _migrate(self) -> None:
+        """Additive column migrations for databases created by older versions."""
+        assert self.conn
+        for table, column, decl in MIGRATIONS:
+            async with self.conn.execute(f"PRAGMA table_info({table})") as cur:
+                cols = {r[1] for r in await cur.fetchall()}
+            if column not in cols:
+                await self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
     async def close(self) -> None:
         if self.conn:

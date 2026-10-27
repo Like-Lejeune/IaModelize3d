@@ -50,6 +50,7 @@ async def global_spent_today() -> float:
 
 
 MIN_JOB_USD = 0.05
+ANON_PER_IP = 3.0
 
 
 async def reserve(user: dict, budget: float) -> float:
@@ -61,6 +62,11 @@ async def reserve(user: dict, budget: float) -> float:
     if running and running["n"] >= concurrent:
         raise QuotaExceeded("another job is still running")
     left = limit - usd - (running["r"] if running else 0)
+    if user["tier"] == "anon" and user.get("ip"):
+        # anonymous sessions are cheap to create; cap what one address spends per day
+        row = await db.one("SELECT COALESCE(SUM(s.usd), 0) AS usd FROM spend s JOIN users u ON u.id = s.user_id "
+                           "WHERE u.ip = ? AND u.tier = 'anon' AND s.day = ?", user["ip"], _today())
+        left = min(left, ANON_PER_IP - float(row["usd"]))
     global_left = settings().daily_budget_usd - await global_spent_today()
     allowed = min(budget, left, global_left)
     if global_left < MIN_JOB_USD:
