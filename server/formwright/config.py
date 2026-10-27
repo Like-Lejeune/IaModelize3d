@@ -52,9 +52,6 @@ class Settings(BaseSettings):
     open_model: str = ""
     # route the independent critic to another model, e.g. the open-weights one
     model_critic: str = ""
-    # object dossier before modelling: off | auto (depth by task) | full | short.
-    # Off by default: it made look-alike copies worse at twice the cost.
-    dossier: str = "off"
 
     # budgets (USD)
     job_budget_usd: float = 0.60

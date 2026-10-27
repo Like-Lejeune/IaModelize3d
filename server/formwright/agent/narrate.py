@@ -8,18 +8,16 @@ from __future__ import annotations
 from typing import Any
 
 KIND = {
-    "write_program": "build", "edit_program": "edit", "set_params": "params", "inspect_model": "inspect",
-    "render_view": "render", "look_at": "look", "scene": "scene", "measure_photo": "measure", "read_caliper": "caliper",
-    "lookup_standard": "standard", "search_dimensions": "search", "recall": "memory", "remember_interface": "memory",
-    "ask_user": "ask", "fit_to_photo": "fit", "propose_probe": "probe", "concept_images": "concepts",
-    "load_terrain": "terrain", "save_skill": "skill", "compare_print": "compare", "finish": "finish",
+    "write_program": "build", "edit_program": "edit", "set_params": "params", "inspect_model": "inspect", "look": "look",
+    "measure": "measure", "dimensions": "standard", "remember_interface": "memory", "ask_user": "ask", "fit_to_photo": "fit",
+    "propose_probe": "probe", "concept_images": "concepts", "load_terrain": "terrain", "compare_print": "compare", "finish": "finish",
 }
 
 # which stage of the job a tool belongs to
 STAGE = {
-    "build": "design", "edit": "design", "params": "design", "skill": "design", "terrain": "measure", "concepts": "design",
-    "measure": "measure", "caliper": "measure", "scene": "measure", "look": "measure", "standard": "measure", "search": "measure",
-    "memory": "understand", "ask": "understand", "inspect": "check", "render": "check", "fit": "check", "probe": "check",
+    "build": "design", "edit": "design", "params": "design", "terrain": "measure", "concepts": "design",
+    "measure": "measure", "standard": "measure", "memory": "understand", "ask": "understand",
+    "inspect": "check", "look": "check", "fit": "check", "probe": "check",
     "compare": "check", "finish": "review",
 }
 
@@ -63,7 +61,9 @@ RU = {
     "printability errors remain": "остались ошибки печатаемости", "needs fixes": "нужны правки", "Overlay ready": "Наложение готово", "Views rendered": "Виды готовы",
     "Download 3MF": "Скачать 3MF", "Prepare print settings": "Подготовить настройки печати", "Print a 5-minute test piece": "Напечатать 5-минутный пробник",
     "Order a print": "Заказать печать", "Share as a recipe": "Поделиться рецептом",
-    "Memory checked": "Память проверена", " mm": " мм", " min": " мин", " km": " км", " m relief": " м перепад", "Saved to your setup": "Сохранено в ваших размерах", "Problem": "Проблема", "Done": "Готово",
+    "Comparing the model with the photo": "Сравниваю модель с фото", "Looking at the model from all sides": "Смотрю на модель со всех сторон",
+    "Looking up dimensions": "Ищу размеры", "Silhouette match": "Совпадение силуэта", "Nothing found": "Ничего не найдено",
+    "Finding": "Ищу", "Measuring the photos": "Измеряю фото", " mm": " мм", " min": " мин", " km": " км", " m relief": " м перепад", "Saved to your setup": "Сохранено в ваших размерах", "Problem": "Проблема", "Done": "Готово",
 }
 
 
@@ -99,24 +99,27 @@ def call_title(name: str, args: dict[str, Any]) -> str:
         "edit_program": f"Changing: {a.get('summary') or 'details'}",
         "set_params": f"Adjusting {', '.join((a.get('values') or {}).keys()) or 'parameters'}",
         "inspect_model": "Measuring my own model",
-        "render_view": "Comparing with the photo" if a.get("view") == "photo" else "Rendering views",
-        "look_at": "Taking a closer look at the photo",
-        "scene": "Reading measurements from the photos",
-        "measure_photo": f"Measuring “{a.get('target', 'the object')}” on the photo",
-        "read_caliper": "Reading the caliper",
-        "lookup_standard": f"Checking standards: {a.get('query', '')}",
-        "search_dimensions": f"Searching official dimensions: {a.get('query', '')}",
-        "recall": "Checking what I remember about your setup",
+        "look": {"compare": "Comparing the model with the photo", "model": "Looking at the model from all sides"}.get(
+            str(a.get("what")), "Taking a closer look at the photo"),
+        "measure": "Reading the caliper" if str(a.get("target", "")).lower() == "caliper" else f"Measuring “{a.get('target', 'the object')}” on the photo",
+        "dimensions": f"Looking up dimensions: {a.get('query', '')}",
         "remember_interface": f"Remembering “{a.get('name', '')}” for next time",
         "ask_user": "Asking you a question",
         "fit_to_photo": f"Fitting {', '.join(a.get('params') or []) or 'the outline'} to the photo silhouette",
         "propose_probe": f"Preparing a test print for {a.get('dimension', 'a critical size')}",
         "concept_images": "Sketching concepts",
         "load_terrain": f"Loading real elevation data{(': ' + a['place']) if a.get('place') else ''}",
-        "save_skill": f"Saving a reusable module “{a.get('name', '')}”",
         "compare_print": "Comparing your print with the target",
         "finish": "Final check before handing over",
     }.get(name, name.replace("_", " "))
+
+
+def _likeness(r: dict[str, Any]) -> float | None:
+    for f in r.get("likeness") or []:
+        v = f.get("silhouette_iou", f.get("outline_iou"))
+        if isinstance(v, (int, float)):
+            return float(v)
+    return None
 
 
 def result_title(name: str, args: dict[str, Any], r: dict[str, Any]) -> str:
@@ -131,8 +134,11 @@ def result_title(name: str, args: dict[str, Any], r: dict[str, Any]) -> str:
         extra = f", notes: {warns}" if warns else ""
         fit = r.get("fit")
         fitted = f" — silhouette match {fit['iou_before']:.0%} → {fit['iou_after']:.0%}" if fit else ""
-        return f"Version {r.get('version')} — {_size(r.get('size_mm'))}, {state}{extra}{fitted}"
-    if name == "measure_photo":
+        like = _likeness(r)
+        return f"Version {r.get('version')} — {_size(r.get('size_mm'))}, {state}{extra}{fitted}{f', silhouette match {like:.0%}' if like is not None else ''}"
+    if name == "measure":
+        if str(args.get("target", "")).lower() == "caliper":
+            return f"Caliper reads {_mm(r.get('value_mm'))} mm" if r.get("value_mm") else "Couldn't read the caliper"
         unc = r.get("uncertainty_mm")
         holes = [h for h in (r.get("holes_mm") or []) if h.get("circular", True)]
         cutouts = len(r.get("holes_mm") or []) - len(holes)
@@ -141,19 +147,16 @@ def result_title(name: str, args: dict[str, Any], r: dict[str, Any]) -> str:
         if r.get("calibrated") and r.get("size_mm"):
             return f"Measured {r.get('name', 'object')}: {_size(r['size_mm'])}{f' ±{_mm(unc)}' if unc else ''}{hole_txt}"
         return f"Found {r.get('name', 'the object')} (no reference in the photo, sizes in pixels only)"
-    if name == "read_caliper":
-        return f"Caliper reads {_mm(r.get('value_mm'))} mm" if r.get("value_mm") else "Couldn't read the caliper"
-    if name == "search_dimensions":
-        facts = r.get("facts") or []
-        return f"Dimensions found: {len(facts)}{' (from memory)' if r.get('from_cache') else ''}"
-    if name == "lookup_standard":
-        n = len(r.get("results") or [])
-        return f"Standard values found: {n}" if n else "Not in the standards tables"
+    if name == "dimensions":
+        n, web = len(r.get("standards") or []), len(r.get("web") or [])
+        if not n and not web:
+            return "Nothing found"
+        return ", ".join(t for t in (f"Standard values found: {n}" if n else "", f"Dimensions found: {web}" if web else "") if t)
+    if name == "look":
+        like = _likeness(r)
+        return f"Silhouette match {like:.0%}" if like is not None else "Done"
     if name == "inspect_model":
         return "Measured the model"
-    if name == "scene":
-        n = len(r.get("measurements") or [])
-        return f"Measurements available: {n}"
     if name == "ask_user":
         return f"You answered: {r.get('answer')}" if r.get("answer") else "No answer — continuing with a stated assumption"
     if name == "propose_probe":
@@ -169,10 +172,6 @@ def result_title(name: str, args: dict[str, Any], r: dict[str, Any]) -> str:
         if r.get("accepted"):
             return "Approved"
         return f"Not yet: {r.get('reason', 'needs fixes')}"
-    if name == "render_view":
-        return "Overlay ready" if args.get("view") == "photo" else "Views rendered"
-    if name == "recall":
-        return "Memory checked"
     if name == "remember_interface":
         return "Saved to your setup"
     return "Done"

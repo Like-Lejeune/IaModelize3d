@@ -17,9 +17,9 @@ from ..models import SendMessage
 from .examples import EXAMPLES_TEXT
 from .prompts import CLASSIFY, PACK_NAMES, PACKS, SYSTEM
 from .runner import JobContext, add_message
-from . import dossier as dossier_mod
 from . import narrate
-from .tools import TOOLS, DesignState, run_tool
+from . import compare
+from .tools import DesignState, _crop_data_url, run_tool, tools_for
 
 log = logging.getLogger(__name__)
 
@@ -31,27 +31,75 @@ CLASSIFY_SCHEMA = {
         "refuse": {"type": "boolean"},
         "reason": {"type": "string"},
         "language": {"type": "string", "description": "user's language, e.g. en, ru, kk"},
+        "subject": {"type": "string", "description": "short noun phrase for the main object in the photos, e.g. 'white plastic clip'; "
+                                                    "never the reference sheet or card it lies on; empty without photos"},
+        "photo_role": {"type": "string", "enum": ["copy", "fit", "style", "none"],
+                       "description": "copy: reproduce the object shown; fit: design something that fits or attaches to it; "
+                                      "style: the look inspires a new design; none: no photos"},
     },
-    "required": ["pack", "title", "refuse", "reason", "language"],
+    "required": ["pack", "title", "refuse", "reason", "language", "subject", "photo_role"],
 }
 
+PHOTO_KINDS = ("photo", "sketch", "print")
 
-async def _prepare_scene(ctx: JobContext, assets: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Deterministic first: calibrate photos and read calipers before the LLM thinks."""
+
+async def _calibrate(ctx: JobContext, assets: list[dict[str, Any]]) -> list[str]:
+    """Find the scale reference on every photo first: the intake must know a white sheet is not the object."""
+    try:
+        from ..vision import scene
+    except ImportError:
+        return []
+
+    async def one(a: dict[str, Any]) -> str | None:
+        if not a["meta"].get("calibration") and not a["meta"].get("calibration_failed"):
+            try:
+                cal = await scene.calibrate(ctx.meter, a)
+            except Exception as e:  # noqa: BLE001 - a failed calibration is information, not a crash
+                log.info("calibration of %s: %s", a["id"], e)
+                cal = {"ok": False, "reason": str(e)[:200]}
+            a["meta"]["calibration"] = cal
+        cal = a["meta"].get("calibration") or {}
+        return f"{cal.get('reference')} on asset {a['id']}" if cal.get("ok") else None
+
+    photos = [a for a in assets if a["kind"] in PHOTO_KINDS]
+    if photos:
+        await ctx.status("Looking for a reference object to calibrate the photo")
+    return [r for r in await asyncio.gather(*(one(a) for a in photos)) if r]
+
+
+async def _prepare_scene(ctx: JobContext, assets: list[dict[str, Any]], subject: str, language: str) -> dict[str, Any] | None:
+    """Deterministic first, all at once: find and measure the subject on each photo, read calipers."""
     try:
         from ..vision import scene
     except ImportError:
         return None
-    for a in assets:
+    from ..models import SelectRequest
+
+    async def photo(a: dict[str, Any]) -> None:
         try:
-            if a["kind"] in ("photo", "sketch", "print") and not a["meta"].get("calibration") and not a["meta"].get("calibration_failed"):
-                await ctx.status("Looking for a reference object to calibrate the photo")
-                await scene.calibrate(ctx.meter, a)
-            elif a["kind"] == "caliper" and not a["meta"].get("caliper"):
-                await ctx.status("Reading the caliper")
-                await scene.read_caliper(ctx.meter, a)
-        except Exception as e:  # noqa: BLE001 - a failed calibration is information, not a crash
-            log.info("scene prep for %s: %s", a["id"], e)
+            await ctx.emit("tool.call", {"name": "measure", "kind": "measure",
+                                         "title": narrate.localize(f"Finding “{subject}” on the photo", language)})
+            sel = await scene.select(ctx.user, ctx.project_id, a, SelectRequest(text=subject, role="target", name=subject))
+            await ctx.emit("selection.added", {"id": sel["id"], "asset_id": sel["asset_id"], "role": sel["role"], "name": sel["name"],
+                                               "mask_url": storage.url(sel.get("mask_path")), "data": sel["data"]})
+            await ctx.emit("tool.result", {"name": "measure", "kind": "measure", "ok": True,
+                                           "title": narrate.localize(narrate.result_title("measure", {"target": subject}, {**sel["data"], "name": subject}), language)})
+        except Exception as e:  # noqa: BLE001 - not found is information, not a crash
+            log.info("subject on %s: %s", a["id"], e)
+            await ctx.emit("tool.result", {"name": "measure", "kind": "measure", "ok": False,
+                                           "title": narrate.localize(f"Problem: {str(e)[:140]}", language)})
+
+    async def caliper(a: dict[str, Any]) -> None:
+        try:
+            await scene.read_caliper(ctx.meter, a)
+        except Exception as e:  # noqa: BLE001
+            log.info("caliper %s: %s", a["id"], e)
+
+    jobs = [photo(a) for a in assets if a["kind"] == "photo" and subject]
+    jobs += [caliper(a) for a in assets if a["kind"] == "caliper" and not a["meta"].get("caliper")]
+    if jobs:
+        await ctx.status("Measuring the photos")
+        await asyncio.gather(*jobs)
     try:
         return await scene.scene_summary(ctx.project_id)
     except Exception as e:  # noqa: BLE001
@@ -99,12 +147,19 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
             await ctx.emit("job.stage", {"stage": name, "label": narrate.stage_label(name, language)})
 
     await set_stage("understand")
-    # pack + safety, once per project
+    photos = [a for a in (new_assets or all_assets) if a["kind"] in ("photo", "sketch")]
+    fresh_photos = bool(photos) and (bool(body.asset_ids) or not brief.get("turns"))
     pack = project.get("pack")
-    if not pack or project["title"] in ("New project", "Untitled"):
+    subject, photo_role = brief.get("subject", ""), brief.get("photo_role", "none")
+    # pack, safety and what the photos are for: once per project, and again when new photos arrive
+    references = await _calibrate(ctx, new_assets or all_assets)
+    if not pack or project["title"] in ("New project", "Untitled") or fresh_photos:
         await ctx.status("Understanding the request")
-        cls = await meta().json(ctx.meter, model=ctx.models.fast, system=CLASSIFY,
-                                content=[{"type": "input_text", "text": body.text or "(photos only)"}], schema=CLASSIFY_SCHEMA, name="classify", effort="minimal")
+        note = f"\nScale references found (not the object): {', '.join(references)}." if references else ""
+        content = [{"type": "input_text", "text": (body.text or "(photos only)") + note}]
+        content += [{"type": "input_image", "image_url": storage.data_url(a["path"], 768)} for a in photos[:2]]
+        cls = await meta().json(ctx.meter, model=ctx.models.fast, system=CLASSIFY, content=content, schema=CLASSIFY_SCHEMA,
+                                name="classify", effort="minimal")
         if cls.get("refuse"):
             text = f"I can't help with this one: {cls.get('reason', '')}"
             await add_message(ctx.project_id, "agent", text)
@@ -112,6 +167,8 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
             return "refused"
         pack = pack or cls.get("pack", "household")
         language = cls.get("language") or language
+        if fresh_photos:
+            subject, photo_role = (cls.get("subject") or "").strip()[:60], cls.get("photo_role") or "none"
         updates = {"pack": pack}
         if project["title"] in ("New project", "Untitled") and cls.get("title"):
             updates["title"] = cls["title"][:60]
@@ -120,31 +177,21 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     if pack not in PACKS:
         pack = "household"
 
-    state = DesignState(pack=pack)
+    state = DesignState(pack=pack, copies_photo=photo_role == "copy")
     current = await db.one("SELECT * FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", ctx.project_id)
     if current:
         state.source, state.params, state.version, state.inputs = current["source"], current["params"], current["version"], current["inputs"] or {}
 
     if any(a["kind"] in ("photo", "sketch", "caliper", "print", "video") for a in (new_assets or all_assets)):
         await set_stage("measure")
-    scene = await _prepare_scene(ctx, new_assets or all_assets)
+    # measuring, watching the video and recalling memory do not depend on each other
+    scene, video_notes, mem = await asyncio.gather(
+        _prepare_scene(ctx, new_assets or all_assets, subject if fresh_photos else "", language),
+        _video_notes(ctx, new_assets),
+        memory.recall(ctx.user["id"], body.text, pack),
+    )
     if scene:
         state.inputs.update(scene.get("inputs", {}))
-    video_notes = await _video_notes(ctx, new_assets)
-    depth = dossier_mod.depth_for(pack, new_assets or all_assets, body.dossier or settings().dossier)
-    if depth != "off" and not (state.source and depth == "short"):
-        # follow-up edits of an existing model skip the short dossier; photos always get one
-        await set_stage("measure" if depth == "full" else "understand")
-        try:
-            state.dossier = await dossier_mod.build(ctx, pack=pack, request=body.text, assets=new_assets or all_assets, scene=scene,
-                                                    depth=depth, language=language)
-        except Exception:  # noqa: BLE001 - analysis improves the design but must never block it
-            log.exception("dossier failed")
-        if state.dossier:
-            await ctx.emit("dossier", state.dossier)
-            await ctx.emit("tool.result", {"name": "dossier", "kind": "scene", "ok": True, "title": dossier_mod.summary_title(state.dossier, language),
-                                           "summary": json.dumps({k: state.dossier.get(k) for k in ("motif", "size", "measured")}, ensure_ascii=False)[:600]})
-    mem = await memory.recall(ctx.user["id"], body.text, pack)
     state.memory_ids = [m["id"] for items in mem.values() for m in items]
     await memory.mark_used(state.memory_ids)
 
@@ -168,11 +215,15 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         if scene.get("inputs", {}).get("outlines"):
             ctx_lines.append("Program inputs available: inputs.outlines." + ", inputs.outlines.".join(scene["inputs"]["outlines"]))
     ctx_lines.extend(video_notes)
-    if state.dossier:
-        ctx_lines.append(dossier_mod.for_designer(state.dossier))
-        ctx_lines.append("Use the dossier: start from its measured proportions, counts and most likely motif hypothesis, resolve its "
-                         "unknowns as it says, and aim to pass its checklist. It is the analyst's reading of the photo, not ground "
-                         "truth: where the photo clearly shows otherwise, follow the photo.")
+    targets = await compare.targets(ctx.project_id) if photo_role != "none" else []
+    if photo_role != "none":
+        what = {"copy": "reproduce the object shown", "fit": "design something that fits or attaches to the object shown",
+                "style": "use the look of the object shown as inspiration"}
+        # what an intake model read from a photo is a pointer, not a fact: the close-up shows what was actually selected
+        found = (f"The object was selected automatically as “{subject}” (scene selection, role 'target'); check on the close-up "
+                 "that it is the right object before using its outline.") if targets else \
+            "The object could not be selected automatically: look at the photos and measure it yourself."
+        ctx_lines.append(f"# Photos\nTask: {what.get(photo_role, photo_role)}. {found} A reference sheet or card in a photo only gives the scale.")
     recalled = memory.format_recall(mem)
     if recalled:
         ctx_lines.append("# Memory (relevant)\n" + recalled)
@@ -186,16 +237,28 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         if a["kind"] in ("photo", "sketch", "caliper", "concept"):
             content.append({"type": "input_text", "text": f"asset {a['id']} ({a['kind']}):"})
             content.append({"type": "input_image", "image_url": storage.data_url(a["path"], 1280)})
+    if fresh_photos:
+        for a, sel in targets:
+            box = (sel["data"] or {}).get("bbox_px")
+            if box and a["width"] and a["height"]:
+                pad = 0.08 * max(box[2] - box[0], box[3] - box[1])
+                grid = [(box[0] - pad) / a["width"] * 1000, (box[1] - pad) / a["height"] * 1000,
+                        (box[2] + pad) / a["width"] * 1000, (box[3] + pad) / a["height"] * 1000]
+                content.append({"type": "input_text", "text": f"Close-up of {subject} on asset {a['id']}:"})
+                content.append({"type": "input_image", "image_url": _crop_data_url(a["path"], grid)})
     history: list[dict[str, Any]] = [{"type": "message", "role": "user", "content": content}]
 
     model = ctx.models.designer
+    has_photos = any(a["kind"] in ("photo", "sketch") for a in all_assets)
+    has_prints = any(a["kind"] == "print" for a in all_assets)
+    tools = tools_for(pack, photos=has_photos, prints=has_prints)
     max_turns = settings().max_iterations * 3
     final_text: str | None = None
     for turn in range(max_turns):
         ctx.check_cancelled()
         effort = "medium" if turn < max_turns - 2 else "low"
-        resp = await meta().respond(ctx.meter, model=model, instructions=instructions, input=history, tools=TOOLS, effort=effort,
-                                    max_output_tokens=12000, cache_key=f"fw-agent-{pack}")
+        resp = await meta().respond(ctx.meter, model=model, instructions=instructions, input=history, tools=tools, effort=effort,
+                                    max_output_tokens=12000, cache_key=f"fw-agent-{pack}-{int(has_photos)}{int(has_prints)}")
         calls = []
         for item in resp.output or []:
             d = _item_dict(item)
@@ -241,7 +304,9 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
                                            "title": narrate.localize(narrate.result_title(name, args, result), language),
                                            "summary": json.dumps(result, ensure_ascii=False)[:600],
                                            "image": storage.url(imgs[0]) if imgs and not imgs[0].startswith("data:") else None})
-            history.append({"type": "function_call_output", "call_id": call["call_id"], "output": json.dumps(result, ensure_ascii=False)[:12000]})
+            # the model sees how much room is left, so it plans instead of running out mid-fix
+            history.append({"type": "function_call_output", "call_id": call["call_id"],
+                            "output": json.dumps({**result, "turn": f"{turn + 1} of {max_turns}"}, ensure_ascii=False)[:12000]})
         if images:
             parts: list[dict[str, Any]] = [{"type": "input_text", "text": "Images from the tools above:"}]
             for ref in images[:4]:
@@ -262,7 +327,8 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         card["next"] = [{**n, "label": narrate.localize(n["label"], language)} for n in card["next"]]
         await ctx.emit("result", card)
     turns = (brief.get("turns") or []) + [body.text[:200]]
-    await db.update("projects", "id", ctx.project_id, {"brief": {**brief, "turns": turns[-10:], "summary": text[:800], "language": language}, "updated_at": now()})
+    await db.update("projects", "id", ctx.project_id, {"brief": {**brief, "turns": turns[-10:], "summary": text[:800], "language": language,
+                                                                      "subject": subject, "photo_role": photo_role}, "updated_at": now()})
     await memory.record_outcome(state.memory_ids, success=state.done)
     if state.done and state.source and (state.critic or {}).get("verdict") == "pass":
         asyncio.create_task(_harvest_skill(ctx, state.source, pack))

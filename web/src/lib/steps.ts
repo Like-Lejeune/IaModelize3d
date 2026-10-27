@@ -7,6 +7,7 @@ export const TOOL_KIND: Record<string, string> = {
   scene: 'scene', measure_photo: 'measure', read_caliper: 'caliper', lookup_standard: 'standard', search_dimensions: 'search',
   recall: 'memory', remember_interface: 'memory', ask_user: 'ask', fit_to_photo: 'fit', propose_probe: 'probe',
   concept_images: 'concepts', load_terrain: 'terrain', save_skill: 'skill', compare_print: 'compare', finish: 'finish',
+  look: 'look', measure: 'measure', dimensions: 'standard',
 };
 
 export const KIND_ICON: Record<string, string> = {
@@ -17,7 +18,7 @@ export const KIND_ICON: Record<string, string> = {
 
 export const KIND_STAGE: Record<string, string> = {
   build: 'design', edit: 'design', params: 'design', skill: 'design', concepts: 'design', terrain: 'measure', measure: 'measure',
-  caliper: 'measure', scene: 'measure', look: 'measure', standard: 'measure', search: 'measure', memory: 'understand', ask: 'understand',
+  caliper: 'measure', scene: 'measure', look: 'check', standard: 'measure', search: 'measure', memory: 'understand', ask: 'understand',
   inspect: 'check', render: 'check', fit: 'check', probe: 'check', compare: 'check', finish: 'review',
 };
 
@@ -81,9 +82,18 @@ function ruCall(name: string, a: any): string {
     case 'save_skill': return `Сохраняю модуль «${s(a.name)}» для будущих проектов`;
     case 'compare_print': return 'Сравниваю отпечаток с целью';
     case 'finish': return 'Финальная проверка перед сдачей';
+    case 'look': return a.what === 'compare' ? 'Сравниваю модель с фото' : a.what === 'model' ? 'Смотрю на модель со всех сторон' : 'Рассматриваю фото внимательнее';
+    case 'measure': return String(a.target).toLowerCase() === 'caliper' ? 'Читаю штангенциркуль' : `Измеряю «${s(a.target) || 'объект'}» на фото`;
+    case 'dimensions': return `Ищу размеры: ${s(a.query)}`;
     default: return name.replace(/_/g, ' ');
   }
 }
+
+const likeness = (r: Record<string, any>): string => {
+  const f = Array.isArray(r.likeness) ? r.likeness[0] : null;
+  const v = f ? (f.silhouette_iou ?? f.outline_iou) : undefined;
+  return typeof v === 'number' ? `, совпадение силуэта ${Math.round(v * 100)}%` : '';
+};
 
 function ruResult(name: string, a: any, r: Record<string, any>): string {
   if (r.ok === false) return `Проблема: ${String(r.error ?? r.reason ?? 'не получилось').slice(0, 140)}`;
@@ -93,8 +103,12 @@ function ruResult(name: string, a: any, r: Record<string, any>): string {
     case 'set_params':
     case 'fit_to_photo': {
       const state = r.printable === false ? 'есть ошибки печати' : 'печатается';
-      return `Версия ${r.version ?? ''} — ${size(r.size_mm)}${size(r.size_mm) ? ', ' : ''}${state}`;
+      const like = likeness(r);
+      return `Версия ${r.version ?? ''} — ${size(r.size_mm)}${size(r.size_mm) ? ', ' : ''}${state}${like}`;
     }
+    case 'measure':
+      if (r.value_mm !== undefined) return `Штангенциркуль: ${mm(r.value_mm)} мм`;
+    // falls through
     case 'measure_photo':
       return r.size_mm ? `Измерено: ${size(r.size_mm)}${r.uncertainty_mm ? ` ±${mm(r.uncertainty_mm)}` : ''}` : 'Объект найден';
     case 'read_caliper':
@@ -104,6 +118,11 @@ function ruResult(name: string, a: any, r: Record<string, any>): string {
       return n !== undefined ? `Найдено размеров: ${n}` : 'Поиск выполнен';
     }
     case 'lookup_standard': return 'Значения из стандартов найдены';
+    case 'dimensions': {
+      const n = (Array.isArray(r.standards) ? r.standards.length : 0) + (Array.isArray(r.web) ? r.web.length : 0);
+      return n ? `Найдено размеров: ${n}` : 'Ничего не найдено';
+    }
+    case 'look': return likeness(r).replace(/^, с/, 'С') || 'Готово';
     case 'inspect_model': return 'Модель измерена';
     case 'scene': return 'Замеры доступны';
     case 'ask_user': return r.answer ? `Вы ответили: ${r.answer}` : 'Без ответа — продолжаю с допущением';

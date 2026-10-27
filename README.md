@@ -21,7 +21,8 @@ every version passes a slicer-like printability check and an independent critic.
 - **Checks like a slicer.** A layer-by-layer mini-slicer reports floating islands, long bridges,
   overhangs, features thinner than an extrusion line, vase-mode problems — with the exact height and
   position, so the agent can fix them. OrcaSlicer CLI gives the final time and weight.
-- **Verifies against reality.** The model is rendered from the photo's camera and overlaid on the photo;
+- **Verifies against reality.** When copying from a photo, every build comes back next to the object on the
+  photo, seen from the same angle (or drawn over it with the photo's own camera), with a silhouette match;
   an optimizer can fit outline parameters to the photo silhouette; uncertain fits become a 5-minute
   probe print; a printed calibration coupon gives each printer a fingerprint that later designs
   compensate for.

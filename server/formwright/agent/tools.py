@@ -42,7 +42,9 @@ class DesignState:
     facts: list[dict[str, Any]] = field(default_factory=list)
     printer: dict[str, Any] | None = None
     critic: dict[str, Any] | None = None
-    dossier: dict[str, Any] | None = None
+    copies_photo: bool = False  # the photo shows the object to reproduce: builds come with a likeness panel
+    view_elevation: float = 15.0
+    view_azimuth: float = 0.0
 
 
 def fn(name: str, description: str, properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -53,52 +55,66 @@ def fn(name: str, description: str, properties: dict[str, Any], required: list[s
 S = {"type": "string"}
 N = {"type": "number"}
 
-TOOLS: list[dict[str, Any]] = [
-    fn("write_program", "Write the full program (replaces the current one). Builds it, runs full printability checks and returns a render sheet.",
-       {"source": {**S, "description": "complete JavaScript program ending with return { meta, params, handles, build }"},
-        "summary": {**S, "description": "one line: what this version does"}}),
-    fn("edit_program", "Apply exact text replacements to the current program, then build/check/render. Cheaper than rewriting.",
-       {"edits": {"type": "array", "items": {"type": "object", "properties": {"find": S, "replace": S}, "required": ["find", "replace"]}},
-        "summary": S}),
-    fn("set_params", "Change parameter values (no code change), then build/check/render.",
-       {"values": {"type": "object", "description": "param name -> value"}, "summary": S}),
-    fn("inspect_model", "Measure the current model. ops: {op:'section', z} | {op:'parts'} | {op:'gap', a, b} | {op:'ray', from:[x,y,z], to:[x,y,z]}",
-       {"ops": {"type": "array", "items": {"type": "object"}}}),
-    fn("render_view", "Render the current model: view 'sheet' (6 views), 'iso', or 'photo' (drawn over a calibrated photo, needs asset_id).",
-       {"view": {"type": "string", "enum": ["sheet", "iso", "photo"]}, "asset_id": {**S, "description": "for view='photo'"}}, ["view"]),
-    fn("look_at", "Look at a project image again at higher resolution, optionally a crop given as [x1,y1,x2,y2] on a 0-1000 grid.",
-       {"asset_id": S, "crop": {"type": "array", "items": N}}, ["asset_id"]),
-    fn("scene", "Current measurements from photos and calipers: calibrations, selected objects with mm outlines/holes/uncertainty.", {}, []),
-    fn("measure_photo", "Segment an object on a photo by a short noun phrase and measure it in mm (needs a reference object in the photo).",
-       {"asset_id": S, "target": {**S, "description": "short noun phrase, e.g. 'white plastic clip'"},
-        "role": {"type": "string", "enum": ["target", "mating", "reference", "context"]}, "name": S}, ["asset_id", "target"]),
-    fn("read_caliper", "Read a caliper display on a photo.", {"asset_id": S}),
-    fn("lookup_standard", "Look up built-in standards: screws (M2-M8: clearance, nut, insert, heads), bearings, threads (metric, BSP), references (A4, card, coins), mounts (VESA, Raspberry Pi), sockets, fits, materials.",
-       {"query": S}),
-    fn("search_dimensions", "Search the web for official dimensions of a real product/standard. Results are cached as facts with source URLs.",
-       {"query": S}),
-    fn("recall", "Search memory: the user's measured interfaces and preferences, lessons, reusable skills.", {"query": S}),
-    fn("remember_interface", "Save a measured interface of the user's world for future designs (e.g. 'vacuum hose', {od: 32}).",
-       {"name": S, "values": {"type": "object"}, "source": S}),
-    fn("ask_user", "Ask the user one question that changes the design and cannot be measured. Give 2-4 concrete options.",
-       {"question": S, "options": {"type": "array", "items": S}, "allow_text": {"type": "boolean"}}, ["question", "options"]),
-    fn("fit_to_photo", "Let a numeric optimizer tune the given numeric params so the model's silhouette matches the selected object's mask on calibrated photos.",
-       {"params": {"type": "array", "items": S}, "selection": {**S, "description": "selection name (default: the target)"}}, ["params"]),
-    fn("propose_probe", "Offer a quick test print to resolve an uncertain fit-critical dimension (variants around the nominal value).",
-       {"kind": {"type": "string", "enum": ["hole", "peg", "gap", "thread", "clip"]}, "nominal": N, "dimension": S,
-        "variants": {"type": "array", "items": N}}, ["kind", "nominal", "dimension"]),
-    fn("concept_images", "Generate concept images for a form (Muse Image) to agree on the look before modelling.",
-       {"prompt": S, "n": {"type": "integer"}}, ["prompt"]),
-    fn("load_terrain", "Load a real elevation heightmap for a place (name or lat/lon) into inputs.heightmaps.terrain.",
-       {"place": S, "lat": N, "lon": N, "size_km": N}, ["size_km"]),
-    fn("save_skill", "Propose a reusable, tested module for future designs. source must be a function body that ends with `return function(lib, opts) {...}`.",
-       {"name": S, "source": S, "doc": S, "test_call": {**S, "description": "e.g. lib.skills.name({w: 20})"}, "expected_size": {"type": "array", "items": N}},
-       ["name", "source", "doc", "test_call"]),
-    fn("compare_print", "Compare a photo of the PRINTED part (on a reference sheet) with the target: the selected original outline if given, else the model's footprint. Returns deviations and suggested corrections.",
-       {"asset_id": S, "target": {**S, "description": "selection name of the original part (optional)"}}, ["asset_id"]),
-    fn("finish", "Finish when the model is printable and matches the intent. Runs an independent critic and full checks first.",
-       {"summary": {**S, "description": "final message to the user (their language)"}}),
-]
+WRITE = fn("write_program", "Write the full program (replaces the current one). Builds it, runs the printability checks and returns what you need to judge it: "
+           "size, issues with exact locations, a 6-view render and, for copies of a photo, the model next to the photo.",
+           {"source": {**S, "description": "complete JavaScript program ending with return { meta, params, handles, build }"},
+            "summary": {**S, "description": "one line: what this version does (user's language)"}})
+EDIT = fn("edit_program", "Apply exact text replacements to the current program, then build and check it like write_program. Cheaper than rewriting.",
+          {"edits": {"type": "array", "items": {"type": "object", "properties": {"find": S, "replace": S}, "required": ["find", "replace"]}},
+           "summary": S})
+SET_PARAMS = fn("set_params", "Change parameter values (no code change), then build and check.",
+                {"values": {"type": "object", "description": "param name -> value"}, "summary": S})
+INSPECT = fn("inspect_model", "Measure the current model. ops: {op:'section', z} | {op:'parts'} | {op:'gap', a, b} | {op:'ray', from:[x,y,z], to:[x,y,z]}",
+             {"ops": {"type": "array", "items": {"type": "object"}}})
+LOOK = fn("look", "Look closely. what='model': 6 views of the model with overhang heat. what='compare': the model next to the object on the photo, "
+          "seen from the same angle (set elevation to the photo's camera angle), with silhouette numbers. what=<asset id>: an input image "
+          "at full resolution, optionally a crop [x1,y1,x2,y2] on a 0-1000 grid.",
+          {"what": S, "crop": {"type": "array", "items": N}, "elevation": {**N, "description": "degrees above the horizon, for 'compare'"},
+           "azimuth": {**N, "description": "degrees around the model, 0 = its front (-Y side), for 'compare'"}}, ["what"])
+DIMENSIONS = fn("dimensions", "Real dimensions with their source: built-in standards first (screws M2-M8, nuts, inserts, bearings, threads, "
+                "VESA, Raspberry Pi, sockets, reference objects, fits, materials), then official specs from the web when the tables have nothing.",
+                {"query": S, "web": {"type": "boolean", "description": "search the web even if the tables answer"}}, ["query"])
+ASK = fn("ask_user", "Ask the user one question that changes the design and cannot be measured or looked up. Give 2-4 concrete options.",
+         {"question": S, "options": {"type": "array", "items": S}, "allow_text": {"type": "boolean"}}, ["question", "options"])
+FINISH = fn("finish", "Finish when the model is printable and matches the intent. Runs the full checks and an independent reviewer first.",
+            {"summary": {**S, "description": "final message to the user (their language)"}})
+MEASURE = fn("measure", "Measure on a photo: segment an object by a short noun phrase and get its outline, holes and size in mm with uncertainty "
+             "(needs a reference object such as an A4 sheet or a bank card in the photo). target='caliper' reads a caliper display.",
+             {"asset_id": S, "target": {**S, "description": "short noun phrase, e.g. 'white plastic clip', or 'caliper'"},
+              "role": {"type": "string", "enum": ["target", "mating", "reference", "context"]}, "name": S}, ["asset_id", "target"])
+FIT = fn("fit_to_photo", "Let a numeric optimizer tune the given numeric params so the model's silhouette matches the selected object on calibrated photos.",
+         {"params": {"type": "array", "items": S}, "selection": {**S, "description": "selection name (default: the target)"}}, ["params"])
+REMEMBER = fn("remember_interface", "Save a measured interface of the user's world for future designs (e.g. 'vacuum hose', {od: 32}).",
+              {"name": S, "values": {"type": "object"}, "source": S})
+PROBE = fn("propose_probe", "Offer a quick test print to resolve an uncertain fit-critical dimension (variants around the nominal value).",
+           {"kind": {"type": "string", "enum": ["hole", "peg", "gap", "thread", "clip"]}, "nominal": N, "dimension": S,
+            "variants": {"type": "array", "items": N}}, ["kind", "nominal", "dimension"])
+CONCEPTS = fn("concept_images", "Generate concept images for a form (Muse Image) to agree on the look before modelling.",
+              {"prompt": S, "n": {"type": "integer"}}, ["prompt"])
+TERRAIN = fn("load_terrain", "Load a real elevation heightmap for a place (name or lat/lon) into inputs.heightmaps.terrain.",
+             {"place": S, "lat": N, "lon": N, "size_km": N}, ["size_km"])
+COMPARE_PRINT = fn("compare_print", "Compare a photo of the PRINTED part (on a reference sheet) with the target: the selected original outline if given, "
+                   "else the model's footprint. Returns deviations and suggested corrections.",
+                   {"asset_id": S, "target": {**S, "description": "selection name of the original part (optional)"}}, ["asset_id"])
+
+FIT_PACKS = {"household", "copy", "adapter", "mechanisms"}
+LOOK_PACKS = {"forms", "stylize", "landmark"}
+
+
+def tools_for(pack: str, *, photos: bool, prints: bool) -> list[dict[str, Any]]:
+    """Only the tools this job can use: fewer choices, fewer tokens. Order is stable per (pack, photos, prints) for caching."""
+    tools = [WRITE, EDIT, SET_PARAMS, INSPECT, LOOK, DIMENSIONS, ASK]
+    if photos:
+        tools += [MEASURE, FIT]
+    if pack in FIT_PACKS:
+        tools += [REMEMBER, PROBE]
+    if pack in LOOK_PACKS:
+        tools.append(CONCEPTS)
+    if pack == "terrain":
+        tools.append(TERRAIN)
+    if prints:
+        tools.append(COMPARE_PRINT)
+    return tools + [FINISH]
 
 
 def _skills_used(source: str) -> list[str]:
@@ -184,7 +200,11 @@ async def commit_build(ctx: JobContext, state: DesignState, source: str, params:
         "params": built["params"],
         "parts": [{"name": p["name"], "role": p["role"]} for p in built.get("parts", [])],
     }
-    return result, [rel]
+    images = [rel]
+    if state.copies_photo:
+        result["likeness"], panels = await _likeness(ctx, state)
+        images += panels
+    return result, images
 
 
 def _apply_edits(source: str, edits: list[dict[str, str]]) -> tuple[str, list[str]]:
@@ -228,6 +248,44 @@ def _crop_data_url(rel: str, crop: list[float] | None) -> str:
     part.save(buf, "JPEG", quality=88)
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
+async def _likeness(ctx: JobContext, state: DesignState) -> tuple[list[dict[str, Any]], list[str]]:
+    """The model next to each photographed object it copies (copy tasks only)."""
+    from . import compare
+
+    facts, images = [], []
+    for asset, sel in await compare.targets(ctx.project_id):
+        try:
+            r = await compare.panel(ctx.project_id, state, asset, sel, state.view_elevation, state.view_azimuth)
+        except Exception as e:  # noqa: BLE001 - feedback is a bonus, never a failure of the build
+            log.info("likeness panel failed: %s", e)
+            continue
+        if r:
+            facts.append(r[0])
+            images.append(r[1])
+    return facts, images
+
+
+async def _look(ctx: JobContext, state: DesignState, args: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    what = str(args.get("what", "model")).strip()
+    if what in ("model", "compare") and not state.source:
+        return {"ok": False, "error": "no program yet"}, []
+    if what == "model":
+        r = await geom().render(state.source, state.params, view="sheet", heat=True, inputs=state.inputs)
+        return {"ok": True}, [storage.save_bytes(ctx.project_id, "renders", f"v{state.version}_look.png", base64.b64decode(r["png"]))]
+    if what == "compare":
+        if args.get("elevation") is not None:
+            state.view_elevation = max(-10.0, min(80.0, float(args["elevation"])))
+        if args.get("azimuth") is not None:
+            state.view_azimuth = float(args["azimuth"]) % 360
+        facts, images = await _likeness(ctx, state)
+        if not images:
+            return {"ok": False, "error": "no object selected on a photo; measure it first"}, []
+        return {"ok": True, "likeness": facts, "note": "later builds use this angle"}, images
+    asset = await _asset(ctx, what)
+    if not asset:
+        return {"ok": False, "error": "what must be 'model', 'compare' or an asset id"}, []
+    return {"ok": True}, [_crop_data_url(asset["path"], args.get("crop"))]
+
 
 async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """Returns (result for the model, image refs). Image refs are relative file paths or data URLs."""
@@ -250,42 +308,15 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
         if not state.source:
             return {"ok": False, "error": "no program yet"}, []
         return await geom().inspect(state.source, state.params, args.get("ops", []), inputs=state.inputs), []
-    if name == "render_view":
-        if not state.source:
-            return {"ok": False, "error": "no program yet"}, []
-        view = args.get("view", "sheet")
-        if view == "photo":
-            scene = await _vision()
-            asset = await _asset(ctx, args.get("asset_id", ""))
-            cam = scene.camera_for_render(asset) if scene and asset else None
-            if not cam:
-                return {"ok": False, "error": "photo is not calibrated (no reference object found)"}, []
-            r = await geom().render(state.source, state.params, camera=cam, inputs=state.inputs)
-            from ..vision import overlay
-
-            rel = overlay.compose(asset, base64.b64decode(r["png"]))
-            await ctx.emit("scene", {"asset_id": asset["id"], "overlay": storage.url(rel)})
-            return {"ok": True, "note": "model drawn over the photo with an orange outline"}, [rel]
-        r = await geom().render(state.source, state.params, view=view, heat=True, inputs=state.inputs)
-        rel = storage.save_bytes(ctx.project_id, "renders", f"v{state.version}_{view}.png", base64.b64decode(r["png"]))
-        return {"ok": True}, [rel]
-    if name == "look_at":
-        asset = await _asset(ctx, args.get("asset_id", ""))
-        if not asset:
-            return {"ok": False, "error": "unknown asset"}, []
-        return {"ok": True}, [_crop_data_url(asset["path"], args.get("crop"))]
-    if name == "scene":
-        scene = await _vision()
-        if not scene:
-            return {"ok": False, "error": "vision module unavailable"}, []
-        summary = await scene.scene_summary(ctx.project_id)
-        state.inputs.update(summary.get("inputs", {}))
-        return summary, []
-    if name == "measure_photo":
+    if name == "look":
+        return await _look(ctx, state, args)
+    if name == "measure":
         scene = await _vision()
         asset = await _asset(ctx, args.get("asset_id", ""))
         if not scene or not asset:
             return {"ok": False, "error": "vision unavailable or unknown asset"}, []
+        if args.get("target", "").strip().lower() == "caliper":
+            return await scene.read_caliper(ctx.meter, asset), []
         from ..models import SelectRequest
 
         sel = await scene.select(ctx.user, ctx.project_id, asset, SelectRequest(text=args["target"], role=args.get("role", "target"), name=args.get("name")))
@@ -294,36 +325,25 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
         summary = await scene.scene_summary(ctx.project_id)
         state.inputs.update(summary.get("inputs", {}))
         d = sel["data"]
-        return {k: d.get(k) for k in ("name", "calibrated", "size_mm", "holes_mm", "uncertainty_mm", "confidence", "area_px")} | {"name": sel["name"]}, []
-    if name == "read_caliper":
-        scene = await _vision()
-        asset = await _asset(ctx, args.get("asset_id", ""))
-        if not scene or not asset:
-            return {"ok": False, "error": "vision unavailable or unknown asset"}, []
-        return await scene.read_caliper(ctx.meter, asset), []
-    if name == "lookup_standard":
-        return {"results": knowledge.lookup_standard(args.get("query", ""))}, []
-    if name == "search_dimensions":
-        await ctx.status(f"Searching: {args.get('query', '')}")
-        r = await knowledge.search_dimensions(ctx.meter, args.get("query", ""), ctx.user["id"], ctx.models.fast)
-        items = [{k: f.get(k) for k in ("subject", "attribute", "value", "unit", "source_kind", "source_url", "confidence")} for f in r["facts"]]
-        for it in items:
-            if isinstance(it["value"], str):
-                try:
-                    it["value"] = json.loads(it["value"])
-                except json.JSONDecodeError:
-                    pass
-        state.facts.extend(items)
-        await ctx.emit("facts", {"items": items})
-        return {"facts": items, "from_cache": r.get("from_cache", False), "notes": r.get("notes", "")}, []
-    if name == "recall":
-        mem = await memory.recall(ctx.user["id"], args.get("query", ""), state.pack)
-        ids = [m["id"] for items in mem.values() for m in items]
-        state.memory_ids.extend(ids)
-        await memory.mark_used(ids)
-        if ids:
-            await ctx.emit("memory", {"items": [{"kind": m["kind"], "name": m["name"]} for items in mem.values() for m in items]})
-        return {"memory": memory.format_recall(mem) or "nothing relevant"}, []
+        return {k: d.get(k) for k in ("calibrated", "size_mm", "holes_mm", "uncertainty_mm", "confidence", "calibration_note") if d.get(k) is not None} | {"name": sel["name"]}, []
+    if name == "dimensions":
+        query = args.get("query", "")
+        out: dict[str, Any] = {"standards": knowledge.lookup_standard(query)}
+        if args.get("web") or not out["standards"]:
+            await ctx.status(f"Searching: {query}")
+            r = await knowledge.search_dimensions(ctx.meter, query, ctx.user["id"], ctx.models.fast)
+            items = [{k: f.get(k) for k in ("subject", "attribute", "value", "unit", "source_kind", "source_url", "confidence")} for f in r["facts"]]
+            for it in items:
+                if isinstance(it["value"], str):
+                    try:
+                        it["value"] = json.loads(it["value"])
+                    except json.JSONDecodeError:
+                        pass
+            state.facts.extend(items)
+            if items:
+                await ctx.emit("facts", {"items": items})
+            out.update({"web": items, "notes": r.get("notes", "")})
+        return out, []
     if name == "remember_interface":
         item = await memory.remember_interface(ctx.user["id"], args["name"], args.get("values") or {}, args.get("source", "agent"))
         await ctx.emit("memory", {"items": [{"kind": "interface", "name": item["name"]}]})
@@ -332,7 +352,10 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
         state.questions += 1
         if state.questions > 4:
             return {"answer": None, "note": "question limit reached; proceed with your best assumption and state it"}, []
-        answer = await ctx.ask(args["question"], args.get("options") or [], bool(args.get("allow_text", True)))
+        # models sometimes send {label, value} objects instead of strings; people read labels
+        options = [o if isinstance(o, str) else str(o.get("label") or o.get("value") or "") if isinstance(o, dict) else str(o)
+                   for o in args.get("options") or []]
+        answer = await ctx.ask(args["question"], [o for o in options if o][:4], bool(args.get("allow_text", True)))
         return {"answer": answer} if answer is not None else {"answer": None, "note": "no answer; proceed with a stated assumption"}, []
     if name == "fit_to_photo":
         return await _fit_to_photo(ctx, state, args)
@@ -352,10 +375,6 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
         hm = await terrain.load(ctx.meter, place=args.get("place"), lat=args.get("lat"), lon=args.get("lon"), size_km=float(args.get("size_km", 5)), model=ctx.models.fast)
         state.inputs.setdefault("heightmaps", {})["terrain"] = {k: hm[k] for k in ("w", "h", "data")}
         return {k: v for k, v in hm.items() if k != "data"}, []
-    if name == "save_skill":
-        test = {"call": args.get("test_call"), "size": args.get("expected_size"), "tol": 0.6}
-        item_id = await memory.propose_skill(args["name"], args["source"], args["doc"], test, state.pack, ctx.job_id)
-        return {"ok": True, "id": item_id, "status": "candidate (becomes active after it passes its test and helps twice)"}, []
     if name == "compare_print":
         return await _compare_print(ctx, state, args)
     if name == "finish":
@@ -385,11 +404,6 @@ async def _finish(ctx: JobContext, state: DesignState, summary: str) -> dict[str
             if look_pack and isinstance(score, (int, float)) and score < 8 and not major:
                 major = [{"severity": "major", "text": f"Match with the reference is only {score}/10.", "fix_hint": "; ".join(
                     i.get("text", "") for i in verdict.get("issues", []))[:500]}]
-                verdict["verdict"] = "revise"
-            # an item the reviewer found wrong against the photo does not block: the photo outranks the dossier
-            failed_musts = [c for c in verdict.get("checklist", []) if c.get("ok") is False and c.get("must") and c.get("valid") is not False]
-            if failed_musts:
-                major += [{"severity": "major", "text": f"Dossier check failed: {c.get('check', c.get('id'))} — {c.get('note', '')}", "fix_hint": c.get("note", "")} for c in failed_musts]
                 verdict["verdict"] = "revise"
             if verdict.get("verdict") == "revise" and major:
                 return {"accepted": False, "reason": "the reviewer found major problems", "issues": major}

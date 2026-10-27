@@ -8,14 +8,16 @@ import { KIND_STAGE, kindOf } from './steps';
 import type { AssetOut, BuildResult, CheckReport, EventRow, ProjectDetail, SelectionOut } from './types';
 
 type Base = { key: string; ts: number; job?: string | null };
+// older servers passed the model's options through as {label, value} objects
+const optionLabel = (o: any): string => (typeof o === 'string' ? o : String(o?.label ?? o?.value ?? ''));
+
 export type TimelineItem =
   | (Base & { kind: 'user'; text: string; assets?: string[] })
   | (Base & { kind: 'agent'; text: string })
   | (Base & { kind: 'status'; text: string })
   | (Base & { kind: 'thinking'; text: string })
   | (Base & { kind: 'tool'; id: string; name: string; tkind: string; title?: string; args: any; result?: { ok: boolean; summary?: string; image?: string; title?: string } })
-  | (Base & { kind: 'critic'; verdict: string; score?: number | null; issues: { severity: string; text: string; fix_hint?: string }[]; render?: string; checklist?: { id: string; check: string; must?: boolean; ok: boolean; note?: string }[] })
-  | (Base & { kind: 'dossier'; data: any })
+  | (Base & { kind: 'critic'; verdict: string; score?: number | null; issues: { severity: string; text: string; fix_hint?: string }[]; render?: string })
   | (Base & { kind: 'ask'; job_id: string; question_id: string; question: string; options: string[]; allow_text: boolean; answered?: string })
   | (Base & { kind: 'facts'; items: any[] })
   | (Base & { kind: 'program'; version: number; summary?: string; render?: string; author?: string })
@@ -293,10 +295,7 @@ export class ProjectStore {
         if (d.render) this.lastRender = d.render;
         break;
       case 'critic':
-        this.push({ kind: 'critic', key, ts, job: jid, verdict: d.verdict ?? 'revise', score: d.match_score, issues: d.issues ?? [], render: d.render, checklist: d.checklist ?? [] });
-        break;
-      case 'dossier':
-        this.push({ kind: 'dossier', key, ts, job: jid, data: d });
+        this.push({ kind: 'critic', key, ts, job: jid, verdict: d.verdict ?? 'revise', score: d.match_score, issues: d.issues ?? [], render: d.render });
         break;
       case 'result': {
         const j = this.job(jid, ts);
@@ -304,7 +303,7 @@ export class ProjectStore {
         break;
       }
       case 'ask':
-        this.push({ kind: 'ask', key, ts, job: jid, job_id: d.job_id ?? jid ?? '', question_id: d.question_id ?? key, question: d.question ?? '', options: d.options ?? [], allow_text: d.allow_text !== false });
+        this.push({ kind: 'ask', key, ts, job: jid, job_id: d.job_id ?? jid ?? '', question_id: d.question_id ?? key, question: d.question ?? '', options: (d.options ?? []).map(optionLabel).filter(Boolean), allow_text: d.allow_text !== false });
         { const j = this.job(jid, ts); if (j) j.status = 'waiting'; }
         break;
       case 'answer': {
