@@ -86,6 +86,11 @@ async def review(ctx: JobContext, state: Any) -> dict[str, Any]:
     )
     if state.facts:
         lines.append("Facts used: " + json.dumps(state.facts[:12], ensure_ascii=False)[:1500])
+    refs = {((p.get("meta") or {}).get("calibration") or {}).get("reference") for p in photos} - {None}
+    if refs:
+        # a dark part on a white sheet is easily read as "a white plate with a hole"
+        lines.append(f"Scale reference in the photos: {', '.join(sorted(refs))}. It only gives the scale; it is not part of the design. "
+                     "The object to judge is the item lying on it or next to it.")
     content: list[dict[str, Any]] = [{"type": "input_text", "text": "\n".join(lines)}]
     for p in photos:
         content.append({"type": "input_image", "image_url": storage.data_url(p["path"], 1024)})
