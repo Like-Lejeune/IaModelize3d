@@ -9,6 +9,7 @@ import io
 import math
 from typing import Any
 
+import cv2
 import httpx
 import numpy as np
 from PIL import Image
@@ -69,6 +70,8 @@ async def heightmap(lat: float, lon: float, size_km: float, grid: int = 160) -> 
     yi = np.clip(ys.astype(int), 0, mosaic.shape[0] - 1)
     data = mosaic[np.ix_(yi, xi)]
     data = np.maximum(data, -50)  # bathymetry: clamp to near sea level
+    # Elevation tiles carry single-cell spikes that print as needles; a light blur removes them.
+    data = cv2.GaussianBlur(data.astype(np.float32), (0, 0), sigmaX=0.8).astype(np.float64)
     return {
         "w": grid, "h": grid, "data": [round(float(v), 1) for v in data.flatten()],
         "lat": lat, "lon": lon, "size_km": size_km, "zoom": z,

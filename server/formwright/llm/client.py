@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
-from openai import APIStatusError, AsyncOpenAI
+from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
 
 from ..config import settings
 from . import pricing
@@ -135,7 +135,7 @@ class MetaClient:
                     log.warning("meta api %s on %s, retry in %.1fs", e.status_code, model, wait)
                     await asyncio.sleep(wait + random.random() * 0.3)
                     delay = min(delay * 2, 20)
-                except (httpx.TimeoutException, httpx.TransportError):
+                except (httpx.TimeoutException, httpx.TransportError, APIConnectionError, APITimeoutError):
                     if i == attempts - 1:
                         raise
                     await asyncio.sleep(delay)
