@@ -1,0 +1,10 @@
+export { loadKernel, withArena, type Wasm } from './kernel.ts';
+export * from './program.ts';
+export { Engine, type BuildRequest, type RenderRequest, type ExportRequest, type FitRequest } from './engine.ts';
+export { analyze, triangleHeat, type CheckReport, type Issue } from './checks.ts';
+export { RULES, hintsFor } from './rules.ts';
+export { DEFAULT_PRINTER, makeLib, type PrinterProfile, type Inputs } from './lib/index.ts';
+export { partsMesh, meshOf, toBase64, fromBase64 } from './mesh.ts';
+export { render, renderSheet, orthoFit, lookAt, silhouette, iou, type Camera } from './render.ts';
+export { toStl, to3mf } from './export.ts';
+export { encodePng } from './png.ts';

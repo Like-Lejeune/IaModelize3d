@@ -1,0 +1,112 @@
+// Loads the manifold WASM module once and tracks every object created during a
+// build so it can be freed afterwards. Without this, slider drags leak WASM memory.
+import Module from 'manifold-3d';
+import type { ManifoldToplevel, Manifold, CrossSection } from 'manifold-3d';
+
+export type Wasm = ManifoldToplevel;
+export type { Manifold, CrossSection };
+
+let wasmPromise: Promise<Wasm> | null = null;
+
+export function loadKernel(locateFile?: () => string): Promise<Wasm> {
+  if (!wasmPromise) {
+    wasmPromise = (async () => {
+      const wasm = await (Module as any)(locateFile ? { locateFile } : undefined);
+      wasm.setup();
+      wasm.setMinCircularEdgeLength(0.5);
+      wasm.setMinCircularAngle(6);
+      patchForCollection(wasm);
+      return wasm as Wasm;
+    })();
+  }
+  return wasmPromise;
+}
+
+// Every Manifold/CrossSection returned by a static or instance method is pushed
+// onto the active arena; `withArena` deletes everything not explicitly kept.
+let arena: Set<{ delete(): void }> | null = null;
+
+function track<T>(value: T): T {
+  if (arena && value && typeof value === 'object') {
+    if (Array.isArray(value)) value.forEach((v) => track(v));
+    else if (typeof (value as any).delete === 'function') arena.add(value as any);
+  }
+  return value;
+}
+
+// Instances carry the embind prototype, which is not `cls.prototype` after setup().
+function patchClass(cls: any, proto: any) {
+  for (const key of Object.getOwnPropertyNames(cls)) {
+    const fn = cls[key];
+    if (typeof fn !== 'function' || key === 'prototype' || key === 'length' || key === 'name') continue;
+    cls[key] = function (...args: unknown[]) {
+      return track(fn.apply(this, args));
+    };
+  }
+  for (const key of Object.getOwnPropertyNames(proto)) {
+    if (key === 'constructor' || key === 'delete') continue;
+    const desc = Object.getOwnPropertyDescriptor(proto, key);
+    if (!desc || typeof desc.value !== 'function') continue;
+    const fn = desc.value;
+    proto[key] = function (...args: unknown[]) {
+      return track(fn.apply(this, args));
+    };
+  }
+}
+
+function patchForCollection(wasm: any) {
+  // The bindings mis-convert a scalar scaleTop (Y becomes 0), which silently turns
+  // boxes into wedges. Programs written by the agent pass scalars, so normalize here.
+  const pair = (s: unknown) => (typeof s === 'number' ? [s, s] : s);
+  const sampleCs = wasm.CrossSection.square(1);
+  const sampleM = wasm.Manifold.cube(1);
+  const protos: Record<string, any> = {
+    CrossSection: Object.getPrototypeOf(sampleCs),
+    Manifold: Object.getPrototypeOf(sampleM),
+  };
+  sampleCs.delete();
+  sampleM.delete();
+  const csExtrude = protos.CrossSection.extrude;
+  protos.CrossSection.extrude = function (h: number, n?: number, tw?: number, st?: unknown, c?: boolean) {
+    return csExtrude.call(this, h, n ?? 0, tw ?? 0, pair(st ?? 1), c ?? false);
+  };
+  const mExtrude = wasm.Manifold.extrude;
+  wasm.Manifold.extrude = function (p: unknown, h: number, n?: number, tw?: number, st?: unknown, c?: boolean) {
+    return mExtrude.call(this, p, h, n ?? 0, tw ?? 0, pair(st ?? 1), c ?? false);
+  };
+  for (const name of ['Manifold', 'CrossSection']) {
+    const Orig = wasm[name];
+    patchClass(Orig, protos[name]);
+    // `new Manifold(mesh)` / `new CrossSection(polys)` must be tracked too.
+    const Wrapped = function (this: unknown, ...args: unknown[]) {
+      return track(new Orig(...args));
+    } as any;
+    Object.setPrototypeOf(Wrapped, Orig);
+    Wrapped.prototype = Orig.prototype;
+    wasm[name] = Wrapped;
+  }
+}
+
+// Synchronous on purpose: an `await` inside would let another build swap the arena.
+export function withArena<T>(fn: (keep: <U>(v: U) => U) => T): T {
+  const prev = arena;
+  const mine = new Set<{ delete(): void }>();
+  arena = mine;
+  const kept = new Set<unknown>();
+  try {
+    return fn((v) => {
+      kept.add(v);
+      return v;
+    });
+  } finally {
+    arena = prev;
+    for (const obj of mine) {
+      if (kept.has(obj)) continue;
+      try {
+        obj.delete();
+      } catch {
+        /* already freed */
+      }
+    }
+  }
+}

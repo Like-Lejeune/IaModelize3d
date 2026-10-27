@@ -1,0 +1,71 @@
+{
+  "_note": "Nominal values in mm. Entries with verify=true are approximate and must be confirmed by measurement, search or a probe print.",
+  "screws": {
+    "M2":   { "pitch": 0.4,  "clearance": { "close": 2.2,  "normal": 2.4,  "loose": 2.6 },  "tap_plastic": 1.7, "nut": { "af": 4.0,  "h": 1.6 }, "insert": { "d": 3.2, "depth": 4.0 }, "socket_head": { "d": 3.8,  "h": 2.0 }, "csk_head": { "d": 3.8,  "angle": 90 } },
+    "M2.5": { "pitch": 0.45, "clearance": { "close": 2.7,  "normal": 2.9,  "loose": 3.1 },  "tap_plastic": 2.2, "nut": { "af": 5.0,  "h": 2.0 }, "insert": { "d": 3.6, "depth": 4.5 }, "socket_head": { "d": 4.5,  "h": 2.5 }, "csk_head": { "d": 4.7,  "angle": 90 } },
+    "M3":   { "pitch": 0.5,  "clearance": { "close": 3.2,  "normal": 3.4,  "loose": 3.6 },  "tap_plastic": 2.6, "nut": { "af": 5.5,  "h": 2.4 }, "insert": { "d": 4.0, "depth": 5.7 }, "socket_head": { "d": 5.5,  "h": 3.0 }, "csk_head": { "d": 6.0,  "angle": 90 } },
+    "M4":   { "pitch": 0.7,  "clearance": { "close": 4.3,  "normal": 4.5,  "loose": 4.8 },  "tap_plastic": 3.5, "nut": { "af": 7.0,  "h": 3.2 }, "insert": { "d": 5.6, "depth": 8.1 }, "socket_head": { "d": 7.0,  "h": 4.0 }, "csk_head": { "d": 8.0,  "angle": 90 } },
+    "M5":   { "pitch": 0.8,  "clearance": { "close": 5.3,  "normal": 5.5,  "loose": 5.8 },  "tap_plastic": 4.4, "nut": { "af": 8.0,  "h": 4.7 }, "insert": { "d": 6.4, "depth": 9.5 }, "socket_head": { "d": 8.5,  "h": 5.0 }, "csk_head": { "d": 10.0, "angle": 90 } },
+    "M6":   { "pitch": 1.0,  "clearance": { "close": 6.4,  "normal": 6.6,  "loose": 7.0 },  "tap_plastic": 5.3, "nut": { "af": 10.0, "h": 5.2 }, "insert": { "d": 8.0, "depth": 12.7 }, "socket_head": { "d": 10.0, "h": 6.0 }, "csk_head": { "d": 12.0, "angle": 90 } },
+    "M8":   { "pitch": 1.25, "clearance": { "close": 8.4,  "normal": 9.0,  "loose": 10.0 }, "tap_plastic": 7.1, "nut": { "af": 13.0, "h": 6.8 }, "insert": { "d": 9.7, "depth": 12.7 }, "socket_head": { "d": 13.0, "h": 8.0 }, "csk_head": { "d": 16.0, "angle": 90 } }
+  },
+  "metric_coarse_pitch": { "M3": 0.5, "M4": 0.7, "M5": 0.8, "M6": 1.0, "M8": 1.25, "M10": 1.5, "M12": 1.75, "M16": 2.0, "M20": 2.5, "M24": 3.0, "M30": 3.5 },
+  "pipe_threads_bsp": {
+    "1/8": { "major": 9.728,  "tpi": 28 },
+    "1/4": { "major": 13.157, "tpi": 19 },
+    "3/8": { "major": 16.662, "tpi": 19 },
+    "1/2": { "major": 20.955, "tpi": 14 },
+    "3/4": { "major": 26.441, "tpi": 14 },
+    "1":   { "major": 33.249, "tpi": 11 }
+  },
+  "bearings": {
+    "608": { "id": 8, "od": 22, "w": 7 },
+    "623": { "id": 3, "od": 10, "w": 4 },
+    "625": { "id": 5, "od": 16, "w": 5 },
+    "688": { "id": 8, "od": 16, "w": 5 },
+    "6000": { "id": 10, "od": 26, "w": 8 },
+    "6001": { "id": 12, "od": 28, "w": 8 },
+    "6002": { "id": 15, "od": 32, "w": 9 },
+    "6003": { "id": 17, "od": 35, "w": 10 }
+  },
+  "references": {
+    "A4":      { "kind": "sheet", "w": 210.0, "h": 297.0 },
+    "A5":      { "kind": "sheet", "w": 148.0, "h": 210.0 },
+    "Letter":  { "kind": "sheet", "w": 215.9, "h": 279.4 },
+    "ID-1 card": { "kind": "card", "w": 85.60, "h": 53.98, "t": 0.76, "corner_r": 3.18 },
+    "AA battery":  { "kind": "cylinder", "l": 50.5, "d": 14.5 },
+    "AAA battery": { "kind": "cylinder", "l": 44.5, "d": 10.5 },
+    "LEGO 2x4 brick": { "kind": "box", "w": 31.8, "h": 15.8, "t": 9.6 },
+    "1 euro coin": { "kind": "coin", "d": 23.25 },
+    "2 euro coin": { "kind": "coin", "d": 25.75 },
+    "US quarter":  { "kind": "coin", "d": 24.26 },
+    "US penny":    { "kind": "coin", "d": 19.05 }
+  },
+  "mounts": {
+    "VESA 75":  { "pattern": [75, 75],   "screw": "M4" },
+    "VESA 100": { "pattern": [100, 100], "screw": "M4" },
+    "VESA 200": { "pattern": [200, 200], "screw": "M6" },
+    "Raspberry Pi 4/5": { "board": [85, 56], "holes": [[3.5, 3.5], [61.5, 3.5], [3.5, 52.5], [61.5, 52.5]], "screw": "M2.5" },
+    "Gridfinity": { "pitch": 42, "height_unit": 7, "clearance": 0.5 }
+  },
+  "lamp_sockets": {
+    "E27": { "thread_major": 26.45, "verify": true },
+    "E14": { "thread_major": 13.89, "verify": true },
+    "GU10": { "pin_spacing": 10, "verify": true }
+  },
+  "fits": {
+    "_note": "Diametral clearance for FDM, before printer compensation.",
+    "press": 0.05,
+    "snug": 0.15,
+    "slide": 0.25,
+    "loose": 0.4,
+    "print_in_place": 0.4
+  },
+  "materials": {
+    "PLA":  { "density": 1.24, "max_service_c": 50 },
+    "PETG": { "density": 1.27, "max_service_c": 70 },
+    "ABS":  { "density": 1.04, "max_service_c": 85 },
+    "ASA":  { "density": 1.07, "max_service_c": 90 },
+    "TPU":  { "density": 1.21, "max_service_c": 60 }
+  }
+}
