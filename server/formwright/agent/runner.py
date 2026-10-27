@@ -64,7 +64,7 @@ _tasks: dict[str, asyncio.Task] = {}
 
 
 async def _create(user: dict[str, Any], project: dict[str, Any], kind: str, payload: dict[str, Any], budget: float, effort: str = "auto") -> JobContext:
-    await quotas.reserve(user, budget)
+    budget = await quotas.reserve(user, budget)
     db = await get_db()
     job_id = new_id("j_")
     await db.insert("jobs", {"id": job_id, "project_id": project["id"], "user_id": user["id"], "kind": kind, "status": "running",
