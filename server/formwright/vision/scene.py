@@ -501,6 +501,24 @@ async def _unique_name(project_id: str, base: str) -> str:
     return f"{base}{i}"
 
 
+def without_reference(masks: list[Mask], cal: dict[str, Any]) -> list[Mask]:
+    """A part lying on an A4 sheet is easily segmented as the sheet itself; the reference is never the target."""
+    if not cal.get("ok") or not cal.get("mask_path"):
+        return masks
+    try:
+        ref = load_mask_png(cal["mask_path"])
+    except (OSError, ValueError):
+        return masks
+    keep = []
+    for m in masks:
+        if m.mask.shape == ref.shape:
+            union = np.logical_or(m.mask, ref).sum()
+            if union and np.logical_and(m.mask, ref).sum() / union > 0.6:
+                continue
+        keep.append(m)
+    return keep
+
+
 async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], req: Any) -> dict[str, Any]:
     """Segment what the user pointed at and measure it. `req` is models.SelectRequest."""
     if not _is_image(asset):
@@ -518,6 +536,11 @@ async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], r
                                           points=[p.model_dump() for p in req.points] if not req.text else None,
                                           box=req.box if not req.text else None)
         masks = [m for m in masks if m.score >= 0.2] or masks
+        cal = (asset.get("meta") or {}).get("calibration") or {}
+        if req.role != "reference":
+            if not cal.get("ok") and not cal.get("reason"):
+                cal = await calibrate(meter, asset)
+            masks = without_reference(masks, cal)
         if not masks and req.text:
             # SAM's concept prompts miss unusual objects; let Spark ground the phrase to a box, then SAM refines it.
             box = await _ground_box(meter, img, req.text, choice.fast)
@@ -540,9 +563,6 @@ async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], r
             data = {"found": True, "calibration": {k: v for k, v in cal.items() if k in ("ok", "reason", "reference", "kind", "mm_per_px", "reproj_px", "camera_height_mm", "focal_source", "warning")},
                     "bbox_px": masks[0].bbox_px, "confidence": masks[0].score}
             return await _insert_selection(project_id, asset["id"], "reference", name, prompt, mask_path, data, sid)
-        cal = (asset.get("meta") or {}).get("calibration") or {}
-        if not cal.get("ok") and not cal.get("reason"):
-            cal = await calibrate(meter, asset)
         data = measure_mask(mask, cal if cal.get("ok") else {}, image=img)
         data.update({"bbox_px": masks[0].bbox_px, "confidence": round(masks[0].score, 4)})
         if shadow_trimmed:

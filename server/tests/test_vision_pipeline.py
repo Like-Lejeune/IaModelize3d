@@ -97,6 +97,31 @@ async def test_select_measures_in_mm(env, monkeypatch):
     assert cam and cam["width"] == syn.W and len(cam["R"]) == 9
 
 
+async def test_select_never_returns_the_reference_sheet(env, monkeypatch):
+    from formwright.db import get_db
+    from formwright.models import SelectRequest
+    from formwright.vision import ingest, scene
+    from formwright.vision.sam import Mask
+
+    img, sheet, part, R, t = syn.scene()
+
+    def as_mask(m, score):
+        ys, xs = np.nonzero(m)
+        return Mask(id=str(score), bbox_px=[int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1], score=score, mask=m)
+
+    async def fake_segment(meter, image, *, text=None, points=None, box=None):
+        # a text prompt for a flat part on paper often ranks the sheet itself first
+        return [as_mask(sheet, 0.9)] if text == "sheet of paper" else [as_mask(sheet, 0.8), as_mask(part, 0.6)]
+
+    monkeypatch.setattr(scene, "segment", fake_segment)
+    db = await get_db()
+    await db.insert("users", {"id": "u1", "tier": "anon", "created_at": 0})
+    user = await db.one("SELECT * FROM users WHERE id = 'u1'")
+    asset = await ingest.ingest_asset("p1", "photo", "a.jpg", jpeg_with_exif(img), "image/jpeg")
+    sel = await scene.select(user, "p1", asset, SelectRequest(text="plate", role="target", name="plate"))
+    assert abs(sel["data"]["size_mm"][0] - 60) < 0.6 and abs(sel["data"]["size_mm"][1] - 40) < 0.6
+
+
 def test_overlay_blend():
     from formwright.vision.overlay import blend
 
