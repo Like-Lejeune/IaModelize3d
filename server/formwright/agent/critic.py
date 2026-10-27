@@ -69,6 +69,13 @@ async def review(ctx: JobContext, state: Any) -> dict[str, Any]:
         f"Model size (mm): {[round(v, 1) for v in stats.get('size', [])]}",
         "Parameters (value, source): " + json.dumps({k: [v, specs.get(k, {}).get('source')] for k, v in params.items()}, ensure_ascii=False)[:1500],
     ]
+    checks = (state.last_build or {}).get("checks", {})
+    groups = checks.get("groups") or []
+    lines.append(
+        f"Measured printability: ok={checks.get('ok', True)}, first-layer contact {stats.get('firstLayerArea', 0):.0f} mm² "
+        f"(the base sits flat on the bed at z=0), bodies={stats.get('bodies', 1)}, "
+        f"issues: {', '.join(g['code'] + ' x' + str(g['count']) for g in groups) or 'none'}"
+    )
     if state.facts:
         lines.append("Facts used: " + json.dumps(state.facts[:12], ensure_ascii=False)[:1500])
     content: list[dict[str, Any]] = [{"type": "input_text", "text": "\n".join(lines)}]

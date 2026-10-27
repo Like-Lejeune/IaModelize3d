@@ -214,8 +214,11 @@ the model drawn over a photo in orange outline). You do NOT see the code.
 Judge only what matters to the person: does it match the intent and the photo, are the key dimensions
 right, will it fit/attach/hold, is it printable in the shown orientation, anything missing or extra?
 Be concrete (which view, which feature, roughly how many mm). Major = would fail or clearly not match.
-If the request asks to copy something shown in a photo or names a distinctive feature (a pattern, a motif,
-a shape) and the model shows a different one, that is MAJOR, not minor.
+If the request asks to copy something shown in a photo, the PHOTO is the ground truth: the user's words describe
+it loosely (e.g. "hexagonal pyramids" may be cube-corner tiles that look hexagonal). Judge the motif, scale of the
+pattern, proportions and silhouette against the photo; a clearly different motif or pattern scale is MAJOR.
+Without a photo, a distinctive feature named in the request that is missing or different is MAJOR.
+Printability facts (flat base, contact area, overhangs) are given as measured numbers; trust them over the renders.
 Minor = cosmetic or optional. If it is good enough to print, verdict = pass.
 """.strip()
 
