@@ -1,0 +1,223 @@
+"""The design agent loop (Responses API, append-only history for prefix caching)."""
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any
+
+from .. import storage
+from ..config import settings
+from ..db import get_db, now
+from ..knowledge.facts import lookup_standard
+from ..llm.client import meta
+from ..memory import store as memory
+from ..models import SendMessage
+from .prompts import CLASSIFY, PACK_NAMES, PACKS, SYSTEM
+from .runner import JobContext, add_message
+from .tools import TOOLS, DesignState, run_tool
+
+log = logging.getLogger(__name__)
+
+CLASSIFY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "pack": {"type": "string", "enum": PACK_NAMES},
+        "title": {"type": "string", "description": "2-5 word project title"},
+        "refuse": {"type": "boolean"},
+        "reason": {"type": "string"},
+        "language": {"type": "string", "description": "user's language, e.g. en, ru, kk"},
+    },
+    "required": ["pack", "title", "refuse", "reason", "language"],
+}
+
+
+async def _prepare_scene(ctx: JobContext, assets: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Deterministic first: calibrate photos and read calipers before the LLM thinks."""
+    try:
+        from ..vision import scene
+    except ImportError:
+        return None
+    for a in assets:
+        try:
+            if a["kind"] in ("photo", "sketch") and not a["meta"].get("calibration") and not a["meta"].get("calibration_failed"):
+                await ctx.status("Looking for a reference object to calibrate the photo")
+                await scene.calibrate(ctx.meter, a)
+            elif a["kind"] == "caliper" and not a["meta"].get("caliper"):
+                await ctx.status("Reading the caliper")
+                await scene.read_caliper(ctx.meter, a)
+        except Exception as e:  # noqa: BLE001 - a failed calibration is information, not a crash
+            log.info("scene prep for %s: %s", a["id"], e)
+    try:
+        return await scene.scene_summary(ctx.project_id)
+    except Exception as e:  # noqa: BLE001
+        log.info("scene summary: %s", e)
+        return None
+
+
+async def _video_notes(ctx: JobContext, assets: list[dict[str, Any]]) -> list[str]:
+    notes = []
+    for a in assets:
+        if a["kind"] != "video":
+            continue
+        try:
+            from ..vision import video
+
+            await ctx.status("Watching the video")
+            text = await video.understand(ctx.meter, a, "Describe the object being shown, what it is for, what is broken or wanted, "
+                                                         "and every dimension or constraint mentioned aloud.")
+            notes.append(f"Video {a['id']}: {text}")
+        except Exception as e:  # noqa: BLE001
+            log.info("video understanding failed: %s", e)
+    return notes
+
+
+def _item_dict(item: Any) -> dict[str, Any]:
+    d = item.model_dump(exclude_none=True) if hasattr(item, "model_dump") else dict(item)
+    d.pop("status", None) if d.get("type") == "reasoning" else None
+    return d
+
+
+async def design(ctx: JobContext, body: SendMessage) -> str | None:
+    db = await get_db()
+    project = ctx.project
+    brief = project.get("brief") or {}
+    all_assets = await db.all("SELECT * FROM assets WHERE project_id = ? ORDER BY created_at", ctx.project_id)
+    new_assets = [a for a in all_assets if a["id"] in body.asset_ids] or ([] if brief.get("turns") else all_assets)
+
+    # pack + safety, once per project
+    pack = project.get("pack")
+    language = brief.get("language", "en")
+    if not pack or project["title"] in ("New project", "Untitled"):
+        await ctx.status("Understanding the request")
+        cls = await meta().json(ctx.meter, model=ctx.models.fast, system=CLASSIFY,
+                                content=[{"type": "input_text", "text": body.text or "(photos only)"}], schema=CLASSIFY_SCHEMA, name="classify", effort="minimal")
+        if cls.get("refuse"):
+            text = f"I can't help with this one: {cls.get('reason', '')}"
+            await add_message(ctx.project_id, "agent", text)
+            await ctx.emit("agent.message", {"text": text})
+            return "refused"
+        pack = pack or cls.get("pack", "household")
+        language = cls.get("language") or language
+        updates = {"pack": pack}
+        if project["title"] in ("New project", "Untitled") and cls.get("title"):
+            updates["title"] = cls["title"][:60]
+            project["title"] = updates["title"]
+        await db.update("projects", "id", ctx.project_id, updates)
+    if pack not in PACKS:
+        pack = "household"
+
+    state = DesignState(pack=pack)
+    current = await db.one("SELECT * FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", ctx.project_id)
+    if current:
+        state.source, state.params, state.version, state.inputs = current["source"], current["params"], current["version"], current["inputs"] or {}
+
+    scene = await _prepare_scene(ctx, new_assets or all_assets)
+    if scene:
+        state.inputs.update(scene.get("inputs", {}))
+    video_notes = await _video_notes(ctx, new_assets)
+    mem = await memory.recall(ctx.user["id"], body.text, pack)
+    state.memory_ids = [m["id"] for items in mem.values() for m in items]
+    await memory.mark_used(state.memory_ids)
+
+    # ---- context: stable instructions first, project specifics after
+    instructions = SYSTEM + "\n\n" + PACKS[pack]
+    ctx_lines = [f"# Project: {project['title']} (pack: {pack}, reply in language: {language})"]
+    if brief.get("summary"):
+        ctx_lines.append(f"Previous result: {brief['summary']}")
+    if brief.get("turns"):
+        ctx_lines.append("Earlier requests: " + " | ".join(brief["turns"][-5:]))
+    for a in all_assets:
+        meta_bits = {k: a["meta"].get(k) for k in ("transcript", "exif") if a["meta"].get(k)}
+        if a["meta"].get("calibration"):
+            c = a["meta"]["calibration"]
+            meta_bits["calibrated_with"] = c.get("reference")
+            meta_bits["mm_per_px"] = c.get("mm_per_px")
+        ctx_lines.append(f"- asset {a['id']} kind={a['kind']} {a['width']}x{a['height']} {json.dumps(meta_bits, ensure_ascii=False)[:400]}")
+    if scene:
+        ctx_lines.append("# Scene (measured)\n" + json.dumps({k: v for k, v in scene.items() if k != "inputs"}, ensure_ascii=False)[:6000])
+        if scene.get("inputs", {}).get("outlines"):
+            ctx_lines.append("Program inputs available: inputs.outlines." + ", inputs.outlines.".join(scene["inputs"]["outlines"]))
+    ctx_lines.extend(video_notes)
+    recalled = memory.format_recall(mem)
+    if recalled:
+        ctx_lines.append("# Memory (relevant)\n" + recalled)
+    if brief.get("printer"):
+        ctx_lines.append(f"Printer: {brief['printer']}")
+    if state.source:
+        ctx_lines.append(f"# Current program (version {state.version}); params {json.dumps(state.params, ensure_ascii=False)}\n```js\n{state.source}\n```")
+    ctx_lines.append("# Request\n" + (body.text or "(see photos)"))
+    content: list[dict[str, Any]] = [{"type": "input_text", "text": "\n".join(ctx_lines)}]
+    for a in (new_assets or all_assets)[:6]:
+        if a["kind"] in ("photo", "sketch", "caliper", "concept"):
+            content.append({"type": "input_text", "text": f"asset {a['id']} ({a['kind']}):"})
+            content.append({"type": "input_image", "image_url": storage.data_url(a["path"], 1280)})
+    history: list[dict[str, Any]] = [{"type": "message", "role": "user", "content": content}]
+
+    model = ctx.models.designer
+    max_turns = settings().max_iterations * 3
+    final_text: str | None = None
+    for turn in range(max_turns):
+        ctx.check_cancelled()
+        effort = "medium" if turn < max_turns - 2 else "low"
+        resp = await meta().respond(ctx.meter, model=model, instructions=instructions, input=history, tools=TOOLS, effort=effort,
+                                    max_output_tokens=12000, cache_key=f"fw-agent-{pack}")
+        calls = []
+        for item in resp.output or []:
+            d = _item_dict(item)
+            history.append(d)
+            t = d.get("type")
+            if t == "reasoning":
+                summary = " ".join(s.get("text", "") for s in d.get("summary", []) if isinstance(s, dict))
+                if summary:
+                    await ctx.emit("agent.thinking", {"text": summary[:2000]})
+            elif t == "message":
+                text = " ".join(c.get("text", "") for c in d.get("content", []) if isinstance(c, dict))
+                if text.strip():
+                    final_text = text.strip()
+                    await ctx.emit("agent.status", {"text": final_text[:400]})
+            elif t == "function_call":
+                calls.append(d)
+        if not calls:
+            break
+        images: list[str] = []
+        for call in calls:
+            name = call.get("name", "")
+            try:
+                args = json.loads(call.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            preview = {k: (v if len(json.dumps(v, ensure_ascii=False)) < 300 else "…") for k, v in args.items()}
+            await ctx.emit("tool.call", {"id": call.get("call_id"), "name": name, "args": preview})
+            try:
+                result, imgs = await run_tool(ctx, state, name, args)
+            except Exception as e:  # noqa: BLE001 - report to the model, keep going
+                log.exception("tool %s failed", name)
+                result, imgs = {"ok": False, "error": f"{type(e).__name__}: {e}"[:800]}, []
+            images.extend(imgs)
+            ok = result.get("ok", result.get("accepted", True)) is not False
+            await ctx.emit("tool.result", {"id": call.get("call_id"), "name": name, "ok": ok,
+                                           "summary": json.dumps(result, ensure_ascii=False)[:600],
+                                           "image": storage.url(imgs[0]) if imgs and not imgs[0].startswith("data:") else None})
+            history.append({"type": "function_call_output", "call_id": call["call_id"], "output": json.dumps(result, ensure_ascii=False)[:12000]})
+        if images:
+            parts: list[dict[str, Any]] = [{"type": "input_text", "text": "Images from the tools above:"}]
+            for ref in images[:4]:
+                parts.append({"type": "input_image", "image_url": ref if ref.startswith("data:") else storage.data_url(ref, None if ref.endswith(".png") else 1280)})
+            history.append({"type": "message", "role": "user", "content": parts})
+        if state.done:
+            break
+        if turn == max_turns - 3 and not state.done:
+            history.append({"type": "message", "role": "user", "content": [{"type": "input_text", "text":
+                            "You are close to the turn limit. Fix only blocking problems and call finish with an honest summary."}]})
+
+    text = state.summary or final_text or ("I ran out of steps before finishing; the latest version is in the viewer." if state.source else "No model yet.")
+    await add_message(ctx.project_id, "agent", text, {"version": state.version, "critic": state.critic})
+    await ctx.emit("agent.message", {"text": text, "version": state.version})
+    turns = (brief.get("turns") or []) + [body.text[:200]]
+    await db.update("projects", "id", ctx.project_id, {"brief": {**brief, "turns": turns[-10:], "summary": text[:800], "language": language}, "updated_at": now()})
+    await memory.record_outcome(state.memory_ids, success=state.done)
+    return text[:300]
+
+
+def standards_hint(query: str) -> str:
+    return json.dumps(lookup_standard(query), ensure_ascii=False)

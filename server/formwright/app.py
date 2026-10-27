@@ -216,7 +216,10 @@ async def detect_objects(project_id: str, asset_id: str, user=Depends(current_us
     asset = await db.one("SELECT * FROM assets WHERE id = ? AND project_id = ?", asset_id, project_id)
     if not asset:
         raise HTTPException(404, "asset not found")
-    return await scene.detect(user, asset)
+    try:
+        return await scene.detect(user, asset)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
 
 
 @app.post("/api/projects/{project_id}/assets/{asset_id}/select")
@@ -228,7 +231,10 @@ async def select_object(project_id: str, asset_id: str, body: SelectRequest, use
     asset = await db.one("SELECT * FROM assets WHERE id = ? AND project_id = ?", asset_id, project_id)
     if not asset:
         raise HTTPException(404, "asset not found")
-    sel = await scene.select(user, project_id, asset, body)
+    try:
+        sel = await scene.select(user, project_id, asset, body)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     out = selection_out(sel)
     await events.emit(project_id, "selection.added", out)
     return out
@@ -364,6 +370,36 @@ async def printers():
     from .printing import service
 
     return service.list_printers()
+
+
+@app.get("/api/printers/coupon.3mf")
+async def fingerprint_coupon():
+    """Calibration coupon: print it, photograph it on an A4 sheet, POST the photo to /fingerprint."""
+    from .printing import fingerprint
+
+    out = await geom().export(fingerprint.coupon_source(), {}, "3mf", title="Formwright printer fingerprint")
+    return Response(base64.b64decode(out["data"]), media_type=out["mime"], headers={"Content-Disposition": 'attachment; filename="fingerprint_coupon.3mf"'})
+
+
+@app.post("/api/printers/{printer_id}/fingerprint")
+async def measure_fingerprint(printer_id: str, body: dict[str, str], user=Depends(current_user)):
+    from .llm.client import CostMeter
+    from .printing import fingerprint
+
+    db = await get_db()
+    asset = await db.one("SELECT a.* FROM assets a JOIN projects p ON p.id = a.project_id WHERE a.id = ? AND p.user_id = ?", body.get("asset_id"), user["id"])
+    if not asset:
+        raise HTTPException(404, "asset not found")
+    await quotas.reserve(user, 0.05)
+    meter = CostMeter(budget_usd=0.05)
+    try:
+        fp = await fingerprint.measure(meter, user, asset)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    finally:
+        await quotas.settle(user["id"], meter.usd)
+    await fingerprint.save(user["id"], printer_id, fp)
+    return fp
 
 
 @app.post("/api/projects/{project_id}/slice")

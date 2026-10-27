@@ -191,25 +191,33 @@ class MetaClient:
         schema: dict[str, Any],
         name: str = "result",
         effort: str | None = "low",
-        max_output_tokens: int = 4000,
+        max_output_tokens: int = 10000,
     ) -> dict[str, Any]:
-        """One-shot structured call (critic, intake, classification)."""
-        resp = await self.respond(
-            meter,
-            model=model,
-            instructions=system,
-            input=[{"type": "message", "role": "user", "content": content}],
-            text_format={"type": "json_schema", "name": name, "schema": schema},
-            effort=effort,
-            max_output_tokens=max_output_tokens,
-            cache_key=f"fw-{name}",
-        )
-        text = resp.output_text or "{}"
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            start, end = text.find("{"), text.rfind("}")
-            return json.loads(text[start : end + 1]) if start >= 0 else {}
+        """One-shot structured call (critic, intake, classification).
+        Reasoning tokens count against max_output_tokens; a truncated answer is retried with less reasoning."""
+        for attempt_effort in (effort, "minimal"):
+            resp = await self.respond(
+                meter,
+                model=model,
+                instructions=system,
+                input=[{"type": "message", "role": "user", "content": content}],
+                text_format={"type": "json_schema", "name": name, "schema": schema},
+                effort=attempt_effort,
+                max_output_tokens=max_output_tokens,
+                cache_key=f"fw-{name}",
+            )
+            text = resp.output_text or ""
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                start, end = text.find("{"), text.rfind("}")
+                if start >= 0:
+                    try:
+                        return json.loads(text[start : end + 1])
+                    except json.JSONDecodeError:
+                        pass
+            log.warning("structured call %s unparsable (status %s, %d chars), retrying", name, getattr(resp, "status", "?"), len(text))
+        return {}
 
     async def search(self, meter: CostMeter, query: str, *, model: str | None = None, country: str | None = None) -> dict[str, Any]:
         """Web search grounding: returns answer text + cited sources."""
