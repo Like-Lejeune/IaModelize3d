@@ -93,6 +93,8 @@ TOOLS: list[dict[str, Any]] = [
     fn("save_skill", "Propose a reusable, tested module for future designs. source must be a function body that ends with `return function(lib, opts) {...}`.",
        {"name": S, "source": S, "doc": S, "test_call": {**S, "description": "e.g. lib.skills.name({w: 20})"}, "expected_size": {"type": "array", "items": N}},
        ["name", "source", "doc", "test_call"]),
+    fn("compare_print", "Compare a photo of the PRINTED part (on a reference sheet) with the target: the selected original outline if given, else the model's footprint. Returns deviations and suggested corrections.",
+       {"asset_id": S, "target": {**S, "description": "selection name of the original part (optional)"}}, ["asset_id"]),
     fn("finish", "Finish when the model is printable and matches the intent. Runs an independent critic and full checks first.",
        {"summary": {**S, "description": "final message to the user (their language)"}}),
 ]
@@ -344,6 +346,8 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
         test = {"call": args.get("test_call"), "size": args.get("expected_size"), "tol": 0.6}
         item_id = await memory.propose_skill(args["name"], args["source"], args["doc"], test, state.pack, ctx.job_id)
         return {"ok": True, "id": item_id, "status": "candidate (becomes active after it passes its test and helps twice)"}, []
+    if name == "compare_print":
+        return await _compare_print(ctx, state, args)
     if name == "finish":
         return await _finish(ctx, state, args.get("summary", "")), []
     return {"ok": False, "error": f"unknown tool {name}"}, []
@@ -370,6 +374,33 @@ async def _finish(ctx: JobContext, state: DesignState, summary: str) -> dict[str
     state.done = True
     state.summary = summary
     return {"accepted": True}
+
+
+async def _compare_print(ctx: JobContext, state: DesignState, args: dict[str, Any]):
+    """Closes the loop digital -> physical -> digital: measure the print, compare with the intent."""
+    from ..models import SelectRequest
+    from ..printing.compare import compare_outlines
+
+    scene = await _vision()
+    asset = await _asset(ctx, args.get("asset_id", ""))
+    if not scene or not asset:
+        return {"ok": False, "error": "vision unavailable or unknown asset"}, []
+    sel = await scene.select(ctx.user, ctx.project_id, asset, SelectRequest(text="3D printed plastic part", role="context", name="printed"))
+    printed = sel["data"].get("outline_mm")
+    if not printed:
+        return {"ok": False, "error": "the photo has no reference sheet/card, so the print cannot be measured in mm"}, []
+    target = (state.inputs.get("outlines") or {}).get(args.get("target") or "")
+    source = "original photo outline"
+    if not target:
+        if not state.source:
+            return {"ok": False, "error": "no target: give the original selection name or design a model first"}, []
+        out = await geom().inspect(state.source, state.params, [{"op": "outline"}], inputs=state.inputs)
+        target = out["results"][0]["polygons"]
+        source = "model footprint"
+    report = compare_outlines(target, printed)
+    report["compared_with"] = source
+    await ctx.emit("tool.result", {"name": "compare_print", "ok": True, "summary": json.dumps({k: report.get(k) for k in ("max_mm", "mean_mm", "suggestions")}, ensure_ascii=False)[:600]})
+    return report, []
 
 
 async def _fit_to_photo(ctx: JobContext, state: DesignState, args: dict[str, Any]):

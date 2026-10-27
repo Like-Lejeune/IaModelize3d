@@ -49,6 +49,7 @@ export interface ExportRequest extends BaseRequest {
 export interface InspectRequest extends BaseRequest {
   ops: (
     | { op: 'section'; z: number }
+    | { op: 'outline'; z?: number }
     | { op: 'parts' }
     | { op: 'gap'; a: string; b: string; search?: number }
     | { op: 'ray'; from: [number, number, number]; to: [number, number, number] }
@@ -224,6 +225,9 @@ export class Engine {
             return { area: +p.area().toFixed(2), min: b.min.map((v) => +v.toFixed(2)), max: b.max.map((v) => +v.toFixed(2)), contours: p.numContour() };
           });
           results.push({ op: 'section', z: op.z, area: +cs.area().toFixed(2), pieces: pieces.slice(0, 12) });
+        } else if (op.op === 'outline') {
+          const cs = (op.z === undefined ? out.body.project() : out.body.slice(op.z)).simplify(0.02);
+          results.push({ op: 'outline', z: op.z ?? null, polygons: cs.toPolygons().map((p) => p.map(([x, y]) => [+x.toFixed(3), +y.toFixed(3)])) });
         } else if (op.op === 'parts') {
           results.push({
             op: 'parts',

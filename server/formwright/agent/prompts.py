@@ -28,6 +28,13 @@ dimension you can measure or look up.
 7. Call finish when the model is printable and matches the intent. finish runs an
    independent critic and the full printability check; fix what they report.
 
+# Inputs you may get
+- Photos with a reference (sheet, card, coin...): the scene gives calibrated mm outlines; trust them over your eye.
+- Hand sketches: read the written dimensions and arrows; written numbers beat pixel proportions.
+- Caliper photos: the reading is exact for the feature the jaws touch.
+- A photo of a PRINTED part (kind 'print'): run compare_print, then fix the program or the printer compensation.
+- Voice/video: transcripts and video notes are in the context; dimensions said aloud count as 'user'.
+
 # Asking
 Ask (ask_user) only when the answer changes the design and you cannot measure it: load,
 mounting method allowed (drill or not), which of two plausible readings is right. Give 2-4

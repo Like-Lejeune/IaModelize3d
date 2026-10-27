@@ -101,6 +101,38 @@
     }
   }
 
+  let fingerprint = $state<Record<string, any> | null>(null);
+
+  async function calibrate(files: FileList | null) {
+    const f = files?.[0];
+    if (!f || !printer) return;
+    busy = 'calib';
+    error = null;
+    try {
+      const a = await api.upload(store.id, f, 'print');
+      fingerprint = await api.fingerprint(printer, a.id);
+    } catch (e) {
+      error = errorText(e);
+    } finally {
+      busy = null;
+    }
+  }
+
+  async function comparePrint(files: FileList | null) {
+    const f = files?.[0];
+    if (!f) return;
+    busy = 'compare';
+    error = null;
+    try {
+      const a = await api.upload(store.id, f, 'print');
+      await store.send('Here is a photo of the printed part on a reference sheet. Compare it with the target and tell me what to correct.', [a.id]);
+    } catch (e) {
+      error = errorText(e);
+    } finally {
+      busy = null;
+    }
+  }
+
   function chooseProbe(v: { label: string; value: any }) {
     store.send(`Probe result for ${store.probe?.dimension}: variant ${v.label} (${v.value}) fits best.`);
   }
@@ -193,6 +225,32 @@
           </div>
         </div>
       {/if}
+    </section>
+
+    <section class="stack">
+      <h3 class="section-title">{t('calib')}</h3>
+      <p class="muted small">{t('calib_hint')}</p>
+      <div class="row">
+        <a class="btn small" href="/api/printers/coupon.3mf" download>⬇ {t('coupon')}</a>
+        <label class="btn small" class:disabled={!printer || busy === 'calib'}>
+          📷 {t('calib_photo')}
+          <input class="sr-only" type="file" accept="image/*" capture="environment" disabled={!printer} onchange={(e) => calibrate((e.currentTarget as HTMLInputElement).files)} />
+        </label>
+      </div>
+      {#if fingerprint}
+        <div class="card res mono small">
+          {#each Object.entries(fingerprint).filter(([, v]) => typeof v === 'number') as [k, v] (k)}<div>{k}: {(v as number).toFixed(2)}</div>{/each}
+        </div>
+      {/if}
+    </section>
+
+    <section class="stack">
+      <h3 class="section-title">{t('compare')}</h3>
+      <p class="muted small">{t('compare_hint')}</p>
+      <label class="btn small" class:disabled={busy === 'compare' || store.running}>
+        📷 {t('compare_photo')}
+        <input class="sr-only" type="file" accept="image/*" capture="environment" onchange={(e) => comparePrint((e.currentTarget as HTMLInputElement).files)} />
+      </label>
     </section>
   {/if}
 

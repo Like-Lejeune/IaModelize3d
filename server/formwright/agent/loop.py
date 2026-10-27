@@ -39,7 +39,7 @@ async def _prepare_scene(ctx: JobContext, assets: list[dict[str, Any]]) -> dict[
         return None
     for a in assets:
         try:
-            if a["kind"] in ("photo", "sketch") and not a["meta"].get("calibration") and not a["meta"].get("calibration_failed"):
+            if a["kind"] in ("photo", "sketch", "print") and not a["meta"].get("calibration") and not a["meta"].get("calibration_failed"):
                 await ctx.status("Looking for a reference object to calibrate the photo")
                 await scene.calibrate(ctx.meter, a)
             elif a["kind"] == "caliper" and not a["meta"].get("caliper"):

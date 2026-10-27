@@ -56,6 +56,8 @@ export const api = {
 
   send: (id: string, text: string, asset_ids: string[] = [], effort: 'auto' | 'hard' = 'auto') =>
     req<{ job_id: string }>('POST', `/api/projects/${id}/messages`, { text, asset_ids, effort }),
+  fingerprint: (printerId: string, assetId: string) =>
+    req<Record<string, any>>('POST', `/api/printers/${encodeURIComponent(printerId)}/fingerprint`, { asset_id: assetId }),
   answer: (jobId: string, answer: string) => req<{ ok: boolean }>('POST', `/api/jobs/${jobId}/answer`, { answer }),
   cancel: (jobId: string) => req<{ ok: boolean }>('POST', `/api/jobs/${jobId}/cancel`),
 
