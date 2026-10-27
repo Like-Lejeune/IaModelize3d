@@ -115,6 +115,9 @@ class GeomPool:
     async def export(self, source: str, params: dict | None = None, fmt: str = "3mf", **extra: Any) -> dict:
         return await self.call("export", {"source": source, "params": params or {}, "format": fmt, **extra}, timeout=120)
 
+    async def inspect(self, source: str, params: dict | None = None, ops: list | None = None, **extra: Any) -> dict:
+        return await self.call("inspect", {"source": source, "params": params or {}, "ops": ops or [], **extra})
+
     async def fit(self, source: str, params: dict | None = None, **extra: Any) -> dict:
         return await self.call("fit", {"source": source, "params": params or {}, **extra}, timeout=180)
 

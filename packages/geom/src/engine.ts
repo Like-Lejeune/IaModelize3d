@@ -46,6 +46,15 @@ export interface ExportRequest extends BaseRequest {
   objectSettings?: Record<string, string | number | boolean>;
 }
 
+export interface InspectRequest extends BaseRequest {
+  ops: (
+    | { op: 'section'; z: number }
+    | { op: 'parts' }
+    | { op: 'gap'; a: string; b: string; search?: number }
+    | { op: 'ray'; from: [number, number, number]; to: [number, number, number] }
+  )[];
+}
+
 export interface FitRequest extends BaseRequest {
   free: string[];
   targets: { camera: Camera; mask: string }[]; // mask: packed bits, base64, width*height of the camera
@@ -87,7 +96,10 @@ export class Engine {
 
   private skills(req: BaseRequest) {
     const out: Record<string, (lib: any, ...args: any[]) => unknown> = {};
-    for (const [name, src] of Object.entries(req.skills ?? {})) {
+    // Skills used by a saved program travel with it in inputs.skills, so the
+    // browser can rebuild it without access to the memory store.
+    const sources = { ...((req.inputs as any)?.skills ?? {}), ...(req.skills ?? {}) };
+    for (const [name, src] of Object.entries<string>(sources)) {
       const fn = this.evaluator.compile(`const fn = (function(){ ${src} })(); return { meta: {}, params: {}, build: fn };`).build;
       out[name] = fn as any;
     }
@@ -194,6 +206,42 @@ export class Engine {
       if (req.format === 'stl') return { data: toBase64(toStl(out.body)), mime: 'model/stl' };
       const data = to3mf(out.parts, { title: req.title, objectSettings: req.objectSettings });
       return { data: toBase64(data), mime: 'model/3mf' };
+    } finally {
+      disposeBuild(out);
+    }
+  }
+
+  // Measuring tools for the agent: sections, per-part boxes, gaps between parts.
+  inspect(req: InspectRequest) {
+    const { out } = this.run(req);
+    try {
+      const results: unknown[] = [];
+      for (const op of req.ops.slice(0, 20)) {
+        if (op.op === 'section') {
+          const cs = out.body.slice(op.z);
+          const pieces = cs.decompose().map((p) => {
+            const b = p.bounds();
+            return { area: +p.area().toFixed(2), min: b.min.map((v) => +v.toFixed(2)), max: b.max.map((v) => +v.toFixed(2)), contours: p.numContour() };
+          });
+          results.push({ op: 'section', z: op.z, area: +cs.area().toFixed(2), pieces: pieces.slice(0, 12) });
+        } else if (op.op === 'parts') {
+          results.push({
+            op: 'parts',
+            parts: out.parts.map((p) => {
+              const b = p.solid.boundingBox();
+              return { name: p.name, role: p.role, min: b.min.map((v) => +v.toFixed(2)), max: b.max.map((v) => +v.toFixed(2)), volume: +p.solid.volume().toFixed(1) };
+            }),
+          });
+        } else if (op.op === 'gap') {
+          const a = out.parts.find((p) => p.name === op.a)?.solid;
+          const b = out.parts.find((p) => p.name === op.b)?.solid;
+          results.push({ op: 'gap', a: op.a, b: op.b, gap: a && b ? +a.minGap(b, op.search ?? 5).toFixed(3) : null });
+        } else if (op.op === 'ray') {
+          const hits = out.body.rayCast(op.from as any, op.to as any);
+          results.push({ op: 'ray', hits: hits.slice(0, 8).map((h: any) => ({ distance: +h.distance.toFixed(3), position: h.position.map((v: number) => +v.toFixed(2)) })) });
+        }
+      }
+      return { results };
     } finally {
       disposeBuild(out);
     }
