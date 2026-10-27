@@ -73,7 +73,20 @@ async def make_probe(ctx: JobContext, args: dict[str, Any]) -> dict[str, Any]:
             "next": "ask the user to print it and tell which label fits best (ask_user with the labels as options)"}
 
 
+def infer_probe_kind(name: str, label: str = "") -> str:
+    text = f"{name} {label}".lower()
+    for kind, words in (("thread", ("thread", "резьб")), ("hole", ("hole", "bore", "отверст", "_id")),
+                        ("peg", ("peg", "shaft", "pin", "_od", "штыр", "вал")), ("clip", ("clip", "клипс"))):
+        if any(w in text for w in words):
+            return kind
+    return "gap"
+
+
 async def probe_job(ctx: JobContext, payload: dict[str, Any]) -> str:
+    # the studio sends {dimension: param name, value, unit, label}
+    if "kind" not in payload:
+        payload = {"kind": infer_probe_kind(payload.get("dimension", ""), payload.get("label") or ""),
+                   "nominal": float(payload.get("value") or payload.get("nominal") or 0), "dimension": payload.get("label") or payload.get("dimension")}
     r = await make_probe(ctx, payload)
     return json.dumps(r)[:300]
 

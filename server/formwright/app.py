@@ -1,12 +1,11 @@
 """HTTP API. Run: uvicorn formwright.app:app --port 8000 (from server/)."""
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 import logging
+import secrets
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
@@ -191,9 +190,30 @@ async def fork_project(project_id: str, user=Depends(current_user)):
 
 
 # ------------------------------------------------------------------ assets & selection
-@app.post("/api/projects/{project_id}/assets")
-async def upload_asset(project_id: str, file: UploadFile = File(...), kind: str = Form("photo"), user=Depends(current_user)):
+@app.post("/api/projects/{project_id}/capture-token")
+async def capture_token(project_id: str, user=Depends(current_user)):
+    """Short-lived token so a phone (another session) can add photos to this project via QR."""
     await load_project(project_id, user, write=True)
+    db = await get_db()
+    token = secrets.token_urlsafe(18)
+    await db.execute("DELETE FROM captures WHERE expires_at < ?", now())
+    await db.insert("captures", {"token": token, "project_id": project_id, "expires_at": now() + 3600})
+    return {"token": token, "url": f"/c/{project_id}?t={token}"}
+
+
+async def _capture_allowed(request: Request, project_id: str) -> bool:
+    token = request.headers.get("x-fw-capture") or request.query_params.get("capture")
+    if not token:
+        return False
+    db = await get_db()
+    row = await db.one("SELECT * FROM captures WHERE token = ? AND project_id = ? AND expires_at > ?", token, project_id, now())
+    return row is not None
+
+
+@app.post("/api/projects/{project_id}/assets")
+async def upload_asset(project_id: str, request: Request, file: UploadFile = File(...), kind: str = Form("photo"), user=Depends(current_user)):
+    if not await _capture_allowed(request, project_id):
+        await load_project(project_id, user, write=True)
     data = await file.read()
     if len(data) > 60 * 1024 * 1024:
         raise HTTPException(413, "file too large (60 MB max)")

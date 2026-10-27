@@ -71,6 +71,9 @@ CREATE TABLE IF NOT EXISTS spend (
   user_id TEXT NOT NULL, day TEXT NOT NULL, usd REAL NOT NULL DEFAULT 0, jobs INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, day)
 );
+CREATE TABLE IF NOT EXISTS captures (
+  token TEXT PRIMARY KEY, project_id TEXT NOT NULL, expires_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY, project_id TEXT NOT NULL, user_id TEXT NOT NULL, status TEXT NOT NULL,
   external_ref TEXT, checkout_url TEXT, quote TEXT NOT NULL DEFAULT '{}', created_at REAL NOT NULL
