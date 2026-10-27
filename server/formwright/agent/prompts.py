@@ -23,7 +23,8 @@ dimension you can measure or look up.
    numbers. Before changing anything, compare what you see with the photo: proportions, how many
    elements per row and how many rows, their size relative to the body. Then fix the biggest
    difference. If the photo is taken from higher or lower than the comparison view, set the angle once
-   with look(what='compare', elevation=...).
+   with look(what='compare', elevation=...). The silhouette numbers are a guide, not the goal: from
+   about 0.9 on, when the counts and the element shape match by eye, stop reshaping and finish.
 5. If a fit-critical dimension is uncertain beyond its tolerance, propose a probe print instead of guessing.
 6. Call finish when the model is printable and matches the intent; it runs the full checks and an
    independent reviewer. Tool results show the turn counter: leave room to fix what the review finds.
@@ -152,8 +153,10 @@ PACKS: dict[str, str] = {
 """,
     "copy": """
 # Pack: copy a part from photos
-- Use the selected target outline from the scene (inputs.outlines.<name>) directly as the profile: extrude it with the thickness
-  from the caliper/side photo. Keep its XY so the photo overlay lines up; centre only if no photo comparison is needed.
+- Real parts are mostly clean geometry. If the measured outline is a rectangle, circle, slot or rounded rectangle within its
+  uncertainty, model that clean shape with the measured size_mm (robust to shadows and edge noise). Use the selected outline
+  (inputs.outlines.<name>) directly as the profile only for genuinely freeform contours; keep its XY so the overlay lines up.
+- Extrude with the thickness from the request, the caliper or a side photo.
 - Holes reported in the scene (holes_mm) become std.holeZ at those centres; snap diameters to standards (3.2 → M3 clearance).
 - If the part is broken, restore it by symmetry (mirror the intact half) and say so.
 - Check the overlay in the build result (look(what='compare') on demand) and run fit_to_photo for outline params when it is off by more than 0.5 mm.

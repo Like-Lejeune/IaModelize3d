@@ -152,6 +152,7 @@ async def panel(project_id: str, state: Any, asset: dict[str, Any], sel: dict[st
         right = _label(_to_height(_crop(model, _bbox(mmask))), f"model, {elevation:.0f} deg above")  # type: ignore[arg-type]
         img = np.hstack([left, np.full((PANEL_H, 12, 3), 255, np.uint8), right])
         facts = {"view": f"model from {elevation:.0f} deg above, azimuth {azimuth:.0f} deg (match the photo's angle with look elevation=...)",
-                 **silhouette_agreement(pmask, mmask)}
+                 **silhouette_agreement(pmask, mmask),
+                 "reading": "0.9+ is a close match; past that, judge counts and element shape by eye instead of chasing the number"}
     rel = storage.save_bytes(project_id, "renders", f"v{state.version}_compare_{asset['id'][-6:]}.jpg", encode_jpeg(img, 88))
     return {"photo": asset["id"], **facts}, rel
