@@ -80,3 +80,13 @@ test('thread crests are fine detail, not errors', () => {
   const errors = r.checks.issues.filter((i: any) => i.severity === 'error').map((i: any) => i.message);
   assert.deepEqual(errors, []);
 });
+
+test('issues are grouped by kind and the score counts kinds, not regions', () => {
+  const r = engine.build({ source: BAD_SHELF, analyze: 'full' });
+  const codes = r.checks.groups.map((g: any) => g.code);
+  assert.equal(new Set(codes).size, codes.length);
+  assert.equal(r.checks.groups[0].severity, 'error');
+  const total = r.checks.groups.reduce((s: number, g: any) => s + g.count, 0);
+  assert.equal(total, r.checks.issues.length);
+  assert.ok(r.checks.score >= 0 && r.checks.score <= 100);
+});

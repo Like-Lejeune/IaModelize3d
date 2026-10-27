@@ -33,11 +33,44 @@ export interface CheckStats {
   estMinutes: number;
 }
 
+export interface IssueGroup {
+  code: string;
+  severity: Severity;
+  title: string;
+  count: number;
+  hints: string[];
+  z?: [number, number];
+  bbox?: { min: [number, number]; max: [number, number] };
+}
+
+const RANK: Record<Severity, number> = { error: 0, warn: 1, info: 2 };
+
+export function groupIssues(issues: Issue[]): IssueGroup[] {
+  const by = new Map<string, IssueGroup>();
+  for (const i of issues) {
+    let g = by.get(i.code);
+    if (!g) {
+      g = { code: i.code, severity: i.severity, title: RULES[i.code]?.title ?? i.message, count: 0, hints: i.hints };
+      by.set(i.code, g);
+    }
+    g.count++;
+    if (RANK[i.severity] < RANK[g.severity]) g.severity = i.severity;
+    if (i.z) g.z = g.z ? [Math.min(g.z[0], i.z[0]), Math.max(g.z[1], i.z[1])] : [i.z[0], i.z[1]];
+    if (i.bbox) {
+      g.bbox = g.bbox
+        ? { min: [Math.min(g.bbox.min[0], i.bbox.min[0]), Math.min(g.bbox.min[1], i.bbox.min[1])], max: [Math.max(g.bbox.max[0], i.bbox.max[0]), Math.max(g.bbox.max[1], i.bbox.max[1])] }
+        : { min: [...i.bbox.min], max: [...i.bbox.max] };
+    }
+  }
+  return [...by.values()].sort((a, b) => RANK[a.severity] - RANK[b.severity] || b.count - a.count);
+}
+
 export interface CheckReport {
   level: 'fast' | 'full';
   ok: boolean;
   score: number;
   issues: Issue[];
+  groups: IssueGroup[];
   stats: CheckStats;
   // 0..1 overhang risk per triangle, aligned with the mesh triangle order
   heat?: Float32Array;
@@ -266,12 +299,18 @@ export function analyze(wasm: Wasm, body: Manifold, printer: PrinterProfile, opt
       }
     }
 
-    const penalty = issues.reduce((s, i) => s + (i.severity === 'error' ? 30 : i.severity === 'warn' ? 8 : 1), 0);
+    const groups = groupIssues(issues);
+    // Score per kind of problem, not per region: twelve small overhangs are one thing to fix.
+    const penalty = groups.reduce(
+      (s, g) => s + (g.severity === 'error' ? 30 + 5 * Math.min(g.count - 1, 2) : g.severity === 'warn' ? 6 + 2 * Math.min(g.count - 1, 3) : 0),
+      0,
+    );
     return {
       level,
       ok: !issues.some((i) => i.severity === 'error'),
       score: Math.max(0, 100 - penalty),
       issues,
+      groups,
       stats: {
         volume,
         surfaceArea,

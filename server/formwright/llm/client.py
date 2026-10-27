@@ -168,7 +168,8 @@ class MetaClient:
         if text_format:
             kwargs["text"] = {"format": text_format}
         if effort and not is_open:
-            kwargs["reasoning"] = {"effort": effort}
+            # summaries make the agent's thinking visible in the timeline
+            kwargs["reasoning"] = {"effort": effort, "summary": "auto"}
             kwargs["include"] = ["reasoning.encrypted_content"] + (include or [])
         elif include:
             kwargs["include"] = include

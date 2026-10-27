@@ -96,6 +96,13 @@ def _spawn(ctx: JobContext, work: Callable[[JobContext], Awaitable[str | None]])
             await db.update("jobs", "id", ctx.job_id, {"status": status, "finished_at": now(), "cost_usd": ctx.meter.usd, "result": {"summary": summary, "cost": cost},
                                                       "tokens_in": ctx.meter.tokens_in, "tokens_out": ctx.meter.tokens_out, "tokens_cached": ctx.meter.tokens_cached})
             await db.update("projects", "id", ctx.project_id, {"status": "idle", "updated_at": now()})
+            if ctx.kind == "design" and status in ("failed", "budget", "cancelled"):
+                # keep the interrupted request in the brief so "Continue" picks up where it stopped
+                p = await db.one("SELECT brief FROM projects WHERE id = ?", ctx.project_id)
+                brief = (p or {}).get("brief") or {}
+                req = (await db.one("SELECT input FROM jobs WHERE id = ?", ctx.job_id) or {}).get("input") or {}
+                turns = (brief.get("turns") or []) + [f"{str(req.get('text', ''))[:200]} (interrupted: {status})"]
+                await db.update("projects", "id", ctx.project_id, {"brief": {**brief, "turns": turns[-10:]}})
             await ctx.emit("cost", cost)
             await ctx.emit("job.finished", {"job_id": ctx.job_id, "status": status, "summary": summary, "cost": cost})
             _jobs.pop(ctx.job_id, None)

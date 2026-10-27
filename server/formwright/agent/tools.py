@@ -105,11 +105,20 @@ def _skills_used(source: str) -> list[str]:
 
 
 def _checks_brief(checks: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Grouped by kind (fewer tokens, less noise); errors keep up to 3 exact locations each."""
     if not checks:
         return []
+    groups = checks.get("groups")
+    if not groups:
+        return [{"severity": i["severity"], "code": i["code"], "message": i["message"], "hints": i.get("hints", [])[:2]} for i in checks.get("issues", [])[:10]]
     out = []
-    for i in checks.get("issues", [])[:10]:
-        out.append({"severity": i["severity"], "code": i["code"], "message": i["message"], "hints": i.get("hints", [])[:2]})
+    for g in groups[:8]:
+        item: dict[str, Any] = {"severity": g["severity"], "code": g["code"], "title": g["title"], "count": g["count"], "hints": g.get("hints", [])[:2]}
+        if g.get("z"):
+            item["z_mm"] = [round(g["z"][0], 1), round(g["z"][1], 1)]
+        if g["severity"] != "info":
+            item["where"] = [i["message"] for i in checks.get("issues", []) if i["code"] == g["code"]][:3]
+        out.append(item)
     return out
 
 

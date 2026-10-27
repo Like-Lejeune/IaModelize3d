@@ -14,6 +14,7 @@ from ..memory import store as memory
 from ..models import SendMessage
 from .prompts import CLASSIFY, PACK_NAMES, PACKS, SYSTEM
 from .runner import JobContext, add_message
+from . import narrate
 from .tools import TOOLS, DesignState, run_tool
 
 log = logging.getLogger(__name__)
@@ -84,6 +85,14 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     all_assets = await db.all("SELECT * FROM assets WHERE project_id = ? ORDER BY created_at", ctx.project_id)
     new_assets = [a for a in all_assets if a["id"] in body.asset_ids] or ([] if brief.get("turns") else all_assets)
 
+    stage = {"current": None}
+
+    async def set_stage(name: str) -> None:
+        if stage["current"] != name:
+            stage["current"] = name
+            await ctx.emit("job.stage", {"stage": name, "label": narrate.STAGE_LABEL[name]})
+
+    await set_stage("understand")
     # pack + safety, once per project
     pack = project.get("pack")
     language = brief.get("language", "en")
@@ -111,6 +120,8 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     if current:
         state.source, state.params, state.version, state.inputs = current["source"], current["params"], current["version"], current["inputs"] or {}
 
+    if any(a["kind"] in ("photo", "sketch", "caliper", "print", "video") for a in (new_assets or all_assets)):
+        await set_stage("measure")
     scene = await _prepare_scene(ctx, new_assets or all_assets)
     if scene:
         state.inputs.update(scene.get("inputs", {}))
@@ -192,7 +203,9 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
             except json.JSONDecodeError:
                 args = {}
             preview = {k: (v if len(json.dumps(v, ensure_ascii=False)) < 300 else "…") for k, v in args.items()}
-            await ctx.emit("tool.call", {"id": call.get("call_id"), "name": name, "args": preview})
+            kind = narrate.KIND.get(name, "other")
+            await set_stage(narrate.STAGE.get(kind, stage["current"] or "design"))
+            await ctx.emit("tool.call", {"id": call.get("call_id"), "name": name, "kind": kind, "title": narrate.call_title(name, args), "args": preview})
             try:
                 result, imgs = await run_tool(ctx, state, name, args)
             except Exception as e:  # noqa: BLE001 - report to the model, keep going
@@ -200,7 +213,8 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
                 result, imgs = {"ok": False, "error": f"{type(e).__name__}: {e}"[:800]}, []
             images.extend(imgs)
             ok = result.get("ok", result.get("accepted", True)) is not False
-            await ctx.emit("tool.result", {"id": call.get("call_id"), "name": name, "ok": ok,
+            await ctx.emit("tool.result", {"id": call.get("call_id"), "name": name, "kind": kind, "ok": ok,
+                                           "title": narrate.result_title(name, args, result),
                                            "summary": json.dumps(result, ensure_ascii=False)[:600],
                                            "image": storage.url(imgs[0]) if imgs and not imgs[0].startswith("data:") else None})
             history.append({"type": "function_call_output", "call_id": call["call_id"], "output": json.dumps(result, ensure_ascii=False)[:12000]})
@@ -218,10 +232,45 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     text = state.summary or final_text or ("I ran out of steps before finishing; the latest version is in the viewer." if state.source else "No model yet.")
     await add_message(ctx.project_id, "agent", text, {"version": state.version, "critic": state.critic})
     await ctx.emit("agent.message", {"text": text, "version": state.version})
+    if state.source and state.last_build:
+        await set_stage("done")
+        await ctx.emit("result", result_card(ctx, state))
     turns = (brief.get("turns") or []) + [body.text[:200]]
     await db.update("projects", "id", ctx.project_id, {"brief": {**brief, "turns": turns[-10:], "summary": text[:800], "language": language}, "updated_at": now()})
     await memory.record_outcome(state.memory_ids, success=state.done)
     return text[:300]
+
+
+def result_card(ctx: JobContext, state: DesignState) -> dict[str, Any]:
+    """Everything the person needs at a glance when the agent hands over."""
+    build = state.last_build or {}
+    checks = build.get("checks") or {}
+    stats = checks.get("stats") or {}
+    issues = checks.get("issues") or []
+    specs = build.get("paramSpecs") or {}
+    params = [
+        {"name": k, "label": s.get("label") or k, "value": state.params.get(k, s.get("value")), "unit": s.get("unit"), "source": s.get("source", "design")}
+        for k, s in specs.items() if not s.get("hidden")
+    ]
+    errors = sum(1 for i in issues if i["severity"] == "error")
+    nxt = [{"action": "download", "label": "Download 3MF"}, {"action": "slice", "label": "Prepare print settings"}]
+    if any(p["source"] in ("photo", "assumed") for p in params):
+        nxt.append({"action": "probe", "label": "Print a 5-minute test piece"})
+    nxt += [{"action": "order", "label": "Order a print"}, {"action": "share", "label": "Share as a recipe"}]
+    return {
+        "version": state.version,
+        "title": ctx.project["title"],
+        "size_mm": [round(v, 1) for v in stats.get("size", [])],
+        "est_grams": round(stats.get("estGrams", 0), 1),
+        "est_minutes": round(stats.get("estMinutes", 0)),
+        "params_with_sources": params,
+        "checks": {"ok": checks.get("ok", True), "errors": errors, "warnings": sum(1 for i in issues if i["severity"] == "warn"), "score": checks.get("score")},
+        "critic": state.critic or {},
+        "cover": f"/files/{ctx.project_id}/renders/v{state.version}_iso.png",
+        "render": f"/files/{state.last_render}" if state.last_render else None,
+        "cost_usd": round(ctx.meter.usd, 4),
+        "next": nxt,
+    }
 
 
 def standards_hint(query: str) -> str:
