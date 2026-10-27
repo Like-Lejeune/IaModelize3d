@@ -1,4 +1,5 @@
 // Typed client for the FastAPI backend (same origin; cookie session `fw_uid`).
+import { t } from './i18n.svelte';
 import type { AssetOut, ProjectDetail, ProjectOut, SelectionOut, Usage, Printer, ProgramOut } from './types';
 
 export class ApiError extends Error {
@@ -43,6 +44,7 @@ export const api = {
   project: (id: string) => req<ProjectDetail>('GET', `/api/projects/${id}`),
   patchProject: (id: string, body: { title?: string; pack?: string; public?: boolean }) => req<ProjectOut>('PATCH', `/api/projects/${id}`, body),
   fork: (id: string) => req<ProjectOut>('POST', `/api/projects/${id}/fork`),
+  replay: (id: string, speed = 4) => req<ProjectOut>('POST', `/api/projects/${id}/replay?speed=${speed}`),
 
   upload: (id: string, file: Blob, kind: string, filename?: string) => {
     const fd = new FormData();
@@ -98,6 +100,8 @@ export interface DetectResult {
 }
 
 export function errorText(e: unknown): string {
+  if (e instanceof ApiError && e.status === 403) return t('forbidden');
+  if (e instanceof ApiError && e.status === 413) return t('too_large');
   if (e instanceof ApiError) return e.message;
   if (e instanceof Error) return e.message;
   return String(e);

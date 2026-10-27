@@ -1,33 +1,32 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, download, errorText } from '$lib/api';
-  import { t } from '$lib/i18n.svelte';
+  import Icon from './Icon.svelte';
+  import { api, errorText } from '$lib/api';
+  import { t, fmtMinutes, i18n } from '$lib/i18n.svelte';
   import type { ProjectStore } from '$lib/project.svelte';
   import type { Printer } from '$lib/types';
 
-  let { store, readonly = false }: { store: ProjectStore; readonly?: boolean } = $props();
+  let { store }: { store: ProjectStore } = $props();
 
-  const GOALS = ['fast', 'strong', 'pretty', 'quiet', 'cheap'];
+  const GOALS = ['strong', 'fast', 'pretty', 'quiet', 'cheap'];
   const MATERIALS = ['PLA', 'PETG', 'ABS', 'ASA', 'TPU'];
   let printers = $state<Printer[]>([]);
   let printer = $state('');
   let material = $state('PLA');
   let goals = $state<string[]>([]);
   let probeParam = $state('');
-  let qty = $state(1);
-  let color = $state('');
-  let comment = $state('');
-  let order = $state<Record<string, any> | null>(null);
   let busy = $state<string | null>(null);
   let error = $state<string | null>(null);
+  let fingerprint = $state<Record<string, any> | null>(null);
 
   onMount(async () => {
     try {
       printers = await api.printers();
       try {
         printer = localStorage.getItem('fw_printer') ?? '';
+        material = localStorage.getItem('fw_material') ?? 'PLA';
       } catch {
-        /* ignore */
+        /* storage unavailable */
       }
       if (!printers.some((p) => p.id === printer || p.name === printer)) printer = printers[0]?.id ?? printers[0]?.name ?? '';
     } catch {
@@ -46,37 +45,13 @@
     }
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   });
-
-  const numericParams = $derived(
-    Object.entries(store.build?.paramSpecs ?? {}).filter(([, s]) => typeof s.value === 'number' && !s.hidden && s.kind !== 'seed'),
-  );
-
-  async function dl(format: 'stl' | '3mf') {
-    busy = format;
-    error = null;
-    const name = `${(store.detail?.title ?? 'model').replace(/[^\w-]+/g, '_').slice(0, 40)}.${format}`;
-    try {
-      const blob = readonly && store.source
-        ? await store.geom.exportFile({ source: store.source, params: $state.snapshot(store.values), inputs: $state.snapshot(store.inputs), format, title: store.detail?.title })
-        : await api.exportFile(store.id, format, $state.snapshot(store.values));
-      await download(blob, name);
-    } catch (e) {
-      // fall back to the local worker if the server cannot export
-      try {
-        if (!store.source) throw e;
-        const blob = await store.geom.exportFile({ source: store.source, params: $state.snapshot(store.values), inputs: $state.snapshot(store.inputs), format, title: store.detail?.title });
-        await download(blob, name);
-      } catch (e2) {
-        error = errorText(e2);
-      }
-    } finally {
-      busy = null;
-    }
-  }
+  const numericParams = $derived(Object.entries(store.build?.paramSpecs ?? {}).filter(([, s]) => typeof s.value === 'number' && !s.hidden && s.kind !== 'seed'));
+  const slicing = $derived(store.running && store.jobKind === 'slice');
 
   async function slice() {
     try {
       localStorage.setItem('fw_printer', printer);
+      localStorage.setItem('fw_material', material);
     } catch {
       /* ignore */
     }
@@ -89,19 +64,9 @@
     await store.startSide(() => api.probe(store.id, { dimension: probeParam, value: store.values[probeParam], unit: s?.unit ?? 'mm', label: s?.label }));
   }
 
-  async function placeOrder() {
-    busy = 'order';
-    error = null;
-    try {
-      order = await api.order(store.id, { quantity: qty, material, color: color || undefined, comment: comment || undefined });
-    } catch (e) {
-      error = errorText(e);
-    } finally {
-      busy = null;
-    }
+  function chooseProbe(v: { label: string; value: any }) {
+    store.send(`Probe result for ${store.probe?.dimension}: variant ${v.label} (${v.value}) fits best.`);
   }
-
-  let fingerprint = $state<Record<string, any> | null>(null);
 
   async function calibrate(files: FileList | null) {
     const f = files?.[0];
@@ -133,216 +98,267 @@
     }
   }
 
-  function chooseProbe(v: { label: string; value: any }) {
-    store.send(`Probe result for ${store.probe?.dimension}: variant ${v.label} (${v.value}) fits best.`);
-  }
+  // slicer keys in words people use; the raw key stays in the tooltip
+  const SETTING: Record<string, [string, string]> = {
+    wall_loops: ['Walls', 'Стенки'],
+    sparse_infill_density: ['Infill', 'Заполнение'],
+    sparse_infill_pattern: ['Infill pattern', 'Узор заполнения'],
+    sparse_infill_speed: ['Infill speed', 'Скорость заполнения'],
+    top_shell_layers: ['Top layers', 'Верхние слои'],
+    bottom_shell_layers: ['Bottom layers', 'Нижние слои'],
+    layer_height: ['Layer height', 'Высота слоя'],
+    outer_wall_speed: ['Outer wall speed', 'Скорость внешней стенки'],
+    inner_wall_speed: ['Inner wall speed', 'Скорость внутренних стенок'],
+    outer_wall_acceleration: ['Outer wall acceleration', 'Ускорение внешней стенки'],
+    inner_wall_acceleration: ['Inner wall acceleration', 'Ускорение внутренних стенок'],
+    outer_wall_line_width: ['Outer wall line width', 'Ширина линии внешней стенки'],
+    initial_layer_speed: ['First layer speed', 'Скорость первого слоя'],
+    brim_type: ['Brim', 'Кайма'],
+    brim_width: ['Brim width', 'Ширина каймы'],
+    brim_ears: ['Brim ears', 'Ушки каймы'],
+    enable_support: ['Supports', 'Поддержки'],
+    support_used: ['Supports', 'Поддержки'],
+    support_type: ['Support type', 'Тип поддержек'],
+    support_threshold_angle: ['Support angle', 'Угол поддержек'],
+    seam_position: ['Seam', 'Шов'],
+    ironing_type: ['Ironing', 'Разглаживание'],
+    elefant_foot_compensation: ['Elephant-foot compensation', 'Компенсация «слоновьей ноги»'],
+    detect_thin_wall: ['Thin walls', 'Тонкие стенки'],
+    wall_generator: ['Wall generator', 'Генератор стенок'],
+    only_one_wall_top: ['Single top wall', 'Одна стенка сверху'],
+    fan_max_speed: ['Max fan', 'Макс. обдув'],
+  };
+  const settingName = (k: string) => SETTING[k]?.[i18n.lang === 'ru' ? 1 : 0] ?? k.replaceAll('_', ' ');
+  // evidence tags like "goal:strong" read as "Priorities: Strong"
+  const evPart = (x: any) => (typeof x === 'string' && x.startsWith('goal:') ? `${t('goals')}: ${t(`goal.${x.slice(5)}`)}` : typeof x === 'string' ? x : JSON.stringify(x));
+  const ev = (e: any) => (Array.isArray(e) ? e.map(evPart).join(', ') : e ? evPart(e) : '');
 </script>
 
-<div class="print stack">
-  <div class="row">
-    <button class="btn" onclick={() => dl('stl')} disabled={!store.source || busy === 'stl'}>⬇ {t('download_stl')}</button>
-    <button class="btn" onclick={() => dl('3mf')} disabled={!store.source || busy === '3mf'}>⬇ {t('download_3mf')}</button>
-  </div>
-
-  {#if !readonly}
-    <section class="stack">
-      <h3 class="section-title">{t('slice')}</h3>
-      <label class="lab">{t('printer')}
-        <select bind:value={printer}>
-          {#if !printers.length}<option value="">generic 0.4</option>{/if}
-          {#if popular.length}
-            <optgroup label="Popular">
-              {#each popular as p (p.id ?? p.name)}<option value={p.id ?? p.name}>{p.name}</option>{/each}
-            </optgroup>
-          {/if}
-          {#each byVendor as [vendor, list] (vendor)}
-            <optgroup label={vendor}>
-              {#each list as p (p.id ?? p.name)}<option value={p.id ?? p.name}>{p.name}</option>{/each}
-            </optgroup>
-          {/each}
-        </select>
-      </label>
-      <label class="lab">{t('material')}
-        <select bind:value={material}>{#each MATERIALS as m (m)}<option>{m}</option>{/each}</select>
-      </label>
-      <div class="row goals" role="group" aria-label={t('goals')}>
+<div class="print">
+  <section class="stack">
+    <p class="muted small lead">{t('slice_hint')}</p>
+    <label class="field">{t('printer')}
+      <select bind:value={printer}>
+        {#if !printers.length}<option value="">Generic 0.4 mm</option>{/if}
+        {#if popular.length}
+          <optgroup label="Popular">{#each popular as p (p.id ?? p.name)}<option value={p.id ?? p.name}>{p.name}</option>{/each}</optgroup>
+        {/if}
+        {#each byVendor as [vendor, list] (vendor)}
+          <optgroup label={vendor}>{#each list as p (p.id ?? p.name)}<option value={p.id ?? p.name}>{p.name}</option>{/each}</optgroup>
+        {/each}
+      </select>
+    </label>
+    <div class="field">{t('material')}
+      <div class="seg mat" role="radiogroup" aria-label={t('material')}>
+        {#each MATERIALS as m (m)}<button role="radio" aria-checked={material === m} class:on={material === m} onclick={() => (material = m)}>{m}</button>{/each}
+      </div>
+    </div>
+    <div class="field">{t('goals')}
+      <div class="row goals" role="group">
         {#each GOALS as g (g)}
           <button class="chip goal" class:on={goals.includes(g)} aria-pressed={goals.includes(g)} onclick={() => (goals = goals.includes(g) ? goals.filter((x) => x !== g) : [...goals, g])}>{t(`goal.${g}`)}</button>
         {/each}
       </div>
-      <button class="btn primary" onclick={slice} disabled={!store.source || store.running}>🖨 {t('slice')}</button>
-      {#if store.slice}
-        {@const st = store.slice.stats ?? {}}
-        <div class="card res">
-          <div class="row big">
-            <span class="mono">⏱ {st.minutes ?? '?'} {t('minutes')}</span>
-            <span class="mono">⚖ {st.grams ?? '?'} {t('grams')}</span>
-            {#if st.layers}<span class="mono muted">{st.layers} {t('layers')}</span>{/if}
-          </div>
-          {#if st.warnings?.length}<ul class="warn">{#each st.warnings as w (w)}<li>{w}</li>{/each}</ul>{/if}
-          <div class="section-title">{t('profile_diff')}</div>
-          {#if !store.slice.diff?.length}
-            <p class="muted small">{t('no_changes')}</p>
-          {:else}
-            <div class="tbl">
-              {#each store.slice.diff as d (d.key)}
-                <div class="drow">
-                  <span class="mono key">{d.key}</span>
-                  <span class="mono">{d.from} → <strong>{d.to}</strong></span>
-                  <span class="small reason">{d.reason}{d.evidence ? ` (${typeof d.evidence === 'string' ? d.evidence : JSON.stringify(d.evidence)})` : ''}</span>
-                </div>
-              {/each}
-            </div>
-          {/if}
-          <div class="row">
-            {#if store.slice.files?.project_3mf}<a class="btn small" href={store.slice.files.project_3mf} download>3MF + profile</a>{/if}
-            {#if store.slice.files?.gcode}<a class="btn small" href={store.slice.files.gcode} download>G-code</a>{/if}
-          </div>
-        </div>
-      {/if}
-    </section>
+    </div>
+    <button class="btn primary large" onclick={slice} disabled={!store.source || store.running}>
+      {#if slicing}<span class="spin"></span>{:else}<Icon name="printer" size={17} />{/if} {t('prepare_print')}
+    </button>
+  </section>
 
-    <section class="stack">
-      <h3 class="section-title">{t('probe')}</h3>
-      <p class="muted small">{t('probe_hint')}</p>
+  {#if store.slice}
+    {@const st = store.slice.stats ?? {}}
+    <section class="res card">
+      <div class="row hdr"><Icon name="check-circle" size={16} /> <strong>{t('sliced')}</strong></div>
+      <dl class="big">
+        <div><dt>{t('time')}</dt><dd class="mono">{fmtMinutes(st.minutes)}</dd></div>
+        <div><dt>{t('weight')}</dt><dd class="mono">{Math.round(st.grams ?? 0)} {t('grams')}</dd></div>
+        {#if st.filament_m}<div><dt>{t('filament')}</dt><dd class="mono">{(+st.filament_m).toFixed(1)} m</dd></div>{/if}
+        {#if st.layers}<div><dt>{t('layers')}</dt><dd class="mono">{st.layers}</dd></div>{/if}
+      </dl>
+      {#if st.warnings?.length}<ul class="warnings">{#each st.warnings as w (w)}<li class="small">{w}</li>{/each}</ul>{/if}
+      <div class="section-title">{t('profile_diff')}</div>
+      {#if !store.slice.diff?.length}
+        <p class="muted small">{t('no_changes')}</p>
+      {:else}
+        <ul class="diff">
+          {#each store.slice.diff as d (d.key + (d.part ?? ''))}
+            <li>
+              <div class="row"><span class="key" title={d.key}>{settingName(d.key)}</span><span class="mono xs">{d.from} → <strong>{d.to}</strong></span></div>
+              <div class="small reason">{d.reason}</div>
+              {#if d.evidence}<div class="xs muted">{ev(d.evidence)}</div>{/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
       <div class="row">
-        <select bind:value={probeParam} aria-label={t('probe_param')} style="flex:1;min-width:0">
-          <option value="">{t('probe_param')}…</option>
-          {#each numericParams as [n, s] (n)}<option value={n}>{s.label ?? n} ({store.values[n]} {s.unit ?? ''})</option>{/each}
-        </select>
-        <button class="btn" onclick={probe} disabled={!probeParam || store.running}>🧪 {t('make_probe')}</button>
+        {#if store.slice.files?.project_3mf}<a class="btn primary small" href={store.slice.files.project_3mf} download><Icon name="download" size={14} /> {t('project_3mf')}</a>{/if}
+        {#if store.slice.files?.gcode}<a class="btn small" href={store.slice.files.gcode} download>{t('gcode')}</a>{/if}
       </div>
-      {#if store.probe}
-        <div class="card res">
-          {#if store.probe.render}<img src={store.probe.render} alt="probe" class="probe-img" />{/if}
-          <div class="row">
-            {#each store.probe.variants ?? [] as v (v.label)}
-              <button class="btn small" onclick={() => chooseProbe(v)}>{v.label}: {v.value}</button>
-            {/each}
-          </div>
-          <div class="row">
-            {#each Object.entries(store.probe.files ?? {}) as [k, url] (k)}<a class="btn small" href={url as string} download>{k}</a>{/each}
-          </div>
-        </div>
-      {/if}
-    </section>
-
-    <section class="stack">
-      <h3 class="section-title">{t('calib')}</h3>
-      <p class="muted small">{t('calib_hint')}</p>
-      <div class="row">
-        <a class="btn small" href="/api/printers/coupon.3mf" download>⬇ {t('coupon')}</a>
-        <label class="btn small" class:disabled={!printer || busy === 'calib'}>
-          📷 {t('calib_photo')}
-          <input class="sr-only" type="file" accept="image/*" capture="environment" disabled={!printer} onchange={(e) => calibrate((e.currentTarget as HTMLInputElement).files)} />
-        </label>
-      </div>
-      {#if fingerprint}
-        <div class="card res mono small">
-          {#each Object.entries(fingerprint).filter(([, v]) => typeof v === 'number') as [k, v] (k)}<div>{k}: {(v as number).toFixed(2)}</div>{/each}
-        </div>
-      {/if}
-    </section>
-
-    <section class="stack">
-      <h3 class="section-title">{t('compare')}</h3>
-      <p class="muted small">{t('compare_hint')}</p>
-      <label class="btn small" class:disabled={busy === 'compare' || store.running}>
-        📷 {t('compare_photo')}
-        <input class="sr-only" type="file" accept="image/*" capture="environment" onchange={(e) => comparePrint((e.currentTarget as HTMLInputElement).files)} />
-      </label>
     </section>
   {/if}
 
-  <section class="stack">
-    <h3 class="section-title">{t('order')}</h3>
-    <p class="muted small">{t('order_hint')}</p>
+  <details class="tool">
+    <summary><Icon name="flask" size={15} /> {t('probe')}</summary>
+    <p class="muted small">{t('probe_hint')}</p>
     <div class="row">
-      <label class="lab narrow">{t('quantity')}<input type="number" min="1" max="50" bind:value={qty} /></label>
-      <label class="lab narrow">{t('material')}<select bind:value={material}>{#each MATERIALS as m (m)}<option>{m}</option>{/each}</select></label>
-      <label class="lab narrow">{t('color')}<input type="text" bind:value={color} placeholder="black" /></label>
+      <select bind:value={probeParam} aria-label={t('probe_param')} style="flex:1;min-width:0">
+        <option value="">{t('probe_param')}…</option>
+        {#each numericParams as [n, s] (n)}<option value={n}>{s.label ?? n} ({store.values[n]} {s.unit ?? ''})</option>{/each}
+      </select>
+      <button class="btn small" onclick={probe} disabled={!probeParam || store.running}>{t('make_probe')}</button>
     </div>
-    <input type="text" bind:value={comment} placeholder={t('comment')} aria-label={t('comment')} />
-    <button class="btn primary" onclick={placeOrder} disabled={!store.source || busy === 'order'}>🛒 {t('order')}</button>
-    {#if order}
-      <div class="card res">
-        <strong>{t('order_done')}</strong>
-        {#if order.message}<p class="small">{order.message}</p>{/if}
-        {#if order.quote}<p class="small mono">{JSON.stringify(order.quote)}</p>{/if}
-        {#if order.checkout_url}<a class="btn primary small" href={order.checkout_url} target="_blank" rel="noopener">{t('open_checkout')} ↗</a>{/if}
+    {#if store.probe}
+      <div class="probe">
+        {#if store.probe.render}<img src={store.probe.render} alt="" />{/if}
+        <div class="xs muted">{t('fits_best')}:</div>
+        <div class="row">{#each store.probe.variants ?? [] as v (v.label)}<button class="btn small" onclick={() => chooseProbe(v)}>{v.label} · {v.value}</button>{/each}</div>
+        <div class="row">{#each Object.entries(store.probe.files ?? {}) as [k, url] (k)}<a class="btn small ghost" href={url as string} download><Icon name="download" size={13} /> {k}</a>{/each}</div>
       </div>
     {/if}
-  </section>
-  {#if error}<div class="err small">{error}</div>{/if}
+  </details>
+
+  <details class="tool">
+    <summary><Icon name="target" size={15} /> {t('calib')}</summary>
+    <p class="muted small">{t('calib_hint')}</p>
+    <div class="row">
+      <a class="btn small" href="/api/printers/coupon.3mf" download><Icon name="download" size={13} /> {t('coupon')}</a>
+      <label class="btn small" class:disabled={!printer || busy === 'calib'} title={printer ? '' : t('pick_printer_first')}>
+        {#if busy === 'calib'}<span class="spin"></span>{:else}<Icon name="camera" size={13} />{/if} {t('calib_photo')}
+        <input class="sr-only" type="file" accept="image/*" capture="environment" disabled={!printer} onchange={(e) => calibrate((e.currentTarget as HTMLInputElement).files)} />
+      </label>
+    </div>
+    {#if fingerprint}
+      <dl class="fp mono xs">{#each Object.entries(fingerprint).filter(([, v]) => typeof v === 'number') as [k, v] (k)}<div><dt>{k}</dt><dd>{(v as number).toFixed(2)}</dd></div>{/each}</dl>
+    {/if}
+  </details>
+
+  <details class="tool">
+    <summary><Icon name="scan" size={15} /> {t('compare')}</summary>
+    <p class="muted small">{t('compare_hint')}</p>
+    <label class="btn small" class:disabled={busy === 'compare' || store.running}>
+      {#if busy === 'compare'}<span class="spin"></span>{:else}<Icon name="camera" size={13} />{/if} {t('compare_photo')}
+      <input class="sr-only" type="file" accept="image/*" capture="environment" onchange={(e) => comparePrint((e.currentTarget as HTMLInputElement).files)} />
+    </label>
+  </details>
+
+  {#if error}<p class="err small" role="alert">{error}</p>{/if}
 </div>
 
 <style>
-  section {
-    border-top: 1px solid var(--line);
-    padding-top: 10px;
-  }
-  .lab {
+  .print {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    font-size: 13px;
+    gap: 14px;
   }
-  .lab.narrow {
-    flex: 1;
-    min-width: 80px;
+  .lead {
+    margin: 0;
   }
-  .lab.narrow input,
-  .lab.narrow select {
-    width: 100%;
+  .mat button {
+    font-family: var(--mono);
+    font-size: 12px;
   }
   .goal {
     cursor: pointer;
+    padding: 4px 10px;
+    font-size: var(--fs-sm);
   }
   .goal.on {
     background: var(--accent-soft);
+    color: var(--accent);
     border-color: var(--accent);
   }
   .res {
-    padding: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .hdr {
+    color: var(--ok);
+  }
+  .big {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin: 0;
+  }
+  .big div {
+    background: var(--panel-2);
+    border-radius: 8px;
+    padding: 6px 8px;
+  }
+  dt {
+    font-size: var(--fs-xs);
+    color: var(--muted);
+  }
+  dd {
+    margin: 0;
+    font-size: var(--fs-md);
+    font-weight: 600;
+  }
+  .warnings {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--warn);
+  }
+  .diff {
+    list-style: none;
+    margin: 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
   }
-  .big {
-    font-size: 15px;
+  .diff li {
+    border-left: 2px solid var(--accent);
+    padding-left: 8px;
   }
-  .tbl {
+  .key {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .reason {
+    color: var(--text-2);
+  }
+  .tool {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+  .tool summary {
+    cursor: pointer;
+    font-size: var(--fs-sm);
+    font-weight: 550;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    list-style: none;
+  }
+  .tool[open] summary {
+    margin-bottom: 6px;
+  }
+  .tool p {
+    margin: 0 0 8px;
+  }
+  .probe {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    margin-top: 8px;
   }
-  .drow {
+  .probe img {
+    max-width: 200px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+  }
+  .fp {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 2px 8px;
-    font-size: 12.5px;
-    border-bottom: 1px dashed var(--line);
-    padding-bottom: 4px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+    margin: 8px 0 0;
   }
-  .key {
-    overflow-wrap: anywhere;
-  }
-  .reason {
-    grid-column: 1 / -1;
-    color: var(--muted);
-  }
-  .warn {
-    margin: 0;
-    padding-left: 18px;
-    color: var(--warn);
-    font-size: 13px;
-  }
-  .probe-img {
-    width: 100%;
-    border-radius: 6px;
-  }
-  .small {
-    font-size: 12.5px;
+  .fp dd {
+    font-size: 12px;
   }
   .err {
     color: var(--err);

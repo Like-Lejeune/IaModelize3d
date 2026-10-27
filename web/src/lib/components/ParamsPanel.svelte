@@ -1,20 +1,24 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
+  import Icon from './Icon.svelte';
+  import SourceBadge from './SourceBadge.svelte';
+  import { t, unitLabel } from '$lib/i18n.svelte';
   import type { ParamSpec } from '$lib/types';
 
   let {
     specs,
     values,
     onChange,
+    agentValues = {},
+    building = false,
   }: {
     specs: Record<string, ParamSpec>;
     values: Record<string, any>;
     onChange: (name: string, value: any, commit: boolean) => void;
+    agentValues?: Record<string, any>;
+    building?: boolean;
   } = $props();
 
-  const SOURCE_ICON: Record<string, string> = {
-    photo: '📷', caliper: '📏', standard: '📘', search: '🔎', user: '👤', assumed: '❔', design: '✎', memory: '🧠',
-  };
+  let legend = $state(false);
 
   const groups = $derived.by(() => {
     const out = new Map<string, [string, ParamSpec][]>();
@@ -27,120 +31,221 @@
     return [...out.entries()];
   });
 
+  const sources = $derived([...new Set(Object.values(specs ?? {}).map((s) => (s.source === 'request' ? 'user' : s.source)).filter(Boolean))] as string[]);
+
   function kind(s: ParamSpec) {
     return s.kind ?? (typeof s.value === 'number' ? 'number' : typeof s.value === 'boolean' ? 'bool' : s.options ? 'choice' : 'text');
   }
-
   function step(s: ParamSpec) {
     if (s.step) return s.step;
     if (s.kind === 'int' || s.kind === 'seed') return 1;
     const span = (s.max ?? 100) - (s.min ?? 0);
     return span > 50 ? 0.5 : span > 5 ? 0.1 : 0.01;
   }
-
   function fmt(v: any) {
-    return typeof v === 'number' ? (Math.abs(v) >= 100 ? v.toFixed(1) : +v.toFixed(2)) : v;
+    return typeof v === 'number' ? (Math.abs(v) >= 100 ? +v.toFixed(1) : +v.toFixed(2)) : v;
   }
+  const changed = (name: string) => agentValues[name] !== undefined && agentValues[name] !== values[name];
 </script>
 
 <div class="params">
   {#if !groups.length}
-    <p class="muted">{t('no_program')}</p>
-  {/if}
-  {#each groups as [group, items] (group)}
-    {#if group}<div class="section-title">{group}</div>{/if}
-    {#each items as [name, s] (name)}
-      {@const k = kind(s)}
-      <div class="param">
-        <div class="head">
-          <label for="p-{name}">{s.label ?? name}</label>
-          {#if s.source}<span class="chip src" title={s.source}>{SOURCE_ICON[s.source] ?? '•'} {s.source}</span>{/if}
-          <span class="val mono">{fmt(values[name])}{s.unit ? ` ${s.unit}` : ''}</span>
-        </div>
-        {#if k === 'number' || k === 'int' || k === 'seed'}
-          <div class="row nowrap">
-            <input
-              id="p-{name}"
-              type="range"
-              min={s.min ?? 0}
-              max={s.max ?? Math.max(10, Number(s.value) * 3)}
-              step={step(s)}
-              value={values[name]}
-              oninput={(e) => onChange(name, Number((e.currentTarget as HTMLInputElement).value), false)}
-              onchange={(e) => onChange(name, Number((e.currentTarget as HTMLInputElement).value), true)}
-            />
-            <input
-              class="num"
-              type="number"
-              aria-label="{s.label ?? name} value"
-              min={s.min}
-              max={s.max}
-              step={step(s)}
-              value={values[name]}
-              onchange={(e) => onChange(name, Number((e.currentTarget as HTMLInputElement).value), true)}
-            />
-            {#if k === 'seed'}
-              <button class="btn small" aria-label="random seed" onclick={() => onChange(name, Math.floor(Math.random() * ((s.max ?? 9999) - (s.min ?? 0))) + (s.min ?? 0), true)}>🎲</button>
+    <div class="empty">
+      {#if building}<span class="spin"></span>{:else}<Icon name="sliders" size={22} />{/if}
+      <strong>{building ? t('building_model') : t('no_program')}</strong>
+      {#if !building}<p class="muted small">{t('no_program_hint')}</p>{/if}
+    </div>
+  {:else}
+    {#each groups as [group, items] (group)}
+      <section>
+        {#if group}<h4 class="section-title">{group}</h4>{/if}
+        {#each items as [name, s] (name)}
+          {@const k = kind(s)}
+          <div class="param" class:changed={changed(name)}>
+            <div class="head">
+              <label for="p-{name}">{s.label ?? name}</label>
+              <SourceBadge source={s.source} />
+              <span class="spacer"></span>
+              {#if changed(name)}
+                <button class="reset" onclick={() => onChange(name, agentValues[name], true)} title={t('reset_value')} aria-label={t('reset_value')}><Icon name="refresh" size={12} /></button>
+              {/if}
+              {#if k === 'number' || k === 'int' || k === 'seed'}
+                <input
+                  class="num mono"
+                  type="number"
+                  aria-label="{s.label ?? name}"
+                  min={s.min}
+                  max={s.max}
+                  step={step(s)}
+                  value={fmt(values[name])}
+                  onchange={(e) => onChange(name, Number((e.currentTarget as HTMLInputElement).value), true)}
+                />
+                {#if s.unit}<span class="unit">{unitLabel(s.unit)}</span>{/if}
+              {/if}
+            </div>
+            {#if k === 'number' || k === 'int' || k === 'seed'}
+              <div class="slider">
+                <input
+                  id="p-{name}"
+                  type="range"
+                  min={s.min ?? 0}
+                  max={s.max ?? Math.max(10, Number(s.value) * 3)}
+                  step={step(s)}
+                  value={values[name]}
+                  oninput={(e) => onChange(name, Number((e.currentTarget as HTMLInputElement).value), false)}
+                  onchange={(e) => onChange(name, Number((e.currentTarget as HTMLInputElement).value), true)}
+                />
+                {#if k === 'seed'}
+                  <button class="btn small icon" aria-label="random" onclick={() => onChange(name, Math.floor(Math.random() * ((s.max ?? 9999) - (s.min ?? 0))) + (s.min ?? 0), true)}><Icon name="refresh" size={14} /></button>
+                {/if}
+              </div>
+            {:else if k === 'bool'}
+              <label class="toggle"><input id="p-{name}" type="checkbox" checked={!!values[name]} onchange={(e) => onChange(name, (e.currentTarget as HTMLInputElement).checked, true)} /> <span class="small">{values[name] ? 'on' : 'off'}</span></label>
+            {:else if k === 'choice' && s.options}
+              <div class="choices" role="radiogroup" aria-label={s.label ?? name}>
+                {#if s.options.length <= 4}
+                  {#each s.options as o (o)}
+                    <button class="chip opt" class:on={values[name] === o} role="radio" aria-checked={values[name] === o} onclick={() => onChange(name, o, true)}>{o}</button>
+                  {/each}
+                {:else}
+                  <select id="p-{name}" value={values[name]} onchange={(e) => onChange(name, (e.currentTarget as HTMLSelectElement).value, true)}>
+                    {#each s.options as o (o)}<option value={o}>{o}</option>{/each}
+                  </select>
+                {/if}
+              </div>
+            {:else if k === 'color'}
+              <input id="p-{name}" type="color" value={values[name]} onchange={(e) => onChange(name, (e.currentTarget as HTMLInputElement).value, true)} />
+            {:else}
+              <input id="p-{name}" type="text" value={values[name]} onchange={(e) => onChange(name, (e.currentTarget as HTMLInputElement).value, true)} />
             {/if}
           </div>
-        {:else if k === 'bool'}
-          <input id="p-{name}" type="checkbox" checked={!!values[name]} onchange={(e) => onChange(name, (e.currentTarget as HTMLInputElement).checked, true)} />
-        {:else if k === 'choice' && s.options}
-          <select id="p-{name}" value={values[name]} onchange={(e) => onChange(name, (e.currentTarget as HTMLSelectElement).value, true)}>
-            {#each s.options as o (o)}<option value={o}>{o}</option>{/each}
-          </select>
-        {:else if k === 'color'}
-          <input id="p-{name}" type="color" value={values[name]} onchange={(e) => onChange(name, (e.currentTarget as HTMLInputElement).value, true)} />
-        {:else}
-          <input id="p-{name}" type="text" value={values[name]} onchange={(e) => onChange(name, (e.currentTarget as HTMLInputElement).value, true)} />
+        {/each}
+      </section>
+    {/each}
+    {#if sources.length}
+      <div class="legend">
+        <button class="lbtn xs" onclick={() => (legend = !legend)} aria-expanded={legend}><Icon name="info" size={13} /> {t('legend')}</button>
+        {#if legend}
+          <ul>
+            {#each sources as s (s)}<li><SourceBadge source={s} /> <span class="xs muted">{t(`srcd.${s}`)}</span></li>{/each}
+          </ul>
         {/if}
       </div>
-    {/each}
-  {/each}
+    {/if}
+  {/if}
 </div>
 
 <style>
   .params {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 14px;
+  }
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+    padding: 28px 8px;
+    color: var(--muted);
+  }
+  .empty strong {
+    color: var(--text);
+  }
+  .empty p {
+    margin: 0;
   }
   .param {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
   }
   .head {
     display: flex;
-    gap: 6px;
     align-items: center;
-    font-size: 13.5px;
+    gap: 6px;
     min-width: 0;
   }
   .head label {
-    font-weight: 500;
+    font-size: var(--fs-sm);
+    font-weight: 550;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .src {
-    font-size: 11px;
-    padding: 0 6px;
-  }
-  .val {
-    margin-left: auto;
-    color: var(--muted);
-    white-space: nowrap;
-  }
-  .nowrap {
-    flex-wrap: nowrap;
-  }
-  input[type='range'] {
-    flex: 1;
     min-width: 0;
-    accent-color: var(--accent);
   }
   .num {
-    width: 76px;
+    width: 70px;
+    padding: 3px 6px;
+    text-align: right;
+    font-size: var(--fs-sm);
+  }
+  .changed .num {
+    border-color: var(--accent);
+  }
+  .unit {
+    font-size: var(--fs-xs);
+    color: var(--muted);
+    width: 24px;
+  }
+  .reset {
+    border: none;
+    background: none;
+    color: var(--accent);
+    padding: 2px;
+    display: grid;
+    place-items: center;
+  }
+  .slider {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .slider input[type='range'] {
+    flex: 1;
+    min-width: 0;
+  }
+  .choices {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .opt {
+    cursor: pointer;
+    padding: 4px 10px;
+    font-size: var(--fs-sm);
+  }
+  .opt.on {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .toggle {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .legend ul {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .lbtn {
+    border: none;
+    background: none;
+    color: var(--muted);
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+    padding: 0;
   }
 </style>

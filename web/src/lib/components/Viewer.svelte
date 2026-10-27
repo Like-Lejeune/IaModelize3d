@@ -1,8 +1,9 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import * as THREE from 'three';
   import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
   import { onMount } from 'svelte';
-  import { t } from '$lib/i18n.svelte';
+  import { t, unitLabel } from '$lib/i18n.svelte';
   import type { BuildResult, Calibration, Handle, Issue, ParamSpec } from '$lib/types';
 
   let {
@@ -146,6 +147,37 @@
   function handleKey(h: Handle) {
     return h.type === 'point' ? h.params.join('+') : h.param;
   }
+
+  // what the hovered handle changes, so the orange dots never read as warnings
+  let handlesSeen = $state(false);
+  try {
+    handlesSeen = localStorage.getItem('fw_handles_seen') === '1';
+  } catch {
+    /* storage blocked: keep showing the hint */
+  }
+  $effect(() => {
+    if (!hoverHandle || handlesSeen) return;
+    handlesSeen = true;
+    try {
+      localStorage.setItem('fw_handles_seen', '1');
+    } catch {
+      /* ignore */
+    }
+  });
+  const handleTip = $derived.by(() => {
+    if (!build?.handles?.length || !editable || photoMode) return null;
+    const h = hoverHandle ? build.handles.find((x) => handleKey(x) === hoverHandle) : null;
+    if (!h) return handlesSeen ? null : { hint: true, text: t('handles_hint') };
+    const names = h.type === 'point' ? h.params : [h.param];
+    const val = names
+      .map((n) => {
+        const v = values[n];
+        const u = specs[n]?.unit;
+        return `${typeof v === 'number' ? +v.toFixed(2) : v}${u ? ' ' + unitLabel(u) : ''}`;
+      })
+      .join(' × ');
+    return { hint: false, text: `${h.label ?? specs[names[0]]?.label ?? names[0]} · ${val}` };
+  });
 
   function rebuildHandles() {
     disposeGroup(handleGroup);
@@ -522,23 +554,26 @@
 <div class="viewer" class:photo={photoMode}>
   <div class="stage" bind:this={host} style:aspect-ratio={photoMode && photo ? `${photo.calibration.width} / ${photo.calibration.height}` : undefined}>
     {#if photoMode && photo}<img class="bg" src={photo.url} alt="" />{/if}
-    <canvas bind:this={canvas} onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp} onpointercancel={onUp} aria-label="3D model viewer"></canvas>
+    <canvas bind:this={canvas} onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp} onpointercancel={onUp} onpointerleave={() => !drag && (hoverHandle = null)} aria-label="3D model viewer"></canvas>
+    {#if handleTip}<div class="htip xs" class:hint={handleTip.hint}>{handleTip.text}</div>{/if}
     {#if !build}
-      <div class="empty muted">{loading ? t('building_model') : t('no_program')}</div>
+      <div class="empty muted">
+        {#if loading}<span class="loading"><span class="spin"></span> {t('building_model')}</span>{:else}<span class="ghost"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z M3.3 7L12 12l8.7-5 M12 22V12" /></svg></span>{/if}
+      </div>
     {/if}
   </div>
   <div class="tools" bind:this={arOverlay}>
-    <button class="btn small" class:on={showHeat} onclick={() => (showHeat = !showHeat)} aria-pressed={showHeat}>🔥 {t('heat')}</button>
+    <button class="btn small" class:on={showHeat} onclick={() => (showHeat = !showHeat)} aria-pressed={showHeat} title={t('heat')}><Icon name="flame" size={14} /> <span class="tl">{t('heat')}</span></button>
     {#if build?.parts?.some((p) => p.role !== 'model')}
-      <button class="btn small" class:on={showModifiers} onclick={() => (showModifiers = !showModifiers)} aria-pressed={showModifiers}>◫ {t('modifiers')}</button>
+      <button class="btn small" class:on={showModifiers} onclick={() => (showModifiers = !showModifiers)} aria-pressed={showModifiers} title={t('modifiers')}><Icon name="layers" size={14} /> <span class="tl">{t('modifiers')}</span></button>
     {/if}
     {#if photo}
-      <button class="btn small" class:on={photoMode} onclick={() => setPhotoMode(!photoMode)} aria-pressed={photoMode}>📷 {t('photo_ar')}</button>
+      <button class="btn small" class:on={photoMode} onclick={() => setPhotoMode(!photoMode)} aria-pressed={photoMode} title={t('photo_ar')}><Icon name="image" size={14} /> <span class="tl">{t('photo_ar')}</span></button>
     {/if}
     {#if arSupported}
-      <button class="btn small" onclick={() => (arActive ? xrSession?.end() : startAR())}>{arActive ? t('stop') : '🕶 ' + t('live_ar')}</button>
+      <button class="btn small" onclick={() => (arActive ? xrSession?.end() : startAR())}><Icon name="cube" size={14} /> {arActive ? t('stop') : t('live_ar')}</button>
     {/if}
-    {#if !photoMode}<button class="btn small" onclick={fit} aria-label={t('reset_view')}>⤢</button>{/if}
+    {#if !photoMode}<button class="btn small icon" onclick={fit} aria-label={t('reset_view')} title={t('reset_view')}><Icon name="maximize" size={14} /></button>{/if}
   </div>
 </div>
 
@@ -580,6 +615,29 @@
     display: block;
     touch-action: none;
   }
+  .htip {
+    position: absolute;
+    left: 50%;
+    top: 10px;
+    transform: translateX(-50%);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 3px 10px;
+    pointer-events: none;
+    white-space: nowrap;
+    max-width: calc(100% - 24px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 2;
+  }
+  .htip.hint {
+    top: auto;
+    bottom: 48px;
+    border-color: var(--line);
+    color: var(--muted);
+  }
   .empty {
     position: absolute;
     inset: 0;
@@ -588,6 +646,11 @@
     text-align: center;
     padding: 24px;
     pointer-events: none;
+  }
+  .loading {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
   }
   .tools {
     position: absolute;
@@ -605,5 +668,16 @@
   .tools .btn.on {
     border-color: var(--accent);
     color: var(--accent);
+  }
+  .empty {
+    gap: 8px;
+  }
+  .ghost {
+    opacity: 0.35;
+  }
+  @media (max-width: 520px) {
+    .tools .tl {
+      display: none;
+    }
   }
 </style>

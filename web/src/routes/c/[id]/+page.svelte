@@ -1,6 +1,8 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { t, toggleLang } from '$lib/i18n.svelte';
+  import Icon from '$lib/components/Icon.svelte';
+  import CaptureTips from '$lib/components/CaptureTips.svelte';
 
   // Minimal phone capture screen opened from the studio's QR code.
   const id = $derived(page.params.id!);
@@ -42,21 +44,22 @@
     <button class="btn ghost small" onclick={toggleLang}>{t('lang')}</button>
   </div>
   <h1>{t('capture_title')}</h1>
+  <div class="card tipcard"><CaptureTips /></div>
   <label class="big btn primary">
-    📷 {t('take_photo')}
+    <Icon name="camera" size={20} /> {t('take_photo')}
     <input class="sr-only" type="file" accept="image/*" capture="environment" onchange={(e) => send('photo', (e.currentTarget as HTMLInputElement).files)} />
   </label>
   <label class="big btn">
-    📏 {t('caliper')}
+    <Icon name="ruler" size={20} /> {t('caliper')}
     <input class="sr-only" type="file" accept="image/*" capture="environment" onchange={(e) => send('caliper', (e.currentTarget as HTMLInputElement).files)} />
   </label>
   <label class="big btn">
-    🎬 {t('take_video')}
+    <Icon name="video" size={20} /> {t('take_video')}
     <input class="sr-only" type="file" accept="video/*" capture="environment" onchange={(e) => send('video', (e.currentTarget as HTMLInputElement).files)} />
   </label>
   {#if busy}<p class="muted">{t('upload')}… ({busy})</p>{/if}
   {#each done as d, i (i)}
-    <p class={d.ok ? 'ok' : 'err'}>{d.ok ? `✓ ${d.kind} ${t('uploaded')}` : `✕ ${d.msg}`}</p>
+    <p class={d.ok ? 'ok' : 'err'}>{d.ok ? `✓ ${t(d.kind)} — ${t('uploaded')}` : `✕ ${d.msg}`}</p>
   {/each}
   {#if done.some((d) => d.ok)}<p class="muted">{t('capture_done')}</p>{/if}
 </main>
@@ -77,6 +80,9 @@
   }
   h1 {
     font-size: 24px;
+  }
+  .tipcard {
+    padding: 12px;
   }
   .big {
     min-height: 64px;

@@ -1,8 +1,9 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import Modal from './Modal.svelte';
   import Sticker from './Sticker.svelte';
   import { api, errorText, type DetectResult } from '$lib/api';
-  import { t } from '$lib/i18n.svelte';
+  import { t, unitLabel } from '$lib/i18n.svelte';
   import type { AssetOut, SelectionOut } from '$lib/types';
 
   let {
@@ -118,10 +119,10 @@
   }
 
   const pct = (v: number, of: number) => `${(v / of) * 100}%`;
-  const sizeText = (d: Record<string, any>) => (d?.size_mm ? `${d.size_mm.map((v: number) => v.toFixed(1)).join(' × ')} mm` : d?.area_mm2 ? `${Math.round(d.area_mm2)} mm²` : '');
+  const sizeText = (d: Record<string, any>) => (d?.size_mm ? `${d.size_mm.map((v: number) => v.toFixed(1)).join(' × ')} ${unitLabel('mm')}` : d?.area_mm2 ? `${Math.round(d.area_mm2)} ${unitLabel('mm2')}` : '');
 </script>
 
-<Modal title={t('select_hint')} {onClose} wide>
+<Modal title={t('select_title')} {onClose} wide>
   <div class="wrap">
     <div class="pic">
       <div class="frame" role="application" aria-label={t('select_hint')} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={() => (dragStart = null)}>
@@ -152,18 +153,19 @@
       </div>
     </div>
     <div class="side stack">
-      <button class="btn" onclick={detect} disabled={busy}>✨ {t('detect')}</button>
+      <p class="xs muted how">{t('select_hint')}</p>
+      <button class="btn" onclick={detect} disabled={busy}><Icon name="sparkles" size={15} /> {t('detect')}</button>
       <label class="stack lab">{t('role')}
         <select bind:value={role}>
           {#each ROLES as r (r)}<option value={r}>{t(`role.${r}`)}</option>{/each}
         </select>
       </label>
-      <label class="stack lab">{t('name')}<input type="text" bind:value={name} placeholder="part, shelf, A4…" /></label>
+      <label class="stack lab">{t('name')}<input type="text" bind:value={name} placeholder={t('name_ph')} /></label>
       {#if !points.length && !box}
-        <label class="stack lab">Text prompt<input type="text" bind:value={text} placeholder="the plastic clip" /></label>
+        <label class="stack lab">{t('text_prompt')}<input type="text" bind:value={text} placeholder={t('text_prompt_ph')} /></label>
       {/if}
       <div class="row">
-        <button class="btn primary" onclick={apply} disabled={busy || (!points.length && !box && !text.trim())}>{busy ? '…' : t('apply_selection')}</button>
+        <button class="btn primary" onclick={apply} disabled={busy || (!points.length && !box && !text.trim())}>{#if busy}<span class="spin"></span> {t('finding_outline')}{:else}{t('apply_selection')}{/if}</button>
         <button class="btn" onclick={() => ((points = []), (box = null))}>{t('clear')}</button>
       </div>
       {#if error}<div class="err">{error}</div>{/if}
@@ -171,13 +173,14 @@
         <div class="sel card">
           {#if s.mask_url}<Sticker photo={asset.url} mask={s.mask_url} bbox={s.data?.bbox_px ?? null} size={52} />{/if}
           <div class="stack" style="gap:2px;min-width:0">
-            <strong>{s.name}</strong>
-            <span class="small muted">{t(`role.${s.role}`)}{s.role === 'target' ? ` — ${t('will_model')}` : ''}</span>
+            <strong>{s.name && s.name !== s.role ? s.name : t(`role.${s.role}`)}</strong>
+            <span class="small muted">{s.role === 'target' ? t('will_model') : t(`role.${s.role}`)}</span>
             {#if sizeText(s.data)}<span class="small mono">{sizeText(s.data)}{s.data?.uncertainty_mm ? ` ±${Number(s.data.uncertainty_mm).toFixed(1)}` : ''}</span>{/if}
           </div>
-          <button class="btn ghost small" aria-label="remove" onclick={() => remove(s.id)}>✕</button>
+          <button class="btn ghost small icon" aria-label={t('remove')} title={t('remove')} onclick={() => remove(s.id)}><Icon name="x" size={14} /></button>
         </div>
       {/each}
+      {#if mine.length}<button class="btn primary block" onclick={onClose}><Icon name="check" size={15} /> {t('done')}</button>{/if}
     </div>
   </div>
 </Modal>
@@ -209,8 +212,9 @@
   .mask {
     position: absolute;
     inset: 0;
-    background: var(--accent);
-    opacity: 0.5;
+    /* striped so the mask still reads on parts that share the accent colour */
+    background: repeating-linear-gradient(45deg, var(--accent) 0 6px, #fff 6px 10px);
+    opacity: 0.6;
     pointer-events: none;
     mask-mode: luminance;
     mask-size: 100% 100%;
@@ -264,6 +268,9 @@
     color: #fff;
     padding: 1px 4px;
     white-space: nowrap;
+  }
+  .how {
+    margin: 0;
   }
   .lab {
     font-size: 13px;

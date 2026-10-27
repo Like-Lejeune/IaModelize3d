@@ -2,10 +2,11 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import Header from '$lib/components/Header.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import Viewer from '$lib/components/Viewer.svelte';
   import ParamsPanel from '$lib/components/ParamsPanel.svelte';
   import ChecksPanel from '$lib/components/ChecksPanel.svelte';
-  import PrintPanel from '$lib/components/PrintPanel.svelte';
+  import GetItPanel from '$lib/components/GetItPanel.svelte';
   import { ProjectStore } from '$lib/project.svelte';
   import { api, errorText } from '$lib/api';
   import { t } from '$lib/i18n.svelte';
@@ -14,6 +15,7 @@
   let store = $state<ProjectStore | null>(null);
   let selectedIssue = $state<Issue | null>(null);
   let error = $state<string | null>(null);
+  let tab = $state<'model' | 'checks' | 'get'>('model');
 
   $effect(() => {
     const s = new ProjectStore(page.params.id!, true);
@@ -21,6 +23,19 @@
     s.load();
     return () => s.dispose();
   });
+
+  let watching = $state(false);
+  async function watch() {
+    if (!store) return;
+    watching = true;
+    try {
+      const p = await api.replay(store.id, 4);
+      goto(`/p/${p.id}`);
+    } catch (e) {
+      error = errorText(e);
+      watching = false;
+    }
+  }
 
   async function fork() {
     if (!store) return;
@@ -40,14 +55,14 @@
 </Header>
 
 {#if store?.loadError}
-  <p class="center err">{store.loadError}</p>
+  <div class="center"><p class="err">{store.loadError}</p><a class="btn" href="/">{t('back')}</a></div>
 {:else if !store?.detail}
-  <p class="center muted">{t('loading')}</p>
+  <div class="center"><span class="spin"></span></div>
 {:else}
   <main class="recipe">
-    <section class="view">
+    <section class="view card">
       <Viewer
-          loading={!!store.source && !store.build}
+        loading={!!store.source && !store.build}
         build={store.build}
         issues={store.checks?.issues ?? []}
         highlight={selectedIssue}
@@ -57,65 +72,89 @@
       />
     </section>
     <aside class="side card">
-      <div class="row">
-        <button class="btn primary" onclick={fork}>⑂ {t('fork')}</button>
-        <span class="muted small">{t('readonly_hint')}</span>
+      <div class="intro">
+        <span class="chip accent">{t('recipe_by')}</span>
+        {#if store.build?.meta?.description}<p class="small">{store.build.meta.description}</p>{/if}
+        <p class="muted small">{t('readonly_hint')}</p>
+        <div class="row">
+          <button class="btn primary" onclick={fork}><Icon name="gitfork" size={15} /> {t('fork')}</button>
+          <button class="btn" onclick={watch} disabled={watching}>{#if watching}<span class="spin"></span>{:else}<Icon name="play" size={14} />{/if} {t('watch')}</button>
+          <a class="btn ghost" href="/">{t('make_your_own')}</a>
+        </div>
+        {#if error}<p class="err small">{error}</p>{/if}
       </div>
-      {#if error}<p class="err small">{error}</p>{/if}
-      {#if store.build?.meta?.description}<p class="small">{store.build.meta.description}</p>{/if}
-      <h3 class="section-title">{t('params')}</h3>
-      <ParamsPanel specs={store.build?.paramSpecs ?? {}} values={store.values} onChange={(n, v, c) => store!.setParam(n, v, c)} />
-      <h3 class="section-title">{t('checks')}</h3>
-      <ChecksPanel checks={store.checks} selected={selectedIssue} onSelect={(i) => (selectedIssue = i)} building={store.building} />
-      <PrintPanel {store} readonly />
+      <div class="seg" role="tablist">
+        {#each ['model', 'checks', 'get'] as tb (tb)}
+          <button role="tab" aria-selected={tab === tb} onclick={() => (tab = tb as any)}>{t(tb === 'get' ? 'get_it' : tb)}</button>
+        {/each}
+      </div>
+      <div class="body">
+        {#if tab === 'model'}
+          <ParamsPanel specs={store.build?.paramSpecs ?? {}} values={store.values} agentValues={store.agentValues} building={store.building || (!!store.source && !store.build)} onChange={(n, v, c) => store!.setParam(n, v, c)} />
+        {:else if tab === 'checks'}
+          <ChecksPanel checks={store.checks} selected={selectedIssue} onSelect={(i) => (selectedIssue = i)} building={store.building} />
+        {:else}
+          <GetItPanel {store} readonly />
+        {/if}
+      </div>
     </aside>
   </main>
 {/if}
 
 <style>
   .ttl {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: block;
+    font-size: var(--fs-md);
   }
   .center {
-    text-align: center;
-    padding: 40px 16px;
+    display: grid;
+    place-items: center;
+    gap: 12px;
+    padding: 60px 16px;
   }
   .err {
     color: var(--err);
   }
   .recipe {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
     gap: 10px;
     padding: 10px;
-    grid-template-columns: minmax(0, 1fr);
+    height: calc(100dvh - 55px);
   }
   .view {
-    height: 56vh;
-    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
   }
   .side {
-    padding: 12px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    min-width: 0;
+    gap: 12px;
+    padding: 14px;
+    min-height: 0;
+    overflow: auto;
   }
-  .small {
-    font-size: 13px;
+  /* a scrolling flex column would otherwise squash the tabs once the sliders arrive */
+  .side > * {
+    flex-shrink: 0;
   }
-  @media (min-width: 1000px) {
+  .intro {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .intro p {
+    margin: 0;
+  }
+  @media (max-width: 900px) {
     .recipe {
-      grid-template-columns: minmax(0, 1fr) 360px;
-      height: calc(100dvh - 54px);
-    }
-    .view {
-      height: 100%;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: min(52dvh, 460px) auto;
+      height: auto;
     }
     .side {
-      overflow-y: auto;
+      overflow: visible;
     }
   }
 </style>
