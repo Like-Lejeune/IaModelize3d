@@ -22,7 +22,7 @@ from ..db import get_db, new_id, now
 from ..llm.client import CostMeter, meta
 from . import geometry as g
 from .common import as_list, asset_image, data_url, norm_box_to_px
-from .refine import contrast_image, refine_polyline
+from .refine import contrast_image, refine_polyline, trim_shadow
 from .sam import Mask, largest_component, load_mask_png, polygons, save_mask_png, segment
 
 log = logging.getLogger(__name__)
@@ -526,6 +526,9 @@ async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], r
         if not masks:
             raise ValueError("nothing found there; tap the middle of the object or drag a box around it")
         mask = masks[0].mask
+        shadow_trimmed = 0.0
+        if req.role in ("target", "mating", "context"):
+            mask, shadow_trimmed = trim_shadow(img, mask)
         sid = new_id("s_")
         mask_path = save_mask_png(f"{project_id}/{sid}_mask.png", mask)
         if req.role == "reference":
@@ -542,6 +545,8 @@ async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], r
             cal = await calibrate(meter, asset)
         data = measure_mask(mask, cal if cal.get("ok") else {}, image=img)
         data.update({"bbox_px": masks[0].bbox_px, "confidence": round(masks[0].score, 4)})
+        if shadow_trimmed:
+            data["shadow_trimmed"] = round(shadow_trimmed, 3)
         if not data.get("calibrated"):
             data["calibration_note"] = cal.get("reason") or "no reference in the photo: sizes are in pixels only"
         return await _insert_selection(project_id, asset["id"], req.role, name, prompt, mask_path, data, sid)

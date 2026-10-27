@@ -11,6 +11,43 @@ import numpy as np
 from scipy.ndimage import map_coordinates
 
 
+def trim_shadow(img: np.ndarray, mask: np.ndarray) -> tuple[np.ndarray, float]:
+    """Remove cast shadow that SAM merged into the part's mask.
+
+    A shadow on paper is darker than the paper but much lighter than a dark part, and it
+    hugs the outline. Pixels of the mask that sit closer to the paper tone than to the
+    part's core tone are dropped (largest component kept, small gaps closed). Only applied
+    when part and paper differ clearly in brightness. Returns (mask, fraction removed)."""
+    m = mask.astype(bool)
+    if m.sum() < 400:
+        return mask, 0.0
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
+    k = max(3, int(np.sqrt(m.sum()) * 0.08) | 1)
+    core = cv2.erode(m.astype(np.uint8), np.ones((k, k), np.uint8)).astype(bool)
+    ring = cv2.dilate(m.astype(np.uint8), np.ones((k * 2 + 1, k * 2 + 1), np.uint8)).astype(bool) & ~m
+    if core.sum() < 50 or ring.sum() < 50:
+        return mask, 0.0
+    part_tone = float(np.median(gray[core]))
+    paper_tone = float(np.median(gray[ring]))
+    if abs(paper_tone - part_tone) < 45:
+        return mask, 0.0
+    mid = part_tone + 0.5 * (paper_tone - part_tone)
+    keep = (gray < mid) if paper_tone > part_tone else (gray > mid)
+    trimmed = (m & keep).astype(np.uint8)
+    trimmed = cv2.morphologyEx(trimmed, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(trimmed, 8)
+    if n <= 1:
+        return mask, 0.0
+    biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    out = labels == biggest
+    # keep interior holes of the original mask as holes (the slot etc.)
+    out &= m | cv2.dilate(m.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+    removed = 1.0 - out.sum() / m.sum()
+    if removed < 0.01 or removed > 0.5:  # nothing to do, or the heuristic would eat the part
+        return mask, 0.0
+    return out.astype(mask.dtype), float(removed)
+
+
 def contrast_image(img: np.ndarray, mask: np.ndarray) -> np.ndarray:
     """Project colours on the inside-minus-outside colour axis: bright = object."""
     m = mask.astype(np.uint8)

@@ -148,3 +148,18 @@ def test_edge_snap_removes_sam_halo():
     assert snapped["edge_snap"] > 0.8
     assert abs(snapped["size_mm"][0] - 60) < 0.4 and abs(snapped["size_mm"][1] - 40) < 0.4, snapped["size_mm"]
     assert abs(snapped["holes_mm"][0]["d"] - 10) < 0.4, snapped["holes_mm"]
+
+
+def test_trim_shadow_removes_cast_shadow():
+    import numpy as np
+    from formwright.vision.refine import trim_shadow
+
+    img = np.full((300, 400, 3), 220, np.uint8)            # paper
+    img[100:200, 150:300] = 150                             # shadow, offset down-right
+    img[90:190, 140:290] = 50                               # dark part
+    sam_mask = np.zeros((300, 400), np.uint8)
+    sam_mask[90:200, 140:300] = 1                           # SAM merged part + shadow
+    out, removed = trim_shadow(img, sam_mask)
+    ys, xs = np.nonzero(out)
+    assert removed > 0.05
+    assert abs((xs.max() - xs.min() + 1) - 150) <= 2 and abs((ys.max() - ys.min() + 1) - 100) <= 2
