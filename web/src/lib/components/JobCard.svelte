@@ -136,6 +136,41 @@
             </div>
           {:else if it.kind === 'memory'}
             <p class="note-line"><Icon name="brain" size={13} /> {it.items.map((m) => m.name).join(', ')}</p>
+          {:else if it.kind === 'dossier'}
+            {@const d = it.data}
+            {@const m = d.measured ?? {}}
+            {@const hyps = [...(d.motif?.hypotheses ?? [])].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))}
+            <details class="dossier" open={active}>
+              <summary><Icon name="search" size={14} /> <strong class="small">{t('dossier')}</strong> <span class="muted xs">{d.object?.what ?? ''}</span></summary>
+              <dl>
+                {#if d.size}
+                  <dt>{t('dossier_size')}</dt>
+                  <dd><span class="mono">{(d.size.main_mm ?? []).map((v: number) => Math.round(v)).join(' × ')} {t('mm')}</span>
+                    {#if d.size.uncertainty_mm} <span class="mono muted">±{Math.round(d.size.uncertainty_mm)}</span>{/if}
+                    <span class="chip xs">{t('basis_' + d.size.basis)}</span></dd>
+                {/if}
+                {#if m.silhouette}
+                  <dt>{t('dossier_measured')}</dt>
+                  <dd class="mono">H/W {m.silhouette.height_to_width}{#if m.motif?.estimated_per_row}{` · ${m.motif.estimated_per_row} ${t('per_row')} × ${m.motif.estimated_rows_total ?? '?'} ${t('rows')} · ${m.motif.instances_found} ${t('seen')}`}{/if}</dd>
+                {/if}
+                {#if hyps.length}
+                  <dt>{t('dossier_motif')}</dt>
+                  <dd>
+                    {#each hyps as h (h.name)}
+                      <div class="hyp"><span class="small">{h.name}</span><span class="mono xs muted">{Math.round((h.confidence ?? 0) * 100)}%</span><span class="track"><span style:width={`${Math.round((h.confidence ?? 0) * 100)}%`}></span></span></div>
+                    {/each}
+                  </dd>
+                {/if}
+                {#if d.unknowns?.length}
+                  <dt>{t('dossier_unknowns')}</dt>
+                  <dd><ul>{#each d.unknowns as u, i (i)}<li class="small">{u.question} <span class="muted">→ {u.assumption}</span></li>{/each}</ul></dd>
+                {/if}
+                {#if d.checklist?.length}
+                  <dt>{t('dossier_checklist')}</dt>
+                  <dd><ul>{#each d.checklist as c (c.id)}<li class="small">{c.check}{#if c.must} <span class="chip xs">{t('must')}</span>{/if}</li>{/each}</ul></dd>
+                {/if}
+              </dl>
+            </details>
           {:else if it.kind === 'critic'}
             <div class="critic" class:pass={it.verdict === 'pass'}>
               <div class="row">
@@ -146,6 +181,9 @@
               </div>
               {#if it.issues.length}
                 <ul>{#each it.issues as is, i (i)}<li class:major={is.severity === 'major'}>{is.text}</li>{/each}</ul>
+              {/if}
+              {#if it.checklist?.length}
+                <ul class="checks">{#each it.checklist as c (c.id)}<li class:bad={!c.ok}><span aria-hidden="true">{c.ok ? '✓' : '✗'}</span> {c.check}{#if !c.ok && c.note} <span class="muted">— {c.note}</span>{/if}</li>{/each}</ul>
               {/if}
             </div>
           {:else if it.kind === 'concepts'}
@@ -370,6 +408,64 @@
   }
   .subj {
     color: var(--text-2);
+  }
+  .dossier {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    background: var(--panel-2);
+  }
+  .dossier summary {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dossier dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 10px;
+    margin: 8px 0 2px;
+  }
+  .dossier dt {
+    font-size: var(--fs-xs);
+    color: var(--muted);
+  }
+  .dossier dd {
+    margin: 0;
+    min-width: 0;
+  }
+  .dossier ul,
+  .critic ul.checks {
+    margin: 0;
+    padding-left: 16px;
+  }
+  .hyp {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 8px;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .hyp .track {
+    grid-column: 1 / -1;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--line);
+    overflow: hidden;
+  }
+  .hyp .track > span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+  }
+  .critic ul.checks {
+    list-style: none;
+    padding-left: 0;
+    font-size: var(--fs-sm);
+  }
+  .critic ul.checks li.bad {
+    color: var(--err);
   }
   .critic {
     border-radius: 8px;

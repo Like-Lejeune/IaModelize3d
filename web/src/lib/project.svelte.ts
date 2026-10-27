@@ -14,7 +14,8 @@ export type TimelineItem =
   | (Base & { kind: 'status'; text: string })
   | (Base & { kind: 'thinking'; text: string })
   | (Base & { kind: 'tool'; id: string; name: string; tkind: string; title?: string; args: any; result?: { ok: boolean; summary?: string; image?: string; title?: string } })
-  | (Base & { kind: 'critic'; verdict: string; score?: number | null; issues: { severity: string; text: string; fix_hint?: string }[]; render?: string })
+  | (Base & { kind: 'critic'; verdict: string; score?: number | null; issues: { severity: string; text: string; fix_hint?: string }[]; render?: string; checklist?: { id: string; check: string; must?: boolean; ok: boolean; note?: string }[] })
+  | (Base & { kind: 'dossier'; data: any })
   | (Base & { kind: 'ask'; job_id: string; question_id: string; question: string; options: string[]; allow_text: boolean; answered?: string })
   | (Base & { kind: 'facts'; items: any[] })
   | (Base & { kind: 'program'; version: number; summary?: string; render?: string; author?: string })
@@ -292,7 +293,10 @@ export class ProjectStore {
         if (d.render) this.lastRender = d.render;
         break;
       case 'critic':
-        this.push({ kind: 'critic', key, ts, job: jid, verdict: d.verdict ?? 'revise', score: d.match_score, issues: d.issues ?? [], render: d.render });
+        this.push({ kind: 'critic', key, ts, job: jid, verdict: d.verdict ?? 'revise', score: d.match_score, issues: d.issues ?? [], render: d.render, checklist: d.checklist ?? [] });
+        break;
+      case 'dossier':
+        this.push({ kind: 'dossier', key, ts, job: jid, data: d });
         break;
       case 'result': {
         const j = this.job(jid, ts);
