@@ -546,6 +546,8 @@ async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], r
             box = await _ground_box(meter, img, req.text, choice.fast)
             if box:
                 masks = await segment(meter, img, box=box)
+                if req.role != "reference":
+                    masks = without_reference(masks, cal)
         if not masks:
             raise ValueError("nothing found there; tap the middle of the object or drag a box around it")
         mask = masks[0].mask
