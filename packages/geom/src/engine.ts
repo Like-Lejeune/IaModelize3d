@@ -3,8 +3,10 @@
 import { analyze, type CheckReport } from './checks.ts';
 import { to3mf, toStl } from './export.ts';
 import { nelderMead, unpackMask } from './fit.ts';
-import type { Wasm } from './kernel.ts';
+import { parseMesh } from './import.ts';
+import { withArena, type Wasm } from './kernel.ts';
 import { DEFAULT_PRINTER, type Inputs, type PrinterProfile } from './lib/index.ts';
+import { solidFromArrays } from './lib/meshops.ts';
 import { fromBase64, hexColor, partsMesh, toBase64 } from './mesh.ts';
 import { encodePng } from './png.ts';
 import {
@@ -14,9 +16,21 @@ import {
   resolveParams,
   type Evaluator,
   type ParamValues,
+  type Part,
   type Program,
 } from './program.ts';
-import { iou, orthoFit, render, renderSheet, silhouette, type Camera } from './render.ts';
+import { iou, orthoFit, render, renderSheet, SHEET_VIEWS, silhouette, type Camera } from './render.ts';
+
+function partsBox(positions: ArrayLike<number>) {
+  const min: [number, number, number] = [Infinity, Infinity, Infinity];
+  const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < positions.length; i += 3)
+    for (let k = 0; k < 3; k++) {
+      min[k] = Math.min(min[k], positions[i + k]);
+      max[k] = Math.max(max[k], positions[i + k]);
+    }
+  return { min, max };
+}
 
 export interface BaseRequest {
   source: string;
@@ -32,12 +46,27 @@ export interface BuildRequest extends BaseRequest {
   mesh?: boolean;
 }
 
+export interface ViewSpec {
+  name?: string;
+  azimuth: number; // degrees around the model, 0 = front (looking from -Y), 90 = right side (+X)
+  elevation: number; // degrees above the horizon
+}
+
 export interface RenderRequest extends BaseRequest {
   view?: 'sheet' | 'iso';
   camera?: Camera; // photo camera for overlays
   tile?: number;
   heat?: boolean;
   title?: string;
+  // look closer: chosen angles, a close-up region (or a part), a section cut
+  views?: ViewSpec[];
+  focus?: { center: [number, number, number]; size: number } | { part: string };
+  cut?: { axis: 'x' | 'y' | 'z'; at: number; keep?: 'below' | 'above' };
+}
+
+export interface ParseMeshRequest {
+  data: string; // base64 file bytes
+  format: string; // stl | obj
 }
 
 export interface ExportRequest extends BaseRequest {
@@ -182,6 +211,7 @@ export class Engine {
       }
       const colors = this.colors(out.parts, mesh.triPart, heat);
       const box = out.body.boundingBox();
+      if (req.views || req.focus || req.cut) return this.closeUp(req, out.parts, box);
       if (req.camera) {
         const r = render(mesh, req.camera, { colors, background: [0, 0, 0, 0], edgeColor: [255, 120, 40] });
         const mask = new Uint8Array(Math.ceil((r.width * r.height) / 8));
@@ -199,6 +229,76 @@ export class Engine {
     } finally {
       disposeBuild(out);
     }
+  }
+
+  // Views from any angle, a zoomed region or part, and section cuts (the cut face shows
+  // walls, cavities and thickness the outside views hide).
+  private closeUp(req: RenderRequest, parts: Part[], box: { min: number[]; max: number[] }) {
+    let shown = parts.filter((p) => p.role === 'model' || p.role === 'modifier');
+    const cut = req.cut;
+    let cutDir: [number, number, number] | null = null;
+    if (cut) {
+      const i = 'xyz'.indexOf(cut.axis);
+      const n: [number, number, number] = [0, 0, 0];
+      const below = (cut.keep ?? 'below') === 'below';
+      n[i] = below ? -1 : 1; // trimByPlane keeps the side the normal points to
+      shown = shown.map((p) => ({ ...p, solid: p.solid.trimByPlane(n, below ? -cut.at : cut.at) })).filter((p) => !p.solid.isEmpty());
+      if (!shown.length) throw new ProgramError('result', `nothing ${below ? 'below' : 'above'} ${cut.axis}=${cut.at}`);
+      cutDir = n; // the kept side's cut face looks against n, so the camera looks along n
+    }
+    const mesh = partsMesh(shown);
+    const colors = this.colors(shown, mesh.triPart);
+    let frame = { min: [...box.min] as [number, number, number], max: [...box.max] as [number, number, number] };
+    const focus = req.focus;
+    if (focus && 'part' in focus) {
+      const p = parts.find((q) => q.name === focus.part);
+      if (!p) throw new ProgramError('result', `no part "${focus.part}"; parts: ${parts.map((q) => q.name).join(', ')}`);
+      const b = p.solid.boundingBox();
+      frame = { min: b.min as any, max: b.max as any };
+    } else if (focus && 'center' in focus) {
+      const h = Math.max(1, focus.size) / 2;
+      frame = { min: focus.center.map((v) => v - h) as any, max: focus.center.map((v) => v + h) as any };
+    }
+    if (cut) {
+      const b = mesh.positions.length ? partsBox(mesh.positions) : frame;
+      if (!focus) frame = b;
+    }
+    const dirOf = (az: number, el: number): [number, number, number] => {
+      const a = (az * Math.PI) / 180, e = (el * Math.PI) / 180;
+      // camera on the (sin a, -cos a) side looking back at the model
+      return [-Math.sin(a) * Math.cos(e), Math.cos(a) * Math.cos(e), -Math.sin(e)];
+    };
+    let views = (req.views ?? []).slice(0, 6).map((v) => ({ name: v.name ?? `AZ ${Math.round(v.azimuth)} EL ${Math.round(v.elevation)}`, dir: dirOf(v.azimuth, v.elevation) }));
+    if (!views.length && cutDir) {
+      const name = `SECTION ${cut!.axis.toUpperCase()}=${cut!.at}`;
+      // straight at the cut face, plus two oblique views of it from either side
+      const d = cutDir;
+      const a = cut!.axis === 'z' ? [1, 0, 0] : [0, 0, 1];
+      const b = [d[1] * a[2] - d[2] * a[1], d[2] * a[0] - d[0] * a[2], d[0] * a[1] - d[1] * a[0]];
+      const ob = (k: number): [number, number, number] => [0, 1, 2].map((i) => d[i] + 0.55 * k * a[i] + 0.35 * b[i]) as [number, number, number];
+      views = [{ name, dir: d }, { name: `${name} OBLIQUE`, dir: ob(1) }, { name: `${name} OBLIQUE 2`, dir: ob(-1) }];
+    }
+    if (!views.length) views = SHEET_VIEWS.slice(0, focus ? 3 : 6);
+    const size = [0, 1, 2].map((i) => box.max[i] - box.min[i]);
+    const s = renderSheet(mesh, frame, { tile: req.tile ?? 420, colors, views, title: req.title, size });
+    return { png: toBase64(encodePng(s.rgba, s.width, s.height)), width: s.width, height: s.height };
+  }
+
+  parseMesh(req: ParseMeshRequest) {
+    const m = parseMesh(fromBase64(req.data), req.format);
+    let closed = true;
+    let volume = 0;
+    let reason = '';
+    withArena(() => {
+      try {
+        volume = solidFromArrays(this.wasm, m.positions, m.triangles).volume();
+      } catch (e: any) {
+        closed = false;
+        reason = e?.message ?? String(e);
+      }
+    });
+    const b = partsBox(Float32Array.from(m.positions));
+    return { ...m, stats: { vertices: m.positions.length / 3, triangles: m.triangles.length / 3, bbox: b, closed, volume, reason } };
   }
 
   export(req: ExportRequest) {

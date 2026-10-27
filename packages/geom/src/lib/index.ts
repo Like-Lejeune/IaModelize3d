@@ -2,6 +2,9 @@
 import type { Manifold, Wasm } from '../kernel.ts';
 import { makeForms, makeNoise } from './forms.ts';
 import { makeMech } from './mech.ts';
+import { makeMeshOps, type RawMesh } from './meshops.ts';
+import { makeSdf } from './sdf.ts';
+import { makeShape } from './shape.ts';
 import { makeStd } from './std.ts';
 import { makeSketch } from './sketch.ts';
 import { makeThreads } from './threads.ts';
@@ -48,6 +51,8 @@ export interface Inputs {
   heightmaps?: Record<string, { w: number; h: number; data: number[]; sizeX?: number; sizeY?: number }>;
   points?: Record<string, [number, number, number][]>;
   values?: Record<string, number | string>;
+  // imported meshes (STL/OBJ uploads, scans): vertex xyz and triangle indices
+  meshes?: Record<string, RawMesh>;
 }
 
 export interface LibContext {
@@ -61,13 +66,16 @@ export function makeLib(wasm: Wasm, ctx: LibContext) {
   const threads = makeThreads(wasm);
   const forms = makeForms(wasm);
   const mech = makeMech(wasm, std.fit);
+  const shape = makeShape(wasm);
   const lib: any = {
     Manifold: wasm.Manifold,
     CrossSection: wasm.CrossSection,
     M: wasm.Manifold,
     CS: wasm.CrossSection,
-    std: { ...std, ...threads, ...mech, sketch: makeSketch(wasm) },
+    std: { ...std, ...threads, ...mech, ...shape, sketch: makeSketch(wasm) },
     forms,
+    sdf: makeSdf(wasm),
+    mesh: makeMeshOps(wasm, ctx.inputs ?? {}),
     printer: ctx.printer,
     inputs: ctx.inputs ?? {},
     noise: makeNoise,

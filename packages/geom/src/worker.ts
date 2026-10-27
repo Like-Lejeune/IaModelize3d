@@ -44,8 +44,8 @@ for await (const line of rl) {
   }
   const t0 = Date.now();
   try {
-    const method = msg.method as 'build' | 'render' | 'export' | 'fit' | 'inspect';
-    if (!['build', 'render', 'export', 'fit', 'inspect'].includes(method)) throw new Error(`unknown method ${method}`);
+    const method = msg.method as 'build' | 'render' | 'export' | 'fit' | 'inspect' | 'parseMesh';
+    if (!['build', 'render', 'export', 'fit', 'inspect', 'parseMesh'].includes(method)) throw new Error(`unknown method ${method}`);
     const result = (engine as any)[method](msg.params);
     write({ id: msg.id, result, ms: Date.now() - t0 });
   } catch (e: any) {

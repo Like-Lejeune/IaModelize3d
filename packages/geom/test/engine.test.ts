@@ -97,3 +97,95 @@ test('cube-corner relief planter prints without support errors', async () => {
   const bad = r.checks.issues.filter((i: any) => i.severity === 'error' || i.code === 'overhang').map((i: any) => i.message);
   assert.deepEqual(bad, []);
 });
+
+// ---- free-form toolkit: sdf, loft/sweep, smoothing, surface features, mesh edits ----
+const lib = async () => {
+  const { makeLib, DEFAULT_PRINTER } = await import('../src/index.ts');
+  return makeLib(engine.wasm, { printer: DEFAULT_PRINTER });
+};
+
+test('sdf: blended ellipsoids with a flat base mesh into one closed body', async () => {
+  const { sdf } = await lib();
+  const body = sdf.blend([sdf.ellipsoid([50, 70, 36]).translate([0, -15, 0]), sdf.ellipsoid([44, 60, 26]).translate([0, 25, -3])], 20)
+    .intersect(sdf.halfspace([0, 0, -1], 0)).mesh();
+  assert.equal(body.status(), 'NoError');
+  assert.equal(body.genus(), 0);
+  assert.ok(body.boundingBox().min[2] > -0.5 && body.numTri() < 40000, `${body.boundingBox().min[2]} ${body.numTri()}`);
+});
+
+test('sdf: rounded extrusion keeps its outline size and rounds the edges', async () => {
+  const { sdf, std } = await lib();
+  const s = sdf.extrude(std.rect(40, 20), 10, { r: 3 }).mesh();
+  const b = s.boundingBox();
+  assert.ok(Math.abs(b.max[0] - b.min[0] - 40) < 0.3 && Math.abs(b.max[2] - b.min[2] - 10) < 0.3);
+  assert.ok(s.volume() < 8000 && s.volume() > 7300, String(s.volume())); // 40*20*10 minus rounded edges
+});
+
+test('loft along Y through spline sections is a closed solid with the right length', async () => {
+  const { std } = await lib();
+  const sec = (w: number, h: number) => std.poly(std.spline2d([[-w, 0], [w, 0], [w * 0.9, h * 0.7], [0, h], [-w * 0.9, h * 0.7]]));
+  const s = std.loft([{ shape: sec(20, 18), at: -55 }, { shape: sec(31, 36), at: -15 }, { shape: sec(28, 25), at: 30 }, { shape: sec(18, 9), at: 58 }], { axis: 'y' });
+  assert.equal(s.status(), 'NoError');
+  const b = s.boundingBox();
+  assert.ok(Math.abs(b.max[1] - b.min[1] - 113) < 0.01 && s.volume() > 100000);
+});
+
+test('sweep and closed pipe follow their paths', async () => {
+  const { std } = await lib();
+  const ring = std.pipe(std.spline3d([[30, 0, 5], [0, 30, 5], [-30, 0, 5], [0, -30, 5]], { closed: true }), 6, { closed: true });
+  assert.equal(ring.status(), 'NoError');
+  assert.equal(ring.genus(), 1);
+  const bar = std.sweep(std.rect(6, 3), [[0, 0, 0], [50, 0, 0]]);
+  assert.ok(Math.abs(bar.volume() - 900) < 1, String(bar.volume()));
+});
+
+test('smooth turns a low-poly ball into a round one', async () => {
+  const { std, M } = await lib();
+  const coarse = M.sphere(20, 8);
+  const s = std.smooth(coarse, { angle: 90 });
+  const ideal = (4 / 3) * Math.PI * 20 ** 3;
+  assert.ok(s.numTri() > coarse.numTri() * 4);
+  assert.ok(Math.abs(s.volume() - ideal) < Math.abs(coarse.volume() - ideal), `${s.volume()} vs ${coarse.volume()}`);
+});
+
+test('groove follows the curved top and emboss raises a shape on it', async () => {
+  const { std, sdf } = await lib();
+  const dome = sdf.ellipsoid([60, 100, 60]).intersect(sdf.halfspace([0, 0, -1], 0)).mesh();
+  const cut = std.groove(dome, std.stroke2d([[0, -30], [0, 30]], 1.5), 1);
+  const removed = dome.volume() - cut.volume();
+  assert.ok(removed > 60 && removed < 120, String(removed)); // ~60 mm long x 1.5 wide x 1 deep along the curve
+  const side = std.groove(std.box([30, 30, 30]), std.stroke2d([[-10, 5], [10, 5]], 2), 1, { dir: 'x' });
+  assert.ok(Math.abs(27000 - side.volume() - 43) < 3, String(side.volume()));
+  const up = std.emboss(std.box([40, 40, 10]), std.rect(10, 10), 1);
+  assert.ok(Math.abs(up.volume() - 16100) < 1 && Math.abs(up.boundingBox().max[2] - 11) < 1e-6);
+});
+
+test('mesh edits keep a closed manifold; imported meshes become solids', async () => {
+  const { sdf, mesh, std } = await lib();
+  const ball = sdf.sphere(40).mesh();
+  const s = mesh.sculpt(ball, [
+    { brush: 'grab', at: [0, 0, 20], radius: 12, strength: 8, dir: [0, 0, 1] },
+    { brush: 'crease', path: [[-20, -5, 10], [20, -5, 10]], radius: 4, strength: 1.5 },
+  ]);
+  assert.equal(s.status(), 'NoError');
+  assert.ok(s.boundingBox().max[2] > 25);
+  assert.equal(mesh.relax(std.box([20, 20, 20]), { edge: 1 }).status(), 'NoError');
+  const stl = 'solid t\n' + [[0, 0, 0, 1, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 1, 1, 0, 0], [0, 0, 0, 0, 1, 0, 0, 0, 1], [1, 0, 0, 0, 0, 1, 0, 1, 0]]
+    .map((t) => `facet normal 0 0 0\nouter loop\n${[0, 1, 2].map((v) => `vertex ${t[v * 3] * 10} ${t[v * 3 + 1] * 10} ${t[v * 3 + 2] * 10}`).join('\n')}\nendloop\nendfacet`).join('\n') + '\nendsolid';
+  const parsed = engine.parseMesh({ data: Buffer.from(stl).toString('base64'), format: 'stl' });
+  assert.equal(parsed.stats.closed, true);
+  assert.ok(Math.abs(parsed.stats.volume - 1000 / 6) < 0.01);
+  const src = `return { meta: {}, params: {}, build: (p, lib) => lib.mesh.input('scan').scale(2) };`;
+  const r = engine.build({ source: src, analyze: 'none', inputs: { meshes: { scan: parsed } } });
+  assert.ok(Math.abs(r.parts[0].volume - 8000 / 6) < 0.1);
+});
+
+test('close-up renders: any angle, a part, a section cut', () => {
+  const views = engine.render({ source: BAG_HOOK, views: [{ azimuth: 30, elevation: 20 }, { azimuth: 200, elevation: -10 }] });
+  assert.ok(views.png.length > 1000 && views.width === 840);
+  const cut = engine.render({ source: BAG_HOOK, cut: { axis: 'z', at: 10 } });
+  assert.ok(cut.png.length > 1000 && cut.width === 1260);
+  const zoom = engine.render({ source: BAG_HOOK, focus: { center: [0, 0, 10], size: 20 } });
+  assert.ok(zoom.png.length > 1000);
+  assert.throws(() => engine.render({ source: BAG_HOOK, focus: { part: 'nope' } }), /no part/);
+});

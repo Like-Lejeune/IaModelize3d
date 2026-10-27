@@ -231,7 +231,8 @@ export const SHEET_VIEWS: SheetView[] = [
 ];
 
 // 3x2 sheet of orthographic views with labels, size and a 10 mm scale bar.
-export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { tile?: number; colors?: Uint8Array; views?: SheetView[]; title?: string } = {}) {
+// `size` labels the model's real size when bbox only frames a close-up.
+export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { tile?: number; colors?: Uint8Array; views?: SheetView[]; title?: string; size?: number[] } = {}) {
   const tile = opts.tile ?? 360;
   const views = opts.views ?? SHEET_VIEWS;
   const cols = Math.min(3, views.length);
@@ -252,7 +253,7 @@ export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { 
       drawText(img, W, H, '10MM', ox + 14 + px, oy + tile - 8, 10, [200, 60, 40]);
     }
   });
-  const size = [0, 1, 2].map((i) => (bbox.max[i] - bbox.min[i]).toFixed(1));
+  const size = (opts.size ?? [0, 1, 2].map((i) => bbox.max[i] - bbox.min[i])).map((v) => v.toFixed(1));
   drawText(img, W, H, `${(opts.title ?? '').slice(0, 40)}  ${size[0]} X ${size[1]} X ${size[2]} MM`, 10, H - 8, 14, [30, 30, 30]);
   return { rgba: img, width: W, height: H };
 }

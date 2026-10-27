@@ -8,3 +8,5 @@ export { partsMesh, meshOf, toBase64, fromBase64 } from './mesh.ts';
 export { render, renderSheet, orthoFit, lookAt, silhouette, iou, type Camera } from './render.ts';
 export { toStl, to3mf } from './export.ts';
 export { encodePng } from './png.ts';
+export { parseMesh } from './import.ts';
+export { solidFromArrays } from './lib/meshops.ts';
