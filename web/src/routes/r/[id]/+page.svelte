@@ -47,6 +47,7 @@
   <main class="recipe">
     <section class="view">
       <Viewer
+          loading={!!store.source && !store.build}
         build={store.build}
         issues={store.checks?.issues ?? []}
         highlight={selectedIssue}

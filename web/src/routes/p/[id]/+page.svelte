@@ -124,6 +124,7 @@
       <section class="center-col">
         <Viewer
           bind:this={viewer}
+          loading={!!store.source && !store.build}
           build={store.build}
           issues={store.checks?.issues ?? []}
           highlight={selectedIssue}

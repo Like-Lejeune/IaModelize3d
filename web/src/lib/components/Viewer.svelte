@@ -13,6 +13,7 @@
     specs = {},
     photo = null,
     editable = true,
+    loading = false,
     onParam,
   }: {
     build?: BuildResult | null;
@@ -22,6 +23,7 @@
     specs?: Record<string, ParamSpec>;
     photo?: { url: string; calibration: Calibration } | null;
     editable?: boolean;
+    loading?: boolean;
     onParam?: (name: string, value: any, commit: boolean) => void;
   } = $props();
 
@@ -522,7 +524,7 @@
     {#if photoMode && photo}<img class="bg" src={photo.url} alt="" />{/if}
     <canvas bind:this={canvas} onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp} onpointercancel={onUp} aria-label="3D model viewer"></canvas>
     {#if !build}
-      <div class="empty muted">{t('no_program')}</div>
+      <div class="empty muted">{loading ? t('building_model') : t('no_program')}</div>
     {/if}
   </div>
   <div class="tools" bind:this={arOverlay}>
