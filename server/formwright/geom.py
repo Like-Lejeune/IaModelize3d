@@ -121,6 +121,12 @@ class GeomPool:
     async def fit(self, source: str, params: dict | None = None, **extra: Any) -> dict:
         return await self.call("fit", {"source": source, "params": params or {}, **extra}, timeout=180)
 
+    async def parse_mesh(self, data: bytes, fmt: str) -> dict:
+        """STL/OBJ bytes -> welded {positions, triangles, stats}."""
+        import base64
+
+        return await self.call("parseMesh", {"data": base64.b64encode(data).decode(), "format": fmt}, timeout=120)
+
 
 _pool: GeomPool | None = None
 

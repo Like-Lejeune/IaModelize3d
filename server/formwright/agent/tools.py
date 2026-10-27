@@ -66,11 +66,20 @@ SET_PARAMS = fn("set_params", "Change parameter values (no code change), then bu
                 {"values": {"type": "object", "description": "param name -> value"}, "summary": S})
 INSPECT = fn("inspect_model", "Measure the current model. ops: {op:'section', z} | {op:'parts'} | {op:'gap', a, b} | {op:'ray', from:[x,y,z], to:[x,y,z]}",
              {"ops": {"type": "array", "items": {"type": "object"}}})
-LOOK = fn("look", "Look closely. what='model': 6 views of the model with overhang heat. what='compare': the model next to the object on the photo, "
-          "seen from the same angle (set elevation to the photo's camera angle), with silhouette numbers. what=<asset id>: an input image "
-          "at full resolution, optionally a crop [x1,y1,x2,y2] on a 0-1000 grid.",
+LOOK = fn("look", "Look closely. what='model': 6 views of the model with overhang heat; add `views` for your own angles, `zoom` for a close-up "
+          "of a region or a part, `cut` for a section (walls, cavities, how deep a groove is). what='compare': the model next to the object on "
+          "the photo, seen from the same angle (set elevation to the photo's camera angle), with silhouette numbers. what=<asset id>: an input "
+          "image at full resolution, optionally a crop [x1,y1,x2,y2] on a 0-1000 grid.",
           {"what": S, "crop": {"type": "array", "items": N}, "elevation": {**N, "description": "degrees above the horizon, for 'compare'"},
-           "azimuth": {**N, "description": "degrees around the model, 0 = its front (-Y side), for 'compare'"}}, ["what"])
+           "azimuth": {**N, "description": "degrees around the model, 0 = its front (-Y side), for 'compare'"},
+           "views": {"type": "array", "description": "up to 6 angles for what='model'", "items": {"type": "object", "properties": {
+               "azimuth": {**N, "description": "0 = from -Y (front), 90 = from +X (right), 180 = from +Y, 270 = from -X"},
+               "elevation": {**N, "description": "degrees above the horizon (negative = from below)"}}, "required": ["azimuth", "elevation"]}},
+           "zoom": {"type": "object", "description": "close-up for what='model': {part: name} or {center: [x,y,z], size: mm}",
+                    "properties": {"part": S, "center": {"type": "array", "items": N}, "size": N}},
+           "cut": {"type": "object", "description": "section for what='model': keeps the side below `at` on `axis` and looks at the cut face",
+                   "properties": {"axis": {"type": "string", "enum": ["x", "y", "z"]}, "at": N, "keep": {"type": "string", "enum": ["below", "above"]}},
+                   "required": ["axis", "at"]}}, ["what"])
 DIMENSIONS = fn("dimensions", "Real dimensions with their source: built-in standards first (screws M2-M8, nuts, inserts, bearings, threads, "
                 "VESA, Raspberry Pi, sockets, reference objects, fits, materials), then official specs from the web when the tables have nothing.",
                 {"query": S, "web": {"type": "boolean", "description": "search the web even if the tables answer"}}, ["query"])
@@ -270,8 +279,23 @@ async def _look(ctx: JobContext, state: DesignState, args: dict[str, Any]) -> tu
     if what in ("model", "compare") and not state.source:
         return {"ok": False, "error": "no program yet"}, []
     if what == "model":
-        r = await geom().render(state.source, state.params, view="sheet", heat=True, inputs=state.inputs)
-        return {"ok": True}, [storage.save_bytes(ctx.project_id, "renders", f"v{state.version}_look.png", base64.b64decode(r["png"]))]
+        extra: dict[str, Any] = {}
+        if args.get("views"):
+            extra["views"] = [{"azimuth": float(v.get("azimuth", 0)), "elevation": float(v.get("elevation", 0))} for v in args["views"][:6] if isinstance(v, dict)]
+        zoom = args.get("zoom") or {}
+        if zoom.get("part"):
+            extra["focus"] = {"part": str(zoom["part"])}
+        elif zoom.get("center") and zoom.get("size"):
+            extra["focus"] = {"center": [float(v) for v in zoom["center"][:3]], "size": float(zoom["size"])}
+        if args.get("cut"):
+            c = args["cut"]
+            extra["cut"] = {"axis": c.get("axis", "z"), "at": float(c.get("at", 0)), "keep": c.get("keep", "below")}
+        try:
+            r = await geom().render(state.source, state.params, view="sheet", heat=not extra, inputs=state.inputs, **extra)
+        except GeomError as e:
+            return {"ok": False, "error": e.message[:500]}, []
+        name = f"v{state.version}_look{'_' + '_'.join(sorted(extra)) if extra else ''}.png"
+        return {"ok": True}, [storage.save_bytes(ctx.project_id, "renders", name, base64.b64decode(r["png"]))]
     if what == "compare":
         if args.get("elevation") is not None:
             state.view_elevation = max(-10.0, min(80.0, float(args["elevation"])))

@@ -25,6 +25,8 @@ dimension you can measure or look up.
    difference. If the photo is taken from higher or lower than the comparison view, set the angle once
    with look(what='compare', elevation=...). The silhouette numbers are a guide, not the goal: from
    about 0.9 on, when the counts and the element shape match by eye, stop reshaping and finish.
+   For details the 6 small views hide, use look(what='model') with `views` (your own angles), `zoom`
+   (a part or a region) or `cut` (a section: walls, cavities, groove depth).
 5. If a fit-critical dimension is uncertain beyond its tolerance, propose a probe print instead of guessing.
 6. Call finish when the model is printable and matches the intent; it runs the full checks and an
    independent reviewer. Tool results show the turn counter: leave room to fix what the review finds.
@@ -104,12 +106,54 @@ XY in the scene frame when you use photo outlines so overlays line up.
       `hexPyramid(radius, height<=0.87*radius)`, `dome(radius, height)`, `stud(d, height)`.
       For a hex-packed cover use perRow ≈ 2πr / (1.73·R) and row pitch 1.5·R (R = element outline radius;
       cubeCorner R = 0.816·edge). Elements are clipped at the bed automatically.
+- Free-form in `lib.std`:
+      Curves: `spline2d(points, {closed=true, samples})` → smooth points through yours (std.poly(...) makes a shape),
+      `spline3d(points, {closed=false})` → path, `arc2d(r, a0, a1, {center})` → points, `stroke2d(points, width, {closed})` → a band along a polyline.
+      `loft([{shape, at}, ...], {axis:'z'|'y'|'x', smooth=true, points=96})` — skin through cross-sections placed along an axis
+      (axis 'y': shape coords are (x, z); 'x': (y, z)); 3+ sections blend smoothly. Bodies of products, handles, bottles, hulls.
+      `sweep(profile, path, {closed, scale: t => k, twist})`, `pipe(path, d, {closed})` — rails, handles, wires, rings.
+      `smooth(solid, {angle=60, smoothness})` — subdivision smoothing of faceted organic meshes (bulges big flat faces: check the size).
+      `round3d(solid, r)` — true rounding of all convex edges (slow on dense solids: round simple bodies first),
+      `offset3d(solid, d)`, `shell3d(solid, t)` — grow/shrink in 3D, hollow with wall t.
+      On curved surfaces (shape seen from `dir` 'z'|'-z'|'x'|'-x'|'y'|'-y', default top; x: shape coords (y, z), y: (x, z)):
+      `groove(solid, shape, depth, {dir})` (seams, panel lines, engraving that follows the surface), `emboss(solid, shape, height, {dir})`
+      (logos, grips, side buttons), `onSurface(solid, shape, t, {dir, gap})` (a separate pad/cap that hugs the surface),
+      `surfaceZ(solid, x, y)` → height of the top surface there (place things on it).
+      Deform: `bend(solid, deg)` (along X, upward), `taper(solid, scaleTop)`, `twist(solid, deg)`.
+- `lib.sdf` — signed distance fields for smooth, blended, organic shapes. Primitives are CENTRED at the origin, sizes are
+  FULL extents: `sphere(d)`, `ellipsoid([x,y,z])`, `box([x,y,z], {r})`, `cylinder(d, h, {r})` (along Z), `cone(d1, d2, h)`,
+  `capsule(a, b, d)`, `torus(D, d)`, `extrude(shape, h, {r})` (rounded top/bottom edges, centred in Z), `revolve(profile r,z)`,
+  `pillow(planShape, h | (x, y) => h, {edge, r})` (soft product body: full height inside, falling to the outline along a
+  quarter circle `edge` mm wide, no creases; edge ≈ 1/3 of the width; h(x, y) shapes the hump along the length),
+  `heightfield(planShape, (x, y) => topZ, {r})` (any top surface over a plan outline; keep topZ smooth: no plateaus or kinks),
+  `halfspace(normal, offset)` (keeps n·p <= offset; e.g. sdf.halfspace([0,0,-1], 0) keeps z >= 0), `blend([fields], k)`, `custom(fn, min, max)`.
+  Field methods: `.union(..) .subtract(..) .intersect(..) .smoothUnion(f, k) .smoothSubtract(f, k) .smoothIntersect(f, k)` (k = fillet mm),
+  `.offset(d) .shell(t) .displace(p => mm, amplitude) .translate .rotate .scale .symmetric('x') .twist(degPerMm)`,
+  then `.mesh({edge})` → Manifold (edge = triangle size, auto by default; ~0.5-1 mm is plenty for prints). Continue with CSG after meshing.
+- `lib.mesh` — direct mesh editing (topology kept, result stays a closed solid): `sculpt(solid, [{brush, at | path, radius, strength, dir}])`
+  with brushes grab (move along dir, mm), inflate (mm), crease (mm), smooth / flatten / pinch (0..1);
+  `displace(solid, (p, n) => mm, {edge})` (textures: knurl, leather, noise), `relax(solid, {iterations, edge})`, `inflate(solid, mm)`,
+  `subdivide(solid, edge)`, `decimate(solid, tol)`, `input(name)` → an uploaded STL/OBJ as a solid, `fromArrays(positions, triangles)`,
+  `arrays(solid)`, `info(solid)`.
 - `lib.inputs`: real-world data attached to the project: `inputs.outlines[name]` (polygons in mm on the photo's
-  reference plane, from selected objects), `inputs.heightmaps[name]`, `inputs.points[name]`, `inputs.values[name]`.
+  reference plane, from selected objects), `inputs.heightmaps[name]`, `inputs.points[name]`, `inputs.values[name]`, `inputs.meshes[name]`.
 - `lib.part(solid, {name, color:'#hex', role:'model'|'modifier'|'negative', settings:{wall_loops: 5, sparse_infill_density: '60%'}})`
   — multi-color parts, and modifier volumes that get their own slicer settings (e.g. reinforce around screw holes).
 - `lib.skills.<name>(...)` — tested modules from memory (listed in the context when relevant).
 - `lib.noise(seed)` → {noise3, fbm}, `lib.rng(seed)` → () => [0,1), `lib.math` → deg, rad, clamp, lerp, smoothstep.
+
+# Choosing the technique (the shape decides, not habit)
+- Flat / prismatic parts, brackets, plates: sketch or 2D shapes → std.extrude (fillet2d for inner corners).
+- Turned parts (knobs, vases, bottles): std.revolve or forms.surface.
+- Smooth consumer products (mouse, remote, grip, soap, case, helmet-like shells): ONE smooth body, never boxes glued onto an
+  extruded base. Use sdf.pillow (plan outline + height along the length), sdf.blend of ellipsoids/capsules with a generous
+  k, or std.loft through 3-6 spline sections; cut the flat base with a halfspace. Then split lines with std.groove, buttons with
+  std.emboss/onSurface, holes and slots with CSG. Rounded everywhere: no knife edges, no stepped skirts.
+- Tubes, handles, rails, cables: std.sweep / std.pipe along a spline3d path.
+- Organic figures, characters, creatures: sdf blends of capsules/ellipsoids (smoothUnion k 3-10 mm) for the masses, then
+  lib.mesh.sculpt for features (crease eyes/mouths, grab ears/noses, inflate cheeks) and displace for textures.
+- Editing a model someone uploaded (STL/OBJ): lib.mesh.input(name), then CSG (cut, add mounts), sculpt or displace.
+- Mix freely: everything ends as a Manifold. Mesh SDF/sculpted parts once, then do exact CSG (holes, threads) on them.
 
 # Design for printing (apply by default)
 - Walls/ribs as multiples of line width: 1.26 / 1.68 / 2.1 mm (0.42 lines). Nothing under 0.9 mm.
@@ -160,6 +204,10 @@ PACKS: dict[str, str] = {
 - Holes reported in the scene (holes_mm) become std.holeZ at those centres; snap diameters to standards (3.2 → M3 clearance).
 - If the part is broken, restore it by symmetry (mirror the intact half) and say so.
 - Check the overlay in the build result (look(what='compare') on demand) and run fit_to_photo for outline params when it is off by more than 0.5 mm.
+- A 3D object (not a flat part): copy its masses and curvature, not just its outline. Read the silhouettes from top, side and front
+  (plan shape, height profile along the length, cross-section shape), build one smooth body (sdf.pillow / blend or std.loft),
+  then the details that make it recognisable (split lines, buttons, wheel, ports) following the surface. Colour separate pieces with
+  lib.part. Without a scale reference say which size you assumed and where it comes from (typical product sizes via dimensions).
 """,
     "adapter": """
 # Pack: adapters ("connect this to that")
@@ -195,9 +243,10 @@ PACKS: dict[str, str] = {
 """,
     "stylize": """
 # Pack: stylized figures, characters, game objects
-- Organic sculpture is beyond code-CAD; choose an honest style: low-poly (forms.lowpoly), voxels (forms.voxelize),
-  smooth blobs (levelSet with smooth-union SDFs), or a bas-relief plate. Offer 2-3 styles if unclear.
-- Keep proportions from the reference; single body that stands (flat base or base plate).
+- Smooth organic figures are possible: block the masses with lib.sdf (ellipsoids, capsules, smoothUnion with k 3-10 mm,
+  symmetric('x') for bilateral bodies), mesh once (edge 0.6-1 mm), then lib.mesh.sculpt for features and displace for
+  fur/scales/skin. Stylized looks remain options: low-poly (forms.lowpoly), voxels (forms.voxelize), bas-relief plate.
+- Keep proportions from the reference; single body that stands (flat base or base plate). Check details with look `zoom`.
 - Do not make trademarked characters for sale; personal stylized versions only.
 """,
     "mechanisms": """

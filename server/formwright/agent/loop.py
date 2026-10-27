@@ -124,6 +124,22 @@ async def _video_notes(ctx: JobContext, assets: list[dict[str, Any]]) -> list[st
     return notes
 
 
+async def _load_meshes(state: DesignState, assets: list[dict[str, Any]]) -> None:
+    """Uploaded STL/OBJ files become inputs.meshes, so programs can edit them (lib.mesh.input)."""
+    from ..geom import GeomError, geom
+
+    for a in assets:
+        name = (a["meta"].get("mesh") or {}).get("name")
+        if a["kind"] != "mesh" or not name or name in (state.inputs.get("meshes") or {}):
+            continue
+        try:
+            parsed = await geom().parse_mesh(storage.abs_path(a["path"]).read_bytes(), storage.abs_path(a["path"]).suffix)
+        except (GeomError, OSError) as e:
+            log.info("mesh %s: %s", a["id"], e)
+            continue
+        state.inputs.setdefault("meshes", {})[name] = {"positions": parsed["positions"], "triangles": parsed["triangles"]}
+
+
 def _item_dict(item: Any) -> dict[str, Any]:
     d = item.model_dump(exclude_none=True) if hasattr(item, "model_dump") else dict(item)
     d.pop("status", None) if d.get("type") == "reasoning" else None
@@ -192,6 +208,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     )
     if scene:
         state.inputs.update(scene.get("inputs", {}))
+    await _load_meshes(state, all_assets)
     state.memory_ids = [m["id"] for items in mem.values() for m in items]
     await memory.mark_used(state.memory_ids)
 
@@ -205,6 +222,9 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         ctx_lines.append("Earlier requests: " + " | ".join(brief["turns"][-5:]))
     for a in all_assets:
         meta_bits = {k: a["meta"].get(k) for k in ("transcript", "exif") if a["meta"].get(k)}
+        if a["kind"] == "mesh" and a["meta"].get("mesh"):
+            m = a["meta"]["mesh"]
+            meta_bits["mesh"] = {**m, "use": f"lib.mesh.input('{m['name']}')"}
         if a["meta"].get("calibration"):
             c = a["meta"]["calibration"]
             meta_bits["calibrated_with"] = c.get("reference")

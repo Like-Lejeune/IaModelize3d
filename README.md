@@ -18,6 +18,10 @@ every version passes a slicer-like printability check and an independent critic.
 - **Programs, not meshes.** Every model is a short JavaScript program with parameters, sliders and
   draggable handles. It runs in the browser for live editing and in a sandboxed server worker for checks
   and export.
+- **Free form, not only boxes.** Next to exact CSG the programs get signed distance fields with smooth
+  blends and rounded extrusions, lofts through spline sections, sweeps along paths, subdivision smoothing,
+  true 3D rounding and offsets, grooves and embossing that follow a curved surface, and direct mesh editing
+  with sculpting brushes. Uploaded STL/OBJ files can be edited the same way.
 - **Checks like a slicer.** A layer-by-layer mini-slicer reports floating islands, long bridges,
   overhangs, features thinner than an extrusion line, vase-mode problems — with the exact height and
   position, so the agent can fix them. OrcaSlicer CLI gives the final time and weight.

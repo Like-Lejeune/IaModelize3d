@@ -10,6 +10,7 @@ import glob
 import io
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -30,6 +31,7 @@ log = logging.getLogger(__name__)
 IMAGE_KINDS = {"photo", "sketch", "caliper", "concept", "render", "print"}
 VIDEO_EXT = {".mp4", ".mov", ".m4v"}
 AUDIO_EXT = {".wav", ".mp3", ".m4a", ".ogg", ".oga", ".webm", ".aac", ".flac", ".opus"}
+MESH_EXT = {".stl", ".obj"}
 MAX_SIDE = 4096
 THUMB = 512
 PRINT_KEYWORDS = ["M2", "M3", "M4", "M5", "M6", "M8", "mm", "PLA", "PETG", "ABS", "ASA", "TPU", "caliper", "thread", "bolt", "screw",
@@ -94,6 +96,8 @@ def _ext(filename: str) -> str:
 
 def detect_kind(kind: str, filename: str, mime: str, data: bytes) -> str:
     ext = _ext(filename)
+    if ext in MESH_EXT or mime in ("model/stl", "model/obj"):
+        return "mesh"
     if mime.startswith("video/") or ext in VIDEO_EXT:
         return "video"
     if mime.startswith("audio/") or ext in AUDIO_EXT:
@@ -215,6 +219,25 @@ async def ingest_asset(project_id: str, kind: str, filename: str, data: bytes, m
         except ValueError:
             pass  # silent video or no ffmpeg
         mime = "video/mp4" if ext != ".mov" else "video/quicktime"
+    elif kind == "mesh":
+        from ..geom import GeomError, geom
+
+        ext = _ext(filename) if _ext(filename) in MESH_EXT else ".stl"
+        try:
+            parsed = await geom().parse_mesh(data, ext)
+        except GeomError as e:
+            raise ValueError(f"cannot read the mesh: {e.message[:200]}") from e
+        stats = parsed["stats"]
+        if stats["triangles"] > 400_000:
+            raise ValueError("mesh is too dense (over 400k triangles): decimate it first")
+        b = stats["bbox"]
+        meta_info["mesh"] = {"vertices": stats["vertices"], "triangles": stats["triangles"], "closed": stats["closed"],
+                             "volume_mm3": round(stats["volume"], 1), "size_mm": [round(b["max"][i] - b["min"][i], 2) for i in range(3)],
+                             "name": re.sub(r"[^A-Za-z0-9_]+", "_", Path(filename).stem)[:40].strip("_") or "mesh"}
+        if not stats["closed"]:
+            meta_info["mesh"]["problem"] = stats.get("reason", "")[:200]
+        path = write_bytes(f"{base}{ext}", data)
+        mime = "model/stl" if ext == ".stl" else "model/obj"
     else:  # audio
         wav = await to_wav(data, _ext(filename))
         path = write_bytes(f"{base}.wav", wav)

@@ -87,6 +87,35 @@ function build(p, lib) {
 return { meta, params, handles, build };
 """
 
+SMOOTH_BODY = r"""
+// Smooth product body: one soft shape from a plan outline and a top surface, details follow the surface.
+const meta = { title: 'Pebble soap dish', pack: 'household' };
+const params = {
+  length: { value: 110, min: 80, max: 140, unit: 'mm', label: 'Length', source: 'design' },
+  width: { value: 75, min: 55, max: 100, unit: 'mm', label: 'Width', source: 'design' },
+  height: { value: 22, min: 14, max: 35, unit: 'mm', label: 'Height', source: 'design' },
+};
+function build(p, lib) {
+  const { std, sdf } = lib;
+  const L = p.length, W = p.width, H = p.height;
+  // plan: a slightly egg-shaped pebble (spline through a few points, wider at -Y)
+  const plan = std.poly(std.spline2d([[0, L / 2], [W * 0.42, L * 0.3], [W / 2, -L * 0.1], [W * 0.38, -L * 0.42],
+                                      [0, -L / 2], [-W * 0.38, -L * 0.42], [-W / 2, -L * 0.1], [-W * 0.42, L * 0.3]]));
+  // flat top at H (a level rim prints clean); r rounds where it meets the walls
+  const top = () => H;
+  let body = sdf.heightfield(plan, top, { r: 3 }).mesh({ edge: 0.8 });
+  // drained dish: a smooth-edged pocket, then ribs so the soap dries
+  const floor = 0.25 * H + 3;
+  const pocket = sdf.extrude(plan.offset(-10, 'Round'), 2 * H, { r: 3 }).translate([0, 0, floor + H]);
+  body = body.subtract(pocket.mesh({ edge: 0.8 }));
+  for (const x of [-16, 0, 16]) body = body.add(sdf.box([2.52, L * 0.55, 6], { r: 1.2 }).translate([x, 0, floor - 1]).mesh({ edge: 0.6 }));
+  // a decorative line along the middle of the rim, and initials raised on the curved side wall
+  body = std.groove(body, plan.offset(-4.4, 'Round').subtract(plan.offset(-5.6, 'Round')), 0.6);
+  return std.emboss(body, std.text2d('FW', { size: 8 }).translate([0, H * 0.45]), 0.8, { dir: '-y' });
+}
+return { meta, params, build };
+"""
+
 EXAMPLES_TEXT = f"""
 # Reference programs (patterns to reuse; adapt, do not copy blindly)
 ## Clamp-on hook with a retaining lip (household)
@@ -95,4 +124,6 @@ EXAMPLES_TEXT = f"""
 ```js{COPY_FROM_PHOTO}```
 ## Exact interface + generative body (forms)
 ```js{LAMP_SHADE}```
+## One smooth body with details on its curved surface (products, shells: sdf + groove/emboss)
+```js{SMOOTH_BODY}```
 """
