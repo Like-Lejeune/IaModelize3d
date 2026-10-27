@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from .. import storage
@@ -85,17 +86,18 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     all_assets = await db.all("SELECT * FROM assets WHERE project_id = ? ORDER BY created_at", ctx.project_id)
     new_assets = [a for a in all_assets if a["id"] in body.asset_ids] or ([] if brief.get("turns") else all_assets)
 
+    # until the classifier answers, guess from the script (Cyrillic -> Russian)
+    language = brief.get("language") or ("ru" if re.search(r"[А-Яа-яЁё]", body.text or "") else "en")
     stage = {"current": None}
 
     async def set_stage(name: str) -> None:
         if stage["current"] != name:
             stage["current"] = name
-            await ctx.emit("job.stage", {"stage": name, "label": narrate.STAGE_LABEL[name]})
+            await ctx.emit("job.stage", {"stage": name, "label": narrate.stage_label(name, language)})
 
     await set_stage("understand")
     # pack + safety, once per project
     pack = project.get("pack")
-    language = brief.get("language", "en")
     if not pack or project["title"] in ("New project", "Untitled"):
         await ctx.status("Understanding the request")
         cls = await meta().json(ctx.meter, model=ctx.models.fast, system=CLASSIFY,
@@ -205,7 +207,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
             preview = {k: (v if len(json.dumps(v, ensure_ascii=False)) < 300 else "…") for k, v in args.items()}
             kind = narrate.KIND.get(name, "other")
             await set_stage(narrate.STAGE.get(kind, stage["current"] or "design"))
-            await ctx.emit("tool.call", {"id": call.get("call_id"), "name": name, "kind": kind, "title": narrate.call_title(name, args), "args": preview})
+            await ctx.emit("tool.call", {"id": call.get("call_id"), "name": name, "kind": kind, "title": narrate.localize(narrate.call_title(name, args), language), "args": preview})
             try:
                 result, imgs = await run_tool(ctx, state, name, args)
             except Exception as e:  # noqa: BLE001 - report to the model, keep going
@@ -214,7 +216,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
             images.extend(imgs)
             ok = result.get("ok", result.get("accepted", True)) is not False
             await ctx.emit("tool.result", {"id": call.get("call_id"), "name": name, "kind": kind, "ok": ok,
-                                           "title": narrate.result_title(name, args, result),
+                                           "title": narrate.localize(narrate.result_title(name, args, result), language),
                                            "summary": json.dumps(result, ensure_ascii=False)[:600],
                                            "image": storage.url(imgs[0]) if imgs and not imgs[0].startswith("data:") else None})
             history.append({"type": "function_call_output", "call_id": call["call_id"], "output": json.dumps(result, ensure_ascii=False)[:12000]})
@@ -234,7 +236,9 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     await ctx.emit("agent.message", {"text": text, "version": state.version})
     if state.source and state.last_build:
         await set_stage("done")
-        await ctx.emit("result", result_card(ctx, state))
+        card = result_card(ctx, state)
+        card["next"] = [{**n, "label": narrate.localize(n["label"], language)} for n in card["next"]]
+        await ctx.emit("result", card)
     turns = (brief.get("turns") or []) + [body.text[:200]]
     await db.update("projects", "id", ctx.project_id, {"brief": {**brief, "turns": turns[-10:], "summary": text[:800], "language": language}, "updated_at": now()})
     await memory.record_outcome(state.memory_ids, success=state.done)

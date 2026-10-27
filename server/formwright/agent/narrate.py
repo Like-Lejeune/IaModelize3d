@@ -32,6 +32,53 @@ STAGE_LABEL = {
     "done": "Ready",
 }
 
+STAGE_LABEL_RU = {
+    "understand": "Разбираюсь в задаче",
+    "measure": "Измеряю и ищу размеры",
+    "design": "Проектирую",
+    "check": "Сверяю с реальностью",
+    "review": "Независимая проверка",
+    "done": "Готово",
+}
+
+# Russian phrasing for the timeline; keys are English templates' first words.
+RU = {
+    "Writing the model": "Пишу модель", "Changing": "Меняю", "Adjusting": "Подстраиваю", "Measuring my own model": "Измеряю свою модель",
+    "Comparing with the photo": "Сравниваю с фото", "Rendering views": "Рендерю виды", "Taking a closer look at the photo": "Смотрю на фото внимательнее",
+    "Reading measurements from the photos": "Беру замеры с фото", "Measuring": "Измеряю", "on the photo": "на фото", "Reading the caliper": "Читаю штангенциркуль",
+    "Checking standards": "Смотрю стандарты", "Searching official dimensions": "Ищу официальные размеры", "Checking what I remember about your setup": "Вспоминаю ваши размеры",
+    "Remembering": "Запоминаю", "for next time": "на будущее", "Asking you a question": "Задаю вопрос", "Fitting": "Подгоняю",
+    "to the photo silhouette": "под силуэт на фото", "Preparing a test print for": "Готовлю пробник для", "Sketching concepts": "Рисую концепты",
+    "Loading real elevation data": "Загружаю реальные высоты", "Saving a reusable module": "Сохраняю модуль", "Comparing your print with the target": "Сравниваю отпечаток с целью",
+    "Final check before handing over": "Финальная проверка перед выдачей", "first version": "первая версия", "details": "детали", "parameters": "параметры",
+    "Version": "Версия", "printable": "печатается", "problems to fix": "проблем", "notes": "замечаний",
+    "silhouette match": "совпадение силуэта", "Measured": "Измерено", "holes": "отверстий", "Found": "Найдено",
+    "no reference in the photo, sizes in pixels only": "нет эталона на фото, размеры только в пикселях", "Caliper reads": "Штангенциркуль показывает",
+    "Couldn't read the caliper": "Не удалось прочитать штангенциркуль", "Dimensions found": "Найдено размеров", "(from memory)": "(из памяти)",
+    "Standard values found": "Найдено в стандартах", "Not in the standards tables": "В таблицах стандартов нет",
+    "Measured the model": "Модель измерена", "Measurements available": "Доступно замеров", "You answered": "Ваш ответ",
+    "No answer — continuing with a stated assumption": "Ответа нет — продолжаю с явным допущением", "Test print ready": "Пробник готов", "variants": "вариантов",
+    "Concepts ready": "Концептов готово", "Elevation loaded": "Рельеф загружен", "relief over": "перепад на", "Print deviates": "Отпечаток отклоняется на",
+    "on average": "в среднем", "Approved": "Принято", "Not yet": "Пока нет", "Overlay ready": "Наложение готово", "Views rendered": "Виды готовы",
+    "Download 3MF": "Скачать 3MF", "Prepare print settings": "Подготовить настройки печати", "Print a 5-minute test piece": "Напечатать 5-минутный пробник",
+    "Order a print": "Заказать печать", "Share as a recipe": "Поделиться рецептом",
+    "Memory checked": "Память проверена", " mm": " мм", " min": " мин", " km": " км", " m relief": " м перепад", "Saved to your setup": "Сохранено в ваших размерах", "Problem": "Проблема", "Done": "Готово",
+}
+
+
+def localize(text: str, language: str | None) -> str:
+    if not language or not language.lower().startswith(("ru", "kk")):
+        return text
+    for en in sorted(RU, key=len, reverse=True):
+        text = text.replace(en, RU[en])
+    return text
+
+
+def stage_label(stage: str, language: str | None) -> str:
+    if language and language.lower().startswith(("ru", "kk")):
+        return STAGE_LABEL_RU[stage]
+    return STAGE_LABEL[stage]
+
 
 def _mm(v: Any) -> str:
     try:
@@ -79,15 +126,15 @@ def result_title(name: str, args: dict[str, Any], r: dict[str, Any]) -> str:
         issues = r.get("issues") or []
         errors = sum(1 for i in issues if i.get("severity") == "error")
         warns = sum(1 for i in issues if i.get("severity") == "warn")
-        state = "printable" if r.get("printable", True) and not errors else f"{errors} problem{'s' if errors != 1 else ''} to fix"
-        extra = f", {warns} note{'s' if warns != 1 else ''}" if warns else ""
+        state = "printable" if r.get("printable", True) and not errors else f"problems to fix: {errors}"
+        extra = f", notes: {warns}" if warns else ""
         fit = r.get("fit")
         fitted = f" — silhouette match {fit['iou_before']:.0%} → {fit['iou_after']:.0%}" if fit else ""
         return f"Version {r.get('version')} — {_size(r.get('size_mm'))}, {state}{extra}{fitted}"
     if name == "measure_photo":
         unc = r.get("uncertainty_mm")
         holes = r.get("holes_mm") or []
-        hole_txt = f", {len(holes)} hole{'s' if len(holes) != 1 else ''} Ø{_mm(holes[0]['d'])}" if holes else ""
+        hole_txt = f", holes: {len(holes)} × Ø{_mm(holes[0]['d'])}" if holes else ""
         if r.get("calibrated") and r.get("size_mm"):
             return f"Measured {r.get('name', 'object')}: {_size(r['size_mm'])}{f' ±{_mm(unc)}' if unc else ''}{hole_txt}"
         return f"Found {r.get('name', 'the object')} (no reference in the photo, sizes in pixels only)"
@@ -95,22 +142,22 @@ def result_title(name: str, args: dict[str, Any], r: dict[str, Any]) -> str:
         return f"Caliper reads {_mm(r.get('value_mm'))} mm" if r.get("value_mm") else "Couldn't read the caliper"
     if name == "search_dimensions":
         facts = r.get("facts") or []
-        return f"Found {len(facts)} dimension{'s' if len(facts) != 1 else ''}{' (from memory)' if r.get('from_cache') else ''}"
+        return f"Dimensions found: {len(facts)}{' (from memory)' if r.get('from_cache') else ''}"
     if name == "lookup_standard":
         n = len(r.get("results") or [])
-        return f"{n} standard value{'s' if n != 1 else ''} found" if n else "Not in the standards tables"
+        return f"Standard values found: {n}" if n else "Not in the standards tables"
     if name == "inspect_model":
         return "Measured the model"
     if name == "scene":
         n = len(r.get("measurements") or [])
-        return f"{n} measurement{'s' if n != 1 else ''} available"
+        return f"Measurements available: {n}"
     if name == "ask_user":
         return f"You answered: {r.get('answer')}" if r.get("answer") else "No answer — continuing with a stated assumption"
     if name == "propose_probe":
         v = r.get("variants") or []
-        return f"Test print ready: {len(v)} variants, ~{_mm(r.get('est_minutes'))} min"
+        return f"Test print ready, variants: {len(v)}, ~{_mm(r.get('est_minutes'))} min"
     if name == "concept_images":
-        return f"{r.get('count', 0)} concepts ready"
+        return f"Concepts ready: {r.get('count', 0)}"
     if name == "load_terrain":
         return f"Elevation loaded: {_mm(r.get('relief_m'))} m relief over {_mm(r.get('size_km'))} km"
     if name == "compare_print":

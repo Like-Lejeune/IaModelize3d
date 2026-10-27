@@ -55,4 +55,4 @@ async def review(ctx: JobContext, state: Any) -> dict[str, Any]:
         content.append({"type": "input_text", "text": "Renders of the model (6 views):"})
         content.append({"type": "input_image", "image_url": storage.data_url(state.last_render, None)})
     model = settings().model_critic or ctx.models.fast
-    return await meta().json(ctx.meter, model=model, system=CRITIC, content=content, schema=SCHEMA, name="critic", effort="medium")
+    return await meta().json(ctx.meter, model=model, system=CRITIC, content=content, schema=SCHEMA, name="critic", effort="low")
