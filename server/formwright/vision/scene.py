@@ -150,6 +150,25 @@ async def _detect(meter: CostMeter, asset: dict[str, Any], model: str) -> dict[s
     return {"references": refs, "objects": objs}
 
 
+GROUND_SCHEMA = {
+    "type": "object",
+    "properties": {"found": {"type": "boolean"}, "bbox": {"type": "array", "items": {"type": "number"}, "description": "[x_min, y_min, x_max, y_max], 0-1000 grid"}},
+    "required": ["found", "bbox"],
+}
+
+
+async def _ground_box(meter: CostMeter, img: np.ndarray, phrase: str, model: str) -> list[float] | None:
+    h, w = img.shape[:2]
+    out = await meta().json(meter, model=model, system="You locate objects in photos. Boxes are [x_min, y_min, x_max, y_max] on a 0-1000 grid, tight around the object.",
+                            content=[{"type": "input_text", "text": f"Box the {phrase}."}, {"type": "input_image", "image_url": data_url(img, 1280)}],
+                            schema=GROUND_SCHEMA, name="ground", effort="low")
+    if not out.get("found") or len(out.get("bbox") or []) != 4:
+        return None
+    x1, y1, x2, y2 = norm_box_to_px(out["bbox"], w, h)
+    pad = 0.04 * max(x2 - x1, y2 - y1)
+    return [max(0, x1 - pad), max(0, y1 - pad), min(w - 1, x2 + pad), min(h - 1, y2 + pad)]
+
+
 async def detect(user: dict[str, Any], asset: dict[str, Any]) -> dict[str, Any]:
     if not _is_image(asset):
         raise ValueError("detection works on photos")
@@ -499,6 +518,11 @@ async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], r
                                           points=[p.model_dump() for p in req.points] if not req.text else None,
                                           box=req.box if not req.text else None)
         masks = [m for m in masks if m.score >= 0.2] or masks
+        if not masks and req.text:
+            # SAM's concept prompts miss unusual objects; let Spark ground the phrase to a box, then SAM refines it.
+            box = await _ground_box(meter, img, req.text, choice.fast)
+            if box:
+                masks = await segment(meter, img, box=box)
         if not masks:
             raise ValueError("nothing found there; tap the middle of the object or drag a box around it")
         mask = masks[0].mask
