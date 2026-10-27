@@ -2,6 +2,7 @@
 A model that grades its own code tends to approve it; this one cannot."""
 from __future__ import annotations
 
+import base64
 import json
 from typing import Any
 
@@ -34,6 +35,28 @@ SCHEMA = {
 }
 
 
+async def _photo_overlays(ctx: JobContext, state: Any, photos: list[dict[str, Any]]) -> list[str]:
+    """For calibrated photos, the critic sees what the user sees in photo-AR."""
+    if not state.source:
+        return []
+    try:
+        from ..geom import geom
+        from ..vision import overlay, scene
+    except ImportError:
+        return []
+    out = []
+    for p in photos[:2]:
+        cam = scene.camera_for_render(p)
+        if not cam:
+            continue
+        try:
+            r = await geom().render(state.source, state.params, camera=cam, inputs=state.inputs)
+            out.append(overlay.compose(p, base64.b64decode(r["png"])))
+        except Exception:  # noqa: BLE001 - an overlay is a bonus for the reviewer, not a requirement
+            continue
+    return out
+
+
 async def review(ctx: JobContext, state: Any) -> dict[str, Any]:
     db = await get_db()
     msgs = await db.all("SELECT text FROM messages WHERE project_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 3", ctx.project_id)
@@ -54,5 +77,9 @@ async def review(ctx: JobContext, state: Any) -> dict[str, Any]:
     if state.last_render:
         content.append({"type": "input_text", "text": "Renders of the model (6 views):"})
         content.append({"type": "input_image", "image_url": storage.data_url(state.last_render, None)})
+    for overlay in await _photo_overlays(ctx, state, photos):
+        content.append({"type": "input_text", "text": "The model drawn over the calibrated photo (orange outline = model edges). "
+                                                      "Misalignment here is a real dimension error:"})
+        content.append({"type": "input_image", "image_url": storage.data_url(overlay, 1280)})
     model = settings().model_critic or ctx.models.fast
     return await meta().json(ctx.meter, model=model, system=CRITIC, content=content, schema=SCHEMA, name="critic", effort="low")
