@@ -13,6 +13,7 @@ from ..knowledge.facts import lookup_standard
 from ..llm.client import meta
 from ..memory import store as memory
 from ..models import SendMessage
+from .examples import EXAMPLES_TEXT
 from .prompts import CLASSIFY, PACK_NAMES, PACKS, SYSTEM
 from .runner import JobContext, add_message
 from . import narrate
