@@ -134,7 +134,8 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     await memory.mark_used(state.memory_ids)
 
     # ---- context: stable instructions first, project specifics after
-    instructions = SYSTEM + "\n\n" + PACKS[pack]
+    # SYSTEM + examples are identical for every pack, so that prefix stays cached across projects
+    instructions = SYSTEM + "\n\n" + EXAMPLES_TEXT + "\n\n" + PACKS[pack]
     ctx_lines = [f"# Project: {project['title']} (pack: {pack}, reply in language: {language})"]
     if brief.get("summary"):
         ctx_lines.append(f"Previous result: {brief['summary']}")
