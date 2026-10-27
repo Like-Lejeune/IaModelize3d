@@ -1,6 +1,7 @@
 """The design agent loop (Responses API, append-only history for prefix caching)."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -244,7 +245,17 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     turns = (brief.get("turns") or []) + [body.text[:200]]
     await db.update("projects", "id", ctx.project_id, {"brief": {**brief, "turns": turns[-10:], "summary": text[:800], "language": language}, "updated_at": now()})
     await memory.record_outcome(state.memory_ids, success=state.done)
+    if state.done and state.source and (state.critic or {}).get("verdict") == "pass":
+        asyncio.create_task(_harvest_skill(ctx, state.source, pack))
     return text[:300]
+
+
+async def _harvest_skill(ctx: JobContext, source: str, pack: str) -> None:
+    from ..memory.skills import harvest
+
+    r = await harvest(source, pack, ctx.job_id, ctx.models.fast)
+    if r:
+        await ctx.emit("memory", {"items": [{"kind": "skill", "name": r["name"], "status": "candidate", "doc": r["doc"]}]})
 
 
 def result_card(ctx: JobContext, state: DesignState) -> dict[str, Any]:
