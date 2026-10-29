@@ -46,7 +46,7 @@
     max-width: 100%;
     background: #fff;
     padding: 8px;
-    border-radius: 10px;
+    border-radius: var(--radius-btn);
   }
   .code :global(svg) {
     width: 100%;

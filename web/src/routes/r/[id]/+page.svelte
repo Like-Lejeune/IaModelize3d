@@ -57,7 +57,7 @@
 {#if store?.loadError}
   <div class="center"><p class="err">{store.loadError}</p><a class="btn" href="/">{t('back')}</a></div>
 {:else if !store?.detail}
-  <div class="center"><span class="spin"></span></div>
+  <div class="center"><i class="ti ti-loader-2 spin" aria-hidden="true"></i></div>
 {:else}
   <main class="recipe">
     <section class="view card">
@@ -78,7 +78,7 @@
         <p class="muted small">{t('readonly_hint')}</p>
         <div class="row">
           <button class="btn primary" onclick={fork}><Icon name="gitfork" size={15} /> {t('fork')}</button>
-          <button class="btn" onclick={watch} disabled={watching}>{#if watching}<span class="spin"></span>{:else}<Icon name="play" size={14} />{/if} {t('watch')}</button>
+          <button class="btn" onclick={watch} disabled={watching}>{#if watching}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="play" size={14} />{/if} {t('watch')}</button>
           <a class="btn ghost" href="/">{t('make_your_own')}</a>
         </div>
         {#if error}<p class="err small">{error}</p>{/if}
@@ -103,7 +103,8 @@
 
 <style>
   .ttl {
-    font-size: var(--fs-md);
+    font-size: var(--text-product-lead);
+    font-weight: var(--font-weight-semibold);
   }
   .center {
     display: grid;
@@ -112,14 +113,14 @@
     padding: 60px 16px;
   }
   .err {
-    color: var(--err);
+    color: var(--error);
   }
   .recipe {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 380px;
-    gap: 10px;
-    padding: 10px;
-    height: calc(100dvh - 55px);
+    gap: var(--space-3);
+    padding: var(--space-3);
+    height: calc(100dvh - var(--header-h, 67px));
   }
   .view {
     min-height: 0;
@@ -129,8 +130,8 @@
   .side {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 14px;
+    gap: var(--space-4);
+    padding: var(--space-4);
     min-height: 0;
     overflow: auto;
   }

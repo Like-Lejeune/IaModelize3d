@@ -58,8 +58,8 @@
 
 <style>
   .sticker {
-    background: repeating-conic-gradient(var(--panel-2) 0 25%, var(--panel) 0 50%) 0 0 / 10px 10px;
-    border-radius: 6px;
+    background: repeating-conic-gradient(var(--surface) 0 25%, var(--surface-container) 0 50%) 0 0 / 10px 10px;
+    border-radius: var(--radius-tag);
     flex: none;
     filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.3));
   }

@@ -80,15 +80,15 @@
           {#each files as f, i (f.file.name + i)}
             <div class="file">
               {#if f.url}<img src={f.url} alt={f.file.name} />{:else}<span class="ficon"><Icon name={f.file.type.startsWith('video') ? 'video' : 'mic'} size={18} /></span>{/if}
-              <button class="x" aria-label="{t('remove')} {f.file.name}" onclick={() => (files = files.filter((_, j) => j !== i))}><Icon name="x" size={11} stroke={2.4} /></button>
+              <button class="x" aria-label="{t('remove')} {f.file.name}" onclick={() => (files = files.filter((_, j) => j !== i))}><Icon name="x" size={11} /></button>
             </div>
           {/each}
         </div>
       {/if}
 
       <div class="row">
-        <label class="round add" title={t('attach_photos')}>
-          <Icon name="plus" size={20} stroke={2} />
+        <label class="round add pressable" title={t('attach_photos')}>
+          <Icon name="plus" size={20} />
           <input class="sr-only" type="file" accept="image/*,video/*,audio/*" multiple aria-label={t('attach_photos')} onchange={(e) => addFiles((e.currentTarget as HTMLInputElement).files)} />
         </label>
         <textarea
@@ -109,8 +109,8 @@
             }
           }}
         ></textarea>
-        <button class="round send" onclick={start} disabled={!ready} aria-label={t('send')} title={t('send')}>
-          {#if busy}<span class="spin"></span>{:else}<Icon name="arrow-up" size={18} stroke={2.2} />{/if}
+        <button class="round send pressable" onclick={start} disabled={!ready} aria-label={t('send')} title={t('send')}>
+          {#if busy}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="arrow-up" size={18} />{/if}
         </button>
       </div>
     </div>
@@ -120,6 +120,13 @@
       <Picker label={t('reasoning')} value={prefs.reasoning} options={reasoningOptions} quiet onpick={(v) => setPref('reasoning', v)} />
     </div>
     {#if error}<p class="err small" role="alert">{error}</p>{/if}
+    <div class="collect">
+      <a class="snapcta pressable" href="/snap">
+        <span class="snapic"><Icon name="camera" size={20} /></span>
+        <span class="snaptx"><strong>{t('snap_title')}</strong><span class="muted xs">{t('snap_cta_hint')}</span></span>
+      </a>
+      <a class="btn ghost small" href="/collection"><Icon name="grid" size={15} /> {t('collection')}</a>
+    </div>
   </section>
 </main>
 
@@ -139,72 +146,87 @@
     gap: 8px;
   }
   .create {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    transition: border-color 0.12s;
+    background: var(--surface-container);
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-card);
+    transition:
+      border-color var(--dur-fast) var(--ease-standard),
+      box-shadow var(--dur-fast) var(--ease-standard);
+  }
+  .create:hover {
+    border-color: var(--outline);
   }
   .create:focus-within {
-    border-color: var(--line-strong);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
   }
   .create.dragging {
-    border-color: var(--accent);
-    background: var(--accent-soft);
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 9%, var(--surface-container));
   }
   .files {
     display: flex;
-    gap: 8px;
+    gap: var(--space-2);
     flex-wrap: wrap;
-    padding: 12px 12px 0;
+    padding: var(--space-3) var(--space-3) 0;
   }
   .file {
     position: relative;
     width: 56px;
     height: 56px;
-    border-radius: 10px;
-    border: 1px solid var(--line);
+    border-radius: var(--radius-btn);
+    border: var(--border-width) solid var(--outline-variant);
+    background: var(--surface-high);
   }
   .file img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 10px;
+    border-radius: var(--radius-btn);
   }
   .ficon {
     display: grid;
     place-items: center;
     width: 100%;
     height: 100%;
-    color: var(--muted);
+    color: var(--outline);
   }
   .x {
     position: absolute;
-    top: -6px;
-    right: -6px;
-    width: 20px;
-    height: 20px;
+    top: -7px;
+    right: -7px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    border: 1px solid var(--line);
-    background: var(--panel);
+    border: var(--border-width) solid var(--outline-variant);
+    background: var(--surface-high);
+    color: var(--on-surface-var);
     display: grid;
     place-items: center;
     padding: 0;
   }
+  .x:hover {
+    color: var(--on-surface);
+    border-color: var(--outline);
+  }
   .row {
     display: flex;
     align-items: flex-end;
-    gap: 4px;
-    padding: 6px 8px;
+    gap: var(--space-2);
+    padding: var(--space-2);
   }
-  textarea {
+  textarea,
+  textarea:hover,
+  textarea:focus {
     flex: 1;
     min-width: 0;
     border: none;
     background: transparent;
+    box-shadow: none;
     resize: none;
     font-size: 16px;
     line-height: 24px;
-    padding: 6px 4px;
+    padding: 9px 6px;
     max-height: 220px;
     overflow-y: hidden;
   }
@@ -218,34 +240,35 @@
   }
   .round {
     flex: none;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-btn);
     display: grid;
     place-items: center;
     padding: 0;
     background: transparent;
-    border: none;
-    color: var(--text);
+    border: var(--border-width) solid var(--outline-variant);
+    color: var(--on-surface-var);
     cursor: pointer;
     transition:
-      background 0.12s,
-      color 0.12s;
+      background-color var(--dur-fast) var(--ease-standard),
+      color var(--dur-fast) var(--ease-standard);
   }
   .add:hover,
   .add:focus-within {
-    background: var(--panel-3);
-    color: var(--text);
+    background: var(--surface-high);
+    color: var(--on-surface);
   }
   .send {
-    color: var(--text);
+    background: var(--primary);
+    border-color: transparent;
+    color: var(--on-primary);
   }
   .send:not(:disabled):hover {
-    background: var(--panel-3);
+    background: color-mix(in srgb, var(--primary) 92%, white);
   }
   .send:disabled {
-    cursor: default;
-    color: var(--muted);
+    cursor: not-allowed;
     opacity: 0.5;
   }
   .strip {
@@ -255,8 +278,58 @@
     padding: 0 10px;
   }
   .err {
-    color: var(--err);
+    color: var(--error);
     margin: 0;
-    padding: 0 18px;
+    padding: 0 var(--space-3);
+  }
+  .collect {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+  }
+  .snapcta {
+    flex: 0 1 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
+    border-radius: var(--radius-card);
+    border: var(--border-width) solid var(--outline-variant);
+    background: var(--surface-container);
+    color: var(--on-surface);
+    text-decoration: none;
+    transition: border-color var(--dur-fast) var(--ease-standard);
+  }
+  .snapcta:hover {
+    text-decoration: none;
+    border-color: var(--primary);
+  }
+  .snapic {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-btn);
+    display: grid;
+    place-items: center;
+    background: var(--primary);
+    color: var(--on-primary);
+  }
+  .snaptx {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .snaptx strong {
+    font-size: var(--text-product-spec);
+  }
+  .snaptx .xs {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 </style>

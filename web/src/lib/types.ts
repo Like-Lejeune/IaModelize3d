@@ -156,11 +156,19 @@ export interface BuildResult {
   handles: Handle[];
   parts: PartInfo[];
   checks?: CheckReport;
-  positions: Float32Array;
-  indices: Uint32Array;
-  triPart: Uint16Array;
-  heat?: Float32Array;
+  display: DisplayBuffers;
+  quality: 'preview' | 'final';
   ms: number;
+}
+
+/** Viewer-ready buffers made in the geometry worker (packages/geom/src/display.ts). */
+export interface DisplayBuffers {
+  position: Float32Array; // non-indexed, model parts in part order
+  heat: Uint8Array; // overhang risk per vertex, 0..255
+  groups: [number, number, number][]; // [firstVertex, vertexCount, partIndex]
+  ghost: Float32Array; // modifier/negative volumes
+  edges: Float32Array; // feature-edge segments, empty in previews
+  triangles: number;
 }
 
 export interface BuildError {
@@ -180,6 +188,39 @@ export interface Calibration {
   width: number;
   height: number;
   mm_per_px?: number;
+}
+
+// ---- snap & collect (server/formwright/vision/snap.py)
+export interface SnapObject {
+  label: string;
+  bbox: [number, number, number, number]; // image pixels
+}
+
+export interface SnapResult {
+  project: ProjectOut;
+  asset: AssetOut;
+  selection: SelectionOut | null;
+  label: string | null; // null until the name arrives (api.snapName)
+  objects: SnapObject[];
+}
+
+export type CollectState = 'draft' | 'queued' | 'modelling' | 'ready' | 'failed';
+
+export interface CollectionItem {
+  id: string;
+  title: string;
+  subject?: string | null;
+  cover?: string | null;
+  state: CollectState;
+  version: number;
+  created_at: number;
+  updated_at: number;
+  error?: string | null;
+  photo?: string | null; // thumbnail of the snap
+  width?: number | null; // of the full photo; the thumbnail has the same aspect
+  height?: number | null;
+  mask_url?: string | null;
+  bbox?: [number, number, number, number] | null;
 }
 
 export interface Printer {

@@ -161,7 +161,7 @@
       </div>
     </div>
     <button class="btn primary large" onclick={slice} disabled={!store.source || store.running}>
-      {#if slicing}<span class="spin"></span>{:else}<Icon name="printer" size={17} />{/if} {t('prepare_print')}
+      {#if slicing}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="printer" size={17} />{/if} {t('prepare_print')}
     </button>
   </section>
 
@@ -198,7 +198,7 @@
   {/if}
 
   <details class="tool">
-    <summary><Icon name="flask" size={15} /> {t('probe')}</summary>
+    <summary><Icon name="flask" size={15} /> {t('probe')}<span class="chev"><Icon name="chevron-down" size={16} /></span></summary>
     <p class="muted small">{t('probe_hint')}</p>
     <div class="row">
       <select bind:value={probeParam} aria-label={t('probe_param')} style="flex:1;min-width:0">
@@ -218,12 +218,12 @@
   </details>
 
   <details class="tool">
-    <summary><Icon name="target" size={15} /> {t('calib')}</summary>
+    <summary><Icon name="target" size={15} /> {t('calib')}<span class="chev"><Icon name="chevron-down" size={16} /></span></summary>
     <p class="muted small">{t('calib_hint')}</p>
     <div class="row">
       <a class="btn small" href="/api/printers/coupon.3mf" download><Icon name="download" size={13} /> {t('coupon')}</a>
       <label class="btn small" class:disabled={!printer || busy === 'calib'} title={printer ? '' : t('pick_printer_first')}>
-        {#if busy === 'calib'}<span class="spin"></span>{:else}<Icon name="camera" size={13} />{/if} {t('calib_photo')}
+        {#if busy === 'calib'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="camera" size={13} />{/if} {t('calib_photo')}
         <input class="sr-only" type="file" accept="image/*" capture="environment" disabled={!printer} onchange={(e) => calibrate((e.currentTarget as HTMLInputElement).files)} />
       </label>
     </div>
@@ -233,10 +233,10 @@
   </details>
 
   <details class="tool">
-    <summary><Icon name="scan" size={15} /> {t('compare')}</summary>
+    <summary><Icon name="scan" size={15} /> {t('compare')}<span class="chev"><Icon name="chevron-down" size={16} /></span></summary>
     <p class="muted small">{t('compare_hint')}</p>
     <label class="btn small" class:disabled={busy === 'compare' || store.running}>
-      {#if busy === 'compare'}<span class="spin"></span>{:else}<Icon name="camera" size={13} />{/if} {t('compare_photo')}
+      {#if busy === 'compare'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="camera" size={13} />{/if} {t('compare_photo')}
       <input class="sr-only" type="file" accept="image/*" capture="environment" onchange={(e) => comparePrint((e.currentTarget as HTMLInputElement).files)} />
     </label>
   </details>
@@ -254,52 +254,44 @@
     margin: 0;
   }
   .mat button {
-    font-family: var(--mono);
-    font-size: 12px;
-  }
-  .goal {
-    cursor: pointer;
-    padding: 4px 10px;
-    font-size: var(--fs-sm);
-  }
-  .goal.on {
-    background: var(--accent-soft);
-    color: var(--accent);
-    border-color: var(--accent);
+    padding-inline: 8px;
   }
   .res {
-    padding: 12px;
+    padding: var(--space-4);
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
   .hdr {
-    color: var(--ok);
+    color: var(--primary);
   }
   .big {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+    gap: var(--space-2);
     margin: 0;
   }
   .big div {
-    background: var(--panel-2);
-    border-radius: 8px;
-    padding: 6px 8px;
+    background: var(--surface);
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-field);
+    padding: 8px 12px;
   }
   dt {
-    font-size: var(--fs-xs);
-    color: var(--muted);
+    font-size: var(--text-card-meta);
+    font-weight: var(--font-weight-semibold);
+    color: var(--outline);
   }
   dd {
     margin: 0;
-    font-size: var(--fs-md);
-    font-weight: 600;
+    font-size: var(--text-product-lead);
+    font-weight: var(--font-weight-semibold);
+    color: var(--on-surface);
   }
   .warnings {
     margin: 0;
     padding-left: 18px;
-    color: var(--warn);
+    color: var(--warn-text);
   }
   .diff {
     list-style: none;
@@ -310,29 +302,43 @@
     gap: 8px;
   }
   .diff li {
-    border-left: 2px solid var(--accent);
-    padding-left: 8px;
+    box-shadow: inset 3px 0 0 0 var(--primary);
+    padding-left: 12px;
   }
   .key {
     font-size: 12px;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
   }
   .reason {
-    color: var(--text-2);
+    color: var(--on-surface-var);
   }
   .tool {
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 8px 10px;
+    background: var(--surface);
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-card);
+    padding: 12px 14px;
   }
   .tool summary {
     cursor: pointer;
-    font-size: var(--fs-sm);
-    font-weight: 550;
+    font-size: var(--text-product-spec);
+    color: var(--on-surface);
+    font-weight: var(--font-weight-semibold);
     display: flex;
     gap: 8px;
     align-items: center;
     list-style: none;
+  }
+  .tool summary::-webkit-details-marker {
+    display: none;
+  }
+  .chev {
+    margin-left: auto;
+    display: grid;
+    color: var(--outline);
+    transition: transform var(--dur-fast) var(--ease-standard);
+  }
+  .tool[open] .chev {
+    transform: rotate(180deg);
   }
   .tool[open] summary {
     margin-bottom: 6px;
@@ -348,8 +354,8 @@
   }
   .probe img {
     max-width: 200px;
-    border-radius: 8px;
-    border: 1px solid var(--line);
+    border-radius: var(--radius-btn);
+    border: var(--border-width) solid var(--outline-variant);
   }
   .fp {
     display: grid;
@@ -361,6 +367,6 @@
     font-size: 12px;
   }
   .err {
-    color: var(--err);
+    color: var(--error);
   }
 </style>

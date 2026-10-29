@@ -216,6 +216,24 @@ export function drawText(img: Uint8ClampedArray, W: number, H: number, text: str
       drawLine(img, W, H, x + line[i - 1][0], y - line[i - 1][1], x + line[i][0], y - line[i][1], color, thick);
 }
 
+export function drawDot(img: Uint8ClampedArray, W: number, H: number, x: number, y: number, r: number, color: [number, number, number], filled: boolean) {
+  for (let dy = -r - 1; dy <= r + 1; dy++)
+    for (let dx = -r - 1; dx <= r + 1; dx++) {
+      const d = Math.hypot(dx, dy);
+      if (d > r + 0.5 || (!filled && d < r - 1.5)) continue;
+      const px = Math.round(x + dx), py = Math.round(y + dy);
+      if (px < 0 || py < 0 || px >= W || py >= H) continue;
+      const k = (py * W + px) * 4;
+      img[k] = color[0]; img[k + 1] = color[1]; img[k + 2] = color[2]; img[k + 3] = 255;
+    }
+}
+
+/** A labelled point drawn over the views (where an operation acts). */
+export interface Marker {
+  at: V3;
+  label: string;
+}
+
 export interface SheetView {
   name: string;
   dir: V3;
@@ -232,7 +250,7 @@ export const SHEET_VIEWS: SheetView[] = [
 
 // 3x2 sheet of orthographic views with labels, size and a 10 mm scale bar.
 // `size` labels the model's real size when bbox only frames a close-up.
-export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { tile?: number; colors?: Uint8Array; views?: SheetView[]; title?: string; size?: number[] } = {}) {
+export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { tile?: number; colors?: Uint8Array; views?: SheetView[]; title?: string; size?: number[]; markers?: Marker[] } = {}) {
   const tile = opts.tile ?? 360;
   const views = opts.views ?? SHEET_VIEWS;
   const cols = Math.min(3, views.length);
@@ -246,6 +264,20 @@ export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { 
     const ox = (idx % cols) * tile, oy = Math.floor(idx / cols) * tile;
     for (let y = 0; y < tile; y++) img.set(r.rgba.subarray(y * tile * 4, (y + 1) * tile * 4), ((oy + y) * W + ox) * 4);
     drawText(img, W, H, v.name, ox + 8, oy + 18, 12, [90, 90, 90]);
+    // markers: filled where visible, hollow where the surface hides them
+    for (const m of opts.markers ?? []) {
+      const [x, y, z] = m.at;
+      const xc = cam.R[0] * x + cam.R[1] * y + cam.R[2] * z + cam.t[0];
+      const yc = cam.R[3] * x + cam.R[4] * y + cam.R[5] * z + cam.t[1];
+      const zc = cam.R[6] * x + cam.R[7] * y + cam.R[8] * z + cam.t[2];
+      const px = cam.fx * xc + cam.cx, py = cam.fy * yc + cam.cy;
+      if (px < 2 || py < 2 || px >= tile - 2 || py >= tile - 2) continue;
+      const k = Math.floor(py) * tile + Math.floor(px);
+      const seen = !(r.depth[k] < zc - Math.max(1, (bbox.max[2] - bbox.min[2]) * 0.03));
+      const col: [number, number, number] = seen ? [235, 90, 20] : [150, 150, 160];
+      drawDot(img, W, H, ox + px, oy + py, 4, col, seen);
+      drawText(img, W, H, m.label.slice(0, 12).toUpperCase(), ox + px + 6, oy + py - 4, 10, col);
+    }
     // scale bar: 10 mm in this view's pixels
     const px = cam.fx * 10;
     if (px > 8 && px < tile * 0.8) {

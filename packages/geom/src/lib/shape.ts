@@ -2,6 +2,7 @@
 // paths, subdivision smoothing, true 3D rounding/offsets, features that follow a curved
 // surface (grooves, embossing) and space deformations.
 import type { CrossSection, Manifold, Wasm } from '../kernel.ts';
+import { detail } from '../kernel.ts';
 import { earcut, solidFromArrays } from './meshops.ts';
 
 type V2 = [number, number];
@@ -274,7 +275,7 @@ export function makeShape(wasm: Wasm) {
    */
   const smooth = (solid: Manifold, o: { angle?: number; smoothness?: number; tolerance?: number; edge?: number } = {}) => {
     const s = solid.smoothOut(o.angle ?? 60, o.smoothness ?? 0);
-    return o.edge ? s.refineToLength(o.edge) : s.refineToTolerance(o.tolerance ?? 0.05);
+    return o.edge ? s.refineToLength(o.edge * detail.factor) : s.refineToTolerance((o.tolerance ?? 0.05) * detail.factor);
   };
   const ball = (r: number) => M.sphere(r, Math.max(12, Math.min(32, Math.round(r * 6))));
   /** Grow (d > 0) or shrink (d < 0) a solid by d mm in every direction (Minkowski). */
@@ -322,13 +323,14 @@ export function makeShape(wasm: Wasm) {
     const sb = shape.bounds();
     const bb = solid.boundingBox();
     const span = Math.max(sb.max[0] - sb.min[0], sb.max[1] - sb.min[1]);
-    let h = step ?? Math.min(0.4, Math.max(0.15, span / 300));
+    let h = (step ?? Math.min(0.4, Math.max(0.15, span / 300))) * detail.factor;
     const pad = 2 * h;
     const u0 = sb.min[0] - pad, v0 = sb.min[1] - pad;
     let nu = Math.ceil((sb.max[0] - sb.min[0] + 2 * pad) / h) + 1;
     let nv = Math.ceil((sb.max[1] - sb.min[1] + 2 * pad) / h) + 1;
-    if (nu * nv > 60000) {
-      h *= Math.sqrt((nu * nv) / 60000);
+    const cap = 60000 / detail.factor ** 2;
+    if (nu * nv > cap) {
+      h *= Math.sqrt((nu * nv) / cap);
       nu = Math.ceil((sb.max[0] - sb.min[0] + 2 * pad) / h) + 1;
       nv = Math.ceil((sb.max[1] - sb.min[1] + 2 * pad) / h) + 1;
     }
@@ -426,7 +428,7 @@ export function makeShape(wasm: Wasm) {
   const refined = (solid: Manifold, edge?: number) => {
     const b = solid.boundingBox();
     const diag = Math.hypot(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]);
-    return solid.refineToLength(edge ?? Math.max(0.5, diag / 80));
+    return solid.refineToLength((edge ?? Math.max(0.5, diag / 80)) * detail.factor);
   };
   /** Bend along X around the Y axis: the X range becomes an arc of `angle` degrees (upward for positive). */
   const bend = (solid: Manifold, angle: number, o: { edge?: number } = {}) => {

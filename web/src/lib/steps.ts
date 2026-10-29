@@ -7,7 +7,7 @@ export const TOOL_KIND: Record<string, string> = {
   scene: 'scene', measure_photo: 'measure', read_caliper: 'caliper', lookup_standard: 'standard', search_dimensions: 'search',
   recall: 'memory', remember_interface: 'memory', ask_user: 'ask', fit_to_photo: 'fit', propose_probe: 'probe',
   concept_images: 'concepts', load_terrain: 'terrain', save_skill: 'skill', compare_print: 'compare', finish: 'finish',
-  look: 'look', measure: 'measure', dimensions: 'standard',
+  look: 'look', measure: 'measure', dimensions: 'standard', mesh_write: 'build', mesh_edit: 'edit',
 };
 
 export const KIND_ICON: Record<string, string> = {
@@ -63,6 +63,8 @@ function ruCall(name: string, a: any): string {
   switch (name) {
     case 'write_program': return `Пишу модель: ${s(a.summary) || 'первая версия'}`;
     case 'edit_program': return `Меняю: ${s(a.summary) || 'детали'}`;
+    case 'mesh_write': return `Леплю модель: ${s(a.summary) || 'первая форма'}`;
+    case 'mesh_edit': return `Леплю: ${s(a.summary) || 'детали'}`;
     case 'set_params': return `Подстраиваю ${a.values && typeof a.values === 'object' ? Object.keys(a.values).join(', ') : 'параметры'}`;
     case 'inspect_model': return 'Измеряю собственную модель';
     case 'render_view': return a.view === 'photo' ? 'Сравниваю с фото' : 'Рендерю виды';
@@ -100,6 +102,8 @@ function ruResult(name: string, a: any, r: Record<string, any>): string {
   switch (name) {
     case 'write_program':
     case 'edit_program':
+    case 'mesh_write':
+    case 'mesh_edit':
     case 'set_params':
     case 'fit_to_photo': {
       const state = r.printable === false ? 'есть ошибки печати' : 'печатается';

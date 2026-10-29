@@ -7,10 +7,12 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "icons": "node scripts/subset-icons.mjs"
   },
   "dependencies": {
     "@formwright/geom": "^0.1.0",
+    "@material/material-color-utilities": "^0.3.0",
     "qrcode-generator": "^2.0.4",
     "three": "^0.186.1"
   },
@@ -18,6 +20,7 @@
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.70.3",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@tabler/icons-webfont": "^3.34.0",
     "@types/three": "^0.186.0",
     "svelte": "^5.57.3",
     "svelte-check": "^4.7.7",

@@ -155,17 +155,17 @@
     <div class="side stack">
       <p class="xs muted how">{t('select_hint')}</p>
       <button class="btn" onclick={detect} disabled={busy}><Icon name="sparkles" size={15} /> {t('detect')}</button>
-      <label class="stack lab">{t('role')}
+      <label class="field">{t('role')}
         <select bind:value={role}>
           {#each ROLES as r (r)}<option value={r}>{t(`role.${r}`)}</option>{/each}
         </select>
       </label>
-      <label class="stack lab">{t('name')}<input type="text" bind:value={name} placeholder={t('name_ph')} /></label>
+      <label class="field">{t('name')}<input type="text" bind:value={name} placeholder={t('name_ph')} /></label>
       {#if !points.length && !box}
-        <label class="stack lab">{t('text_prompt')}<input type="text" bind:value={text} placeholder={t('text_prompt_ph')} /></label>
+        <label class="field">{t('text_prompt')}<input type="text" bind:value={text} placeholder={t('text_prompt_ph')} /></label>
       {/if}
       <div class="row">
-        <button class="btn primary" onclick={apply} disabled={busy || (!points.length && !box && !text.trim())}>{#if busy}<span class="spin"></span> {t('finding_outline')}{:else}{t('apply_selection')}{/if}</button>
+        <button class="btn primary" onclick={apply} disabled={busy || (!points.length && !box && !text.trim())}>{#if busy}<i class="ti ti-loader-2 spin" aria-hidden="true"></i> {t('finding_outline')}{:else}{t('apply_selection')}{/if}</button>
         <button class="btn" onclick={() => ((points = []), (box = null))}>{t('clear')}</button>
       </div>
       {#if error}<div class="err">{error}</div>{/if}
@@ -207,13 +207,13 @@
     width: 100%;
     height: auto;
     display: block;
-    border-radius: 8px;
+    border-radius: var(--radius-btn);
   }
   .mask {
     position: absolute;
     inset: 0;
     /* striped so the mask still reads on parts that share the accent colour */
-    background: repeating-linear-gradient(45deg, var(--accent) 0 6px, #fff 6px 10px);
+    background: repeating-linear-gradient(45deg, var(--primary) 0 6px, var(--on-primary) 6px 10px);
     opacity: 0.6;
     pointer-events: none;
     mask-mode: luminance;
@@ -222,13 +222,13 @@
     -webkit-mask-source-type: luminance;
   }
   .mask.role-reference {
-    background: #3d6fb4;
+    background: var(--info);
   }
   .mask.role-mating {
-    background: #2f8f5b;
+    background: var(--warn);
   }
   .mask.role-ignore {
-    background: #777;
+    background: var(--outline);
   }
   .pt {
     position: absolute;
@@ -236,17 +236,17 @@
     height: 14px;
     margin: -7px 0 0 -7px;
     border-radius: 50%;
-    background: #2f8f5b;
+    background: var(--primary);
     border: 2px solid #fff;
     pointer-events: none;
   }
   .pt.neg {
-    background: #c2412d;
+    background: var(--error);
   }
   .box {
     position: absolute;
-    border: 2px solid var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: 2px solid var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
     pointer-events: none;
   }
   .box.live {
@@ -254,8 +254,8 @@
   }
   .sugg {
     position: absolute;
-    border: 1.5px dashed #3d6fb4;
-    background: rgb(61 111 180 / 0.08);
+    border: 1.5px dashed var(--info);
+    background: color-mix(in srgb, var(--info) 8%, transparent);
     padding: 0;
     line-height: 1.2;
   }
@@ -264,29 +264,25 @@
     left: 0;
     top: 0;
     font-size: 11px;
-    background: #3d6fb4;
-    color: #fff;
-    padding: 1px 4px;
+    font-weight: var(--font-weight-semibold);
+    background: var(--info);
+    color: #0d1a2b;
+    padding: 2px 6px;
+    border-radius: 0 0 var(--radius-tag) 0;
     white-space: nowrap;
   }
   .how {
     margin: 0;
   }
-  .lab {
-    font-size: 13px;
-    gap: 3px;
-  }
   .sel {
     display: flex;
-    gap: 8px;
+    gap: var(--space-2);
     align-items: center;
-    padding: 6px;
-  }
-  .small {
-    font-size: 12px;
+    padding: var(--space-2);
+    background: var(--surface);
   }
   .err {
-    color: var(--err);
+    color: var(--error);
     font-size: 13px;
   }
 </style>

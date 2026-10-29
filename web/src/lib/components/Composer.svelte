@@ -141,7 +141,7 @@
     <div class="replay small"><Icon name="play" size={14} /> {t('replay_banner')}</div>
   {/if}
   {#if tips}
-    <div class="tipbox card"><CaptureTips compact /><button class="btn small ghost close" onclick={() => (tips = false)} aria-label={t('close')}><Icon name="x" size={14} /></button></div>
+    <div class="tipbox card"><CaptureTips compact /><button class="btn icon ghost small close" onclick={() => (tips = false)} aria-label={t('close')}><Icon name="x" size={14} /></button></div>
   {/if}
   {#if job}
     <div class="meta">
@@ -173,16 +173,16 @@
             {#if isImage(a)}
               <button class="thumb" onclick={() => (selecting = a)} title={t('select_object')}>
                 <img src={a.thumb_url ?? a.url} alt={a.kind} />
-                {#if a.meta?.calibration}<span class="cal" title={t('calibrated')}><Icon name="ruler" size={11} stroke={2.2} /></span>{/if}
+                {#if a.meta?.calibration}<span class="cal" title={t('calibrated')}><Icon name="ruler" size={11} /></span>{/if}
                 {#if selCount(a)}<span class="sel">{selCount(a)}</span>{/if}
               </button>
             {:else}
               <span class="file"><Icon name={a.kind === 'audio' ? 'mic' : 'video'} size={16} /></span>
             {/if}
-            <button class="x" onclick={() => (store.tray = store.tray.filter((x) => x.id !== a.id))} aria-label={t('remove')}><Icon name="x" size={11} stroke={2.4} /></button>
+            <button class="x" onclick={() => (store.tray = store.tray.filter((x) => x.id !== a.id))} aria-label={t('remove')}><Icon name="x" size={11} /></button>
           </div>
         {/each}
-        {#if uploading}<div class="att busy"><span class="spin"></span></div>{/if}
+        {#if uploading}<div class="att busy"><i class="ti ti-loader-2 spin" aria-hidden="true"></i></div>{/if}
         {#if recording}
           <button class="btn small rec" onclick={toggleRecord}><Icon name="stop" size={12} /> {t('recording', { s: Math.round((now - recStart) / 1000) })}</button>
         {/if}
@@ -211,7 +211,7 @@
 
     <div class="row">
       <div class="addwrap" bind:this={menuWrap}>
-        <button class="round" onclick={() => (menu = !menu)} aria-expanded={menu} aria-label={t('add')} title={t('add')}><Icon name="plus" size={19} stroke={2} /></button>
+        <button class="round pressable" onclick={() => (menu = !menu)} aria-expanded={menu} aria-label={t('add')} title={t('add')}><Icon name="plus" size={19} /></button>
         {#if menu}
           <div class="menu card" role="group" aria-label={t('add')}>
             {#each SOURCES as s (s.kind)}
@@ -224,12 +224,12 @@
           </div>
         {/if}
       </div>
-      <button class="round" class:on={recording} onclick={toggleRecord} aria-label={t('record')} title={t('record')}><Icon name="mic" size={17} /></button>
+      <button class="round pressable" class:on={recording} onclick={toggleRecord} aria-label={t('record')} title={t('record')}><Icon name="mic" size={17} /></button>
       <span class="spacer"></span>
       {#if store.running && !store.replaying}
-        <button class="round send stop" onclick={() => store.cancel()} aria-label={t('stop')} title={t('stop')}><Icon name="stop" size={13} stroke={2.6} /></button>
+        <button class="round pressable send stop" onclick={() => store.cancel()} aria-label={t('stop')} title={t('stop')}><Icon name="stop" size={13} /></button>
       {:else}
-        <button class="round send" onclick={send} disabled={!ready} aria-label={t('send')} title={t('send')}><Icon name="arrow-up" size={18} stroke={2.2} /></button>
+        <button class="round pressable send" onclick={send} disabled={!ready} aria-label={t('send')} title={t('send')}><Icon name="arrow-up" size={18} /></button>
       {/if}
     </div>
   </div>
@@ -246,34 +246,43 @@
 
 <style>
   .composer {
-    padding: 8px 12px 10px;
+    padding: var(--space-2) var(--space-3) var(--space-3);
     display: flex;
     flex-direction: column;
     gap: 6px;
     position: relative;
   }
   .box {
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    transition: border-color 0.12s;
+    background: var(--surface);
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-field);
+    transition:
+      border-color var(--dur-fast) var(--ease-standard),
+      box-shadow var(--dur-fast) var(--ease-standard);
+  }
+  .box:hover {
+    border-color: var(--outline);
   }
   .box:focus-within {
-    border-color: var(--line-strong);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
   }
   .box.dragging {
-    border-color: var(--accent);
-    background: var(--accent-soft);
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 9%, var(--surface));
   }
-  textarea {
+  textarea,
+  textarea:hover,
+  textarea:focus {
     display: block;
     width: 100%;
     border: none;
     background: transparent;
+    box-shadow: none;
     resize: none;
-    font-size: var(--fs-md);
+    font-size: var(--text-product-spec);
     line-height: 22px;
-    padding: 10px 12px 2px;
+    padding: 11px 14px 2px;
     /* two lines from the start: the placeholder fits and the first typed line does not shrink the box */
     min-height: 56px;
     max-height: 200px;
@@ -285,55 +294,61 @@
   .row {
     display: flex;
     align-items: center;
-    gap: 2px;
-    padding: 4px 6px 6px;
+    gap: 6px;
+    padding: 4px 8px 8px;
     min-width: 0;
   }
   .round {
     flex: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-btn);
     display: grid;
     place-items: center;
     padding: 0;
     background: transparent;
-    border: none;
-    color: var(--muted);
+    border: var(--border-width) solid var(--outline-variant);
+    color: var(--on-surface-var);
     cursor: pointer;
     transition:
-      background 0.12s,
-      color 0.12s;
+      background-color var(--dur-fast) var(--ease-standard),
+      color var(--dur-fast) var(--ease-standard);
   }
   .round:hover:not(:disabled) {
-    background: var(--panel-3);
-    color: var(--text);
+    background: var(--surface-high);
+    color: var(--on-surface);
   }
   .round.on {
-    color: var(--err);
+    color: var(--error);
+    border-color: var(--error);
   }
   .send {
-    color: var(--text);
-    margin-left: 2px;
+    background: var(--primary);
+    border-color: transparent;
+    color: var(--on-primary);
+  }
+  .send:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary) 92%, white);
+    color: var(--on-primary);
   }
   .send:disabled {
-    cursor: default;
-    opacity: 0.4;
+    cursor: not-allowed;
+    opacity: 0.5;
   }
   .send.stop {
-    background: var(--text);
-    color: var(--panel);
+    background: var(--on-surface);
+    color: var(--surface);
   }
   .send.stop:hover {
-    background: var(--text-2);
-    color: var(--panel);
+    background: var(--on-surface-var);
+    color: var(--surface);
   }
   .tray {
     display: flex;
-    gap: 8px;
+    gap: var(--space-2);
     flex-wrap: wrap;
     align-items: center;
-    padding: 10px 10px 0;
+    padding: var(--space-3) var(--space-3) 0;
   }
   .att {
     position: relative;
@@ -345,11 +360,12 @@
   .att.busy {
     width: 52px;
     height: 52px;
-    border-radius: 10px;
-    border: 1px solid var(--line);
+    border-radius: var(--radius-btn);
+    border: var(--border-width) solid var(--outline-variant);
     overflow: hidden;
     padding: 0;
-    background: var(--panel);
+    background: var(--surface-high);
+    color: var(--on-surface-var);
     display: grid;
     place-items: center;
     position: relative;
@@ -364,116 +380,128 @@
   .sel {
     position: absolute;
     bottom: 3px;
-    border-radius: 999px;
+    border-radius: var(--radius-tag);
     font-size: 10px;
+    font-weight: var(--font-weight-semibold);
     padding: 1px 5px;
     display: inline-flex;
     align-items: center;
   }
   .cal {
     left: 3px;
-    background: var(--ok);
-    color: #fff;
+    background: var(--primary-container);
+    color: var(--on-primary-container);
   }
   .sel {
     right: 3px;
-    background: var(--accent);
-    color: var(--accent-ink);
+    background: var(--primary);
+    color: var(--on-primary);
   }
   .x {
     position: absolute;
-    top: -6px;
-    right: -6px;
-    width: 20px;
-    height: 20px;
+    top: -7px;
+    right: -7px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    border: 1px solid var(--line);
-    background: var(--panel);
+    border: var(--border-width) solid var(--outline-variant);
+    background: var(--surface-high);
+    color: var(--on-surface-var);
     display: grid;
     place-items: center;
     padding: 0;
   }
+  .x:hover {
+    color: var(--on-surface);
+    border-color: var(--outline);
+  }
   .rec {
-    color: var(--err);
-    border-color: var(--err);
+    color: var(--error);
+    border-color: var(--error);
   }
   .tipbox {
-    padding: 10px 34px 10px 10px;
+    padding: var(--space-3) 44px var(--space-3) var(--space-3);
     position: relative;
   }
   .close {
     position: absolute;
-    top: 4px;
-    right: 4px;
+    top: 6px;
+    right: 6px;
   }
   .replay {
     display: flex;
-    gap: 8px;
+    gap: var(--space-2);
     align-items: center;
-    background: var(--info-soft);
-    color: var(--info);
-    border-radius: 10px;
-    padding: 8px 10px;
+    background: color-mix(in srgb, var(--info) 16%, transparent);
+    color: var(--info-text);
+    border-radius: var(--radius-card);
+    padding: 10px 14px;
+    font-weight: var(--font-weight-semibold);
   }
   .addwrap {
     position: relative;
   }
   .menu {
     position: absolute;
-    bottom: 40px;
+    bottom: 42px;
     left: 0;
     z-index: 30;
-    min-width: 200px;
-    padding: 6px;
+    min-width: 220px;
+    padding: var(--space-2);
     display: flex;
     flex-direction: column;
-    box-shadow: var(--shadow-lg);
+    border-radius: var(--radius-field);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32);
   }
   .mi {
     display: flex;
     gap: 10px;
     align-items: center;
     padding: 8px 10px;
-    border-radius: 8px;
+    border-radius: var(--radius-field);
     border: none;
     background: none;
     cursor: pointer;
-    font-size: var(--fs-sm);
+    font-family: inherit;
+    font-size: var(--text-product-spec);
     text-align: left;
-    color: var(--text);
+    color: var(--on-surface);
+  }
+  .mi :global(.icon) {
+    color: var(--on-surface-var);
   }
   .mi:hover,
   .mi:focus-within {
-    background: var(--panel-3);
+    background: var(--surface-high);
   }
   .tipsbtn {
-    border-top: 1px solid var(--line);
-    border-radius: 0 0 8px 8px;
+    border-top: var(--border-width) solid var(--divider);
+    border-radius: 0 0 var(--radius-field) var(--radius-field);
     margin-top: 4px;
   }
-  /* text lines up with the textarea's 12px inset, clear of the box's 14px corners */
+  /* text lines up with the textarea's 14px inset */
   .meta {
     display: flex;
     gap: 10px;
-    padding: 0 12px;
-    font-size: 11.5px;
-    color: var(--muted);
+    padding: 0 14px;
+    font-size: 11px;
+    color: var(--outline);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
   .pickers {
     justify-content: flex-end;
     gap: 0;
-    /* plus each picker's own 6px padding = the same 12px inset */
+    /* plus each picker's own 8px padding = the same inset */
     padding: 0 6px;
   }
   .pickers :global(.cur) {
-    font-size: 11.5px;
-    padding: 1px 6px;
-    color: var(--muted);
+    font-size: 11px;
+    padding: 2px 8px;
+    color: var(--outline);
   }
   .pickers :global(.cur:hover),
   .pickers :global(.cur[aria-expanded='true']) {
-    color: var(--text);
+    color: var(--on-surface);
   }
 </style>

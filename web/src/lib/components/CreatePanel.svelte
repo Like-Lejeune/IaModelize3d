@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { api } from '$lib/api';
   import { t } from '$lib/i18n.svelte';
   import type { ProjectStore } from '$lib/project.svelte';
@@ -79,7 +80,7 @@
     <p class="muted small">{t('concepts_hint')}</p>
     <div class="row nowrap">
       <input type="text" bind:value={prompt} placeholder="twisted ceramic vase, art deco ribs" aria-label={t('concepts')} style="flex:1;min-width:0" />
-      <button class="btn" onclick={concepts} disabled={!prompt.trim() || store.running}>🎨 {t('generate')}</button>
+      <button class="btn" onclick={concepts} disabled={!prompt.trim() || store.running}><Icon name="sparkles" size={16} /> {t('generate')}</button>
     </div>
     {#if store.concepts.length}
       <div class="cgrid">
@@ -96,7 +97,7 @@
   <section class="stack">
     <h3 class="section-title">{t('visual_edit')}</h3>
     <p class="muted small">{t('visual_edit_hint')}</p>
-    <button class="btn" onclick={grab} disabled={!store.build}>📸 {base ? '↻' : ''} {t('visual_edit')}</button>
+    <button class="btn" onclick={grab} disabled={!store.build}><Icon name={base ? 'refresh' : 'photo-edit'} size={16} /> {t('visual_edit')}</button>
     {#if base}
       <canvas bind:this={canvas} class="draw" onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up} aria-label={t('visual_edit_hint')}></canvas>
       <div class="row nowrap">
@@ -109,8 +110,8 @@
 
 <style>
   section + section {
-    border-top: 1px solid var(--line);
-    padding-top: 10px;
+    border-top: var(--border-width) solid var(--divider);
+    padding-top: var(--space-4);
   }
   .nowrap {
     flex-wrap: nowrap;
@@ -128,18 +129,15 @@
   }
   .cgrid img {
     width: 100%;
-    border-radius: 8px;
-    border: 1px solid var(--line);
+    border-radius: var(--radius-btn);
+    border: var(--border-width) solid var(--outline-variant);
   }
   .draw {
     width: 100%;
-    border-radius: 8px;
-    border: 1px solid var(--line);
+    border-radius: var(--radius-btn);
+    border: var(--border-width) solid var(--outline-variant);
     touch-action: none;
     cursor: crosshair;
-    background: var(--panel-2);
-  }
-  .small {
-    font-size: 12.5px;
+    background: var(--surface);
   }
 </style>

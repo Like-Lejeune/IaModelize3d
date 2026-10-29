@@ -11,6 +11,7 @@ KIND = {
     "write_program": "build", "edit_program": "edit", "set_params": "params", "inspect_model": "inspect", "look": "look",
     "measure": "measure", "dimensions": "standard", "remember_interface": "memory", "ask_user": "ask", "fit_to_photo": "fit",
     "propose_probe": "probe", "concept_images": "concepts", "load_terrain": "terrain", "compare_print": "compare", "finish": "finish",
+    "mesh_write": "build", "mesh_edit": "edit",
 }
 
 # which stage of the job a tool belongs to
@@ -61,6 +62,7 @@ RU = {
     "printability errors remain": "остались ошибки печатаемости", "needs fixes": "нужны правки", "Overlay ready": "Наложение готово", "Views rendered": "Виды готовы",
     "Download 3MF": "Скачать 3MF", "Prepare print settings": "Подготовить настройки печати", "Print a 5-minute test piece": "Напечатать 5-минутный пробник",
     "Order a print": "Заказать печать", "Share as a recipe": "Поделиться рецептом",
+    "Sculpting the model": "Леплю модель", "Sculpting": "Леплю", "first form": "первая форма",
     "Comparing the model with the photo": "Сравниваю модель с фото", "Looking at the model from all sides": "Смотрю на модель со всех сторон",
     "Looking up dimensions": "Ищу размеры", "Silhouette match": "Совпадение силуэта", "Nothing found": "Ничего не найдено",
     "Finding": "Ищу", "Measuring the photos": "Измеряю фото", " mm": " мм", " min": " мин", " km": " км", " m relief": " м перепад", "Saved to your setup": "Сохранено в ваших размерах", "Problem": "Проблема", "Done": "Готово",
@@ -97,6 +99,8 @@ def call_title(name: str, args: dict[str, Any]) -> str:
     return {
         "write_program": f"Writing the model: {a.get('summary') or 'first version'}",
         "edit_program": f"Changing: {a.get('summary') or 'details'}",
+        "mesh_write": f"Sculpting the model: {a.get('summary') or 'first form'}",
+        "mesh_edit": f"Sculpting: {a.get('summary') or 'details'}",
         "set_params": f"Adjusting {', '.join(a['values'] if isinstance(a.get('values'), dict) else []) or 'parameters'}",
         "inspect_model": "Measuring my own model",
         "look": {"compare": "Comparing the model with the photo", "model": "Looking at the model from all sides"}.get(
@@ -126,7 +130,7 @@ def result_title(name: str, args: dict[str, Any], r: dict[str, Any]) -> str:
     if r.get("ok") is False:
         err = str(r.get("error") or r.get("reason") or "failed")
         return f"Problem: {err[:140]}"
-    if name in ("write_program", "edit_program", "set_params", "fit_to_photo"):
+    if name in ("write_program", "edit_program", "mesh_write", "mesh_edit", "set_params", "fit_to_photo"):
         issues = r.get("issues") or []
         errors = sum(1 for i in issues if i.get("severity") == "error")
         warns = sum(1 for i in issues if i.get("severity") == "warn")

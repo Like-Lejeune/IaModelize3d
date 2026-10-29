@@ -6,12 +6,14 @@ import base64
 import json
 import logging
 import secrets
+import shutil
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from . import events, quotas
 from .config import REPO_DIR, settings
@@ -27,6 +29,8 @@ from .models import (
     MessageOut,
     OrderRequest,
     ParamsUpdate,
+    Point,
+    ProgramUpdate,
     ProgramOut,
     ProjectDetail,
     ProjectOut,
@@ -418,24 +422,71 @@ async def versions(project_id: str, user=Depends(current_user)):
     return await db.all("SELECT version, summary, author, created_at FROM programs WHERE project_id = ? ORDER BY version", project_id)
 
 
+USER_EDIT_WINDOW_S = 30 * 60
+
+
+def _client_checks(checks: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The browser's report is informational (the agent and export rebuild on their own); keep it small."""
+    if not isinstance(checks, dict) or len(json.dumps(checks)) > 300_000:
+        return None
+    return {**checks, "by": "client"}
+
+
+def _clean_params(params: dict[str, Any]) -> dict[str, Any]:
+    if len(params) > 300:
+        raise HTTPException(400, "too many parameters")
+    out = {}
+    for k, v in params.items():
+        if not isinstance(k, str) or len(k) > 64 or not isinstance(v, (int, float, str, bool)) or (isinstance(v, str) and len(v) > 200):
+            raise HTTPException(400, f"bad parameter {k!r}")
+        out[k] = v
+    return out
+
+
+async def _save_user_version(project_id: str, prog: dict[str, Any], source: str, params: dict[str, Any], checks: dict[str, Any] | None,
+                             summary: str, client: str | None) -> int:
+    """User edits in one sitting update one version instead of adding one per slider release."""
+    db = await get_db()
+    t = now()
+    if prog["author"] == "user" and prog["summary"] == summary and t - prog["created_at"] < USER_EDIT_WINDOW_S:
+        version = prog["version"]
+        await db.execute("UPDATE programs SET source = ?, params = ?, checks = ? WHERE project_id = ? AND version = ?",
+                         source, params, checks, project_id, version)
+    else:
+        version = prog["version"] + 1
+        await db.insert("programs", {"project_id": project_id, "version": version, "source": source, "params": params,
+                                     "inputs": prog["inputs"], "summary": summary, "checks": checks, "author": "user", "created_at": t})
+    await db.update("projects", "id", project_id, {"version": version, "updated_at": t})
+    event: dict[str, Any] = {"version": version, "params": params, "checks": checks, "author": "user", "client": client}
+    if source != prog["source"]:
+        event["source_changed"] = True
+    await events.emit(project_id, "program.updated", event)
+    return version
+
+
 @app.put("/api/projects/{project_id}/params")
 async def save_params(project_id: str, body: ParamsUpdate, user=Depends(current_user)):
-    """Slider changes: no LLM, just a new program version with other parameter values."""
+    """Slider changes. The browser built and checked the model already, so nothing is rebuilt here:
+    the agent's next step, export and slicing build the stored version themselves."""
     await load_project(project_id, user, write=True)
     prog = await latest_program(project_id)
     if not prog:
         raise HTTPException(400, "no program yet")
-    db = await get_db()
-    try:
-        built = await geom().build(prog["source"], body.params, analyze="full", inputs=prog["inputs"])
-    except GeomError as e:
-        raise HTTPException(422, e.message) from e
-    version = prog["version"] + 1
-    await db.insert("programs", {"project_id": project_id, "version": version, "source": prog["source"], "params": built["params"],
-                                 "inputs": prog["inputs"], "summary": "parameters changed", "checks": built.get("checks"), "author": "user", "created_at": now()})
-    await db.update("projects", "id", project_id, {"version": version, "updated_at": now()})
-    await events.emit(project_id, "program.updated", {"version": version, "params": built["params"], "checks": built.get("checks"), "author": "user"})
-    return {"version": version, "checks": built.get("checks"), "params": built["params"]}
+    params = _clean_params(body.params)
+    version = await _save_user_version(project_id, prog, prog["source"], params, _client_checks(body.checks), "parameters changed", body.client)
+    return {"version": version, "params": params}
+
+
+@app.put("/api/projects/{project_id}/program")
+async def save_program(project_id: str, body: ProgramUpdate, user=Depends(current_user)):
+    """A program edited in the studio (operations of a mesh document, strokes sculpted by hand)."""
+    await load_project(project_id, user, write=True)
+    prog = await latest_program(project_id)
+    if not prog:
+        raise HTTPException(400, "no program yet")
+    params = _clean_params(body.params)
+    version = await _save_user_version(project_id, prog, body.source, params, _client_checks(body.checks), body.summary, body.client)
+    return {"version": version, "params": params}
 
 
 @app.post("/api/projects/{project_id}/export")
@@ -563,6 +614,158 @@ async def forget(item_id: str, user=Depends(current_user)):
     db = await get_db()
     await db.execute("DELETE FROM memory WHERE id = ? AND user_id = ?", item_id, user["id"])
     return {"ok": True}
+
+
+# ------------------------------------------------------------------ snap & collect
+class SnapReselect(BaseModel):
+    points: list[Point] = []
+    box: list[float] | None = None
+    label: str | None = None
+
+
+class SnapConfirm(BaseModel):
+    text: str
+    label: str | None = None
+    model: Literal["contributor", "spark", "wonder"] | None = None
+    reasoning: Literal["minimal", "low", "medium", "high", "xhigh", "max"] = "medium"
+
+
+async def _snap_project(project_id: str, user: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    from .vision import snap
+
+    p = await load_project(project_id, user, write=True)
+    db = await get_db()
+    asset = await db.one("SELECT * FROM assets WHERE id = ? AND project_id = ?", snap.snap_asset_id(p) or "", project_id)
+    if p["pack"] != "collect" or not asset:
+        raise HTTPException(400, "not a snap project")
+    return p, asset
+
+
+@app.post("/api/snap")
+async def snap_photo(file: UploadFile = File(...), x: float | None = Form(None), y: float | None = Form(None), lang: str = Form("en"),
+                     user=Depends(current_user)):
+    """Phone camera shot of an object out in the world: a new collectible project with the tapped object selected and named."""
+    from .vision import ingest, snap
+
+    data = await file.read()
+    if len(data) > 30 * 1024 * 1024:
+        raise HTTPException(413, "photo too large (30 MB max)")
+    db = await get_db()
+    pid = new_id("p_")
+    t = now()
+    await db.insert("projects", {"id": pid, "user_id": user["id"], "title": "New project", "pack": "collect",
+                                 "brief": {"collect": True, "photo_role": "copy", "language": lang[:2]}, "created_at": t, "updated_at": t})
+    try:
+        asset = await ingest.ingest_asset(pid, "photo", file.filename or "snap.jpg", data, file.content_type or "image/jpeg")
+    except ValueError as e:
+        await db.execute("DELETE FROM projects WHERE id = ?", pid)
+        raise HTTPException(400, str(e)) from e
+    p = await db.one("SELECT * FROM projects WHERE id = ?", pid)
+    r = await snap.snap(user, p, asset, x, y, lang)  # type: ignore[arg-type]
+    await events.emit(pid, "asset.added", asset_out(asset))
+    if r["selection"]:
+        await events.emit(pid, "selection.added", selection_out(r["selection"]))
+    return {"project": project_out(await db.one("SELECT * FROM projects WHERE id = ?", pid)), "asset": asset_out(asset),  # type: ignore[arg-type]
+            "selection": selection_out(r["selection"]) if r["selection"] else None, "label": r["label"], "objects": r["objects"]}
+
+
+@app.get("/api/snap/{project_id}/name")
+async def snap_name(project_id: str, user=Depends(current_user)):
+    """What the snapped object is, and other objects on the photo (arrives after the highlight)."""
+    from .vision import snap
+
+    p, _ = await _snap_project(project_id, user)
+    r = await snap.named(p, (p["brief"] or {}).get("language", "en"))
+    for sid in r.get("removed") or []:
+        await events.emit(project_id, "selection.removed", {"id": sid})
+    if r.get("removed"):
+        await events.emit(project_id, "selection.added", selection_out(r["selection"]))
+    return {"label": r["label"], "objects": r["objects"], "selection": selection_out(r["selection"]) if r.get("selection") else None}
+
+
+@app.post("/api/snap/{project_id}/select")
+async def snap_reselect(project_id: str, body: SnapReselect, user=Depends(current_user)):
+    from .vision import snap
+
+    p, asset = await _snap_project(project_id, user)
+    try:
+        r = await snap.reselect(user, p, asset, [pt.model_dump() for pt in body.points], body.box, body.label)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    for sid in r["removed"]:
+        await events.emit(project_id, "selection.removed", {"id": sid})
+    out = selection_out(r["selection"])
+    await events.emit(project_id, "selection.added", out)
+    return {"selection": out, "label": r["label"]}
+
+
+@app.post("/api/snap/{project_id}/confirm")
+async def snap_confirm(project_id: str, body: SnapConfirm, user=Depends(current_user)):
+    """Start modelling now, or queue it behind the job that is still running."""
+    from .vision import snap
+
+    p, asset = await _snap_project(project_id, user)
+    label = (body.label or "").strip()[:40]
+    if label and label != (p["brief"] or {}).get("subject"):
+        db = await get_db()
+        p["brief"] = {**(p["brief"] or {}), "subject": label}
+        p["title"] = label[:1].upper() + label[1:]
+        await db.update("projects", "id", project_id, {"brief": p["brief"], "title": p["title"], "updated_at": now()})
+    msg = SendMessage(text=body.text.strip()[:2000] or label, asset_ids=[asset["id"]], model=body.model, reasoning=body.reasoning)
+    try:
+        return await snap.start_or_queue(user, p, msg)
+    except quotas.QuotaExceeded as e:
+        raise HTTPException(429, str(e)) from e
+
+
+@app.delete("/api/snap/{project_id}")
+async def snap_discard(project_id: str, user=Depends(current_user)):
+    """Retake: a snap that never reached the agent leaves nothing behind."""
+    p, _ = await _snap_project(project_id, user)
+    db = await get_db()
+    if p["version"] or await db.one("SELECT id FROM jobs WHERE project_id = ? LIMIT 1", project_id):
+        raise HTTPException(400, "this snap is already being modelled")
+    for table in ("selections", "assets", "events", "messages"):
+        await db.execute(f"DELETE FROM {table} WHERE project_id = ?", project_id)
+    await db.execute("DELETE FROM projects WHERE id = ?", project_id)
+    shutil.rmtree(settings().data_dir / "files" / project_id, ignore_errors=True)
+    return {"ok": True}
+
+
+@app.get("/api/collection")
+async def collection(user=Depends(current_user)):
+    """The person's collected objects, newest first, with what each one is waiting for."""
+    from .vision import snap
+
+    db = await get_db()
+    rows = await db.all("SELECT * FROM projects WHERE user_id = ? AND pack = 'collect' ORDER BY created_at DESC LIMIT 200", user["id"])
+    items = []
+    for p in rows:
+        brief = p["brief"] or {}
+        job = await db.one("SELECT status FROM jobs WHERE project_id = ? AND kind = 'design' ORDER BY created_at DESC LIMIT 1", p["id"])
+        asset = await db.one("SELECT * FROM assets WHERE id = ?", snap.snap_asset_id(p) or "")
+        sel = await db.one("SELECT mask_path, data FROM selections WHERE project_id = ? AND asset_id = ? AND role = 'target' ORDER BY created_at DESC LIMIT 1",
+                           p["id"], (asset or {}).get("id", ""))
+        if job and job["status"] in ("running", "waiting"):
+            state = "modelling"
+        elif brief.get("queued"):
+            state = "queued"
+        elif p["version"]:
+            state = "ready"
+        elif job or brief.get("queue_error"):
+            state = "failed"
+        else:
+            state = "draft"
+        items.append({
+            "id": p["id"], "title": p["title"], "subject": brief.get("subject"), "cover": file_url(p["cover"]), "state": state,
+            "version": p["version"], "created_at": p["created_at"], "updated_at": p["updated_at"], "error": brief.get("queue_error"),
+            "photo": file_url((asset or {}).get("meta", {}).get("thumb") or (asset or {}).get("path")),
+            "width": (asset or {}).get("width"), "height": (asset or {}).get("height"),
+            "mask_url": file_url((sel or {}).get("mask_path")), "bbox": ((sel or {}).get("data") or {}).get("bbox_px"),
+        })
+    if any(i["state"] == "queued" for i in items):
+        snap.ensure_drain(user["id"])  # the queue lives in memory; a restart picks it up here
+    return items
 
 
 # ------------------------------------------------------------------ web app

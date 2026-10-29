@@ -2,6 +2,7 @@
 // lattices, terrain tiles, voxel and low-poly stylization. All outputs are closed
 // manifolds, so they pass straight into printability checks.
 import type { CrossSection, Manifold, Wasm } from '../kernel.ts';
+import { detail } from '../kernel.ts';
 
 type V3 = [number, number, number];
 
@@ -72,8 +73,8 @@ export function makeForms(wasm: Wasm) {
   // Builds a closed mesh: outer surface rings, top rim, inner surface (shell/open), bottom.
   const surface = (o: SurfaceOptions): Manifold => {
     const mode = o.mode ?? 'shell';
-    const segs = o.segments ?? 180;
-    const rings = o.rings ?? Math.max(24, Math.ceil(o.height / 1.0));
+    const segs = Math.max(24, Math.round((o.segments ?? 180) / detail.factor));
+    const rings = Math.max(12, Math.round((o.rings ?? Math.max(24, Math.ceil(o.height / 1.0))) / detail.factor));
     const wall = o.wall ?? 1.6;
     const bottom = mode === 'open' ? 0 : o.bottom ?? 2;
     const pos: number[] = [];
@@ -146,7 +147,7 @@ export function makeForms(wasm: Wasm) {
       const g = Math.sin(k * x) * Math.cos(k * y) + Math.sin(k * y) * Math.cos(k * z) + Math.sin(k * z) * Math.cos(k * x);
       return wall / 2 - (Math.abs(g) / k) * 0.85;
     };
-    const lattice = M.levelSet(sdf, b, cell / (10 * (o.quality ?? 1)));
+    const lattice = M.levelSet(sdf, b, (cell / (10 * (o.quality ?? 1))) * detail.factor);
     return lattice.intersect(solid);
   };
 

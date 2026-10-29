@@ -8,6 +8,7 @@
   import Conversation from '$lib/components/Conversation.svelte';
   import Composer from '$lib/components/Composer.svelte';
   import ParamsPanel from '$lib/components/ParamsPanel.svelte';
+  import MeshOpsPanel from '$lib/components/MeshOpsPanel.svelte';
   import ChecksPanel from '$lib/components/ChecksPanel.svelte';
   import PrintPanel from '$lib/components/PrintPanel.svelte';
   import GetItPanel from '$lib/components/GetItPanel.svelte';
@@ -97,9 +98,13 @@
     if (!store) return;
     const name = `${(store.detail?.title ?? 'model').replace(/[^\w-]+/g, '_').slice(0, 40)}.3mf`;
     try {
-      await download(await api.exportFile(store.id, '3mf', $state.snapshot(store.values)), name);
-    } catch (e) {
-      store.addError(errorText(e));
+      await download(await store.exportFile('3mf'), name);
+    } catch {
+      try {
+        await download(await api.exportFile(store.id, '3mf', $state.snapshot(store.values)), name);
+      } catch (e) {
+        store.addError(errorText(e));
+      }
     }
   }
 
@@ -114,6 +119,17 @@
     const a = store.assets.find((x) => x.url === url);
     store.send(t('use_this') + (a ? '' : `: ${url}`), a ? [a.id] : []);
     if (!wide) tab = 'chat';
+  }
+
+  /** A stroke sculpted in the viewer becomes the next op of the mesh document. */
+  function sculpted(op: Record<string, any>) {
+    store?.editDoc((d) => {
+      const taken = new Set(d.ops.map((o) => o.id));
+      let n = d.ops.filter((o) => o.by === 'user').length + 1;
+      let id = `${op.brush}_${n}`;
+      while (taken.has(id)) id = `${op.brush}_${++n}`;
+      d.ops.push({ id, op: 'sculpt', ...op });
+    }, true);
   }
 
   function askFix(text: string) {
@@ -141,7 +157,7 @@
   {#if store?.loadError}
     <div class="center"><p class="err">{t('error')}: {store.loadError}</p><a class="btn" href="/">{t('back')}</a></div>
   {:else if !store?.detail}
-    <div class="center"><span class="spin"></span></div>
+    <div class="center"><i class="ti ti-loader-2 spin" aria-hidden="true"></i></div>
   {:else}
     <main class="studio" class:wide>
       {#if wide}
@@ -163,15 +179,23 @@
             specs={store.build?.paramSpecs ?? {}}
             {photo}
             onParam={(n, v, c) => store!.setParam(n, v, c)}
+            sculptable={!!store.meshDoc && !store.running}
+            symmetry={store.meshDoc?.symmetry ?? null}
+            canUndo={store.undoStack.length > 0}
+            onSculpt={sculpted}
+            onSymmetry={() => store!.editDoc((d) => (d.symmetry = d.symmetry ? null : 'x'), true)}
+            onUndo={() => store!.undoEdit()}
           />
           <div class="overlay tl">
             {#if job}
-              <span class="pill work"><span class="spin"></span> {job.kind !== 'design' ? t(`job_${job.kind}`) : job.stage ? t(`stage.${job.stage}`) : t('agent_working')}</span>
+              <span class="pill work"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {job.kind !== 'design' ? t(`job_${job.kind}`) : job.stage ? t(`stage.${job.stage}`) : t('agent_working')}</span>
             {:else if store.building}
-              <span class="pill"><span class="spin"></span> {t('building_model')}</span>
+              <span class="pill"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {t('building_model')}</span>
+            {:else if store.checking}
+              <span class="pill"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {t('refining')}</span>
             {:else if store.checks}
               <button class="pill {errCount ? 'err' : warnCount ? 'warn' : 'ok'}" onclick={() => (tab = 'checks')}>
-                <Icon name={errCount ? 'alert' : 'check'} size={13} stroke={2.4} />
+                <Icon name={errCount ? 'alert' : 'check'} size={13} />
                 {errCount ? t('checks_err') : warnCount ? t('checks_warn') : t('checks_ok')}
               </button>
             {/if}
@@ -198,6 +222,7 @@
             <Conversation {store} {onAction} onUseConcept={useConcept} />
             <Composer {store} />
           {:else if tab === 'model'}
+            {#if store.meshDoc}<MeshOpsPanel {store} />{/if}
             <ParamsPanel specs={store.build?.paramSpecs ?? {}} values={store.values} agentValues={store.agentValues} building={store.building || (!!store.source && !store.build)} onChange={(n, v, c) => store!.setParam(n, v, c)} />
           {:else if tab === 'checks'}
             <ChecksPanel checks={store.checks} selected={selectedIssue} onSelect={(i) => (selectedIssue = i)} building={store.building} onAskFix={askFix} />
@@ -238,19 +263,21 @@
     min-width: 0;
   }
   .title {
-    background: transparent !important;
-    border: 1px solid transparent !important;
-    font-weight: 650;
+    background: transparent;
+    border-color: transparent;
+    font-weight: var(--font-weight-semibold);
     min-width: 60px;
     flex: 0 1 340px;
-    padding: 4px 8px !important;
-    font-size: var(--fs-md);
+    height: 42px;
+    padding: 0 12px;
+    font-size: var(--text-product-lead);
     text-overflow: ellipsis;
   }
-  .title:hover,
+  .title:hover {
+    border-color: var(--outline-variant);
+  }
   .title:focus {
-    border-color: var(--line) !important;
-    background: var(--panel) !important;
+    background: var(--surface-container);
   }
   .center {
     flex: 1;
@@ -261,19 +288,22 @@
     text-align: center;
   }
   .err {
-    color: var(--err);
+    color: var(--error);
   }
   .studio {
     flex: 1;
     display: grid;
-    gap: 10px;
-    padding: 10px;
+    gap: var(--space-3);
+    padding: var(--space-3);
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: min(46dvh, 460px) auto;
   }
   .studio.wide {
     grid-template-columns: 390px minmax(0, 1fr) 360px;
-    grid-template-rows: calc(100dvh - 76px);
+    grid-template-rows: minmax(0, 1fr);
+    /* a fixed height, not flex: a growing chat must scroll inside its panel, not stretch the page */
+    flex: none;
+    height: calc(100dvh - var(--header-h, 67px));
   }
   .left,
   .right {
@@ -304,53 +334,66 @@
     pointer-events: auto;
   }
   .overlay.tl {
-    top: 10px;
-    left: 10px;
+    top: var(--space-3);
+    left: var(--space-3);
   }
   .overlay.tr {
-    top: 10px;
-    right: 10px;
-    font-size: var(--fs-xs);
-    background: color-mix(in srgb, var(--panel) 85%, transparent);
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 3px 10px;
+    top: var(--space-3);
+    right: var(--space-3);
+    font-size: var(--text-card-meta);
+    font-weight: var(--font-weight-semibold);
+    background: color-mix(in srgb, var(--surface-container) 88%, transparent);
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-tag);
+    padding: 4px 10px;
     backdrop-filter: blur(6px);
   }
+  /* status pill over the 3D view */
   .pill {
     display: inline-flex;
     gap: 6px;
     align-items: center;
-    font-size: var(--fs-xs);
-    font-weight: 600;
+    font-family: inherit;
+    font-size: var(--text-card-meta);
+    font-weight: var(--font-weight-semibold);
     padding: 4px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: color-mix(in srgb, var(--panel) 88%, transparent);
+    border-radius: var(--radius-tag);
+    border: var(--border-width) solid var(--outline-variant);
+    background: color-mix(in srgb, var(--surface-container) 88%, transparent);
     backdrop-filter: blur(6px);
-    color: var(--text-2);
+    color: var(--on-surface-var);
+  }
+  button.pill {
+    cursor: pointer;
   }
   .pill.ok {
-    color: var(--ok);
+    background: color-mix(in srgb, var(--primary-container) 88%, transparent);
+    border-color: transparent;
+    color: var(--primary);
   }
   .pill.warn {
-    color: var(--warn);
+    background: color-mix(in srgb, var(--warn) 22%, var(--surface-container));
+    border-color: transparent;
+    color: var(--warn-text);
   }
   .pill.err {
-    color: var(--err);
+    background: color-mix(in srgb, var(--error) 20%, var(--surface-container));
+    border-color: transparent;
+    color: var(--error);
   }
   .pill.work {
-    color: var(--accent);
+    color: var(--primary);
   }
   .builderr {
     position: absolute;
-    bottom: 56px;
-    left: 10px;
-    right: 10px;
-    background: var(--err-soft);
-    color: var(--err);
-    border-radius: 10px;
-    padding: 8px 10px;
+    bottom: 60px;
+    left: var(--space-3);
+    right: var(--space-3);
+    background: color-mix(in srgb, var(--error) 12%, var(--surface-container));
+    border: var(--border-width) solid color-mix(in srgb, var(--error) 40%, transparent);
+    color: var(--error);
+    border-radius: var(--radius-card);
+    padding: 10px 14px;
     font-size: 12px;
     max-height: 30%;
     overflow: auto;
@@ -358,31 +401,33 @@
     z-index: 2;
   }
   .tabs {
-    padding: 8px;
-    border-bottom: 1px solid var(--line);
+    padding: var(--space-3);
+    border-bottom: var(--border-width) solid var(--divider);
     flex: none;
   }
   .n {
-    font-size: 10.5px;
-    min-width: 17px;
-    height: 17px;
-    border-radius: 9px;
+    font-size: 10px;
+    font-weight: var(--font-weight-semibold);
+    min-width: 18px;
+    height: 18px;
+    border-radius: var(--radius-tag);
     display: inline-grid;
     place-items: center;
-    padding: 0 4px;
-    color: #fff;
+    padding: 0 5px;
   }
   .n.err {
-    background: var(--err);
+    background: var(--error);
+    color: var(--surface);
   }
   .n.warn {
     background: var(--warn);
+    color: #241a05;
   }
   .live {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--primary);
     animation: fw-blink 1s ease-in-out infinite alternate;
   }
   @keyframes fw-blink {
@@ -391,7 +436,7 @@
     }
   }
   .tabbody {
-    padding: 14px;
+    padding: var(--space-4);
     overflow-y: auto;
     flex: 1;
     min-height: 0;
@@ -404,18 +449,18 @@
   }
   .getbar {
     display: flex;
-    gap: 8px;
-    padding: 10px 12px;
-    border-top: 1px solid var(--line);
-    background: var(--panel);
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-top: var(--border-width) solid var(--divider);
+    background: var(--surface-container);
   }
   .getbar .btn {
     flex: 1;
   }
   .getit-inline {
-    margin-top: 18px;
-    padding-top: 14px;
-    border-top: 1px solid var(--line);
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: var(--border-width) solid var(--divider);
   }
   @media (max-width: 1099px) {
     .right {
@@ -426,10 +471,10 @@
     }
     .tabs {
       position: sticky;
-      top: 54px;
+      top: var(--header-h, 67px);
       z-index: 5;
-      background: var(--panel);
-      border-radius: var(--radius) var(--radius) 0 0;
+      background: var(--surface-container);
+      border-radius: var(--radius-card) var(--radius-card) 0 0;
     }
   }
   @media (max-width: 640px) {
@@ -437,12 +482,12 @@
       display: none;
     }
     .studio {
-      padding: 6px;
-      gap: 6px;
+      padding: var(--space-2);
+      gap: var(--space-2);
       grid-template-rows: min(44dvh, 380px) auto;
     }
     .tabbody {
-      padding: 12px;
+      padding: var(--space-3);
     }
   }
 </style>

@@ -3,6 +3,7 @@
 // result is still a closed manifold that the printability checks understand.
 // This is also the toolbox of the mesh engine (editing a mesh instead of a program).
 import type { Manifold, Wasm } from '../kernel.ts';
+import { detail } from '../kernel.ts';
 
 type V3 = [number, number, number];
 
@@ -151,7 +152,7 @@ export interface Stroke {
 
 export function makeMeshOps(wasm: Wasm, inputs: { meshes?: Record<string, RawMesh> } = {}) {
   const rebuild = (pos: Float64Array, tris: Uint32Array) => solidFromArrays(wasm, pos, tris);
-  const fine = (solid: Manifold, edge?: number) => (edge && edge > 0 ? solid.refineToLength(edge) : solid);
+  const fine = (solid: Manifold, edge?: number) => (edge && edge > 0 ? solid.refineToLength(edge * detail.factor) : solid);
 
   /** A solid from vertex and triangle arrays (orientation is fixed automatically). */
   const fromArrays = (positions: ArrayLike<number>, triangles: ArrayLike<number>) => solidFromArrays(wasm, positions, triangles);

@@ -90,17 +90,17 @@
 <div class="checks">
   {#if !checks}
     <div class="empty">
-      {#if building}<span class="spin"></span>{:else}<Icon name="check-circle" size={22} />{/if}
+      {#if building}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="check-circle" size={40} />{/if}
       <strong>{building ? t('checks_running') : t('no_program')}</strong>
     </div>
   {:else}
     <div class="sum {level}">
-      <span class="light"><Icon name={level === "ok" ? "check" : "alert"} size={16} stroke={2.4} /></span>
+      <span class="light"><Icon name={level === "ok" ? "check" : "alert"} size={16} /></span>
       <div>
         <strong>{t(level === 'ok' ? 'checks_ok' : level === 'warn' ? 'checks_warn' : 'checks_err')}</strong>
         <div class="small">{t(level === 'ok' ? 'checks_ok_d' : level === 'warn' ? 'checks_warn_d' : 'checks_err_d')}</div>
       </div>
-      {#if building}<span class="spin"></span>{/if}
+      {#if building}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{/if}
     </div>
 
     {#if s}
@@ -159,28 +159,43 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 28px 8px;
-    color: var(--muted);
+    text-align: center;
+    gap: var(--space-3);
+    padding: var(--space-7) var(--space-3);
+    color: var(--outline);
+  }
+  .empty strong {
+    font-size: var(--text-product-section-title);
+    font-weight: var(--font-weight-semibold);
+    color: var(--on-surface);
   }
   .sum {
     display: flex;
-    gap: 10px;
+    gap: 11px;
     align-items: flex-start;
-    padding: 10px 12px;
-    border-radius: 12px;
+    padding: 13px 15px;
+    border-radius: var(--radius-card);
+    border: var(--border-width) solid var(--outline-variant);
+    font-size: var(--text-product-spec);
   }
   .sum strong {
     display: block;
+    font-weight: var(--font-weight-semibold);
+  }
+  .sum .small {
+    color: var(--on-surface-var);
   }
   .sum.ok {
-    background: var(--ok-soft);
+    background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+    border-color: color-mix(in srgb, var(--primary) 30%, var(--outline-variant));
   }
   .sum.warn {
-    background: var(--warn-soft);
+    background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+    border-color: color-mix(in srgb, var(--warn) 35%, var(--outline-variant));
   }
   .sum.err {
-    background: var(--err-soft);
+    background: color-mix(in srgb, var(--error) 12%, var(--surface));
+    border-color: color-mix(in srgb, var(--error) 40%, var(--outline-variant));
   }
   .light {
     width: 26px;
@@ -188,36 +203,42 @@
     border-radius: 50%;
     display: grid;
     place-items: center;
-    color: #fff;
     flex: none;
   }
   .ok .light {
-    background: var(--ok);
+    background: var(--primary);
+    color: var(--on-primary);
   }
   .warn .light {
     background: var(--warn);
+    color: #241a05;
   }
   .err .light {
-    background: var(--err);
+    background: var(--error);
+    color: var(--surface);
   }
   .stats {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+    gap: var(--space-2);
     margin: 0;
   }
   .stats div {
-    background: var(--panel-2);
-    border-radius: 8px;
-    padding: 6px 8px;
+    background: var(--surface);
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-field);
+    padding: 8px 12px;
   }
   dt {
-    font-size: var(--fs-xs);
-    color: var(--muted);
+    font-size: var(--text-card-meta);
+    font-weight: var(--font-weight-semibold);
+    color: var(--outline);
   }
   dd {
     margin: 0;
-    font-size: var(--fs-sm);
+    font-size: var(--text-product-spec);
+    font-weight: var(--font-weight-semibold);
+    color: var(--on-surface);
   }
   .groups {
     list-style: none;
@@ -234,15 +255,17 @@
     align-items: center;
     flex-wrap: wrap;
     background: none;
-    border: 1px solid transparent;
-    border-radius: 9px;
-    padding: 7px 8px;
+    border: var(--border-width) solid transparent;
+    border-radius: var(--radius-field);
+    padding: 8px 10px;
+    font-family: inherit;
     text-align: left;
+    color: var(--on-surface);
   }
   .g:hover,
   .g[aria-expanded='true'] {
-    background: var(--panel-2);
-    border-color: var(--line);
+    background: var(--surface);
+    border-color: var(--outline-variant);
   }
   .dot {
     width: 9px;
@@ -252,7 +275,7 @@
     background: var(--info);
   }
   .error .dot {
-    background: var(--err);
+    background: var(--error);
   }
   .warn .dot {
     background: var(--warn);
@@ -260,8 +283,8 @@
   .ttl {
     flex: 1;
     min-width: 140px;
-    font-size: var(--fs-sm);
-    font-weight: 550;
+    font-size: var(--text-card-from);
+    font-weight: var(--font-weight-semibold);
   }
   .detail {
     padding: 4px 8px 8px 25px;

@@ -51,7 +51,7 @@
 <div class="params">
   {#if !groups.length}
     <div class="empty">
-      {#if building}<span class="spin"></span>{:else}<Icon name="sliders" size={22} />{/if}
+      {#if building}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="sliders" size={40} />{/if}
       <strong>{building ? t('building_model') : t('no_program')}</strong>
       {#if !building}<p class="muted small">{t('no_program_hint')}</p>{/if}
     </div>
@@ -151,15 +151,18 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 8px;
-    padding: 28px 8px;
-    color: var(--muted);
+    gap: var(--space-3);
+    padding: var(--space-7) var(--space-3);
+    color: var(--outline);
   }
   .empty strong {
-    color: var(--text);
+    font-size: var(--text-product-section-title);
+    font-weight: var(--font-weight-semibold);
+    color: var(--on-surface);
   }
   .empty p {
     margin: 0;
+    color: var(--on-surface-var);
   }
   .param {
     display: flex;
@@ -173,32 +176,36 @@
     min-width: 0;
   }
   .head label {
-    font-size: var(--fs-sm);
-    font-weight: 550;
+    font-size: var(--text-card-from);
+    color: var(--on-surface);
+    font-weight: var(--font-weight-semibold);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
   }
   .num {
-    width: 70px;
-    padding: 3px 6px;
+    width: 76px;
+    padding: 6px 8px;
     text-align: right;
-    font-size: var(--fs-sm);
+    font-size: var(--text-card-from);
   }
   .changed .num {
-    border-color: var(--accent);
+    border-color: var(--primary);
   }
   .unit {
-    font-size: var(--fs-xs);
-    color: var(--muted);
+    font-size: var(--text-card-meta);
+    font-weight: var(--font-weight-semibold);
+    color: var(--outline);
     width: 24px;
+    user-select: none;
   }
   .reset {
     border: none;
     background: none;
-    color: var(--accent);
+    color: var(--primary);
     padding: 2px;
+    cursor: pointer;
     display: grid;
     place-items: center;
   }
@@ -213,18 +220,8 @@
   }
   .choices {
     display: flex;
-    gap: 6px;
+    gap: var(--space-2);
     flex-wrap: wrap;
-  }
-  .opt {
-    cursor: pointer;
-    padding: 4px 10px;
-    font-size: var(--fs-sm);
-  }
-  .opt.on {
-    background: var(--accent-soft);
-    border-color: var(--accent);
-    color: var(--accent);
   }
   .toggle {
     display: flex;
@@ -242,7 +239,9 @@
   .lbtn {
     border: none;
     background: none;
-    color: var(--muted);
+    font-family: inherit;
+    font-weight: var(--font-weight-semibold);
+    color: var(--primary);
     display: inline-flex;
     gap: 5px;
     align-items: center;

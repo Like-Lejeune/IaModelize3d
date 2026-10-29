@@ -10,3 +10,8 @@ export { toStl, to3mf } from './export.ts';
 export { encodePng } from './png.ts';
 export { parseMesh } from './import.ts';
 export { solidFromArrays } from './lib/meshops.ts';
+export { displayBuffers, displayTransfer, type DisplayBuffers } from './display.ts';
+export { detail, withDetail } from './kernel.ts';
+export { hashString } from './hash.ts';
+export { isMeshDoc, parseMeshDoc, resolveOp, evalExpr, runMeshDoc, clearMeshCache, MESH_CACHE, type MeshDoc } from './meshdoc/doc.ts';
+export { OPS as MESH_OPS, opAnchor } from './meshdoc/ops.ts';

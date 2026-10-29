@@ -207,7 +207,7 @@
     gap: 10px;
   }
   .say {
-    font-size: var(--fs-md);
+    font-size: var(--text-product-spec);
     line-height: 1.55;
     overflow-wrap: anywhere;
   }
@@ -227,18 +227,18 @@
   .act {
     width: 28px;
     height: 28px;
-    border-radius: 7px;
+    border-radius: var(--radius-btn);
     border: none;
     background: none;
     display: grid;
     place-items: center;
     padding: 0;
-    color: var(--muted);
+    color: var(--outline);
     cursor: pointer;
   }
   .act:hover {
-    background: var(--panel-3);
-    color: var(--text);
+    background: var(--surface-high);
+    color: var(--on-surface);
   }
   .group {
     display: flex;
@@ -255,12 +255,12 @@
     border: none;
     background: none;
     text-align: left;
-    font-size: var(--fs-sm);
-    color: var(--muted);
+    font-size: var(--text-card-from);
+    color: var(--outline);
     cursor: pointer;
   }
   .ghead:hover {
-    color: var(--text);
+    color: var(--on-surface);
   }
   .glabel {
     min-width: 0;
@@ -277,24 +277,26 @@
     transform: rotate(90deg);
   }
   .gbox {
-    border: 1px solid var(--line);
-    border-radius: 10px;
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-field);
+    background: var(--surface);
     overflow: hidden;
   }
   .live {
     width: fit-content;
-    font-size: var(--fs-sm);
+    font-size: var(--text-card-from);
   }
   .ask {
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 10px;
+    background: var(--surface);
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-card);
+    padding: var(--space-4);
     display: flex;
     flex-direction: column;
     gap: 8px;
   }
   .ask.open {
-    border-color: var(--accent);
+    border-color: var(--primary);
   }
   .opts {
     display: flex;
@@ -324,11 +326,11 @@
   }
   .tile {
     padding: 0;
-    border: 1px solid var(--line);
-    border-radius: 8px;
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-btn);
     overflow: hidden;
     cursor: zoom-in;
-    background: var(--panel-2);
+    background: var(--surface);
   }
   .tile img {
     display: block;
@@ -340,10 +342,10 @@
     display: flex;
     gap: 8px;
     align-items: center;
-    font-size: var(--fs-sm);
+    font-size: var(--text-card-from);
   }
   .err {
-    color: var(--err);
+    color: var(--error);
     margin: 0;
     display: flex;
     gap: 6px;
@@ -354,20 +356,11 @@
     gap: 10px;
     align-items: center;
     flex-wrap: wrap;
-    color: var(--muted);
+    color: var(--outline);
   }
   .chips {
     display: flex;
-    gap: 6px;
+    gap: var(--space-2);
     flex-wrap: wrap;
-  }
-  .sbtn {
-    cursor: pointer;
-    background: transparent;
-  }
-  .sbtn:hover {
-    border-color: var(--line-strong);
-    color: var(--text);
-    background: var(--panel-2);
   }
 </style>

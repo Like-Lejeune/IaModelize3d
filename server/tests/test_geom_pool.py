@@ -56,3 +56,18 @@ async def test_worker_has_no_secrets(pool):
     r = await pool.build("const leaked = typeof process === 'undefined' ? '' : JSON.stringify(process.env); "
                          "return { meta: { title: leaked }, params: {}, build: (p, lib) => lib.std.box([1, 1, 1]) }")
     assert "secret" not in r["meta"].get("title", "")
+
+
+async def test_cancelled_call_does_not_shift_replies(pool):
+    # a job stopped mid-build used to leave its reply in the pipe, so the next render got a
+    # build result (KeyError: 'png') and the build after it a render result (KeyError: 'params')
+    await pool.build(fixture("BAG_HOOK"), {})  # worker is up, so the cancel lands mid-call
+    task = asyncio.create_task(pool.build(fixture("BAG_HOOK"), {}, analyze="full"))
+    await asyncio.sleep(0.02)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    png = await pool.render(fixture("BAG_HOOK"), {}, view="iso", tile=128)
+    assert "png" in png
+    r = await pool.build(fixture("BAG_HOOK"), {"hook": 40})
+    assert r["params"]["hook"] == 40

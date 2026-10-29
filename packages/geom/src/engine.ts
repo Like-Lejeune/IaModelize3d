@@ -4,7 +4,9 @@ import { analyze, type CheckReport } from './checks.ts';
 import { to3mf, toStl } from './export.ts';
 import { nelderMead, unpackMask } from './fit.ts';
 import { parseMesh } from './import.ts';
+import { hashString } from './hash.ts';
 import { withArena, type Wasm } from './kernel.ts';
+import { compileMeshDoc, isMeshDoc } from './meshdoc/doc.ts';
 import { DEFAULT_PRINTER, type Inputs, type PrinterProfile } from './lib/index.ts';
 import { solidFromArrays } from './lib/meshops.ts';
 import { fromBase64, hexColor, partsMesh, toBase64 } from './mesh.ts';
@@ -14,12 +16,13 @@ import {
   disposeBuild,
   ProgramError,
   resolveParams,
+  type BuildOutput,
   type Evaluator,
   type ParamValues,
   type Part,
   type Program,
 } from './program.ts';
-import { iou, orthoFit, render, renderSheet, SHEET_VIEWS, silhouette, type Camera } from './render.ts';
+import { iou, orthoFit, render, renderSheet, SHEET_VIEWS, silhouette, type Camera, type Marker } from './render.ts';
 
 function partsBox(positions: ArrayLike<number>) {
   const min: [number, number, number] = [Infinity, Infinity, Infinity];
@@ -62,6 +65,7 @@ export interface RenderRequest extends BaseRequest {
   views?: ViewSpec[];
   focus?: { center: [number, number, number]; size: number } | { part: string };
   cut?: { axis: 'x' | 'y' | 'z'; at: number; keep?: 'below' | 'above' };
+  markers?: Marker[];
 }
 
 export interface ParseMeshRequest {
@@ -82,6 +86,8 @@ export interface InspectRequest extends BaseRequest {
     | { op: 'parts' }
     | { op: 'gap'; a: string; b: string; search?: number }
     | { op: 'ray'; from: [number, number, number]; to: [number, number, number] }
+    | { op: 'surface'; from: 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom'; points: [number, number][] }
+    | { op: 'extremes' }
   )[];
 }
 
@@ -89,6 +95,12 @@ export interface FitRequest extends BaseRequest {
   free: string[];
   targets: { camera: Camera; mask: string }[]; // mask: packed bits, base64, width*height of the camera
   maxEval?: number;
+}
+
+interface Built {
+  program: Program;
+  printer: PrinterProfile;
+  out: BuildOutput;
 }
 
 const PALETTE: [number, number, number][] = [
@@ -99,6 +111,10 @@ export class Engine {
   wasm: Wasm;
   evaluator: Evaluator;
   private cache = new Map<string, Program>();
+  // The last few builds stay alive: the agent's build, both renders and an inspect of the
+  // same version run the program once instead of four times.
+  private built = new Map<string, Built>();
+  keepBuilds = 3;
 
   constructor(wasm: Wasm, evaluator: Evaluator) {
     this.wasm = wasm;
@@ -109,7 +125,7 @@ export class Engine {
     let p = this.cache.get(source);
     if (!p) {
       try {
-        p = this.evaluator.compile(source);
+        p = isMeshDoc(source) ? compileMeshDoc(source, this.wasm, this.evaluator) : this.evaluator.compile(source);
       } catch (e: any) {
         if (e instanceof ProgramError) throw e;
         throw new ProgramError('compile', e?.message ?? String(e));
@@ -136,7 +152,19 @@ export class Engine {
     return out;
   }
 
-  private run(req: BaseRequest) {
+  private key(req: BaseRequest) {
+    return [hashString(req.source), JSON.stringify(req.params ?? {}), req.inputs ? hashString(JSON.stringify(req.inputs)) : '', JSON.stringify(req.printer ?? {}), req.skills ? hashString(JSON.stringify(req.skills)) : ''].join('|');
+  }
+
+  // Build or reuse. The engine owns the result: callers must not dispose it.
+  private run(req: BaseRequest): Built {
+    const key = this.key(req);
+    const hit = this.built.get(key);
+    if (hit) {
+      this.built.delete(key);
+      this.built.set(key, hit);
+      return hit;
+    }
     const program = this.compile(req.source);
     const printer = this.printer(req);
     const out = buildProgram(this.wasm, this.evaluator, program, req.params ?? {}, {
@@ -144,12 +172,25 @@ export class Engine {
       inputs: req.inputs,
       skills: this.skills(req),
     });
-    return { program, printer, out };
+    const b = { program, printer, out };
+    this.built.set(key, b);
+    while (this.built.size > Math.max(1, this.keepBuilds)) {
+      const [k, old] = this.built.entries().next().value!;
+      this.built.delete(k);
+      disposeBuild(old.out);
+    }
+    return b;
+  }
+
+  /** Free every kept build (WASM memory). */
+  release() {
+    for (const b of this.built.values()) disposeBuild(b.out);
+    this.built.clear();
   }
 
   build(req: BuildRequest) {
     const { program, printer, out } = this.run(req);
-    try {
+    return withArena(() => {
       let checks: CheckReport | undefined;
       if ((req.analyze ?? 'fast') !== 'none') {
         checks = analyze(this.wasm, out.body, printer, { level: req.analyze === 'full' ? 'full' : 'fast', vaseMode: req.vaseMode });
@@ -179,9 +220,7 @@ export class Engine {
         };
       }
       return result;
-    } finally {
-      disposeBuild(out);
-    }
+    });
   }
 
   private colors(parts: { color?: string; role: string }[], triPart: Uint16Array, heat?: Float32Array) {
@@ -201,7 +240,7 @@ export class Engine {
 
   render(req: RenderRequest) {
     const { printer, out } = this.run(req);
-    try {
+    return withArena(() => {
       const mesh = partsMesh(out.parts, ['model', 'modifier']);
       let heat: Float32Array | undefined;
       if (req.heat) {
@@ -224,11 +263,9 @@ export class Engine {
         const r = render(mesh, cam, { colors, background: [246, 246, 243, 255] });
         return { png: toBase64(encodePng(r.rgba, r.width, r.height)), width: r.width, height: r.height };
       }
-      const s = renderSheet(mesh, { min: box.min as any, max: box.max as any }, { tile: req.tile ?? 340, colors, title: req.title });
+      const s = renderSheet(mesh, { min: box.min as any, max: box.max as any }, { tile: req.tile ?? 340, colors, title: req.title, markers: req.markers });
       return { png: toBase64(encodePng(s.rgba, s.width, s.height)), width: s.width, height: s.height };
-    } finally {
-      disposeBuild(out);
-    }
+    });
   }
 
   // Views from any angle, a zoomed region or part, and section cuts (the cut face shows
@@ -280,7 +317,7 @@ export class Engine {
     }
     if (!views.length) views = SHEET_VIEWS.slice(0, focus ? 3 : 6);
     const size = [0, 1, 2].map((i) => box.max[i] - box.min[i]);
-    const s = renderSheet(mesh, frame, { tile: req.tile ?? 420, colors, views, title: req.title, size });
+    const s = renderSheet(mesh, frame, { tile: req.tile ?? 420, colors, views, title: req.title, size, markers: req.markers });
     return { png: toBase64(encodePng(s.rgba, s.width, s.height)), width: s.width, height: s.height };
   }
 
@@ -303,19 +340,17 @@ export class Engine {
 
   export(req: ExportRequest) {
     const { out } = this.run(req);
-    try {
+    return withArena(() => {
       if (req.format === 'stl') return { data: toBase64(toStl(out.body)), mime: 'model/stl' };
       const data = to3mf(out.parts, { title: req.title, objectSettings: req.objectSettings });
       return { data: toBase64(data), mime: 'model/3mf' };
-    } finally {
-      disposeBuild(out);
-    }
+    });
   }
 
   // Measuring tools for the agent: sections, per-part boxes, gaps between parts.
   inspect(req: InspectRequest) {
     const { out } = this.run(req);
-    try {
+    return withArena(() => {
       const results: unknown[] = [];
       for (const op of req.ops.slice(0, 20)) {
         if (op.op === 'section') {
@@ -340,15 +375,47 @@ export class Engine {
           const a = out.parts.find((p) => p.name === op.a)?.solid;
           const b = out.parts.find((p) => p.name === op.b)?.solid;
           results.push({ op: 'gap', a: op.a, b: op.b, gap: a && b ? +a.minGap(b, op.search ?? 5).toFixed(3) : null });
+        } else if (op.op === 'surface') {
+          // Points on the surface seen from a side: front looks along +Y and takes (x, z), right
+          // looks along -X and takes (y, z), top looks down and takes (x, y). Returns the first hit
+          // and the surface normal there, so strokes and pads can be placed on the skin.
+          const b = out.body.boundingBox();
+          const far = Math.max(...[0, 1, 2].map((i) => b.max[i] - b.min[i])) + 10;
+          const spec: Record<string, { axis: number; sign: number; uv: [number, number] }> = {
+            front: { axis: 1, sign: -1, uv: [0, 2] }, back: { axis: 1, sign: 1, uv: [0, 2] },
+            left: { axis: 0, sign: -1, uv: [1, 2] }, right: { axis: 0, sign: 1, uv: [1, 2] },
+            top: { axis: 2, sign: 1, uv: [0, 1] }, bottom: { axis: 2, sign: -1, uv: [0, 1] },
+          };
+          const sp = spec[op.from] ?? spec.front;
+          const hits = (op.points ?? []).slice(0, 40).map(([u, v]) => {
+            const a: number[] = [0, 0, 0], c: number[] = [0, 0, 0];
+            a[sp.uv[0]] = c[sp.uv[0]] = u;
+            a[sp.uv[1]] = c[sp.uv[1]] = v;
+            const mid = (b.min[sp.axis] + b.max[sp.axis]) / 2;
+            a[sp.axis] = mid + sp.sign * far;
+            c[sp.axis] = mid - sp.sign * far;
+            const h: any = out.body.rayCast(a as any, c as any)[0];
+            if (!h) return { at: [u, v], hit: null };
+            const n = h.normal ?? null;
+            return { at: [u, v], hit: h.position.map((x: number) => +x.toFixed(2)), normal: n ? n.map((x: number) => +x.toFixed(3)) : undefined };
+          });
+          results.push({ op: 'surface', from: op.from, hits });
+        } else if (op.op === 'extremes') {
+          // the outermost point of the body in each direction (tips of ears, nose, tail...)
+          const m = out.body.getMesh();
+          const np = m.numProp, P = m.vertProperties;
+          const best: Record<string, number[]> = {};
+          const dirs: Record<string, [number, number]> = { '-x': [0, -1], '+x': [0, 1], '-y': [1, -1], '+y': [1, 1], '-z': [2, -1], '+z': [2, 1] };
+          for (let i = 0; i < P.length; i += np)
+            for (const [k, [ax, sg]] of Object.entries(dirs)) if (!best[k] || P[i + ax] * sg > best[k][ax] * sg) best[k] = [P[i], P[i + 1], P[i + 2]];
+          results.push({ op: 'extremes', points: Object.fromEntries(Object.entries(best).map(([k, v]) => [k, v.map((x) => +x.toFixed(2))])) });
         } else if (op.op === 'ray') {
           const hits = out.body.rayCast(op.from as any, op.to as any);
           results.push({ op: 'ray', hits: hits.slice(0, 8).map((h: any) => ({ distance: +h.distance.toFixed(3), position: h.position.map((v: number) => +v.toFixed(2)) })) });
         }
       }
       return { results };
-    } finally {
-      disposeBuild(out);
-    }
+    });
   }
 
   fit(req: FitRequest) {
@@ -392,4 +459,4 @@ export class Engine {
   }
 }
 
-export { orthoFit, type Camera };
+export { orthoFit, hashString, type Camera };

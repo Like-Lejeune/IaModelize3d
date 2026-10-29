@@ -52,7 +52,7 @@
     <div bind:this={menu} class="menu" style={pos} role="listbox" aria-label={label}>
       {#each options as o (o.value)}
         <button class="opt" role="option" aria-selected={o.value === value} disabled={o.disabled} onclick={() => pick(o.value)}>
-          <span class="on">{#if o.value === value}<Icon name="check" size={12} stroke={2.4} />{/if}</span>
+          <span class="on">{#if o.value === value}<Icon name="check" size={13} />{/if}</span>
           <span class="txt">
             <strong>{o.short ?? o.title}</strong>
             {#if o.hint}<span class="hint">{o.hint}</span>{/if}
@@ -71,56 +71,61 @@
   .cur {
     border: none;
     background: none;
-    padding: 2px 8px;
-    border-radius: 8px;
-    font-size: var(--fs-sm);
-    color: var(--text-2);
+    padding: 4px 8px;
+    border-radius: var(--radius-btn);
+    font-family: inherit;
+    font-size: var(--text-card-from);
+    font-weight: var(--font-weight-semibold);
+    color: var(--on-surface-var);
     white-space: nowrap;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition:
+      background-color var(--dur-fast) var(--ease-standard),
+      color var(--dur-fast) var(--ease-standard);
   }
   .cur.quiet {
-    color: var(--muted);
+    color: var(--outline);
   }
   .cur:hover,
   .cur[aria-expanded='true'] {
-    background: var(--panel-3);
-    color: var(--text);
+    background: var(--surface-high);
+    color: var(--on-surface);
   }
   .menu {
     position: fixed;
-    z-index: 50;
+    z-index: 150;
     width: max-content;
-    min-width: 140px;
+    min-width: 120px;
     max-width: min(240px, calc(100vw - 32px));
-    padding: 3px;
+    padding: var(--space-1);
     display: flex;
     flex-direction: column;
     gap: 1px;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    box-shadow: none;
+    background: var(--surface-container);
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-field);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32);
   }
   .opt {
     display: flex;
     gap: 6px;
     align-items: flex-start;
-    padding: 4px 8px 4px 6px;
+    padding: 4px 10px 4px 6px;
     border: none;
-    border-radius: 7px;
+    border-radius: var(--radius-tag);
     background: none;
+    font-family: inherit;
     text-align: left;
-    color: var(--text-2);
+    color: var(--on-surface);
   }
   .opt:hover:not(:disabled),
   .opt[aria-selected='true'] {
-    background: var(--panel-3);
-    color: var(--text);
+    background: var(--surface-high);
   }
   .opt:disabled {
-    cursor: default;
+    cursor: not-allowed;
     opacity: 0.5;
   }
   .on {
@@ -129,17 +134,17 @@
     display: grid;
     height: 18px;
     align-items: center;
-    color: var(--accent);
+    color: var(--primary);
   }
   .txt {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    font-size: 12.5px;
+    font-size: var(--text-card-from);
     line-height: 18px;
   }
   .txt strong {
-    font-weight: 500;
+    font-weight: var(--font-weight-semibold);
   }
   .txt strong,
   .hint {
@@ -148,8 +153,8 @@
     white-space: nowrap;
   }
   .hint {
-    font-size: 11px;
+    font-size: var(--text-card-meta);
     line-height: 1.35;
-    color: var(--muted);
+    color: var(--outline);
   }
 </style>

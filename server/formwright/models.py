@@ -109,6 +109,18 @@ class SelectRequest(BaseModel):
 
 class ParamsUpdate(BaseModel):
     params: dict[str, Any]
+    # the browser already built the model and ran the full checks; the server stores them
+    checks: dict[str, Any] | None = None
+    client: str | None = None  # echoed in the event so the sender can skip its own update
+
+
+class ProgramUpdate(BaseModel):
+    """A program edited in the studio (mesh documents: operation list, strokes sculpted by hand)."""
+    source: str = Field(max_length=2_000_000)
+    params: dict[str, Any] = {}
+    checks: dict[str, Any] | None = None
+    summary: str = Field("edited in the studio", max_length=200)
+    client: str | None = None
 
 
 class ExportRequest(BaseModel):

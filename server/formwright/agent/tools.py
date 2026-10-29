@@ -64,7 +64,10 @@ EDIT = fn("edit_program", "Apply exact text replacements to the current program,
            "summary": S})
 SET_PARAMS = fn("set_params", "Change parameter values (no code change), then build and check.",
                 {"values": {"type": "object", "description": "param name -> value"}, "summary": S})
-INSPECT = fn("inspect_model", "Measure the current model. ops: {op:'section', z} | {op:'parts'} | {op:'gap', a, b} | {op:'ray', from:[x,y,z], to:[x,y,z]}",
+INSPECT = fn("inspect_model", "Measure the current model. ops: {op:'section', z} | {op:'parts'} | {op:'gap', a, b} | {op:'ray', from:[x,y,z], to:[x,y,z]} | "
+             "{op:'surface', from:'front'|'back'|'left'|'right'|'top'|'bottom', points:[[u,v],...]} (points on the skin seen from that side with "
+             "their normals: front/back take (x, z), left/right take (y, z), top/bottom take (x, y); use them to place strokes and pads) | "
+             "{op:'extremes'} (the outermost point in each direction: tips of ears, nose, tail)",
              {"ops": {"type": "array", "items": {"type": "object"}}})
 LOOK = fn("look", "Look closely. what='model': 6 views of the model with overhang heat; add `views` for your own angles, `zoom` for a close-up "
           "of a region or a part, `cut` for a section (walls, cavities, how deep a groove is). what='compare': the model next to the object on "
@@ -79,7 +82,8 @@ LOOK = fn("look", "Look closely. what='model': 6 views of the model with overhan
                     "properties": {"part": S, "center": {"type": "array", "items": N}, "size": N}},
            "cut": {"type": "object", "description": "section for what='model': keeps the side below `at` on `axis` and looks at the cut face",
                    "properties": {"axis": {"type": "string", "enum": ["x", "y", "z"]}, "at": N, "keep": {"type": "string", "enum": ["below", "above"]}},
-                   "required": ["axis", "at"]}}, ["what"])
+                   "required": ["axis", "at"]},
+           "markers": {"type": "boolean", "description": "mesh documents: numbered dots where each op acts (hollow when hidden behind the surface)"}}, ["what"])
 DIMENSIONS = fn("dimensions", "Real dimensions with their source: built-in standards first (screws M2-M8, nuts, inserts, bearings, threads, "
                 "VESA, Raspberry Pi, sockets, reference objects, fits, materials), then official specs from the web when the tables have nothing.",
                 {"query": S, "web": {"type": "boolean", "description": "search the web even if the tables answer"}}, ["query"])
@@ -106,13 +110,33 @@ COMPARE_PRINT = fn("compare_print", "Compare a photo of the PRINTED part (on a r
                    "else the model's footprint. Returns deviations and suggested corrections.",
                    {"asset_id": S, "target": {**S, "description": "selection name of the original part (optional)"}}, ["asset_id"])
 
+MESH_WRITE = fn("mesh_write", "Start or replace the model as a mesh document (the mesh engine: a surface shaped by clay, sculpt strokes and "
+                "deformations, for organic and free-form shapes). Builds and checks it like write_program; the 6 views show numbered dots "
+                "where the ops act.",
+                {"doc": {"type": "object", "description": "{engine:'mesh', meta, params, symmetry, detail, ops:[{id, op, ...}]}"},
+                 "summary": {**S, "description": "one line: what this version does (user's language)"}})
+MESH_EDIT = fn("mesh_edit", "Change the current mesh document without rewriting it: add ops (at the end or after an op id), update fields of ops "
+               "by id, remove ops, add params, set symmetry/detail. Only ops from the first change on are recomputed. The views mark the ops "
+               "you added or changed.",
+               {"add": {"type": "array", "items": {"type": "object"}, "description": "new ops; give each a short id"},
+                "after": {**S, "description": "insert the added ops after this op id (default: at the end)"},
+                "update": {"type": "array", "description": "[{id, set: {field: value}}]; a null value removes the field",
+                           "items": {"type": "object", "properties": {"id": S, "set": {"type": "object"}}, "required": ["id", "set"]}},
+                "remove": {"type": "array", "items": S, "description": "op ids to delete"},
+                "params": {"type": "object", "description": "param specs to add or replace: {name: {value, min, max, unit, label, source}}"},
+                "symmetry": {"type": "string", "enum": ["x", "y", "none"]},
+                "detail": {**N, "description": "default triangle size for clay and remesh, mm"},
+                "summary": S}, ["summary"])
+
 FIT_PACKS = {"household", "copy", "adapter", "mechanisms"}
 LOOK_PACKS = {"forms", "stylize", "landmark"}
 
 
-def tools_for(pack: str, *, photos: bool, prints: bool) -> list[dict[str, Any]]:
-    """Only the tools this job can use: fewer choices, fewer tokens. Order is stable per (pack, photos, prints) for caching."""
+def tools_for(pack: str, *, photos: bool, prints: bool, engine: str = "cad") -> list[dict[str, Any]]:
+    """Only the tools this job can use: fewer choices, fewer tokens. Order is stable per (pack, photos, prints, engine) for caching."""
     tools = [WRITE, EDIT, SET_PARAMS, INSPECT, LOOK, DIMENSIONS, ASK]
+    if engine == "mesh":
+        tools = [MESH_WRITE, MESH_EDIT] + tools
     if photos:
         tools += [MEASURE, FIT]
     if pack in FIT_PACKS:
@@ -160,7 +184,57 @@ async def _printer(ctx: JobContext, state: DesignState) -> dict[str, Any] | None
     return state.printer or None
 
 
-async def commit_build(ctx: JobContext, state: DesignState, source: str, params: dict[str, Any], summary: str, author: str = "agent"):
+def is_mesh_doc(source: str | None) -> bool:
+    return bool(source) and source.lstrip().startswith("{") and re.search(r'"engine"\s*:\s*"mesh"', source[:4000]) is not None
+
+
+def _num(v: Any, params: dict[str, Any]) -> float | None:
+    """A number, or a "$name" parameter reference (expressions are left to the engine)."""
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return float(v)
+    if isinstance(v, str) and v.strip().startswith("$"):
+        x = params.get(v.strip()[1:])
+        return float(x) if isinstance(x, (int, float)) else None
+    return None
+
+
+def op_anchor(op: dict[str, Any], params: dict[str, Any]) -> list[float] | None:
+    """Where an op acts, for markers (mirrors meshdoc/ops.ts opAnchor)."""
+    shape = (op.get("shapes") or [op])[0] if op.get("op") == "clay" else None
+    region = op.get("region") if isinstance(op.get("region"), dict) else {}
+    strokes = op.get("strokes") or [{}]
+    cands = [shape.get("at") if shape else None, shape.get("from") if shape else None, op.get("at"), (op.get("path") or [None])[0],
+             strokes[0].get("at") if isinstance(strokes[0], dict) else None, (strokes[0].get("path") or [None])[0] if isinstance(strokes[0], dict) else None,
+             region.get("at")]
+    if region.get("min") and region.get("max"):
+        cands.append([(a + b) / 2 if isinstance(a, (int, float)) and isinstance(b, (int, float)) else None for a, b in zip(region["min"], region["max"])])
+    for c in cands:
+        if isinstance(c, list) and len(c) == 3:
+            xyz = [_num(v, params) for v in c]
+            if all(v is not None for v in xyz):
+                return xyz  # type: ignore[return-value]
+    return None
+
+
+def mesh_markers(doc: dict[str, Any], ids: set[str] | None, params: dict[str, Any]) -> list[dict[str, Any]]:
+    values = {k: (s.get("value") if isinstance(s, dict) else s) for k, s in (doc.get("params") or {}).items()} | params
+    out = []
+    for i, op in enumerate(doc.get("ops") or []):
+        if not isinstance(op, dict) or op.get("enabled") is False or (ids is not None and op.get("id") not in ids):
+            continue
+        at = op_anchor(op, values)
+        if at:
+            out.append({"at": at, "label": f"{i + 1} {op.get('id') or op.get('op')}"[:12]})
+    return out[:24]
+
+
+def _ops_brief(doc: dict[str, Any]) -> list[str]:
+    return [f"{i + 1}. {op.get('id', '?')}: {op.get('op')}{'' if op.get('enabled', True) else ' (off)'}{' - ' + str(op['note'])[:60] if op.get('note') else ''}"
+            for i, op in enumerate(doc.get("ops") or []) if isinstance(op, dict)]
+
+
+async def commit_build(ctx: JobContext, state: DesignState, source: str, params: dict[str, Any], summary: str, author: str = "agent",
+                       markers: list[dict[str, Any]] | None = None):
     skills = await memory.active_skill_sources(_skills_used(source))
     inputs = {**state.inputs, **({"skills": skills} if skills else {})}
     printer = await _printer(ctx, state)
@@ -175,7 +249,8 @@ async def commit_build(ctx: JobContext, state: DesignState, source: str, params:
     db = await get_db()
     state.version = (await db.one("SELECT COALESCE(MAX(version), 0) AS v FROM programs WHERE project_id = ?", ctx.project_id))["v"] + 1  # type: ignore[index]
     checks = built.get("checks") or {}
-    sheet = await geom().render(source, built["params"], view="sheet", tile=340, heat=True, title=ctx.project["title"], **extra)
+    sheet = await geom().render(source, built["params"], view="sheet", tile=340, heat=True, title=ctx.project["title"],
+                                **({"markers": markers} if markers else {}), **extra)
     rel = storage.save_bytes(ctx.project_id, "renders", f"v{state.version}.png", base64.b64decode(sheet["png"]))
     iso = await geom().render(source, built["params"], view="iso", tile=512, **extra)
     cover = storage.save_bytes(ctx.project_id, "renders", f"v{state.version}_iso.png", base64.b64decode(iso["png"]))
@@ -209,6 +284,8 @@ async def commit_build(ctx: JobContext, state: DesignState, source: str, params:
         "params": built["params"],
         "parts": [{"name": p["name"], "role": p["role"]} for p in built.get("parts", [])],
     }
+    if is_mesh_doc(source):
+        result["ops"] = _ops_brief(json.loads(source))
     images = [rel]
     if state.copies_photo:
         result["likeness"], panels = await _likeness(ctx, state)
@@ -290,6 +367,8 @@ async def _look(ctx: JobContext, state: DesignState, args: dict[str, Any]) -> tu
         if args.get("cut"):
             c = args["cut"]
             extra["cut"] = {"axis": c.get("axis", "z"), "at": float(c.get("at", 0)), "keep": c.get("keep", "below")}
+        if args.get("markers") and is_mesh_doc(state.source):
+            extra["markers"] = mesh_markers(json.loads(state.source), None, state.params)
         try:
             r = await geom().render(state.source, state.params, view="sheet", heat=not extra, inputs=state.inputs, **extra)
         except GeomError as e:
@@ -326,6 +405,10 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
         if errors:
             return {"ok": False, "error": "; ".join(errors), "hint": "copy `find` exactly from the current program"}, []
         return await commit_build(ctx, state, new, state.params, args.get("summary", ""))
+    if name == "mesh_write":
+        return await _mesh_write(ctx, state, args)
+    if name == "mesh_edit":
+        return await _mesh_edit(ctx, state, args)
     if name == "set_params":
         if not state.source:
             return {"ok": False, "error": "no program yet"}, []
@@ -414,6 +497,112 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
     if name == "finish":
         return await _finish(ctx, state, args.get("summary", "")), []
     return {"ok": False, "error": f"unknown tool {name}"}, []
+
+
+def _as_obj(v: Any) -> Any:
+    """Models sometimes send an object argument as a JSON string."""
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except json.JSONDecodeError:
+            return None
+    return v
+
+
+def _name_ops(ops: list[Any], taken: set[str]) -> list[dict[str, Any]]:
+    out = []
+    for op in ops:
+        if not isinstance(op, dict) or not isinstance(op.get("op"), str):
+            raise ValueError(f"every op needs an \"op\" field: {json.dumps(op)[:120]}")
+        op = dict(op)
+        base = str(op.get("id") or op["op"])[:24]
+        name, i = base, 2
+        while name in taken:
+            name, i = f"{base}{i}", i + 1
+        op["id"] = name
+        taken.add(name)
+        out.append(op)
+    return out
+
+
+async def _mesh_write(ctx: JobContext, state: DesignState, args: dict[str, Any]):
+    doc = _as_obj(args.get("doc"))
+    if not isinstance(doc, dict) or not isinstance(doc.get("ops"), list) or not doc["ops"]:
+        return {"ok": False, "error": "doc must be an object with a non-empty ops list"}, []
+    doc = {"engine": "mesh", **{k: v for k, v in doc.items() if k != "engine"}}
+    try:
+        doc["ops"] = _name_ops(doc["ops"], set())
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}, []
+    state.params = {}
+    return await commit_build(ctx, state, json.dumps(doc, ensure_ascii=False), {}, args.get("summary", ""),
+                              markers=mesh_markers(doc, None, {}))
+
+
+async def _mesh_edit(ctx: JobContext, state: DesignState, args: dict[str, Any]):
+    if not is_mesh_doc(state.source):
+        return {"ok": False, "error": "the current model is not a mesh document; start one with mesh_write"}, []
+    if not any(args.get(k) not in (None, [], {}, "") for k in ("add", "update", "remove", "params", "symmetry", "detail")):
+        return {"ok": False, "error": "nothing to change: give add, update or remove (or params, symmetry, detail)"}, []
+    doc = json.loads(state.source or "{}")
+    ops: list[dict[str, Any]] = doc.get("ops") or []
+    ids = [o.get("id") for o in ops]
+    touched: set[str] = set()
+    errors = []
+    for rid in args.get("remove") or []:
+        if rid in ids:
+            ops = [o for o in ops if o.get("id") != rid]
+            ids = [o.get("id") for o in ops]
+        else:
+            errors.append(f"no op {rid!r} to remove")
+    for u in _as_obj(args.get("update")) or []:
+        if not isinstance(u, dict):
+            continue
+        op = next((o for o in ops if o.get("id") == u.get("id")), None)
+        changes = _as_obj(u.get("set"))
+        if op is None or not isinstance(changes, dict):
+            errors.append(f"no op {u.get('id')!r} to update" if op is None else f"update {u.get('id')!r}: set must be an object")
+            continue
+        for k, v in changes.items():
+            if k in ("id",):
+                continue
+            if v is None:
+                op.pop(k, None)
+            else:
+                op[k] = v
+        touched.add(op["id"])
+    add = _as_obj(args.get("add")) or []
+    if add:
+        try:
+            new = _name_ops(add, {i for i in ids if i})
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}, []
+        after = args.get("after")
+        at = len(ops)
+        if after:
+            pos = next((i for i, o in enumerate(ops) if o.get("id") == after), None)
+            if pos is None:
+                errors.append(f"no op {after!r} to insert after; added at the end")
+            else:
+                at = pos + 1
+        ops[at:at] = new
+        touched |= {o["id"] for o in new}
+    if errors and not touched and not args.get("remove"):
+        return {"ok": False, "error": "; ".join(errors), "ops": _ops_brief(doc)}, []
+    specs = _as_obj(args.get("params"))
+    if isinstance(specs, dict):
+        doc["params"] = {**(doc.get("params") or {}), **{k: v for k, v in specs.items() if isinstance(v, dict) and "value" in v}}
+    if args.get("symmetry"):
+        doc["symmetry"] = None if args["symmetry"] == "none" else args["symmetry"]
+    if args.get("detail") is not None:
+        doc["detail"] = float(args["detail"])
+    doc["ops"] = ops
+    source = json.dumps(doc, ensure_ascii=False)
+    result, images = await commit_build(ctx, state, source, state.params, args.get("summary", ""),
+                                        markers=mesh_markers(doc, touched or None, state.params))
+    if errors:
+        result["warnings"] = errors
+    return result, images
 
 
 async def _finish(ctx: JobContext, state: DesignState, summary: str) -> dict[str, Any]:

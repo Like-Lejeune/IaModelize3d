@@ -9,7 +9,7 @@
 // The same source runs in the browser (live sliders) and in the server worker
 // (authoritative checks and export), so everything here is environment-free.
 import type { Manifold, Wasm } from './kernel.ts';
-import { withArena } from './kernel.ts';
+import { withArena, withDetail } from './kernel.ts';
 import { makeLib, type LibContext } from './lib/index.ts';
 
 export type Vec3 = [number, number, number];
@@ -159,7 +159,7 @@ export function buildProgram(
   ctx: LibContext,
 ): BuildOutput {
   const params = resolveParams(program, overrides);
-  return withArena((keep) => {
+  return withDetail(wasm, ctx.quality === 'preview' ? PREVIEW_FACTOR : 1, () => withArena((keep) => {
     const lib = makeLib(wasm, ctx);
     let result: unknown;
     try {
@@ -193,8 +193,11 @@ export function buildProgram(
       }
     }
     return { parts, params, handles, body };
-  });
+  }));
 }
+
+// How much coarser a preview build is (meshing grid, ray grid and circle segments).
+export const PREVIEW_FACTOR = 2.2;
 
 export function disposeBuild(out: BuildOutput) {
   const seen = new Set<unknown>();

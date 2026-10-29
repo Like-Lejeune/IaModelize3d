@@ -58,6 +58,29 @@ export interface JobInfo {
   model?: string;
 }
 
+/** The current program as a mesh document (mesh engine), or null for a CAD program. */
+function meshDocOf(source: string | null): MeshDoc | null {
+  if (!source || !source.trimStart().startsWith('{')) return null;
+  try {
+    const d = JSON.parse(source);
+    return d?.engine === 'mesh' && Array.isArray(d.ops) ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+export interface MeshDoc {
+  engine: 'mesh';
+  meta?: Record<string, any>;
+  params?: Record<string, any>;
+  symmetry?: 'x' | 'y' | null;
+  detail?: number;
+  ops: (Record<string, any> & { op: string; id?: string; enabled?: boolean; note?: string; by?: string })[];
+}
+
+const sameValues = (a: Record<string, any> | undefined, b: Record<string, any>) =>
+  !!a && Object.keys(a).length === Object.keys(b).length && Object.entries(a).every(([k, v]) => b[k] === v);
+
 export class ProjectStore {
   id: string;
   detail = $state<ProjectDetail | null>(null);
@@ -67,13 +90,17 @@ export class ProjectStore {
   // program
   source = $state<string | null>(null);
   version = $state(0);
-  inputs = $state<any>({});
+  // big (outlines, heightmaps, imported meshes) and never edited in place: not deeply reactive
+  inputs = $state.raw<any>({});
   values = $state<Record<string, any>>({});
   agentValues = $state<Record<string, any>>({});
-  build = $state<BuildResult | null>(null);
+  build = $state.raw<BuildResult | null>(null);
   buildError = $state<string | null>(null);
+  /** The shown model is older than the current values (a build is on its way). */
   building = $state(false);
-  fullChecks = $state<CheckReport | null>(null);
+  /** The full printability report for the current values is being computed. */
+  checking = $state(false);
+  fullChecks = $state.raw<CheckReport | null>(null);
   // agent
   jobId = $state<string | null>(null);
   jobKind = $state<string | null>(null);
@@ -95,11 +122,23 @@ export class ProjectStore {
   starting = $state<string | null>(null);
   /** Text for the composer to pick up (editing an earlier message). */
   draft = $state<string | null>(null);
+  /** Mesh engine document behind the current program (null for CAD programs). */
+  meshDoc = $derived(meshDocOf(this.source));
+  /** Earlier versions of studio edits to the document, newest last. */
+  undoStack = $state<string[]>([]);
 
   geom = new GeomClient();
+  /** Tags our saves so their echo on the event stream is not rebuilt again. */
+  readonly clientId = Math.random().toString(36).slice(2);
   private stream: EventStream | null = null;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
-  private fullTimer: ReturnType<typeof setTimeout> | null = null;
+  // every change of source or values gets a revision; results older than the shown one are dropped
+  private rev = 0;
+  private shown = 0;
+  private shownFinal = false;
+  // the source the server has: studio edits of a mesh document differ from it until saved
+  private serverSource: string | null = null;
+  private committedSource: string | null = null;
   private seen = new Set<number>();
   private replayTimer: ReturnType<typeof setTimeout> | null = null;
   private metaTimer: ReturnType<typeof setTimeout> | null = null;
@@ -140,12 +179,13 @@ export class ProjectStore {
       }
       if (d.program) {
         this.source = d.program.source;
+        this.serverSource = this.committedSource = d.program.source;
         this.version = d.program.version;
-        this.inputs = d.program.inputs ?? {};
+        this.setInputs(d.program.inputs ?? {});
         this.values = { ...(d.program.params ?? {}) };
         this.agentValues = { ...this.values };
         if (d.program.checks) this.fullChecks = d.program.checks;
-        this.rebuild('full');
+        this.refresh();
       }
       if (d.job && (d.job.status === 'running' || d.job.status === 'waiting')) {
         this.jobId = d.job.id;
@@ -166,7 +206,6 @@ export class ProjectStore {
     this.stream?.close();
     this.geom.dispose();
     if (this.saveTimer) clearTimeout(this.saveTimer);
-    if (this.fullTimer) clearTimeout(this.fullTimer);
     if (this.replayTimer) clearTimeout(this.replayTimer);
     if (this.metaTimer) clearTimeout(this.metaTimer);
   }
@@ -375,13 +414,11 @@ export class ProjectStore {
 
   private async onProgram(d: any) {
     if (typeof d.version !== 'number' || d.version < this.version) return;
-    const sameUserSave = d.author === 'user' && d.version === this.version + 1 && this.source && !d.source;
+    // our own save coming back: nothing to rebuild
+    const ownSave = (d.client && d.client === this.clientId) || (d.author === 'user' && !d.source && !d.source_changed && this.source && sameValues(d.params, this.values));
     this.version = d.version;
     if (this.detail) this.detail.version = d.version;
-    if (sameUserSave) {
-      if (d.checks) this.fullChecks = d.checks;
-      return;
-    }
+    if (ownSave) return;
     let source: string | undefined = d.source;
     let inputs = d.inputs;
     if (!source) {
@@ -395,50 +432,140 @@ export class ProjectStore {
       }
     }
     this.source = source ?? this.source;
-    if (inputs) this.inputs = inputs;
+    this.serverSource = this.committedSource = this.source;
+    this.undoStack = [];
+    if (inputs) this.setInputs(inputs);
     this.values = { ...(d.params ?? {}) };
     if (d.author !== 'user') this.agentValues = { ...this.values };
     this.fullChecks = d.checks ?? null;
-    this.rebuild('full');
+    this.refresh();
   }
 
-  async rebuild(level: 'fast' | 'full' = 'fast') {
+  private setInputs(inputs: any) {
+    this.inputs = inputs ?? {};
+    this.geom.setInputs(this.inputs);
+  }
+
+  /** Heavy programs preview at coarse quality while dragging; light ones always build in full. */
+  private get heavy() {
+    return this.geom.finalMs === 0 || this.geom.finalMs > 150;
+  }
+
+  /** New program or inputs: a quick preview first for heavy programs, the full build and checks next. */
+  refresh() {
     if (!this.source) return;
+    const rev = ++this.rev;
     this.building = true;
-    const r = await this.geom.build({ source: this.source, params: $state.snapshot(this.values), inputs: $state.snapshot(this.inputs), level });
-    if (!r.ok) {
-      if (r.stage !== 'superseded') this.buildError = `${r.stage}: ${r.message}`;
-      this.building = false;
-      return;
-    }
-    this.buildError = null;
-    this.build = r;
-    if (level === 'full') this.fullChecks = r.checks ?? null;
-    else this.fullChecks = null;
-    // parameters the program clamped/rounded
-    for (const [k, v] of Object.entries(r.params)) if (this.values[k] !== v) this.values[k] = v;
-    this.building = false;
+    if (this.heavy) this.runPreview(rev, 'preview');
+    this.runFinal(rev, false);
   }
 
-  /** Slider/handle moved: fast local rebuild now, full checks + save after release. */
+  /**
+   * Slider/handle moved. While dragging only the live preview runs (in its own worker,
+   * coarse for heavy programs); on release the full build, the full checks and a save.
+   * The server does not rebuild anything for this.
+   */
   setParam(name: string, value: any, commit = false) {
     this.values[name] = value;
-    this.rebuild('fast');
-    if (commit) this.commit();
+    this.changed(commit);
   }
 
-  commit() {
-    if (this.fullTimer) clearTimeout(this.fullTimer);
-    this.fullTimer = setTimeout(() => this.rebuild('full'), 400);
-    if (this.readonly) return;
+  /**
+   * Change the mesh document (ops panel, strokes sculpted in the viewer). Rebuilds here;
+   * only the ops from the first change on are recomputed. `commit` also checks and saves it.
+   */
+  editDoc(change: (doc: MeshDoc) => void, commit: boolean) {
+    if (!this.source || !this.meshDoc) return;
+    const doc = JSON.parse(this.source) as MeshDoc;
+    change(doc);
+    const source = JSON.stringify(doc);
+    if (source === this.source && !commit) return;
+    this.source = source;
+    if (commit && this.committedSource !== source) {
+      if (this.committedSource) this.undoStack = [...this.undoStack.slice(-49), this.committedSource];
+      this.committedSource = source;
+    }
+    this.changed(commit);
+  }
+
+  /** Back to the document before the last studio edit. */
+  undoEdit() {
+    const prev = this.undoStack.at(-1);
+    if (!prev) return;
+    this.undoStack = this.undoStack.slice(0, -1);
+    this.source = this.committedSource = prev;
+    this.changed(true);
+  }
+
+  private changed(commit: boolean) {
+    const rev = ++this.rev;
+    this.building = true;
+    if (!commit) {
+      this.runPreview(rev, this.heavy ? 'preview' : 'final');
+      return;
+    }
+    if (this.heavy) this.runPreview(rev, 'preview');
+    this.runFinal(rev, !this.readonly);
+  }
+
+  private show(r: BuildResult, rev: number, final: boolean) {
+    if (rev < this.shown || (rev === this.shown && this.shownFinal && !final)) return;
+    this.build = r;
+    this.shown = rev;
+    this.shownFinal = final;
+    this.buildError = null;
+    this.building = rev !== this.rev;
+    // parameters the program clamped/rounded
+    if (rev === this.rev) for (const [k, v] of Object.entries(r.params)) if (this.values[k] !== v) this.values[k] = v;
+  }
+
+  private failed(rev: number, r: { stage: string; message: string }) {
+    if (r.stage === 'superseded' || rev !== this.rev) return;
+    this.buildError = `${r.stage}: ${r.message}`;
+    this.building = false;
+    this.checking = false;
+  }
+
+  private async runPreview(rev: number, quality: 'preview' | 'final') {
+    const r = await this.geom.preview({ source: this.source!, params: $state.snapshot(this.values), quality });
+    if (!r.ok) return this.failed(rev, r);
+    this.show(r, rev, quality === 'final');
+  }
+
+  private async runFinal(rev: number, save: boolean) {
+    this.checking = true;
+    const values = $state.snapshot(this.values);
+    const r = await this.geom.finalize({ source: this.source!, params: values }, (d) => this.show(d, rev, true));
+    if (!r.ok) return this.failed(rev, r);
+    if (rev !== this.rev) return;
+    this.fullChecks = r.checks;
+    this.checking = false;
+    if (save) this.save(values, r.checks);
+  }
+
+  private save(values: Record<string, any>, checks: CheckReport) {
     if (this.saveTimer) clearTimeout(this.saveTimer);
+    const source = this.source;
     this.saveTimer = setTimeout(async () => {
       try {
-        await api.saveParams(this.id, $state.snapshot(this.values));
+        const edited = source !== null && source !== this.serverSource;
+        const r = edited
+          ? await api.saveProgram(this.id, { source: source!, params: values, checks, summary: 'edited in the studio', client: this.clientId })
+          : await api.saveParams(this.id, values, checks, this.clientId);
+        if (edited) this.serverSource = source;
+        if (r.version > this.version) {
+          this.version = r.version;
+          if (this.detail) this.detail.version = r.version;
+        }
       } catch (e) {
         this.addError(errorText(e));
       }
-    }, 900);
+    }, 600);
+  }
+
+  /** STL/3MF of the current values, built locally. */
+  exportFile(format: 'stl' | '3mf') {
+    return this.geom.exportFile({ source: this.source!, params: $state.snapshot(this.values), format, title: this.detail?.title });
   }
 
   async upload(file: Blob, kind: string, filename?: string): Promise<AssetOut | null> {

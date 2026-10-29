@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { api } from '$lib/api';
   import { t } from '$lib/i18n.svelte';
   import type { ProjectStore } from '$lib/project.svelte';
@@ -26,7 +27,7 @@
 
 <div class="stack">
   <p class="muted small">{t('breed_hint')}</p>
-  <button class="btn" onclick={breed} disabled={picked.length < 1 || store.running}>🧬 {t('breed')} ({picked.length})</button>
+  <button class="btn" onclick={breed} disabled={picked.length < 1 || store.running}><Icon name="dna" size={16} /> {t('breed')} ({picked.length})</button>
   {#if store.variants.length}
     <div class="vgrid">
       {#each store.variants as v (v.version)}
@@ -61,15 +62,16 @@
     gap: 6px;
   }
   .vers li {
-    border: 1px solid var(--line);
-    border-radius: 9px;
-    padding: 6px 8px;
+    background: var(--surface);
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-field);
+    padding: 8px 12px;
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
   .vers li.cur {
-    border-color: var(--accent);
+    border-color: var(--primary);
   }
   .row {
     flex-wrap: nowrap;
@@ -79,10 +81,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 13px;
-  }
-  .small {
-    font-size: 12px;
+    font-size: var(--text-product-spec);
   }
   .vgrid {
     display: grid;
@@ -94,7 +93,7 @@
   }
   .vgrid img {
     width: 100%;
-    border-radius: 6px;
-    border: 1px solid var(--line);
+    border-radius: var(--radius-tag);
+    border: var(--border-width) solid var(--outline-variant);
   }
 </style>

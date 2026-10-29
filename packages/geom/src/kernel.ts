@@ -104,6 +104,26 @@ function patchForCollection(wasm: any) {
   }
 }
 
+// Preview builds (while a slider or handle is being dragged) trade detail for speed:
+// meshing grids, ray grids, refinement and circle segments get coarser by `factor`.
+// Libraries read it at call time; final builds, checks and exports use 1.
+export const detail = { factor: 1 };
+
+export function withDetail<T>(wasm: Wasm, factor: number, fn: () => T): T {
+  const prev = detail.factor;
+  if (factor === prev) return fn();
+  detail.factor = factor;
+  wasm.setMinCircularEdgeLength(0.5 * factor);
+  wasm.setMinCircularAngle(6 * factor);
+  try {
+    return fn();
+  } finally {
+    detail.factor = prev;
+    wasm.setMinCircularEdgeLength(0.5 * prev);
+    wasm.setMinCircularAngle(6 * prev);
+  }
+}
+
 // Synchronous on purpose: an `await` inside would let another build swap the arena.
 export function withArena<T>(fn: (keep: <U>(v: U) => U) => T): T {
   const prev = arena;

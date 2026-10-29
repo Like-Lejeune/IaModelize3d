@@ -249,6 +249,20 @@ PACKS: dict[str, str] = {
 - Keep proportions from the reference; single body that stands (flat base or base plate). Check details with look `zoom`.
 - Do not make trademarked characters for sale; personal stylized versions only.
 """,
+    "collect": """
+# Pack: collectible miniatures of things photographed in the wild
+- The photo shows a real object (a bench, a statue, a hydrant, a tree stump, a car, an animal) without a scale reference. Make a
+  recognisable miniature of THAT object, not a generic one: its proportions, silhouette, how many slats, legs, arms or windows,
+  and the details that make it this one. The selected outline on the photo is the object; check it on the close-up.
+- Real size: estimate it from typical dimensions (the dimensions tool or common knowledge) and say which you assumed. Scale the
+  model so it is about as tall as the user asked (60 mm by default) and expose that as a `height` param.
+- Pick the engine by the object: architecture, furniture, signs, vehicles and machines are CAD programs; animals, people, plants,
+  rocks, sculptures and food are mesh documents (mesh_write). Mixed objects: a program op inside a mesh document for the exact
+  parts, or lib.sdf blends inside a program for the soft ones.
+- Miniature rules: anything under ~0.8 mm at the final size disappears, so thicken slats, rails, legs and lettering (say so);
+  merge gaps narrower than 0.6 mm; stand it on a flat base or a thin plinth (2 mm) so it does not tip; avoid support (overhangs
+  up to 50 deg). Separate lib.part colours only where the object clearly has them (wood and metal, a red hydrant cap).
+""",
     "mechanisms": """
 # Pack: mechanisms (gears, hinges, print-in-place)
 - Use std.gear (module, teeth) with backlash; mesh distance = module*(z1+z2)/2.
@@ -258,6 +272,64 @@ PACKS: dict[str, str] = {
 }
 
 PACK_NAMES = list(PACKS)
+
+MESH_ENGINE = r"""
+# Mesh engine (sculpting a surface)
+For living and free-form things (animals, figures, plants, rocks, sculptures, food, organic decor) shape a SURFACE instead of
+writing a program: a mesh document, a list of operations replayed in order. mesh_write starts it, mesh_edit changes it; every
+build marks with numbered dots where your ops act. Programs stay better for exact dimensions, holes, threads and flat faces;
+combine them: a `program` op (exact CAD body) then sculpting, or a `boolean` op (an exact cut into a sculpted body).
+
+Document: {"engine":"mesh", "meta":{"title":..., "color":"#hex"}, "params":{name:{value, min, max, unit, label, source}},
+"symmetry":"x" (left/right: every clay shape, stroke and region acts on both sides; null to sculpt freely), "detail":0.6 (mm,
+triangle size of clay and remesh; default from the size), "ops":[...]}. Units mm, Z up, the front faces -Y, the bed is z=0.
+Any number can be a parameter "$h" or an expression "= h * 0.4" (+ - * / ^, min, max, abs, sqrt, sin and cos in degrees),
+so sliders work. Every op: {"id": short name, "op": ..., "note": what it is for}; "enabled": false switches one off.
+
+Ops:
+- clay {shapes:[{shape:'sphere' d | 'ellipsoid' size:[x,y,z] | 'box' size, r | 'cylinder' d, h, r | 'cone' d1, d2, h (along Z) |
+  'capsule' from, to, d | 'torus' D, d, at:[x,y,z], rotate:[rx,ry,rz]}], smooth: k (blend between these shapes, mm),
+  mode:'add'|'subtract'|'replace', blend: k (fillet into the existing surface)}. Block the masses first (body, head, limbs) as one
+  clay op of blended primitives; later clay ops add or carve masses with a soft blend (ears, cheeks, eye sockets, a nose).
+  Each clay op remeshes the whole surface, so put big masses before fine strokes.
+- sculpt {brush, at:[x,y,z] | path:[[x,y,z],...], radius, strength, falloff:'smooth'|'sharp'|'flat', mirror:false}, or
+  {strokes:[...]} for several: grab (pull skin: `to`:[x,y,z], or dir + strength in mm), draw (raise along the surface, mm;
+  negative carves), inflate (swell, mm), crease (a sharp valley along a path: eyelids, mouths, fingers, fur partings; mm),
+  smooth / flatten / pinch (0..1). Brushes add triangles under themselves. `at` must be ON the surface: get coordinates
+  with inspect_model {op:'surface', from:'front', points:[[x, z]]} or {op:'extremes'}.
+- move {region, offset}, scale {region, factor: k | [x,y,z], center}, rotate {region, axis, angle, center}: proportional editing.
+  region: {at, radius} (soft ball), {min, max} or {plane:{normal, offset}} with falloff (mm). Lengthen legs, turn the head, widen.
+- smooth {iterations, strength, region}, relax {iterations} (even triangles, keeps the form), inflate {amount, region}.
+- displace {pattern:'noise'|'ridges'|'cells'|'stripes', scale (feature size, mm), amplitude (mm), seed, region}: fur, bark, stone,
+  scales. Keep amplitude >= 0.4 mm and scale >= 2 mm at the final size or it will not print.
+- remesh {detail} (even triangles after big deformations), subdivide {levels} (smoother, 4x triangles), refine {edge, region},
+  decimate {tolerance}.
+- mirror {axis:'x', keep:'+'} (exactly symmetric), transform {fit:{height | width | depth | longest: mm}, scale, rotate, translate}.
+- base {depth} (a flat bottom so it stands), cut {plane:{normal, offset}} (keeps the side the normal points to),
+  boolean {mode:'subtract'|'add'|'intersect', shape:{shape:'box'|'cylinder'|'sphere'|..., ...}} (exact: magnet holes, pegs,
+  a plinth), hollow {wall, drain} (big figures: less material), offset {distance}.
+- import {name} (an uploaded STL/OBJ), program {source, params} (a CAD program as the start), script {code:
+  "(mesh, lib, p) => { ... }"} (edit mesh.pos, xyz per vertex, in place).
+
+Workflow: 1) the big masses in one clay op, proportions first: compare the views with the photo; 2) secondary masses with
+clay add + blend; 3) proportions with move / scale / rotate regions; 4) details with sculpt strokes, smooth between passes;
+5) textures with displace; 6) base, hollow if it is big, transform fit last. Sculpt at the final size from the start, so
+fit only corrects it: coordinates and markers are those of the ops as written, before any later transform. Change one thing per mesh_edit and look
+at the marked views; to tune a stroke update its strength or position instead of stacking another on top. Printable details:
+strokes and creases at least 1 mm wide and 0.6 mm deep at the final size.
+
+Example:
+{"engine":"mesh","meta":{"title":"Sitting cat"},"symmetry":"x",
+ "params":{"height":{"value":60,"min":30,"max":120,"unit":"mm","label":"Height","source":"design"}},
+ "ops":[
+  {"id":"body","op":"clay","smooth":8,"shapes":[{"shape":"ellipsoid","at":[0,4,18],"size":[34,40,36]},{"shape":"sphere","at":[0,-6,42],"d":26}],"note":"body and head"},
+  {"id":"ear","op":"clay","blend":3,"shapes":[{"shape":"cone","d1":10,"d2":2,"h":10,"at":[8,-4,56],"rotate":[0,12,0]}],"note":"mirrored by symmetry"},
+  {"id":"muzzle","op":"sculpt","brush":"draw","at":[0,-18.5,40],"radius":6,"strength":1.5},
+  {"id":"eye","op":"sculpt","brush":"crease","path":[[3,-17,46],[8,-15.5,47]],"radius":1.5,"strength":0.8},
+  {"id":"tail","op":"clay","blend":2,"shapes":[{"shape":"capsule","from":[0,22,6],"to":[14,14,4],"d":6}],"mirror":false},
+  {"id":"base","op":"base","depth":1},
+  {"id":"size","op":"transform","fit":{"height":"$height"}}]}
+""".strip()
 
 CRITIC = """
 You are an independent reviewer of a 3D-printable design. You see the request, the measured facts,
@@ -278,7 +350,10 @@ CLASSIFY = """
 Classify the request into one design pack and say whether it involves a real-world fit.
 Packs: household (functional parts/mounts/hooks/holders), copy (reproduce an object from photos),
 adapter (connect two things, threads/hoses), forms (vases, lamps, planters, decor), terrain (maps, landscapes),
-landmark (buildings, monuments), stylize (figures, characters, game objects), mechanisms (gears, hinges, moving parts).
+landmark (buildings, monuments), stylize (figures, characters, game objects), mechanisms (gears, hinges, moving parts),
+collect (a miniature of an object photographed in the wild, for a collection).
+Engine: mesh for living and free-form subjects (animals, people, plants, rocks, sculptures, food, organic decor),
+cad for everything with exact dimensions, flat faces, holes or mechanisms.
 Also refuse=true for weapons/weapon parts or safety-critical parts (see policy) with a short reason.
 With photos: name the main object (subject; never the paper sheet or card it lies on, which is only a scale
 reference) and say what the photos are for: copy it, fit something to it, or use its style.

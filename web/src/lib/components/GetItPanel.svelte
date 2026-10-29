@@ -20,13 +20,13 @@
     busy = format;
     error = null;
     const name = `${(store.detail?.title ?? 'model').replace(/[^\w-]+/g, '_').slice(0, 40)}.${format}`;
-    const local = () => store.geom.exportFile({ source: store.source!, params: $state.snapshot(store.values), inputs: $state.snapshot(store.inputs), format, title: store.detail?.title });
+    // built here, from exactly what the viewer shows; the server only as a fallback
     try {
-      await download(readonly ? await local() : await api.exportFile(store.id, format, $state.snapshot(store.values)), name);
+      await download(await store.exportFile(format), name);
     } catch (e) {
       try {
-        if (!store.source) throw e;
-        await download(await local(), name);
+        if (readonly) throw e;
+        await download(await api.exportFile(store.id, format, $state.snapshot(store.values)), name);
       } catch (e2) {
         error = errorText(e2);
       }
@@ -63,7 +63,7 @@
   <section class="stack">
     <div class="row">
       <button class="btn primary" onclick={() => dl('3mf')} disabled={!store.source || busy === '3mf'}>
-        {#if busy === '3mf'}<span class="spin"></span>{:else}<Icon name="download" size={16} />{/if} {t('download_3mf')}
+        {#if busy === '3mf'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="download" size={16} />{/if} {t('download_3mf')}
       </button>
       <button class="btn" onclick={() => dl('stl')} disabled={!store.source || busy === 'stl'}>{t('download_stl')}</button>
     </div>
@@ -90,7 +90,7 @@
           <label class="field wide">{t('comment')}<input type="text" bind:value={comment} /></label>
         </div>
         <button class="btn" onclick={placeOrder} disabled={!store.source || busy === 'order'}>
-          {#if busy === 'order'}<span class="spin"></span>{:else}<Icon name="package" size={15} />{/if} {t('order')}
+          {#if busy === 'order'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="package" size={15} />{/if} {t('order')}
         </button>
       {/if}
     </section>
@@ -131,7 +131,7 @@
     width: 100%;
   }
   .done {
-    padding: 10px;
+    padding: var(--space-4);
     display: flex;
     gap: 10px;
     align-items: center;
@@ -139,7 +139,7 @@
     flex-wrap: wrap;
   }
   .err {
-    color: var(--err);
+    color: var(--error);
   }
   p {
     margin: 0;

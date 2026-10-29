@@ -12,11 +12,21 @@ printability check and an independent critic.
 - **Measurement from photos.** SAM 3.1 finds the part and a known reference (A4/Letter sheet, bank card,
   coin, battery, LEGO brick); outlines and holes come out in millimetres with an uncertainty. Caliper
   displays are read directly.
+- **Snap & collect.** On a phone, tap an object out in the world (a bench, a statue, a cat): the photo is segmented at
+  the tap and the object lights up, a tap adds or removes parts, and on confirm the agent models it as a printable
+  miniature while you go on to the next one. The collection page shows everything you gathered.
 - **Parametric programs.** Each model is a JavaScript program with sliders and draggable handles. The same
   code runs in the browser for live editing and in a sandboxed server worker for checks and export.
+- **Mesh engine for organic shapes.** Instead of a program the agent can shape a surface: a mesh document of
+  operations (clay blobs blended into the body, sculpt brushes, proportional moves, textures, remesh, exact cuts) with
+  left/right symmetry and parameters. Replays are incremental, renders mark where each operation acts, and in the
+  studio you can switch operations off, tune or remove them and sculpt with the same brushes by hand.
 - **Exact and free-form geometry.** CSG with standard holes, threads, gears and hinges; signed distance
   fields with smooth blends, lofts, sweeps, subdivision smoothing, 3D rounding, grooves and embossing that
   follow curved surfaces, and mesh sculpting. Uploaded STL/OBJ files can be edited too.
+- **Local-first editing.** Sliders, handles, sculpting and export run in two browser workers: a live one that
+  builds coarse previews while you drag and a final one that builds the full model and runs the checks, cutting
+  stale work short. The server stores what the browser built and only rebuilds for the agent, slicing and orders.
 - **Printability checks.** A layer-by-layer mini-slicer reports islands, bridges, overhangs and thin
   features with exact positions. OrcaSlicer gives time and weight.
 - **Verification against the photo.** Builds are rendered next to the photographed object from the same

@@ -89,7 +89,7 @@
     </button>
     <button class="btn small" onclick={() => (qr = true)}><Icon name="phone" size={15} /> {t('phone')}</button>
   </div>
-  {#if uploading}<div class="xs muted row"><span class="spin"></span> {t('upload')}…</div>{/if}
+  {#if uploading}<div class="xs muted row"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {t('upload')}…</div>{/if}
 
   {#if !assets.length && !uploading}
     <div class="empty xs muted">{t('no_assets')}</div>
@@ -114,7 +114,7 @@
           <Icon name={KIND_ICON[a.kind] ?? 'image'} size={13} />
           <span class="kind">{kindLabel(a.kind)}</span>
           {#if a.meta?.calibration}
-            <span class="chip ok cal" title={a.meta.calibration.reference ?? t('calibrated')}><Icon name="ruler" size={11} stroke={2.2} /> {t('calibrated')}</span>
+            <span class="chip ok cal" title={a.meta.calibration.reference ?? t('calibrated')}><Icon name="ruler" size={11} /> {t('calibrated')}</span>
           {/if}
         </div>
         {#each sels(a) as s (s.id)}
@@ -160,12 +160,12 @@
     gap: 6px;
   }
   .rec {
-    border-color: var(--err);
-    color: var(--err);
+    border-color: var(--error);
+    color: var(--error);
   }
   .empty {
-    border: 1px dashed var(--line-strong);
-    border-radius: 12px;
+    border: var(--border-width) dashed var(--outline);
+    border-radius: var(--radius-card);
     padding: 18px;
     text-align: center;
   }
@@ -182,7 +182,7 @@
     min-width: 0;
   }
   .asset.on {
-    border-color: var(--accent);
+    border-color: var(--primary);
   }
   .pic {
     position: relative;
@@ -196,9 +196,9 @@
     width: 100%;
     aspect-ratio: 4 / 3;
     object-fit: cover;
-    border-radius: 8px;
+    border-radius: var(--radius-btn);
     display: block;
-    background: var(--panel-2);
+    background: var(--surface);
   }
   audio {
     width: 100%;
@@ -207,9 +207,9 @@
     position: absolute;
     top: 4px;
     right: 4px;
-    background: var(--accent);
-    color: var(--accent-ink);
-    border-radius: 999px;
+    background: var(--primary);
+    color: var(--on-primary);
+    border-radius: var(--radius-tag);
     font-size: 11px;
     padding: 1px 7px;
   }
@@ -218,10 +218,10 @@
     gap: 5px;
     align-items: center;
     flex-wrap: wrap;
-    color: var(--text-2);
+    color: var(--on-surface-var);
   }
   .kind {
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
   }
   .cal {
     gap: 3px;
@@ -242,6 +242,6 @@
   }
   .tr {
     margin: 0;
-    color: var(--muted);
+    color: var(--outline);
   }
 </style>

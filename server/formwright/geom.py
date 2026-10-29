@@ -74,16 +74,31 @@ class _Worker:
             req_id = next(self.ids)
             self.proc.stdin.write((json.dumps({"id": req_id, "method": method, "params": params}) + "\n").encode())
             await self.proc.stdin.drain()
-            try:
-                line = await asyncio.wait_for(self.proc.stdout.readline(), timeout)
-            except TimeoutError:
-                await self.kill()
-                raise GeomError("timeout", f"geometry took longer than {timeout:.0f}s") from None
-            if not line:
-                err = (await self.proc.stderr.read(4000)).decode(errors="ignore") if self.proc.stderr else ""
-                await self.kill()
-                raise GeomError("crash", err[-1500:] or "worker exited")
-            msg = json.loads(line)
+            # A reply to an earlier call whose caller was cancelled may still be in the pipe;
+            # without matching ids every later call would get the previous call's result.
+            deadline = asyncio.get_running_loop().time() + timeout
+            while True:
+                try:
+                    line = await asyncio.wait_for(self.proc.stdout.readline(), max(0.0, deadline - asyncio.get_running_loop().time()))
+                except TimeoutError:
+                    await self.kill()
+                    raise GeomError("timeout", f"geometry took longer than {timeout:.0f}s") from None
+                except asyncio.CancelledError:
+                    # the worker is still busy with this call; a fresh one is cheaper than waiting
+                    await self.kill()
+                    raise
+                if not line:
+                    err = (await self.proc.stderr.read(4000)).decode(errors="ignore") if self.proc.stderr else ""
+                    await self.kill()
+                    raise GeomError("crash", err[-1500:] or "worker exited")
+                try:
+                    msg = json.loads(line)
+                except json.JSONDecodeError:
+                    log.warning("geom worker: non-JSON output %r", line[:200])
+                    continue
+                if isinstance(msg, dict) and msg.get("id") == req_id:
+                    break
+                log.warning("geom worker: dropping stale reply id=%r (waiting for %d)", msg.get("id") if isinstance(msg, dict) else None, req_id)
             if "error" in msg:
                 raise GeomError(msg["error"].get("stage", "runtime"), msg["error"].get("message", ""))
             return msg["result"]

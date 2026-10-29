@@ -6,6 +6,7 @@
 // extents in mm (like std.box / std.cyl). Every field carries a conservative bounding
 // box so .mesh() needs no arguments.
 import type { CrossSection, Manifold, Wasm } from '../kernel.ts';
+import { detail } from '../kernel.ts';
 
 type V2 = [number, number];
 type V3 = [number, number, number];
@@ -273,10 +274,11 @@ export class Field {
     const size = [0, 1, 2].map((i) => this.box.max[i] - this.box.min[i]);
     if (size.some((v) => v <= 0)) throw new Error('sdf.mesh: empty field (the shapes do not overlap)');
     const diag = len3(size[0], size[1], size[2]);
-    let edge = o.edge ?? clamp(diag / 140, 0.35, 2);
-    // keep the grid under ~1.6M points
+    let edge = (o.edge ?? clamp(diag / 140, 0.35, 2)) * detail.factor;
+    // keep the grid under ~1.6M points (a preview under a fraction of that)
+    const cap = 1.6e6 / detail.factor ** 3;
     const cells = (size[0] * size[1] * size[2]) / edge ** 3;
-    if (cells > 1.6e6) edge *= Math.cbrt(cells / 1.6e6);
+    if (cells > cap) edge *= Math.cbrt(cells / cap);
     const b = grow(this.box, edge * 2);
     const f = this.f;
     const m = (this.wasm.Manifold as any).levelSet((p: V3) => -f(p[0], p[1], p[2]), b, edge, 0, o.tolerance ?? edge / 20) as Manifold;

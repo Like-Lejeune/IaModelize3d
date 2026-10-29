@@ -90,7 +90,7 @@
 
 <style>
   .step + :global(.step) {
-    border-top: 1px solid var(--line);
+    border-top: var(--border-width) solid var(--divider);
   }
   .head {
     width: 100%;
@@ -102,8 +102,8 @@
     border: none;
     background: none;
     text-align: left;
-    color: var(--text-2);
-    font-size: var(--fs-sm);
+    color: var(--on-surface-var);
+    font-size: var(--text-card-from);
     cursor: pointer;
   }
   .head:disabled {
@@ -111,22 +111,22 @@
     opacity: 1;
   }
   .head:not(:disabled):hover {
-    background: var(--panel-2);
+    background: var(--surface-container);
   }
   .ico {
     height: 20px;
     display: grid;
     place-items: center;
-    color: var(--muted);
+    color: var(--outline);
   }
   .bad .ico {
-    color: var(--err);
+    color: var(--error);
   }
   .dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--primary);
     animation: fw-dot 1s ease-in-out infinite alternate;
   }
   @keyframes fw-dot {
@@ -152,18 +152,18 @@
     overflow-wrap: anywhere;
   }
   .note {
-    font-size: var(--fs-xs);
-    color: var(--muted);
+    font-size: var(--text-card-meta);
+    color: var(--outline);
     line-height: 17px;
   }
   .bad .note {
-    color: var(--err);
+    color: var(--error);
   }
   .chev {
     height: 20px;
     display: grid;
     place-items: center;
-    color: var(--muted);
+    color: var(--outline);
     transition: transform 0.12s;
   }
   .open .chev {
@@ -174,14 +174,14 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: var(--fs-sm);
+    font-size: var(--text-card-from);
   }
   .thumb {
     padding: 0;
-    border: 1px solid var(--line);
-    border-radius: 8px;
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-btn);
     overflow: hidden;
-    background: var(--panel-2);
+    background: var(--surface);
     width: min(100%, 300px);
     cursor: zoom-in;
   }
@@ -191,23 +191,23 @@
   }
   pre {
     margin: 0;
-    font-family: var(--mono);
+    font-family: var(--font-mono);
     font-size: 11px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     max-height: 220px;
     overflow: auto;
-    background: var(--panel-2);
-    border-radius: 6px;
+    background: var(--surface-container);
+    border-radius: var(--radius-tag);
     padding: 6px 8px;
-    color: var(--text-2);
+    color: var(--on-surface-var);
   }
   ul {
     margin: 0;
     padding-left: 18px;
-    color: var(--text-2);
+    color: var(--on-surface-var);
   }
   li.major {
-    font-weight: 550;
+    font-weight: var(--font-weight-semibold);
   }
 </style>

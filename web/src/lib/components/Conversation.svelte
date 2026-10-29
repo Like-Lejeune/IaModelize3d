@@ -86,7 +86,7 @@
   <div class="feed" bind:this={feed} onclickcapture={(e) => (e.target as Element).closest('[aria-expanded]') && (stuck = false)}>
     {#if !entries.length}
       <div class="empty">
-        <span class="badge"><Icon name="message" size={22} /></span>
+        <Icon name="message" size={40} />
         <h3>{t('empty_chat_t')}</h3>
         <p class="muted small">{t('empty_chat_d')}</p>
       </div>
@@ -161,23 +161,19 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 24px 0;
+    gap: var(--space-3);
+    padding: var(--space-6) 0;
+    color: var(--outline);
   }
   .empty h3 {
-    font-size: var(--fs-md);
+    font-size: var(--text-product-section-title);
+    font-weight: var(--font-weight-semibold);
+    color: var(--on-surface);
   }
   .empty p {
     margin: 0;
-  }
-  .badge {
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    display: grid;
-    place-items: center;
-    background: var(--accent-soft);
-    color: var(--accent);
+    font-size: var(--text-product-spec);
+    color: var(--on-surface-var);
   }
   .user {
     align-self: flex-end;
@@ -188,10 +184,12 @@
     gap: 6px;
   }
   .bubble {
-    background: var(--panel-3);
-    color: var(--text);
-    padding: 8px 12px;
-    border-radius: 14px;
+    background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+    border: var(--border-width) solid color-mix(in srgb, var(--primary) 30%, var(--outline-variant));
+    color: var(--on-surface);
+    padding: 9px 12px;
+    border-radius: var(--radius-field);
+    line-height: 1.5;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
@@ -209,18 +207,18 @@
   .act {
     width: 28px;
     height: 28px;
-    border-radius: 7px;
+    border-radius: var(--radius-btn);
     border: none;
     background: none;
     display: grid;
     place-items: center;
     padding: 0;
-    color: var(--muted);
+    color: var(--outline);
     cursor: pointer;
   }
   .act:hover {
-    background: var(--panel-3);
-    color: var(--text);
+    background: var(--surface-high);
+    color: var(--on-surface);
   }
   .atts {
     display: flex;
@@ -230,8 +228,8 @@
   }
   .att {
     padding: 0;
-    border: 1px solid var(--line);
-    border-radius: 10px;
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-btn);
     overflow: hidden;
     width: 72px;
     height: 72px;
@@ -249,17 +247,18 @@
   }
   .live {
     width: fit-content;
-    font-size: var(--fs-sm);
+    font-size: var(--text-card-from);
   }
   .agent {
-    font-size: var(--fs-md);
+    font-size: var(--text-product-spec);
     line-height: 1.55;
   }
   .error {
-    color: var(--err);
-    background: var(--err-soft);
-    border-radius: 10px;
-    padding: 8px 10px;
+    color: var(--error);
+    background: color-mix(in srgb, var(--error) 12%, var(--surface-container));
+    border: var(--border-width) solid color-mix(in srgb, var(--error) 40%, transparent);
+    border-radius: var(--radius-card);
+    padding: 10px 14px;
     display: flex;
     gap: 6px;
     align-items: flex-start;
@@ -267,7 +266,7 @@
   .zoom {
     position: fixed;
     inset: 0;
-    background: rgb(0 0 0 / 0.78);
+    background: color-mix(in srgb, #000 82%, transparent);
     z-index: 60;
     display: grid;
     place-items: center;
@@ -278,6 +277,6 @@
   .zoom img {
     max-width: 100%;
     max-height: 100%;
-    border-radius: 10px;
+    border-radius: var(--radius-btn);
   }
 </style>

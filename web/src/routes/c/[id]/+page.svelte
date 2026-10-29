@@ -79,21 +79,21 @@
     align-items: center;
   }
   h1 {
-    font-size: 24px;
+    font-size: var(--text-cart-h1);
   }
   .tipcard {
-    padding: 12px;
+    padding: var(--space-4);
   }
   .big {
     min-height: 64px;
-    font-size: 17px;
+    font-size: var(--text-product-lead);
   }
   .ok {
-    color: var(--ok);
+    color: var(--primary);
     margin: 0;
   }
   .err {
-    color: var(--err);
+    color: var(--error);
     margin: 0;
   }
 </style>

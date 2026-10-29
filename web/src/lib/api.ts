@@ -1,6 +1,6 @@
 // Typed client for the FastAPI backend (same origin; cookie session `fw_uid`).
 import { t } from './i18n.svelte';
-import type { AssetOut, ProjectDetail, ProjectOut, SelectionOut, Usage, Printer, ProgramOut } from './types';
+import type { AssetOut, ProjectDetail, ProjectOut, SelectionOut, Usage, Printer, ProgramOut, SnapResult, SnapObject, CollectionItem } from './types';
 
 export class ApiError extends Error {
   status: number;
@@ -65,7 +65,10 @@ export const api = {
 
   program: (id: string, version: number) => req<ProgramOut>('GET', `/api/projects/${id}/program/${version}`),
   versions: (id: string) => req<{ version: number; summary: string | null; author: string; created_at: number }[]>('GET', `/api/projects/${id}/versions`),
-  saveParams: (id: string, params: Record<string, any>) => req<{ version: number; checks: any; params: Record<string, any> }>('PUT', `/api/projects/${id}/params`, { params }),
+  saveParams: (id: string, params: Record<string, any>, checks?: unknown, client?: string) =>
+    req<{ version: number; params: Record<string, any> }>('PUT', `/api/projects/${id}/params`, { params, checks, client }),
+  saveProgram: (id: string, body: { source: string; params: Record<string, any>; checks?: unknown; summary?: string; client?: string }) =>
+    req<{ version: number; params: Record<string, any> }>('PUT', `/api/projects/${id}/program`, body),
   exportFile: (id: string, format: 'stl' | '3mf', params?: Record<string, any>) => req<Blob>('POST', `/api/projects/${id}/export`, { format, params }),
   render: (id: string, body: { view?: string; heat?: boolean; params?: Record<string, any> }) => req<Blob>('POST', `/api/projects/${id}/render`, body),
 
@@ -83,6 +86,23 @@ export const api = {
 
   memory: () => req<{ mine: any[]; global: any[] }>('GET', '/api/memory'),
   forget: (itemId: string) => req<{ ok: boolean }>('DELETE', `/api/memory/${itemId}`),
+
+  /** Phone shot: x, y is the tap on the photo (0..1), SAM's positive point. */
+  snap: (file: Blob, o: { x: number; y: number; lang: string }) => {
+    const fd = new FormData();
+    fd.append('file', file, 'snap.jpg');
+    fd.append('x', String(o.x));
+    fd.append('y', String(o.y));
+    fd.append('lang', o.lang);
+    return req<SnapResult>('POST', '/api/snap', fd);
+  },
+  snapName: (id: string) => req<{ label: string; objects: SnapObject[]; selection: SelectionOut | null }>('GET', `/api/snap/${id}/name`),
+  snapSelect: (id: string, body: { points?: { x: number; y: number; positive: boolean }[]; box?: number[] | null; label?: string | null }) =>
+    req<{ selection: SelectionOut; label: string }>('POST', `/api/snap/${id}/select`, body),
+  snapConfirm: (id: string, body: { text: string; label?: string; model?: string; reasoning?: string }) =>
+    req<{ queued: boolean; job_id: string | null }>('POST', `/api/snap/${id}/confirm`, body),
+  snapDiscard: (id: string) => req<{ ok: boolean }>('DELETE', `/api/snap/${id}`),
+  collection: () => req<CollectionItem[]>('GET', '/api/collection'),
 };
 
 export interface SelectBody {

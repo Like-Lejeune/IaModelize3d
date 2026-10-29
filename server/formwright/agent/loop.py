@@ -15,11 +15,11 @@ from ..llm.client import meta
 from ..memory import store as memory
 from ..models import SendMessage
 from .examples import EXAMPLES_TEXT
-from .prompts import CLASSIFY, PACK_NAMES, PACKS, SYSTEM
+from .prompts import CLASSIFY, MESH_ENGINE, PACK_NAMES, PACKS, SYSTEM
 from .runner import JobContext, add_message
 from . import narrate
 from . import compare
-from .tools import DesignState, _crop_data_url, run_tool, tools_for
+from .tools import DesignState, _crop_data_url, is_mesh_doc, run_tool, tools_for
 
 log = logging.getLogger(__name__)
 
@@ -36,8 +36,10 @@ CLASSIFY_SCHEMA = {
         "photo_role": {"type": "string", "enum": ["copy", "fit", "style", "none"],
                        "description": "copy: reproduce the object shown; fit: design something that fits or attaches to it; "
                                       "style: the look inspires a new design; none: no photos"},
+        "engine": {"type": "string", "enum": ["cad", "mesh"],
+                   "description": "mesh: sculpt a surface (living and free-form subjects); cad: a parametric program (everything exact)"},
     },
-    "required": ["pack", "title", "refuse", "reason", "language", "subject", "photo_role"],
+    "required": ["pack", "title", "refuse", "reason", "language", "subject", "photo_role", "engine"],
 }
 
 PHOTO_KINDS = ("photo", "sketch", "print")
@@ -75,7 +77,12 @@ async def _prepare_scene(ctx: JobContext, assets: list[dict[str, Any]], subject:
         return None
     from ..models import SelectRequest
 
+    db = await get_db()
+    confirmed = {r["asset_id"] for r in await db.all("SELECT asset_id FROM selections WHERE project_id = ? AND role = 'target'", ctx.project_id)}
+
     async def photo(a: dict[str, Any]) -> None:
+        if a["id"] in confirmed:
+            return
         try:
             await ctx.emit("tool.call", {"name": "measure", "kind": "measure",
                                          "title": narrate.localize(f"Finding “{subject}” on the photo", language)})
@@ -169,6 +176,10 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     subject, photo_role = brief.get("subject", ""), brief.get("photo_role", "none")
     # pack, safety and what the photos are for: once per project, and again when new photos arrive
     references = await _calibrate(ctx, new_assets or all_assets)
+    latest = await db.one("SELECT source FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", ctx.project_id)
+    current_is_mesh = is_mesh_doc((latest or {}).get("source"))
+    # the engine: an existing mesh document stays one; snapped organic objects start as one
+    engine = "mesh" if current_is_mesh else brief.get("engine") or ("mesh" if (brief.get("snap") or {}).get("organic") else "cad")
     if not pack or project["title"] in ("New project", "Untitled") or fresh_photos:
         await ctx.status("Understanding the request")
         note = f"\nScale references found (not the object): {', '.join(references)}." if references else ""
@@ -183,7 +194,10 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
             return "refused"
         pack = pack or cls.get("pack", "household")
         language = cls.get("language") or language
-        if fresh_photos:
+        if not latest and cls.get("engine") in ("cad", "mesh"):
+            engine = cls["engine"]
+        # a snapped collectible: the user named and outlined the object already
+        if fresh_photos and not brief.get("collect"):
             subject, photo_role = (cls.get("subject") or "").strip()[:60], cls.get("photo_role") or "none"
         updates = {"pack": pack}
         if project["title"] in ("New project", "Untitled") and cls.get("title"):
@@ -192,6 +206,8 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         await db.update("projects", "id", ctx.project_id, updates)
     if pack not in PACKS:
         pack = "household"
+    if current_is_mesh:
+        engine = "mesh"
 
     state = DesignState(pack=pack, copies_photo=photo_role == "copy")
     current = await db.one("SELECT * FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", ctx.project_id)
@@ -214,7 +230,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
 
     # ---- context: stable instructions first, project specifics after
     # SYSTEM + examples are identical for every pack, so that prefix stays cached across projects
-    instructions = SYSTEM + "\n\n" + EXAMPLES_TEXT + "\n\n" + PACKS[pack]
+    instructions = SYSTEM + "\n\n" + EXAMPLES_TEXT + "\n\n" + PACKS[pack] + ("\n\n" + MESH_ENGINE if engine == "mesh" else "")
     ctx_lines = [f"# Project: {project['title']} (pack: {pack}, reply in language: {language})"]
     if brief.get("summary"):
         ctx_lines.append(f"Previous result: {brief['summary']}")
@@ -249,7 +265,12 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         ctx_lines.append("# Memory (relevant)\n" + recalled)
     if brief.get("printer"):
         ctx_lines.append(f"Printer: {brief['printer']}")
-    if state.source:
+    if engine == "mesh":
+        ctx_lines.append("# Engine: mesh. Shape this one as a mesh document (mesh_write, then mesh_edit); a CAD program only if the "
+                         "object turns out to be exact geometry.")
+    if state.source and is_mesh_doc(state.source):
+        ctx_lines.append(f"# Current mesh document (version {state.version}); params {json.dumps(state.params, ensure_ascii=False)}\n```json\n{state.source}\n```")
+    elif state.source:
         ctx_lines.append(f"# Current program (version {state.version}); params {json.dumps(state.params, ensure_ascii=False)}\n```js\n{state.source}\n```")
     ctx_lines.append("# Request\n" + (body.text or "(see photos)"))
     content: list[dict[str, Any]] = [{"type": "input_text", "text": "\n".join(ctx_lines)}]
@@ -271,14 +292,14 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     model = ctx.models.designer
     has_photos = any(a["kind"] in ("photo", "sketch") for a in all_assets)
     has_prints = any(a["kind"] == "print" for a in all_assets)
-    tools = tools_for(pack, photos=has_photos, prints=has_prints)
+    tools = tools_for(pack, photos=has_photos, prints=has_prints, engine=engine)
     max_turns = settings().max_iterations * 3
     final_text: str | None = None
     for turn in range(max_turns):
         ctx.check_cancelled()
         effort = body.reasoning if turn < max_turns - 2 or body.reasoning == "minimal" else "low"
         resp = await meta().respond(ctx.meter, model=model, instructions=instructions, input=history, tools=tools, effort=effort,
-                                    max_output_tokens={"high": 20000, "xhigh": 28000, "max": 32000}.get(effort, 12000), cache_key=f"fw-agent-{pack}-{int(has_photos)}{int(has_prints)}")
+                                    max_output_tokens={"high": 20000, "xhigh": 28000, "max": 32000}.get(effort, 12000), cache_key=f"fw-agent-{pack}-{engine}-{int(has_photos)}{int(has_prints)}")
         calls = []
         for item in resp.output or []:
             d = _item_dict(item)
@@ -347,10 +368,12 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         card["next"] = [{**n, "label": narrate.localize(n["label"], language)} for n in card["next"]]
         await ctx.emit("result", card)
     turns = (brief.get("turns") or []) + [body.text[:200]]
-    await db.update("projects", "id", ctx.project_id, {"brief": {**brief, "turns": turns[-10:], "summary": text[:800], "language": language,
-                                                                      "subject": subject, "photo_role": photo_role}, "updated_at": now()})
+    fresh = (await db.one("SELECT brief FROM projects WHERE id = ?", ctx.project_id) or {}).get("brief") or {}
+    await db.update("projects", "id", ctx.project_id, {"brief": {**fresh, **brief, "turns": turns[-10:], "summary": text[:800], "language": language,
+                                                                      "subject": subject, "photo_role": photo_role, "engine": engine}, "updated_at": now()})
     await memory.record_outcome(state.memory_ids, success=state.done)
-    if state.done and state.source and (state.critic or {}).get("verdict") == "pass":
+    # skills are tested JS modules; a mesh document has none to harvest
+    if state.done and state.source and not is_mesh_doc(state.source) and (state.critic or {}).get("verdict") == "pass":
         asyncio.create_task(_harvest_skill(ctx, state.source, pack))
     return text[:300]
 

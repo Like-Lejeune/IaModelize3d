@@ -59,6 +59,8 @@ export interface LibContext {
   printer: PrinterProfile;
   inputs?: Inputs;
   skills?: Record<string, (lib: any, ...args: any[]) => unknown>;
+  // 'preview' while a slider is dragged: coarser meshing for speed (see kernel.detail)
+  quality?: 'preview' | 'final';
 }
 
 export function makeLib(wasm: Wasm, ctx: LibContext) {
@@ -78,6 +80,7 @@ export function makeLib(wasm: Wasm, ctx: LibContext) {
     mesh: makeMeshOps(wasm, ctx.inputs ?? {}),
     printer: ctx.printer,
     inputs: ctx.inputs ?? {},
+    quality: ctx.quality ?? 'final',
     noise: makeNoise,
     part: (solid: Manifold, o: { name?: string; color?: string; role?: string; settings?: Record<string, unknown>; material?: string } = {}) => ({
       solid,

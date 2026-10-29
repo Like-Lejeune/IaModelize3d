@@ -1,98 +1,199 @@
-// Main-thread side of the geometry worker: latest-wins build queue and a watchdog
-// that restarts the worker when a program hangs.
-import type { BuildError, BuildResult } from '../types';
-
-type Pending = { resolve: (v: any) => void; reject: (e: any) => void; timer: ReturnType<typeof setTimeout> };
+// Main-thread side of the geometry workers. Two lanes, each its own worker and WASM heap:
+//   live  - previews while a slider or handle moves (latest wins, never blocked by checks)
+//   final - full-quality build for display, then the full printability report; a stale
+//           final build is cut short (the worker is replaced) when a newer one comes in
+// Inputs (outlines, heightmaps, imported meshes) go to each worker once, not with every build.
+import type { BuildError, BuildResult, CheckReport } from '../types';
 
 export interface BuildArgs {
   source: string;
   params?: Record<string, any>;
-  inputs?: any;
   printer?: any;
-  level?: 'none' | 'fast' | 'full';
   vaseMode?: boolean;
 }
 
-export class GeomClient {
+type Reply = Record<string, any> & { id: number; ok: boolean; done?: boolean };
+
+interface Job {
+  msg: Record<string, any>;
+  droppable: boolean; // a newer job of the same lane replaces it while queued
+  preemptible: boolean; // a newer job may kill the worker running it
+  timeout: number;
+  onPartial?: (r: Reply) => void;
+  resolve: (r: Reply) => void;
+  started?: number;
+}
+
+const superseded = (): Reply => ({ id: 0, ok: false, done: true, stage: 'superseded', message: 'superseded' });
+
+class Lane {
   private worker: Worker | null = null;
+  private current: Job | null = null;
+  private currentId = 0;
+  private queue: Job[] = [];
   private seq = 0;
-  private pending = new Map<number, Pending>();
-  private busy = false;
-  private queued: { args: BuildArgs; resolve: (v: BuildResult | BuildError) => void } | null = null;
-  timeoutMs = 5000;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private sentInputs = '';
+  private fresh = true;
+  /** Typical duration of this lane's last jobs, ms. */
+  typical = 0;
+
+  constructor(
+    private name: string,
+    private inputs: () => { key: string; value: any },
+  ) {}
 
   private spawn() {
-    this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
-    this.worker.onmessage = (ev) => {
-      const p = this.pending.get(ev.data.id);
-      if (!p) return;
-      clearTimeout(p.timer);
-      this.pending.delete(ev.data.id);
-      p.resolve(ev.data);
+    this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module', name: `geom-${this.name}` });
+    this.fresh = true;
+    this.sentInputs = '';
+    this.worker.onmessage = (ev: MessageEvent<Reply>) => {
+      const r = ev.data;
+      const job = this.current;
+      if (!job || r.id !== this.currentId) return;
+      if (!r.done) {
+        job.onPartial?.(r);
+        return;
+      }
+      this.finish(r);
     };
     this.worker.onerror = (ev) => {
-      for (const [, p] of this.pending) {
-        clearTimeout(p.timer);
-        p.reject(new Error(ev.message || 'geometry worker failed'));
-      }
-      this.pending.clear();
-      this.restart();
+      ev.preventDefault?.();
+      this.kill();
+      this.finish({ id: this.currentId, ok: false, done: true, stage: 'runtime', message: ev.message || 'geometry worker failed' });
     };
   }
 
-  private restart() {
+  private kill() {
     this.worker?.terminate();
     this.worker = null;
   }
 
-  private call<T>(msg: Record<string, any>, timeout = this.timeoutMs): Promise<T> {
-    if (!this.worker) this.spawn();
-    const id = ++this.seq;
-    return new Promise<T>((resolve, reject) => {
-      // the first call also loads wasm, so give it extra time
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        this.restart();
-        reject(new Error(`geometry took longer than ${Math.round(timeout / 1000)} s`));
-      }, timeout + (this.seq === 1 ? 10000 : 0));
-      this.pending.set(id, { resolve, reject, timer });
-      this.worker!.postMessage({ ...msg, id });
-    });
-  }
-
-  /** Latest-wins: while a build runs, only the newest request is kept. */
-  build(args: BuildArgs): Promise<BuildResult | BuildError> {
-    return new Promise((resolve) => {
-      if (this.busy) {
-        this.queued?.resolve({ ok: false, stage: 'superseded', message: 'superseded' });
-        this.queued = { args, resolve };
-        return;
+  private finish(r: Reply) {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    const job = this.current;
+    this.current = null;
+    if (job) {
+      if (r.ok && job.started) {
+        const ms = performance.now() - job.started;
+        this.typical = this.typical ? this.typical * 0.5 + ms * 0.5 : ms;
       }
-      this.run(args, resolve);
+      job.resolve(r);
+    }
+    this.pump();
+  }
+
+  submit(job: Omit<Job, 'resolve'>): Promise<Reply> {
+    return new Promise((resolve) => {
+      const j: Job = { ...job, resolve };
+      if (j.droppable)
+        this.queue = this.queue.filter((q) => {
+          if (!q.droppable) return true;
+          q.resolve(superseded());
+          return false;
+        });
+      // A stale final build that still has a while to go is cheaper to kill than to wait for.
+      const cur = this.current;
+      if (cur && cur.preemptible && j.preemptible && cur.started) {
+        const left = (this.typical || 1000) - (performance.now() - cur.started);
+        if (left > 400) {
+          this.kill();
+          this.current = null;
+          if (this.timer) clearTimeout(this.timer);
+          cur.resolve(superseded());
+        }
+      }
+      this.queue.push(j);
+      this.pump();
     });
   }
 
-  private async run(args: BuildArgs, resolve: (v: BuildResult | BuildError) => void) {
-    this.busy = true;
-    try {
-      resolve(await this.call<BuildResult | BuildError>({ type: 'build', ...args }, args.level === 'full' ? 20000 : this.timeoutMs));
-    } catch (e: any) {
-      resolve({ ok: false, stage: 'timeout', message: e?.message ?? String(e) });
-    } finally {
-      this.busy = false;
-      const next = this.queued;
-      this.queued = null;
-      if (next) this.run(next.args, next.resolve);
+  private pump() {
+    if (this.current || !this.queue.length) return;
+    const job = this.queue.shift()!;
+    if (!this.worker) this.spawn();
+    const inp = this.inputs();
+    if (inp.key && inp.key !== this.sentInputs) {
+      this.worker!.postMessage({ id: ++this.seq, type: 'inputs', key: inp.key, inputs: inp.value });
+      this.sentInputs = inp.key;
     }
+    this.current = job;
+    this.currentId = ++this.seq;
+    job.started = performance.now();
+    // the first job of a new worker also loads and compiles the WASM kernel
+    const grace = this.fresh ? 20000 : 0;
+    this.fresh = false;
+    this.timer = setTimeout(() => {
+      this.kill();
+      this.finish({ id: this.currentId, ok: false, done: true, stage: 'timeout', message: `geometry took longer than ${Math.round(job.timeout / 1000)} s` });
+    }, job.timeout + grace);
+    this.worker!.postMessage({ ...job.msg, id: this.currentId, inputsKey: inp.key || undefined });
+  }
+
+  dispose() {
+    this.kill();
+    if (this.timer) clearTimeout(this.timer);
+    for (const q of this.queue) q.resolve(superseded());
+    this.queue = [];
+    this.current?.resolve(superseded());
+    this.current = null;
+  }
+}
+
+export class GeomClient {
+  private inputsKey = '';
+  private inputsValue: any = undefined;
+  private inputsSeq = 0;
+  private live = new Lane('live', () => ({ key: this.inputsKey, value: this.inputsValue }));
+  private final = new Lane('final', () => ({ key: this.inputsKey, value: this.inputsValue }));
+
+  /** Inputs for the following builds; sent to each worker once. */
+  setInputs(value: any) {
+    this.inputsValue = value;
+    this.inputsKey = value && Object.keys(value).length ? `i${++this.inputsSeq}` : '';
+  }
+
+  /** How long a full-quality build of the current program takes, ms (0 = unknown). */
+  get finalMs() {
+    return this.final.typical;
+  }
+
+  /** Fast build for a moving slider. Coarse meshing for heavy programs, no full checks. */
+  async preview(args: BuildArgs & { quality: 'preview' | 'final' }): Promise<BuildResult | BuildError> {
+    const r = await this.live.submit({
+      msg: { type: 'build', ...args, analyze: args.quality === 'final' ? 'fast' : 'none', heat: true, edges: args.quality === 'final' },
+      droppable: true,
+      preemptible: false,
+      timeout: 30000,
+    });
+    return r as unknown as BuildResult | BuildError;
+  }
+
+  /**
+   * Full-quality build: `onDisplay` gets the viewer buffers as soon as the model is built,
+   * the promise resolves with the full printability report afterwards.
+   */
+  async finalize(args: BuildArgs, onDisplay: (r: BuildResult) => void): Promise<{ ok: true; checks: CheckReport } | BuildError> {
+    const r = await this.final.submit({
+      msg: { type: 'build', ...args, quality: 'final', analyze: 'full', heat: true, edges: true },
+      droppable: true,
+      preemptible: true,
+      timeout: 180000,
+      onPartial: (p) => p.ok && onDisplay(p as unknown as BuildResult),
+    });
+    if (r.ok && r.kind === 'display') onDisplay(r as unknown as BuildResult);
+    return r as any;
   }
 
   async exportFile(args: BuildArgs & { format: 'stl' | '3mf'; title?: string }): Promise<Blob> {
-    const r = await this.call<{ ok: boolean; bytes?: Uint8Array; mime?: string; message?: string }>({ type: 'export', ...args }, 30000);
+    const r = await this.live.submit({ msg: { type: 'export', ...args }, droppable: false, preemptible: false, timeout: 120000 });
     if (!r.ok || !r.bytes) throw new Error(r.message ?? 'export failed');
     return new Blob([r.bytes as BlobPart], { type: r.mime });
   }
 
   dispose() {
-    this.restart();
+    this.live.dispose();
+    this.final.dispose();
   }
 }

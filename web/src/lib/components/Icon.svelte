@@ -1,88 +1,107 @@
 <script lang="ts" module>
-  // Stroke icons on a 24px grid (lucide-style), so the UI does not depend on emoji fonts.
+  // Tabler Icons webfont glyphs by the names the app uses; `npm run icons` subsets the font to what is referenced here.
   export const ICONS: Record<string, string> = {
-    camera: 'M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
-    image: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M21 15l-5-5L5 21',
-    video: 'M15 10l5-3v10l-5-3 M3 6h12v12H3z',
-    mic: 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v3',
-    ruler: 'M21.3 15.3l-6.6 6.6a1 1 0 0 1-1.4 0L2.1 10.7a1 1 0 0 1 0-1.4l6.6-6.6a1 1 0 0 1 1.4 0l11.2 11.2a1 1 0 0 1 0 1.4z M7.5 10.5l2 2 M10.5 7.5l2 2 M13.5 13.5l2 2 M16.5 10.5l2 2',
-    caliper: 'M3 3v6h4V5h12V3z M7 9v3 M11 5v10l3 3V5 M16 5v4',
-    pencil: 'M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z',
-    search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3',
-    book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5z M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5',
-    brain: 'M9.5 2A2.5 2.5 0 0 0 7 4.5v.2A3 3 0 0 0 4 8a3 3 0 0 0 .6 1.8A3 3 0 0 0 4 15a3 3 0 0 0 3 3 2.5 2.5 0 0 0 5 .5V4.5A2.5 2.5 0 0 0 9.5 2z M14.5 2A2.5 2.5 0 0 1 17 4.5v.2A3 3 0 0 1 20 8a3 3 0 0 1-.6 1.8A3 3 0 0 1 20 15a3 3 0 0 1-3 3 2.5 2.5 0 0 1-5 .5',
-    sliders: 'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 14h6 M9 8h6 M17 16h6',
-    cube: 'M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z M3.3 7L12 12l8.7-5 M12 22V12',
-    eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
-    scan: 'M3 7V5a2 2 0 0 1 2-2h2 M17 3h2a2 2 0 0 1 2 2v2 M21 17v2a2 2 0 0 1-2 2h-2 M7 21H5a2 2 0 0 1-2-2v-2 M7 12h10',
-    target: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
-    flask: 'M9 3h6 M10 3v6.5L4.5 19a1.5 1.5 0 0 0 1.3 2.2h12.4a1.5 1.5 0 0 0 1.3-2.2L14 9.5V3 M7 15h10',
-    sparkles: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z M19 3v4 M17 5h4 M5 17v4 M3 19h4',
-    mountain: 'M8 3l4 8 5-5 5 15H2z',
-    package: 'M16.5 9.4l-9-5.2 M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z M3.3 7L12 12l8.7-5 M12 22V12',
-    check: 'M20 6L9 17l-5-5',
-    'check-circle': 'M22 11.1V12a10 10 0 1 1-5.9-9.1 M22 4L12 14l-3-3',
-    message: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
-    help: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01',
-    alert: 'M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z M12 9v4 M12 17h.01',
-    x: 'M18 6L6 18 M6 6l12 12',
-    plus: 'M12 5v14 M5 12h14',
-    download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
-    printer: 'M6 9V2h12v7 M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2 M6 14h12v8H6z',
-    share: 'M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M8.6 13.5l6.8 4 M15.4 6.5l-6.8 4',
-    send: 'M22 2L11 13 M22 2l-7 20-4-9-9-4z',
-    'arrow-up': 'M12 19V5 M5 12l7-7 7 7',
-    stop: 'M6 6h12v12H6z',
-    chevron: 'M9 18l6-6-6-6',
-    'chevron-down': 'M6 9l6 6 6-6',
-    info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 16v-4 M12 8h.01',
-    sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z M12 1v2 M12 21v2 M4.2 4.2l1.4 1.4 M18.4 18.4l1.4 1.4 M1 12h2 M21 12h2 M4.2 19.8l1.4-1.4 M18.4 5.6l1.4-1.4',
-    moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
-    layers: 'M12 2L2 7l10 5 10-5z M2 17l10 5 10-5 M2 12l10 5 10-5',
-    flame: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.1-2.1-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.2.5 1.4 1.5 2.5 2.5 2.7z',
-    maximize: 'M8 3H5a2 2 0 0 0-2 2v3 M21 8V5a2 2 0 0 0-2-2h-3 M3 16v3a2 2 0 0 0 2 2h3 M16 21h3a2 2 0 0 0 2-2v-3',
-    phone: 'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z M12 18h.01',
-    history: 'M3 12a9 9 0 1 0 9-9 9.8 9.8 0 0 0-6.7 2.7L3 8 M3 3v5h5 M12 7v5l4 2',
-    gitfork: 'M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M6 9v6 M18 9a9 9 0 0 1-9 9',
-    play: 'M5 3l14 9-14 9z',
-    refresh: 'M3 12a9 9 0 0 1 15-6.7L21 8 M21 3v5h-5 M21 12a9 9 0 0 1-15 6.7L3 16 M3 21v-5h5',
-    globe: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M2 12h20 M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z',
-    lock: 'M5 11h14v11H5z M7 11V7a5 5 0 0 1 10 0v4',
-    wand: 'M15 4V2 M15 16v-2 M8 9h2 M20 9h2 M17.8 11.8L19 13 M15 9h.01 M17.8 6.2L19 5 M3 21l9-9 M12.2 6.2L11 5',
-    copy: 'M9 9h13v13H9z M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1',
-    hammer: 'M15 12l-8.5 8.5a2.1 2.1 0 0 1-3-3L12 9 M17.6 15L22 10.6 M20 8l-6-6-3 3 6 6',
-    adapter: 'M7 3v6a5 5 0 0 0 10 0V3 M9 3h6 M12 14v7 M9 21h6',
-    vase: 'M9 3h6 M10 3c0 3-4 5-4 10a6 6 0 0 0 12 0c0-5-4-7-4-10 M7 21h10',
-    landmark: 'M3 22h18 M6 18v-7 M10 18v-7 M14 18v-7 M18 18v-7 M12 2l8 5H4z',
-    gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
-    figure: 'M12 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M5 22l3-9-3-3 4-2h6l4 2-3 3 3 9',
-    home: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10',
+    camera: 'ti-camera',
+    image: 'ti-photo',
+    video: 'ti-video',
+    mic: 'ti-microphone',
+    ruler: 'ti-ruler-2',
+    caliper: 'ti-ruler-measure',
+    pencil: 'ti-pencil',
+    search: 'ti-search',
+    book: 'ti-book',
+    brain: 'ti-brain',
+    sliders: 'ti-adjustments-horizontal',
+    cube: 'ti-cube',
+    eye: 'ti-eye',
+    scan: 'ti-scan',
+    target: 'ti-target',
+    flask: 'ti-flask',
+    sparkles: 'ti-sparkles',
+    mountain: 'ti-mountain',
+    package: 'ti-package',
+    check: 'ti-check',
+    'check-circle': 'ti-circle-check',
+    message: 'ti-message',
+    help: 'ti-help-circle',
+    alert: 'ti-alert-triangle',
+    x: 'ti-x',
+    plus: 'ti-plus',
+    download: 'ti-download',
+    printer: 'ti-printer',
+    share: 'ti-share',
+    send: 'ti-send',
+    'arrow-up': 'ti-arrow-up',
+    stop: 'ti-player-stop-filled',
+    chevron: 'ti-chevron-right',
+    'chevron-down': 'ti-chevron-down',
+    info: 'ti-info-circle',
+    sun: 'ti-sun',
+    moon: 'ti-moon',
+    layers: 'ti-stack-2',
+    flame: 'ti-flame',
+    maximize: 'ti-maximize',
+    phone: 'ti-device-mobile',
+    history: 'ti-history',
+    gitfork: 'ti-git-fork',
+    play: 'ti-player-play',
+    refresh: 'ti-refresh',
+    globe: 'ti-world',
+    lock: 'ti-lock',
+    wand: 'ti-wand',
+    copy: 'ti-copy',
+    hammer: 'ti-hammer',
+    adapter: 'ti-plug',
+    vase: 'ti-bottle',
+    landmark: 'ti-building-monument',
+    gear: 'ti-settings',
+    figure: 'ti-man',
+    home: 'ti-home',
+    palette: 'ti-palette',
+    dna: 'ti-dna-2',
+    'photo-edit': 'ti-photo-edit',
+    external: 'ti-external-link',
+    'arrow-right': 'ti-arrow-right',
+    language: 'ti-language',
+    grid: 'ti-layout-grid',
+    'arrow-left': 'ti-arrow-left',
+    minus: 'ti-minus',
+    brush: 'ti-brush',
+    'hand-grab': 'ti-hand-grab',
+    balloon: 'ti-balloon',
+    wave: 'ti-wave-sine',
+    'arrows-minimize': 'ti-arrows-minimize',
+    scribble: 'ti-scribble',
+    'eye-off': 'ti-eye-off',
+    trash: 'ti-trash',
+    undo: 'ti-arrow-back-up',
+    sphere: 'ti-sphere',
+    move: 'ti-arrows-move',
+    resize: 'ti-arrows-maximize',
+    rotate: 'ti-rotate',
+    texture: 'ti-texture',
+    'grid-dots': 'ti-grid-dots',
+    flip: 'ti-flip-vertical',
+    user: 'ti-user',
   };
 </script>
 
 <script lang="ts">
-  let { name, size = 18, stroke = 1.8, label }: { name: string; size?: number; stroke?: number; label?: string } = $props();
+  let { name, size = 18, label }: { name: string; size?: number; label?: string } = $props();
 </script>
 
-<svg
-  class="icon"
-  viewBox="0 0 24 24"
-  width={size}
-  height={size}
-  fill="none"
-  stroke="currentColor"
-  stroke-width={stroke}
-  stroke-linecap="round"
-  stroke-linejoin="round"
+<i
+  class="ti {ICONS[name] ?? ICONS.info} icon"
+  style:font-size="{size}px"
   role={label ? 'img' : undefined}
   aria-label={label}
   aria-hidden={label ? undefined : 'true'}
-><path d={ICONS[name] ?? ICONS.info} /></svg>
+></i>
 
 <style>
   .icon {
     flex: none;
     display: inline-block;
-    vertical-align: middle;
+    line-height: 1;
   }
 </style>
