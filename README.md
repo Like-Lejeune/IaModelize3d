@@ -1,108 +1,127 @@
 # Formwright
 
-An agent that designs printable 3D models for the real world from a photo, a caliper reading, a sketch,
-a voice note or an idea, and checks them against reality before you print.
+**Formwright by Axo prints the spare part nobody stocks: measured from a photo, verified before you pay, printed on
+our farm in Kazakhstan and checked again before it ships.**
 
-Models write short parametric programs, a geometry kernel builds them. Dimensions come from computer
-vision, standards tables and official specs, not from guessing. Every version passes a slicer-like
-printability check and an independent critic.
+Under it is an agent that turns photos, caliper readings, sketches, voice notes and ideas into printable 3D models
+(spare parts, cases for electronics boards, the boards themselves) and checks each one against reality before
+anything is printed. Dimensions come from measurement, standards tables and official specs, not from guessing: the
+agent writes a short parametric program, a geometry kernel builds it, and every version passes a slicer-like
+printability check and an independent reviewer.
+
+**[Live app](LIVE_URL)** · **[3-minute video](VIDEO_URL)** · Startups track · Built 27 Oct – 4 Nov 2026 for the Meta
+Global AI Developer Hackathon
+
+![The XIAO ESP32-C3 carrier example in the studio: the routed board inside a translucent case, green rays through each port, labels with the clearances](docs/img/xiao-case-rays.jpg)
 
 ## Features
 
-- **Measurement from photos.** SAM 3.1 finds the part and a known reference (A4/Letter sheet, bank card,
-  coin, battery, LEGO brick); outlines and holes come out in millimetres with an uncertainty. Caliper
-  displays are read directly.
-- **Snap & collect.** On a phone, tap an object out in the world (a bench, a statue, a cat): the photo is segmented at
-  the tap and the object lights up, a tap adds or removes parts, and on confirm the agent models it as a printable
-  miniature while you go on to the next one. The collection page shows everything you gathered.
-- **Parametric programs.** Each model is a JavaScript program with sliders and draggable handles. The same
-  code runs in the browser for live editing and in a sandboxed server worker for checks and export.
-- **Mesh engine for organic shapes.** Instead of a program the agent can shape a surface: a mesh document of
-  operations (clay blobs blended into the body, sculpt brushes, proportional moves, textures, remesh, exact cuts) with
-  left/right symmetry and parameters. Replays are incremental, renders mark where each operation acts, and in the
-  studio you can switch operations off, tune or remove them and sculpt with the same brushes by hand.
-- **Exact and free-form geometry.** CSG with standard holes, threads, gears and hinges; signed distance
-  fields with smooth blends, lofts, sweeps, subdivision smoothing, 3D rounding, grooves and embossing that
-  follow curved surfaces, and mesh sculpting. Uploaded STL/OBJ files can be edited too.
-- **Local-first editing.** Sliders, handles, sculpting and export run in two browser workers: a live one that
-  builds coarse previews while you drag and a final one that builds the full model and runs the checks, cutting
-  stale work short. The server stores what the browser built and only rebuilds for the agent, slicing and orders.
-- **Printability checks.** A layer-by-layer mini-slicer reports islands, bridges, overhangs and thin
-  features with exact positions. OrcaSlicer gives time and weight.
-- **Verification against the photo.** Builds are rendered next to the photographed object from the same
-  angle with a silhouette match; an optimizer fits parameters to the silhouette; uncertain fits become a
-  short probe print; a calibration coupon gives each printer a correction profile.
-- **Print profiles with reasons.** Settings change from the stock Orca profile only with evidence, and
-  modifier volumes reinforce screw areas.
-- **Creative packs.** Vases and lamps, gyroid lattices, terrain from open elevation data, landmarks,
-  figures, print-in-place mechanisms, multi-colour parts, concept images.
-- **Memory.** Measured interfaces, lessons from repeated fixes and tested modules are kept only with
-  evidence and recalled only when relevant.
-- **Work log.** Each job shows its stages, steps in the user's language and a result card with dimensions,
-  their sources, printability and cost. Public projects can be replayed.
-- **Output.** STL/3MF with print settings, print-and-delivery orders in Kazakhstan through Axo, and a
-  Telegram bot for photos and voice notes.
+- **Spare parts (Formwright Parts).** A photo of the broken part on an A4 sheet, the appliance's rating plate and a
+  voice note become an order: the intake reads and refuses what is dangerous to print, the agent designs a compatible
+  part from the measured photo, OrcaSlicer gives a binding quote in tenge, the farm prints it, and a QC photo is
+  compared with the model before it ships. Every verified part becomes a catalog card that can be reordered.
+- **Cases for boards.** A photo of a board is matched to a 13-board dataset (`fw.board/1`); the case is checked with
+  rays through every port, press tabs over the buttons and snaps that must not overbend.
+- **Boards from a description.** tscircuit in a sandboxed worker: placement, autorouting, DRC and intent checks,
+  Gerber/BOM/pick-and-place, and a case around the routed board.
+- **Snap & collect.** On a phone, tap anything (a bench, a statue, a cat): it becomes a 3D sticker in about a second,
+  and six finds print on one plate.
+- **Measurement from photos.** SAM 3.1 finds the part and a known reference (A4/Letter sheet, bank card, coin);
+  outlines and holes come out in millimetres with an uncertainty. Caliper displays are read directly.
+- **Parametric programs and a mesh engine.** Each model is a JavaScript program with sliders, or a mesh document for
+  organic shapes. The same code runs in the browser for live editing and in a sandboxed server worker.
+- **Checks.** A layer-by-layer mini-slicer reports islands, bridges, overhangs and thin features; the critic sees
+  renders and the model over the photo, never the code.
+- **Output.** STL and 3MF with print settings, orders through Formwright Parts, and a Telegram bot.
+
+## Meta models
+
+| Model | Role |
+|---|---|
+| Muse Spark 1.3 | designer, spare-part intake and refusals, circuits, board identification, caliper reading, dimension search |
+| Muse Spark Open (open weights, Baseten) | independent critic, classification, the English layer, second opinion on spare-part requests |
+| Muse Wonder | designer for hard parts |
+| SAM 3.1 | measurement, board scan, Snap stickers, face blur, QC of printed parts |
+| Muse Spark 1.2 | video understanding |
+| Muse Voice Transcribe | voice notes |
+| Muse Image | concept images and drawn edits |
+
+The open model never decides a refusal: in the shop it can only hold an order for the operator. Self-hosting
+instead of Baseten: Muse Glimmer on Modal, `infra/modal_glimmer.py`.
+
+## Built during the hackathon
+
+All code in this repository was written during the building period; the first commit is `bd5ab1b` (27 Oct 2026,
+11:01 ET). What existed before is Axo ([axo.kz](https://axo.kz)), the founder's 3D-printing business in Kazakhstan:
+its farm, its customers and its own code, none of which is here. `integrations/axo.py` can call Axo's external order
+API.
+
+Not ours: the open-source libraries in the `package.json` files and `server/pyproject.toml`; OrcaSlicer, run as an
+external CLI; the Archivo font and Tabler Icons (`web/static/fonts/NOTICE.md`); the board dimensions in
+`packages/geom/src/boards.json`, taken from the manufacturers' published drawings (each board links its source).
 
 ## Architecture
 
 ```
- browser (SvelteKit, three.js)                 server (FastAPI)
- ┌───────────────────────────────┐  SSE  ┌──────────────────────────────────────────┐
- │ chat, 3D view, sliders,       │◄──────│ agent loop (Muse Spark / Wonder, tools)   │
- │ handles, photo AR, WebXR      │       │  ├ vision: SAM 3.1, calibration, caliper  │
- │ geometry worker (same code) ──┼──┐    │  ├ knowledge: standards, web search       │
- └───────────────────────────────┘  │    │  ├ critic: renders + photos, no code      │
-                                    │    │  ├ memory: interfaces, lessons, skills    │
-     packages/geom (TypeScript)     │    │  └ printing: Orca CLI, profiles, probes   │
-     manifold kernel, libraries,    ├────┤ sandboxed Node workers (vm + permissions)  │
-     checks, renderer, 3MF export ──┘    └──────────────────────────────────────────┘
+ browser (SvelteKit, three.js)              server (FastAPI, SQLite)
+ ┌─────────────────────────────────┐  SSE  ┌─────────────────────────────────────────────┐
+ │ studio: chat, 3D view, sliders, │◄──────│ agent loop (Muse Spark / Wonder, tools)     │
+ │ handles, photo AR, PCB tab,     │       │  ├ packs: household … enclosure, pcb        │
+ │ board ghost and port rays       │       │  ├ vision: SAM 3.1, calibration, board scan │
+ │ /parts /orders /ops (Axo farm)  │       │  ├ knowledge: standards, web search         │
+ │ /snap /collection               │       │  ├ critic: renders + photos, no code        │
+ │ geometry workers (same code) ───┼──┐    │  ├ memory: interfaces, lessons, skills      │
+ └─────────────────────────────────┘  │    │  └ printing: Orca CLI, profiles, probes     │
+                                      │    │ shop: intake, quotes, orders, QC, catalog   │
+     packages/geom (TypeScript)       │    │ sandboxed Node workers (vm + permissions):  │
+     manifold kernel, lib.elec,       ├────┤  ├ geometry: packages/geom                  │
+     checks, renderer, 3MF export ────┘    │  └ PCB: packages/pcb (tscircuit bundle)     │
+                                           └─────────────────────────────────────────────┘
 ```
-
-## Models
-
-| Model | Role |
-|---|---|
-| Muse Spark 1.3 | designer, intake, critic, dimension search, print-profile review |
-| Muse Wonder | designer for complex parts |
-| SAM 3.1 | segmentation for measurement, privacy blur, video tracking |
-| Muse Spark 1.2 | video and audio understanding |
-| Muse Voice Transcribe | voice notes |
-| Muse Image | concept images and visual edits |
-| Muse Glimmer (open weights, optional) | independent critic on your own GPU (`infra/modal_glimmer.py`) |
-| MapAnything (open weights, optional) | multi-view metric reconstruction (`infra/modal_mapanything.py`) |
 
 ## Running locally
 
-Requirements: Node 24, Python 3.12+, a Meta Model API key; OrcaSlicer for slicing and ffmpeg for audio
-and video are optional.
+Requirements: Node 24, Python 3.12+, a Meta Model API key; OrcaSlicer (quotes and slicing) and ffmpeg (audio and
+video) are optional. Copy `.env.example` to `.env` and set `META_API_KEY`; the other settings are listed there.
+
+Windows, API on port 8400 and the web app on http://localhost:5400:
+
+```powershell
+.\dev.ps1            # the first run installs npm and Python dependencies and builds the PCB worker
+```
+
+By hand:
 
 ```bash
 npm install
-npm run build -w web
+cd packages/pcb && npm ci --ignore-scripts && npm run bundle && cd ../..   # the sandboxed PCB worker
 cd server
-python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"   # .venv/bin/pip on Linux/macOS
-echo META_API_KEY=... > ../.env
-.venv/Scripts/python -m uvicorn formwright.app:app --port 8000
+python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"            # .venv/bin/pip on Linux/macOS
+.venv/Scripts/python -m uvicorn formwright.app:app --port 8400
+npm run dev                                                               # second terminal, repo root
 ```
 
-Open http://localhost:8000. For UI development run `npm run dev -w web` (port 5173, proxies the API).
+On a VPS with HTTPS (Docker and a domain pointing at the server):
 
-Container: `docker build --build-arg ORCA_APPIMAGE_URL=<OrcaSlicer Linux AppImage> -t formwright .`
-
-Settings are environment variables with the `FW_` prefix: `FW_MODEL_DESIGNER`, `FW_MODEL_FAST`,
-`FW_MODEL_CRITIC`, `FW_ORCA_BIN`, `FW_ORCA_PROFILES`, `FW_DAILY_BUDGET_USD`, `FW_TELEGRAM_TOKEN`,
-`FW_AXO_API_URL`, `FW_AXO_API_KEY`, `FW_OPEN_BASE_URL`, `FW_OPEN_MODEL`.
+```bash
+cd deploy && cp .env.template .env && chmod 600 .env   # FW_DOMAIN, META_API_KEY, FW_OPEN_*
+docker compose up -d --build
+bash smoke.sh https://your.domain
+```
 
 ## Tests
 
 ```bash
-npm test                                     # geometry kernel, checks, sketch solver
-cd server && .venv/Scripts/python -m pytest  # vision, printing, sandbox, pipeline
+npm test                                     # geometry kernel, checks, cases and port rays, stickers, sandbox
+cd packages/pcb && npm test                  # the PCB pipeline
+cd web && npm test                           # web helpers
+cd server && .venv/Scripts/python -m pytest  # vision, printing, agent, shop, PCB, sessions, quotas
 ```
+
+The server tests stub the models. `tests/test_vision_live.py` and `tests/test_meta_live.py` (with
+`FW_LIVE_TESTS=1`) call the real API.
 
 ## License
 
-[PolyForm Noncommercial 1.0.0](LICENSE). Models you create with Formwright are yours.
-
-Written during the Meta Global AI Developer Hackathon (27 Oct – 4 Nov 2026). Axo (axo.kz) is used only as
-an external print-and-delivery API; none of its code is here.
+Source-available under [PolyForm Noncommercial 1.0.0](LICENSE): free for judging, personal, research and education
+use; commercial use needs permission. Models you create with Formwright are yours.

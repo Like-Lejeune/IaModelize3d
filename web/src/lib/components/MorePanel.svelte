@@ -11,9 +11,23 @@
     snapshot,
     onUseConcept,
     onPhotoAR,
-  }: { store: ProjectStore; snapshot: () => string | null; onUseConcept: (url: string) => void; onPhotoAR: (a: AssetOut) => void } = $props();
+    focus = null,
+    onFocused,
+  }: {
+    store: ProjectStore;
+    snapshot: () => string | null;
+    onUseConcept: (url: string) => void;
+    onPhotoAR: (a: AssetOut) => void;
+    /** Open Ideas and sketch concepts for this prompt, or start drawing a change. */
+    focus?: { prompt?: string; draw?: boolean } | null;
+    onFocused?: () => void;
+  } = $props();
 
   let sub = $state<'assets' | 'concepts' | 'versions'>('assets');
+
+  $effect.pre(() => {
+    if (focus) sub = 'concepts';
+  });
 </script>
 
 <div class="more">
@@ -25,7 +39,7 @@
   {#if sub === 'assets'}
     <AssetsPanel {store} {onPhotoAR} />
   {:else if sub === 'concepts'}
-    <CreatePanel {store} {snapshot} {onUseConcept} />
+    <CreatePanel {store} {snapshot} {onUseConcept} {focus} {onFocused} />
   {:else}
     <VersionsPanel {store} />
   {/if}

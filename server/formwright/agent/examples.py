@@ -1,5 +1,8 @@
 """Reference programs shown to the designer (few-shot). Each one is built and checked in
-tests/test_examples.py, so the agent only ever sees examples that print cleanly."""
+tests/test_examples.py, so the agent only ever sees examples that print cleanly.
+
+EXAMPLES_TEXT is the same for every pack and sits in the cached prefix; PACK_EXAMPLES[pack] goes into that
+pack's own block (loop.instructions_for), after its rules."""
 
 SHELF_HOOK = r"""
 // Clamp-on bag hook for a shelf board. Printed on its side: layers follow the load.
@@ -71,15 +74,19 @@ function handles(p) {
 }
 function build(p, lib) {
   const { std, forms, math, M } = lib;
-  const r = (z, th, t) => math.lerp(p.base_r, p.top_r, Math.pow(t, 0.8)) + 2.4 * Math.sin(p.ribs * th + math.rad(p.twist) * t);
+  const mid = (z) => math.lerp(p.base_r, p.top_r, Math.pow(z / p.height, 0.8));
+  const r = (z, th, t) => mid(z) + 2.4 * Math.sin(p.ribs * th + math.rad(p.twist) * t);
   // wide rim on the bed, holder ring on top
   const shell = forms.surface({ height: p.height, mode: 'open', wall: 1.68, segments: 192, radius: r });
   const envelope = forms.surface({ height: p.height, mode: 'solid', segments: 192, radius: r });
-  // 45° funnel from the wall up to a 3 mm flat ring around the holder hole: prints without support
-  const dr = p.top_r + 1 - p.fitter / 2;
+  // 45° chamfer under a 3 mm flat ring around the holder hole. The cone starts just outside the ribs
+  // (radius r0 at height z0, found in a few steps), so nothing under the ring is flat: no support needed.
+  let r0 = p.top_r + 4;
+  for (let i = 0; i < 6; i++) r0 = mid(p.height - 3 - (r0 - p.fitter / 2)) + 3.4;
+  const dr = r0 - p.fitter / 2;
   const z0 = p.height - 3 - dr;
-  const funnel = M.cylinder(dr + 3, p.top_r + 4, p.top_r + 4).translate([0, 0, z0])
-    .subtract(M.cylinder(dr, p.top_r + 1, p.fitter / 2).translate([0, 0, z0 - 0.01]))
+  const funnel = M.cylinder(dr + 3, r0, r0).translate([0, 0, z0])
+    .subtract(M.cylinder(dr, r0, p.fitter / 2).translate([0, 0, z0 - 0.01]))
     .subtract(std.cyl(p.fitter, p.height * 3, { center: true }))
     .intersect(envelope);
   return shell.add(funnel);
@@ -109,9 +116,10 @@ function build(p, lib) {
   const pocket = sdf.extrude(plan.offset(-10, 'Round'), 2 * H, { r: 3 }).translate([0, 0, floor + H]);
   body = body.subtract(pocket.mesh({ edge: 0.8 }));
   for (const x of [-16, 0, 16]) body = body.add(sdf.box([2.52, L * 0.55, 6], { r: 1.2 }).translate([x, 0, floor - 1]).mesh({ edge: 0.6 }));
-  // a decorative line along the middle of the rim, and initials raised on the curved side wall
+  // a decorative line along the middle of the rim, and initials raised on the curved side wall:
+  // strokes three lines wide, and a 0.6 mm relief so the letters' undersides print without support
   body = std.groove(body, plan.offset(-4.4, 'Round').subtract(plan.offset(-5.6, 'Round')), 0.6);
-  return std.emboss(body, std.text2d('FW', { size: 8 }).translate([0, H * 0.45]), 0.8, { dir: '-y' });
+  return std.emboss(body, std.text2d('FW', { size: 8, stroke: 1.26 }).translate([0, H * 0.45]), 0.6, { dir: '-y' });
 }
 return { meta, params, build };
 """
@@ -127,3 +135,23 @@ EXAMPLES_TEXT = f"""
 ## One smooth body with details on its curved surface (products, shells: sdf + groove/emboss)
 ```js{SMOOTH_BODY}```
 """
+
+
+def _pack_examples() -> dict[str, str]:
+    """Only for packs whose modules imported (the same guard as prompts.PACKS)."""
+    from . import tools
+
+    out = {}
+    if tools.elec_tools:
+        out["enclosure"] = ("# Reference case (checked: the Pico W fits, USB clearance 0.27 mm, plunger gap 0.3 mm over BOOTSEL)\n"
+                            f"```js\n{tools.elec_tools.EXAMPLE}```")
+    if tools.pcb_tools:
+        try:
+            from .pcb_prompt import EXAMPLE as CARRIER
+        except Exception:  # noqa: BLE001 - prompts leaves the pack out as well
+            return out
+        out["pcb"] = f"# Reference board (built: 0 DRC errors, 23 traces, intent met)\n```tsx\n{CARRIER}```"
+    return out
+
+
+PACK_EXAMPLES = _pack_examples()

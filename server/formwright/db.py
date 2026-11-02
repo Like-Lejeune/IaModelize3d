@@ -77,6 +77,10 @@ CREATE TABLE IF NOT EXISTS captures (
 CREATE TABLE IF NOT EXISTS logins (
   token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at REAL NOT NULL, last_seen REAL NOT NULL, expires_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
 CREATE TABLE IF NOT EXISTS tg_chats (
   chat_id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, project_id TEXT NOT NULL
 );
@@ -89,6 +93,11 @@ CREATE TABLE IF NOT EXISTS orders (
 MIGRATIONS = [
     ("users", "ip", "TEXT"),
     ("projects", "replay_of", "TEXT"),
+    # home page order of curated public runs (0: not featured)
+    ("projects", "featured", "INTEGER DEFAULT 0"),
+    # users from before sessions, whose browsers send the bare user id: 0 until it is swapped for a session, then the
+    # time of that swap (sessions.adopt_legacy); NULL for everyone else. The backfill runs once, as the column appears.
+    ("users", "legacy_cookie", "REAL", "UPDATE users SET legacy_cookie = 0"),
 ]
 
 JSON_COLUMNS = {"brief", "meta", "prompt", "data", "params", "inputs", "checks", "input", "result", "body", "preset", "fingerprint", "quote"}
@@ -136,11 +145,13 @@ class Database:
     async def _migrate(self) -> None:
         """Additive column migrations for databases created by older versions."""
         assert self.conn
-        for table, column, decl in MIGRATIONS:
+        for table, column, decl, *backfill in MIGRATIONS:
             async with self.conn.execute(f"PRAGMA table_info({table})") as cur:
                 cols = {r[1] for r in await cur.fetchall()}
             if column not in cols:
                 await self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+                for sql in backfill:
+                    await self.conn.execute(sql)
 
     async def close(self) -> None:
         if self.conn:
@@ -161,6 +172,14 @@ class Database:
         assert self.conn
         async with self.conn.execute(sql, tuple(_encode(a) for a in args)) as cur:
             return [_decode(r) for r in await cur.fetchall()]  # type: ignore[misc]
+
+    async def returning(self, sql: str, *args: Any) -> list[dict[str, Any]]:
+        """A write with RETURNING, committed: the rows it changed, e.g. to use a one-time token up atomically."""
+        assert self.conn
+        async with self.conn.execute(sql, tuple(_encode(a) for a in args)) as cur:
+            rows = [_decode(r) for r in await cur.fetchall()]
+        await self.conn.commit()
+        return rows  # type: ignore[return-value]
 
     async def insert(self, table: str, row: dict[str, Any]) -> None:
         cols = ", ".join(row)

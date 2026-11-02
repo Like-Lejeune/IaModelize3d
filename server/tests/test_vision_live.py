@@ -1,5 +1,11 @@
-"""Live Meta API checks on synthetic images (about $0.02). Skipped without a key."""
+"""Live Meta API checks on synthetic images (about $0.02).
+Opt-in: needs a key and FW_LIVE_TESTS=1, so the default suite stays offline.
+
+    cd server && FW_LIVE_TESTS=1 .venv/Scripts/python -m pytest -q tests/test_vision_live.py -s
+"""
 from __future__ import annotations
+
+import os
 
 import cv2
 import numpy as np
@@ -9,13 +15,13 @@ import test_vision_synth as syn
 from test_vision_pipeline import env, jpeg_with_exif  # noqa: F401 (fixture)
 
 
-def _has_key() -> bool:
+def _live() -> bool:
     from formwright.config import Settings
 
-    return bool(Settings().meta_api_key)
+    return os.environ.get("FW_LIVE_TESTS") == "1" and bool(Settings().meta_api_key)
 
 
-pytestmark = pytest.mark.skipif(not _has_key(), reason="needs META_API_KEY")
+pytestmark = pytest.mark.skipif(not _live(), reason="live Meta API: needs META_API_KEY and FW_LIVE_TESTS=1")
 
 
 def caliper_image() -> np.ndarray:

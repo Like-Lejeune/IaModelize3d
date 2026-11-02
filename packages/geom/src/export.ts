@@ -41,7 +41,13 @@ function meshXml(solid: Manifold): string {
   return `<mesh><vertices>${v.join('')}</vertices><triangles>${t.join('')}</triangles></mesh>`;
 }
 
-const SUBTYPE: Record<Part['role'], string> = {
+// The package requires the production extension (components point into another model file with
+// p:path), and that extension wants a p:UUID on every object, component, build and item. Stable ids
+// keep the output deterministic; Bambu Studio and Orca write the same attributes.
+const uuid = (kind: number, n: number) => `${n.toString(16).padStart(8, '0')}-${kind.toString(16).padStart(4, '0')}-4000-8000-000000000000`;
+
+// 'reference' parts (the board ghost of a case) are never written: to3mf drops them.
+const SUBTYPE: Record<Exclude<Part['role'], 'reference'>, string> = {
   model: 'normal_part',
   modifier: 'modifier_part',
   negative: 'negative_part',
@@ -58,7 +64,8 @@ export interface ThreeMfOptions {
   projectSettings?: Record<string, unknown>;
 }
 
-export function to3mf(parts: Part[], o: ThreeMfOptions = {}): Uint8Array {
+export function to3mf(all: Part[], o: ThreeMfOptions = {}): Uint8Array {
+  const parts = all.filter((p) => p.role !== 'reference') as (Part & { role: keyof typeof SUBTYPE })[];
   const NS = 'http://schemas.microsoft.com/3dmanufacturing/core/2015/02';
   const PNS = 'http://schemas.microsoft.com/3dmanufacturing/production/2015/06';
   const objectsPath = '/3D/Objects/object_1.model';
@@ -70,9 +77,9 @@ export function to3mf(parts: Part[], o: ThreeMfOptions = {}): Uint8Array {
     if (!colorSlots.has(key)) colorSlots.set(key, colorSlots.size + 1);
     return colorSlots.get(key)!;
   };
-  const subObjects = parts.map((p, i) => `<object id="${i + 1}" type="model">${meshXml(p.solid)}</object>`).join('');
+  const subObjects = parts.map((p, i) => `<object id="${i + 1}" p:UUID="${uuid(1, i + 1)}" type="model">${meshXml(p.solid)}</object>`).join('');
   const parentId = parts.length + 1;
-  const components = parts.map((_, i) => `<component p:path="${objectsPath}" objectid="${i + 1}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`).join('');
+  const components = parts.map((_, i) => `<component p:path="${objectsPath}" objectid="${i + 1}" p:UUID="${uuid(2, i + 1)}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`).join('');
   const [cx, cy] = o.bedCenter ?? [128, 128];
   // center the object's XY on the bed
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -86,11 +93,11 @@ export function to3mf(parts: Part[], o: ThreeMfOptions = {}): Uint8Array {
 <model unit="millimeter" xml:lang="en-US" xmlns="${NS}" xmlns:p="${PNS}" requiredextensions="p">
 <metadata name="Application">Formwright</metadata>
 <metadata name="Title">${esc(o.title ?? 'model')}</metadata>
-<resources><object id="${parentId}" type="model"><components>${components}</components></object></resources>
-<build><item objectid="${parentId}" transform="1 0 0 0 1 0 0 0 1 ${tx.toFixed(4)} ${ty.toFixed(4)} 0" printable="1"/></build>
+<resources><object id="${parentId}" p:UUID="${uuid(1, parentId)}" type="model"><components>${components}</components></object></resources>
+<build p:UUID="${uuid(3, 1)}"><item objectid="${parentId}" p:UUID="${uuid(4, 1)}" transform="1 0 0 0 1 0 0 0 1 ${tx.toFixed(4)} ${ty.toFixed(4)} 0" printable="1"/></build>
 </model>`;
   const objectsModel = `<?xml version="1.0" encoding="UTF-8"?>
-<model unit="millimeter" xml:lang="en-US" xmlns="${NS}"><resources>${subObjects}</resources><build/></model>`;
+<model unit="millimeter" xml:lang="en-US" xmlns="${NS}" xmlns:p="${PNS}" requiredextensions="p"><resources>${subObjects}</resources><build/></model>`;
   const meta = (k: string, v: unknown) => `<metadata key="${esc(k)}" value="${esc(String(v))}"/>`;
   const partsCfg = parts
     .map((p, i) => {

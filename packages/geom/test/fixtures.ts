@@ -78,3 +78,28 @@ function build(p, lib) {
 }
 return { meta, params, build };
 `;
+
+// The case program an agent writes for a board: about 30 lines over lib.elec (elec*.test.ts).
+export const BOARD_CASE = `
+const meta = { title: 'Board snap case', pack: 'enclosure', printNotes: 'Base floor-down, lid top-down; PETG for the snap hooks, no supports.' };
+const params = {
+  wall: { value: 2.0, min: 1.2, max: 4, step: 0.1, unit: 'mm', source: 'design' },
+  clear: { value: 0.5, min: 0.2, max: 2, step: 0.1, unit: 'mm', source: 'design' },
+  standoff: { value: 2.5, min: 1.5, max: 12, step: 0.1, unit: 'mm', source: 'design' },
+  port_fit: { value: 0.3, min: 0.1, max: 1.0, step: 0.05, unit: 'mm', source: 'design' },
+  lights: { value: 'hole', options: ['hole', 'skin'], source: 'design' },
+  mount: { value: 'peg', options: ['peg', 'auto', 'screw'], source: 'design' },
+  buttons: { value: 'flex', options: ['flex', 'none'], source: 'design' },
+  layout: { value: 'print', options: ['print', 'assembled'], source: 'design' },
+  show_board: { value: false, source: 'design' },
+};
+function build(p, lib) {
+  const E = lib.elec;
+  const spec = lib.inputs.boards && lib.inputs.boards.board;
+  lib.assert(spec, 'attach the board JSON as inputs.boards.board');
+  const enc = E.enclosure(E.board(spec), { wall: p.wall, clear: p.clear, standoff: p.standoff, portFit: p.port_fit,
+    lights: p.lights, mount: p.mount, buttons: p.buttons });
+  return E.parts(enc, { layout: p.layout, ghost: p.show_board });
+}
+return { meta, params, build };
+`;

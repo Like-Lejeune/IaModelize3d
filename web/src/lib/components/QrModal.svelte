@@ -8,6 +8,8 @@
   let { projectId, onClose }: { projectId: string; onClose: () => void } = $props();
   let url = $state('');
   let svg = $state('');
+  // a link to this computer's localhost means nothing on the phone
+  let local = $state(false);
 
   onMount(async () => {
     let link = `${location.origin}/c/${projectId}`;
@@ -18,6 +20,7 @@
       /* token endpoint optional: same-browser fallback */
     }
     url = link;
+    local = /^((.+\.)?localhost|127\.\d+\.\d+\.\d+|\[::1\])$/i.test(new URL(link).hostname);
     const qr = qrcode(0, 'M');
     qr.addData(link);
     qr.make();
@@ -30,6 +33,7 @@
     <p class="muted">{t('phone_hint')}</p>
     <div class="code" aria-label="QR code">{@html svg}</div>
     <a class="small mono link" href={url} target="_blank" rel="noopener">{url}</a>
+    {#if local}<p class="warn small" role="note">{t('qr_localhost')}</p>{/if}
   </div>
 </Modal>
 
@@ -56,5 +60,10 @@
   .link {
     overflow-wrap: anywhere;
     font-size: 12px;
+  }
+  .warn {
+    margin: 0;
+    color: var(--warn-text);
+    overflow-wrap: anywhere;
   }
 </style>

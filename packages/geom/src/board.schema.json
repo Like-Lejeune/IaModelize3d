@@ -1,0 +1,67 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "fw.board/1",
+ "title": "Formwright board: one shape for a dataset board, a board measured from a photo and a PCB from the PCB pipeline",
+ "type": "object",
+ "required": ["schema", "id", "name", "source", "frame", "pcb", "components"],
+ "properties": {
+  "schema": { "const": "fw.board/1" },
+  "id": { "type": "string" },
+  "name": { "type": "string" },
+  "aliases": { "type": "array", "items": { "type": "string" }, "description": "silkscreen/chip markings used for identification" },
+  "source": {
+   "type": "object", "required": ["kind"],
+   "properties": {
+    "kind": { "enum": ["dataset", "photo", "pcb", "photo+dataset"] },
+    "urls": { "type": "array", "items": { "type": "string" } },
+    "asset_id": { "type": "string" }, "selection_id": { "type": "string" }, "pcb_job": { "type": "string" },
+    "dataset_id": { "type": "string" }, "checked": { "type": "string" },
+    "calibration": { "type": "object", "description": "photo: how mm were obtained (A4 homography, board's own holes) and its residual" }
+   }
+  },
+  "sources": { "type": "object", "additionalProperties": { "type": "string" }, "description": "src keys -> document URL" },
+  "frame": { "type": "string" },
+  "pcb": {
+   "type": "object", "required": ["outline", "thickness", "holes"],
+   "properties": {
+    "outline": {
+     "oneOf": [
+      { "type": "object", "required": ["kind", "w", "h"], "properties": { "kind": { "const": "rect" }, "w": { "type": "number", "exclusiveMinimum": 0 }, "h": { "type": "number", "exclusiveMinimum": 0 }, "r": { "type": "number", "minimum": 0 }, "src": { "type": "string" }, "verify": { "$ref": "#/$defs/verify" } } },
+      { "type": "object", "required": ["kind", "points", "w", "h"], "properties": { "kind": { "const": "poly" }, "points": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/xy" } }, "w": { "type": "number" }, "h": { "type": "number" }, "src": { "type": "string" }, "verify": { "$ref": "#/$defs/verify" } } }
+     ]
+    },
+    "thickness": { "type": "number", "exclusiveMinimum": 0, "maximum": 5 },
+    "holes": { "type": "array", "items": {
+     "type": "object", "required": ["x", "y", "d"],
+     "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "d": { "type": "number", "exclusiveMinimum": 0 }, "plated": { "type": "boolean" }, "use": { "enum": ["mount", "pin", "tooling"] }, "src": { "type": "string" }, "verify": { "$ref": "#/$defs/verify" }, "uncertainty_mm": { "type": "number" } } } }
+   }
+  },
+  "components": { "type": "array", "items": { "$ref": "#/$defs/component" } },
+  "keepouts": { "type": "array", "items": {
+   "type": "object", "required": ["id", "rect", "rule"],
+   "properties": { "id": { "type": "string" }, "rect": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 }, "z": { "type": "array", "items": { "type": "number" } }, "rule": { "enum": ["no_metal", "no_material", "airflow", "keep_open"] }, "src": { "type": "string" }, "verify": { "$ref": "#/$defs/verify" }, "note": { "type": "string" } } } },
+  "heights": { "type": "object", "properties": { "top_max": { "type": "number" }, "bottom_max": { "type": "number" } } },
+  "mount": { "type": "object" },
+  "uncertainty_mm": { "type": "number", "description": "default 1-sigma for numbers without their own" }
+ },
+ "$defs": {
+  "xy": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+  "verify": { "type": "array", "items": { "type": "string" }, "description": "fields NOT read from src: estimated, typical or measured with low confidence" },
+  "component": {
+   "type": "object", "required": ["id", "type", "side", "access", "w", "h"],
+   "properties": {
+    "id": { "type": "string" }, "type": { "type": "string" }, "side": { "enum": ["top", "bottom"] },
+    "access": { "enum": ["port", "press", "light", "cable", "none"] },
+    "w": { "type": "number", "minimum": 0 }, "h": { "type": "number", "minimum": 0 }, "d": { "type": "number", "minimum": 0 },
+    "edge": { "enum": ["+x", "-x", "+y", "-y"] }, "at": { "type": "number" }, "z0": { "type": "number" }, "protrude": { "type": "number" },
+    "plug": { "oneOf": [{ "$ref": "#/$defs/xy" }, { "type": "null" }] }, "plugR": { "type": "number" },
+    "x": { "type": "number" }, "y": { "type": "number" }, "normal": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+    "src": { "type": "string" }, "verify": { "$ref": "#/$defs/verify" }, "uncertainty_mm": { "type": "number" }, "note": { "type": "string" },
+    "evidence": { "type": "object", "description": "photo: SAM mask id/score, Spark box; pcb: footprint/ref designator" }
+   },
+   "allOf": [
+    { "if": { "properties": { "access": { "const": "port" } } }, "then": { "required": ["edge", "at", "d", "protrude"] }, "else": { "required": ["x", "y", "d"] } }
+   ]
+  }
+ }
+}

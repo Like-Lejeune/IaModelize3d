@@ -25,7 +25,9 @@
 
   const keyOf = (op: MeshDoc['ops'][number], i: number) => op.id ?? `#${i}`;
   const fields = (op: MeshDoc['ops'][number]) => FIELDS.filter((f) => typeof op[f] === 'number');
-  const title = (op: MeshDoc['ops'][number]) => (op.op === 'sculpt' && op.brush ? `${t('brush.' + op.brush)}` : op.op);
+  // op names in the UI language; an op this list does not know yet keeps its own name
+  const opName = (op: string) => (t(`op.${op}`) === `op.${op}` ? op : t(`op.${op}`));
+  const title = (op: MeshDoc['ops'][number]) => (op.op === 'sculpt' && op.brush ? `${t('brush.' + op.brush)}` : opName(op.op));
 
   function range(op: MeshDoc['ops'][number], f: string): [number, number, number] {
     const v = Number(op[f]);

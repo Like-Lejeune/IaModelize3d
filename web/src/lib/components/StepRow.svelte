@@ -2,19 +2,36 @@
   // One line of agent work inside a step group; click to see everything behind it.
   import Icon from './Icon.svelte';
   import { t } from '$lib/i18n.svelte';
-  import { KIND_ICON, callTitle, resultTitle, statusLine } from '$lib/steps';
+  import { isOpenWeights, modelName } from '$lib/models';
+  import { KIND_ICON, TOOL_ICON, callTitle, resultTitle, statusLine, stepModels } from '$lib/steps';
   import type { TimelineItem } from '$lib/project.svelte';
 
   let { item, onZoom }: { item: TimelineItem; onZoom: (url: string) => void } = $props();
 
   let open = $state(false);
 
+  // a fact's source as a link: a web address only (the model copies it from search results, and a 'javascript:' or
+  // scheme-less one must neither run nor break the row), shown by its site
+  function site(url: string | null | undefined): string | null {
+    if (!url || !/^https?:\/\//i.test(url)) return null;
+    try {
+      return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+      return null;
+    }
+  }
+
+  // which Meta model did this step, by name; two ids that read the same show once
+  const models = $derived(
+    [...new Map(stepModels(item).map((id) => [modelName(id), isOpenWeights(id)] as const))].map(([name, open]) => ({ name, open })),
+  );
+
   const line = $derived.by(() => {
     switch (item.kind) {
       case 'tool': {
         const failed = item.result?.ok === false;
         return {
-          icon: failed ? 'alert' : (KIND_ICON[item.tkind] ?? 'check'),
+          icon: failed ? 'alert' : (TOOL_ICON[item.name] ?? KIND_ICON[item.tkind] ?? 'check'),
           title: callTitle(item.name, item.args, item.title),
           note: item.result ? resultTitle(item.name, item.args, item.result.summary, item.result.ok, item.result.title) : undefined,
           bad: failed,
@@ -22,15 +39,18 @@
           more: !!(item.args || item.result?.summary || item.result?.image),
         };
       }
-      case 'critic':
+      case 'critic': {
+        // the finish gate asked for a closer match than the reviewer's own verdict did
+        const verdict = item.forced_by && item.score != null ? t('critic_forced', { score: item.score }) : t(item.verdict) + (item.score != null ? ` · ${t('score_of', { s: item.score })}` : '');
         return {
           icon: 'eye',
           title: t('critic'),
-          note: t(item.verdict) + (item.score != null ? ` · ${t('score_of', { s: item.score })}` : ''),
-          bad: item.verdict !== 'pass',
+          note: verdict + (item.version ? ` · v${item.version}` : ''),
+          bad: !!item.forced_by || item.verdict !== 'pass',
           pending: false,
           more: item.issues.length > 0,
         };
+      }
       case 'facts':
         return { icon: 'search', title: t('facts'), note: String(item.items.length), bad: false, pending: false, more: item.items.length > 0 };
       case 'memory':
@@ -60,7 +80,12 @@
     <span class="ico" aria-hidden="true">{#if line.pending}<span class="dot"></span>{:else}<Icon name={line.icon} size={14} />{/if}</span>
     <span class="txt">
       <span class="title" class:shimmer={line.pending}>{line.title}</span>
-      {#if line.note}<span class="note">{line.note}</span>{/if}
+      {#if line.note || models.length}
+        <span class="sub">
+          {#if line.note}<span class="note">{line.note}</span>{/if}
+          {#each models as m (m.name)}<span class="model" class:weights={m.open}>{m.name}{#if m.open}<span class="ow">&nbsp;· {t('open_weights')}</span>{/if}</span>{/each}
+        </span>
+      {/if}
     </span>
     {#if line.more}<span class="chev" aria-hidden="true"><Icon name="chevron" size={13} /></span>{/if}
   </button>
@@ -73,13 +98,13 @@
         {#if item.args}<pre>{pretty(item.args)}</pre>{/if}
         {#if item.result?.summary}<pre>{pretty(item.result.summary)}</pre>{/if}
       {:else if item.kind === 'critic'}
-        <ul>{#each item.issues as is, i (i)}<li class:major={is.severity === 'major'}>{is.text}</li>{/each}</ul>
+        <ul>{#each item.issues as is, i (i)}<li class:major={is.severity === 'major'}>{is.text_user || is.text}</li>{/each}</ul>
       {:else if item.kind === 'facts'}
         <ul>
           {#each item.items as f, i (i)}
             <li>
               {f.subject} · {f.attribute}: <strong class="mono">{typeof f.value === 'number' ? f.value : String(f.value).replace(/^"|"$/g, '')} {f.unit ?? ''}</strong>
-              {#if f.source_url}<a href={f.source_url} target="_blank" rel="noopener noreferrer">{new URL(f.source_url).hostname.replace(/^www\./, '')} ↗</a>{/if}
+              {#if site(f.source_url)}<a href={f.source_url} target="_blank" rel="noopener noreferrer">{site(f.source_url)} ↗</a>{/if}
             </li>
           {/each}
         </ul>
@@ -140,8 +165,7 @@
     flex-direction: column;
     line-height: 20px;
   }
-  .title,
-  .note {
+  .title {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -151,10 +175,50 @@
     white-space: normal;
     overflow-wrap: anywhere;
   }
+  /* the result carries the numbers ("PCB v3 — 0 DRC errors, 23 traces…"): two lines before it is cut */
   .note {
     font-size: var(--text-card-meta);
     color: var(--outline);
     line-height: 17px;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  .open .note {
+    display: block;
+  }
+  /* the result first; model chips follow, on a line of their own when the column is narrow */
+  .sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+    min-width: 0;
+  }
+  .sub .note {
+    flex: 1 1 8em;
+    min-width: 0;
+  }
+  .model {
+    flex: none;
+    font-size: 11px;
+    line-height: 16px;
+    padding: 0 6px;
+    border-radius: var(--radius-tag);
+    background: var(--surface-high);
+    color: var(--on-surface-var);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+  }
+  .model.weights {
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary);
+  }
+  .ow {
+    font-weight: normal;
   }
   .bad .note {
     color: var(--error);

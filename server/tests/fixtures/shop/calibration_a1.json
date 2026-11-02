@@ -1,0 +1,132 @@
+{
+ "about": "Kernel estimate (checks.stats estGrams/estMinutes, built for the A1) vs OrcaSlicer on the same file for the 17 projects of calibration.json, on the Axo farm's printer: Bambu Lab A1 0.4 nozzle, PLA, Orca default process, measured 2026-10-30. wheel: the basket-wheel stand-in design in PETG on the same preset.",
+ "points": [
+  {
+   "title": "Park Bench Copy",
+   "est_g": 60.416,
+   "est_min": 112.505,
+   "orca_g": 107.18,
+   "orca_min": 399.1
+  },
+  {
+   "title": "Подставка под банку",
+   "est_g": 31.232,
+   "est_min": 56.523,
+   "orca_g": 31.7,
+   "orca_min": 61.4
+  },
+  {
+   "title": "Twisted lamp shade",
+   "est_g": 103.885,
+   "est_min": 212.038,
+   "orca_g": 100.64,
+   "orca_min": 622.1
+  },
+  {
+   "title": "Сова с крыльями",
+   "est_g": 32.21,
+   "est_min": 71.616,
+   "orca_g": 35.87,
+   "orca_min": 105.8
+  },
+  {
+   "title": "Подставка под банку",
+   "est_g": 11.419,
+   "est_min": 22.185,
+   "orca_g": 12.42,
+   "orca_min": 34.1
+  },
+  {
+   "title": "Мыльница-галька",
+   "est_g": 39.157,
+   "est_min": 71.287,
+   "orca_g": 39.97,
+   "orca_min": 74.7
+  },
+  {
+   "title": "Белый кот",
+   "est_g": 37.692,
+   "est_min": 78.327,
+   "orca_g": 45.83,
+   "orca_min": 133.8
+  },
+  {
+   "title": "Mesh cat",
+   "est_g": 12.194,
+   "est_min": 35.487,
+   "orca_g": 13.44,
+   "orca_min": 65.7
+  },
+  {
+   "title": "Perf test cat",
+   "est_g": 45.297,
+   "est_min": 99.153,
+   "orca_g": 50.65,
+   "orca_min": 135.6
+  },
+  {
+   "title": "Кот с банкой",
+   "est_g": 63.544,
+   "est_min": 138.036,
+   "orca_g": 71.42,
+   "orca_min": 175.2
+  },
+  {
+   "title": "Four Color Column",
+   "est_g": 56.767,
+   "est_min": 126.624,
+   "orca_g": 58.04,
+   "orca_min": 130.3
+  },
+  {
+   "title": "Exact Part Replica",
+   "est_g": 28.875,
+   "est_min": 73.51,
+   "orca_g": 40.92,
+   "orca_min": 161.0
+  },
+  {
+   "title": "Jumping Cat Replica",
+   "est_g": 55.55,
+   "est_min": 106.954,
+   "orca_g": 64.34,
+   "orca_min": 153.6
+  },
+  {
+   "title": "White Cat Replica",
+   "est_g": 154.973,
+   "est_min": 293.888,
+   "orca_g": 165.9,
+   "orca_min": 327.9
+  },
+  {
+   "title": "Realme 8i Case",
+   "est_g": 36.5,
+   "est_min": 64.224,
+   "orca_g": 36.77,
+   "orca_min": 51.9
+  },
+  {
+   "title": "Design check",
+   "est_g": 0.69,
+   "est_min": 3.66,
+   "orca_g": 0.7,
+   "orca_min": 12.9
+  },
+  {
+   "title": "White Smug Cat",
+   "est_g": 61.922,
+   "est_min": 130.475,
+   "orca_g": 68.76,
+   "orca_min": 171.8
+  }
+ ],
+ "wheel": {
+  "title": "Basket wheel (stand-in design)",
+  "material": "PETG",
+  "est_g": 3.129,
+  "est_min": 7.883,
+  "orca_g": 3.64,
+  "orca_min": 21.8
+ }
+}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
+  import { t, unitLabel } from '$lib/i18n.svelte';
   let { compact = false }: { compact?: boolean } = $props();
 </script>
 
@@ -17,7 +17,7 @@
       <circle cx="13" cy="14" r="5" fill="var(--surface-container)" />
     </g>
     <path d="M83 26 L83 36" stroke="var(--outline)" stroke-dasharray="2 2" />
-    <text x="38" y="102" font-size="9" fill="var(--outline)" font-family="var(--font-sans)">A4 · 210 × 297 mm</text>
+    <text x="38" y="102" font-size="9" fill="var(--outline)" font-family="var(--font-sans)">A4 · 210 × 297 {unitLabel('mm')}</text>
   </svg>
   <ul>
     <li>{t('tip_1')}</li>

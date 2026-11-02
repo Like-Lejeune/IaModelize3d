@@ -1,12 +1,13 @@
 // One request/response API over programs, used by the server worker (Node) and the
 // browser worker alike. Inputs and outputs are plain JSON (binary as base64).
-import { analyze, type CheckReport } from './checks.ts';
+import { analyze, meshHeat, type CheckReport } from './checks.ts';
 import { to3mf, toStl } from './export.ts';
 import { nelderMead, unpackMask } from './fit.ts';
 import { parseMesh } from './import.ts';
 import { hashString } from './hash.ts';
 import { withArena, type Wasm } from './kernel.ts';
 import { compileMeshDoc, isMeshDoc } from './meshdoc/doc.ts';
+import { checkEnclosure } from './enclosure.ts';
 import { DEFAULT_PRINTER, type Inputs, type PrinterProfile } from './lib/index.ts';
 import { solidFromArrays } from './lib/meshops.ts';
 import { fromBase64, hexColor, partsMesh, toBase64 } from './mesh.ts';
@@ -88,6 +89,8 @@ export interface InspectRequest extends BaseRequest {
     | { op: 'ray'; from: [number, number, number]; to: [number, number, number] }
     | { op: 'surface'; from: 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom'; points: [number, number][] }
     | { op: 'extremes' }
+    // rebuilds with { layout: 'assembled', show_board: true } and checks the case against inputs.boards[board]
+    | { op: 'enclosure'; board?: string }
   )[];
 }
 
@@ -102,6 +105,10 @@ interface Built {
   printer: PrinterProfile;
   out: BuildOutput;
 }
+
+// reference parts (the board in a case): translucent blue in renders
+const REFERENCE_RGB: [number, number, number] = [79, 141, 247];
+const REFERENCE_ALPHA = 105;
 
 const PALETTE: [number, number, number][] = [
   [214, 216, 222], [232, 150, 90], [110, 170, 220], [150, 200, 120], [220, 120, 160], [240, 210, 100],
@@ -203,7 +210,7 @@ export class Engine {
         handles: out.handles,
         parts: out.parts.map((p) => {
           const b = p.solid.boundingBox();
-          return { name: p.name, role: p.role, color: p.color, settings: p.settings, material: p.material, bbox: b, volume: p.solid.volume() };
+          return { name: p.name, role: p.role, color: p.color, settings: p.settings, material: p.material, bbox: b, volume: p.solid.volume(), ...(p.role === 'reference' ? { reference: true } : {}) };
         }),
       };
       if (checks) {
@@ -229,6 +236,7 @@ export class Engine {
       const part = parts[triPart[f]];
       let rgb = hexColor(part?.color, PALETTE[triPart[f] % PALETTE.length]);
       if (part?.role === 'modifier') rgb = [120, 200, 255];
+      if (part?.role === 'reference') rgb = REFERENCE_RGB;
       if (heat && heat[f] > 0) {
         const h = heat[f];
         rgb = [rgb[0] + (235 - rgb[0]) * h, rgb[1] * (1 - h * 0.7), rgb[2] * (1 - h * 0.8)];
@@ -238,21 +246,30 @@ export class Engine {
     return c;
   }
 
+  private alpha(parts: { role: string }[], triPart: Uint16Array) {
+    if (!parts.some((p) => p.role === 'reference')) return undefined;
+    const a = new Uint8Array(triPart.length).fill(255);
+    for (let f = 0; f < triPart.length; f++) if (parts[triPart[f]]?.role === 'reference') a[f] = REFERENCE_ALPHA;
+    return a;
+  }
+
   render(req: RenderRequest) {
     const { printer, out } = this.run(req);
     return withArena(() => {
-      const mesh = partsMesh(out.parts, ['model', 'modifier']);
-      let heat: Float32Array | undefined;
-      if (req.heat) {
-        // heat is per triangle of the union body; recompute per part mesh instead
-        const r = analyze(this.wasm, out.body, printer, { level: 'fast' });
-        if (r.heat && r.heat.length === mesh.triPart.length) heat = r.heat;
-      }
-      const colors = this.colors(out.parts, mesh.triPart, heat);
       const box = out.body.boundingBox();
       if (req.views || req.focus || req.cut) return this.closeUp(req, out.parts, box);
+      const mesh = partsMesh(out.parts, ['model', 'modifier', 'reference']);
+      let heat: Float32Array | undefined;
+      if (req.heat) {
+        // per triangle of the rendered part meshes (the union body's triangles differ on
+        // multi-part models); helper volumes are not printed, so they stay unheated
+        heat = meshHeat({ vertProperties: mesh.positions, numProp: 3, triVerts: mesh.indices }, printer, box.min[2]).heat;
+        for (let f = 0; f < heat.length; f++) if (out.parts[mesh.triPart[f]].role !== 'model') heat[f] = 0;
+      }
+      const colors = this.colors(out.parts, mesh.triPart, heat);
+      const alpha = this.alpha(out.parts, mesh.triPart);
       if (req.camera) {
-        const r = render(mesh, req.camera, { colors, background: [0, 0, 0, 0], edgeColor: [255, 120, 40] });
+        const r = render(mesh, req.camera, { colors, alpha, background: [0, 0, 0, 0], edgeColor: [255, 120, 40] });
         const mask = new Uint8Array(Math.ceil((r.width * r.height) / 8));
         for (let k = 0; k < r.width * r.height; k++) if (r.ids[k] >= 0) mask[k >> 3] |= 1 << (7 - (k & 7));
         return { png: toBase64(encodePng(r.rgba, r.width, r.height)), width: r.width, height: r.height, mask: toBase64(mask) };
@@ -260,10 +277,10 @@ export class Engine {
       if (req.view === 'iso') {
         const size = req.tile ?? 512;
         const cam = orthoFit([-1, 1, -0.8], { min: box.min as any, max: box.max as any }, size, size, 0.1);
-        const r = render(mesh, cam, { colors, background: [246, 246, 243, 255] });
+        const r = render(mesh, cam, { colors, alpha, background: [246, 246, 243, 255] });
         return { png: toBase64(encodePng(r.rgba, r.width, r.height)), width: r.width, height: r.height };
       }
-      const s = renderSheet(mesh, { min: box.min as any, max: box.max as any }, { tile: req.tile ?? 340, colors, title: req.title, markers: req.markers });
+      const s = renderSheet(mesh, { min: box.min as any, max: box.max as any }, { tile: req.tile ?? 340, colors, alpha, title: req.title, markers: req.markers });
       return { png: toBase64(encodePng(s.rgba, s.width, s.height)), width: s.width, height: s.height };
     });
   }
@@ -271,7 +288,7 @@ export class Engine {
   // Views from any angle, a zoomed region or part, and section cuts (the cut face shows
   // walls, cavities and thickness the outside views hide).
   private closeUp(req: RenderRequest, parts: Part[], box: { min: number[]; max: number[] }) {
-    let shown = parts.filter((p) => p.role === 'model' || p.role === 'modifier');
+    let shown = parts.filter((p) => p.role === 'model' || p.role === 'modifier' || p.role === 'reference');
     const cut = req.cut;
     let cutDir: [number, number, number] | null = null;
     if (cut) {
@@ -283,8 +300,9 @@ export class Engine {
       if (!shown.length) throw new ProgramError('result', `nothing ${below ? 'below' : 'above'} ${cut.axis}=${cut.at}`);
       cutDir = n; // the kept side's cut face looks against n, so the camera looks along n
     }
-    const mesh = partsMesh(shown);
+    const mesh = partsMesh(shown, ['model', 'modifier', 'reference']);
     const colors = this.colors(shown, mesh.triPart);
+    const alpha = this.alpha(shown, mesh.triPart);
     let frame = { min: [...box.min] as [number, number, number], max: [...box.max] as [number, number, number] };
     const focus = req.focus;
     if (focus && 'part' in focus) {
@@ -317,7 +335,7 @@ export class Engine {
     }
     if (!views.length) views = SHEET_VIEWS.slice(0, focus ? 3 : 6);
     const size = [0, 1, 2].map((i) => box.max[i] - box.min[i]);
-    const s = renderSheet(mesh, frame, { tile: req.tile ?? 420, colors, views, title: req.title, size, markers: req.markers });
+    const s = renderSheet(mesh, frame, { tile: req.tile ?? 420, colors, alpha, views, title: req.title, size, markers: req.markers });
     return { png: toBase64(encodePng(s.rgba, s.width, s.height)), width: s.width, height: s.height };
   }
 
@@ -338,8 +356,16 @@ export class Engine {
     return { ...m, stats: { vertices: m.positions.length / 3, triangles: m.triangles.length / 3, bbox: b, closed, volume, reason } };
   }
 
+  // A case program's assembled layout (lid in place, board ghost) is for looking and checking: a version
+  // saved while the studio showed it must still export the print layout.
+  private printLayout<T extends BaseRequest>(req: T): T {
+    const opts = this.compile(req.source).params.layout?.options;
+    if (!opts?.includes('print') || !opts.includes('assembled')) return req;
+    return { ...req, params: { ...(req.params ?? {}), layout: 'print', show_board: false } };
+  }
+
   export(req: ExportRequest) {
-    const { out } = this.run(req);
+    const { out } = this.run(this.printLayout(req));
     return withArena(() => {
       if (req.format === 'stl') return { data: toBase64(toStl(out.body)), mime: 'model/stl' };
       const data = to3mf(out.parts, { title: req.title, objectSettings: req.objectSettings });
@@ -347,12 +373,17 @@ export class Engine {
     });
   }
 
-  // Measuring tools for the agent: sections, per-part boxes, gaps between parts.
+  // Measuring tools for the agent: sections, per-part boxes, gaps between parts, and the case check.
   inspect(req: InspectRequest) {
-    const { out } = this.run(req);
     return withArena(() => {
       const results: unknown[] = [];
       for (const op of req.ops.slice(0, 20)) {
+        if (op.op === 'enclosure') {
+          results.push(this.enclosure(req, op.board ?? 'board'));
+          continue;
+        }
+        // per op: the case check's rebuild may have evicted this build (keepBuilds 1 in the browser)
+        const { out } = this.run(req);
         if (op.op === 'section') {
           const cs = out.body.slice(op.z);
           const pieces = cs.decompose().map((p) => {
@@ -410,12 +441,30 @@ export class Engine {
             for (const [k, [ax, sg]] of Object.entries(dirs)) if (!best[k] || P[i + ax] * sg > best[k][ax] * sg) best[k] = [P[i], P[i + 1], P[i + 2]];
           results.push({ op: 'extremes', points: Object.fromEntries(Object.entries(best).map(([k, v]) => [k, v.map((x) => +x.toFixed(2))])) });
         } else if (op.op === 'ray') {
+          // manifold's rayCast distance is a fraction of the segment: report mm, and the fraction as frac
           const hits = out.body.rayCast(op.from as any, op.to as any);
-          results.push({ op: 'ray', hits: hits.slice(0, 8).map((h: any) => ({ distance: +h.distance.toFixed(3), position: h.position.map((v: number) => +v.toFixed(2)) })) });
+          const len = Math.hypot(op.to[0] - op.from[0], op.to[1] - op.from[1], op.to[2] - op.from[2]);
+          results.push({ op: 'ray', hits: hits.slice(0, 8).map((h: any) => ({ distance: +(h.distance * len).toFixed(3), frac: +h.distance.toFixed(4), position: h.position.map((v: number) => +v.toFixed(2)) })) });
         }
       }
       return { results };
     });
+  }
+
+  // inspect op 'enclosure' (check_enclosure): the assembled case with its board ghost against the board JSON.
+  private enclosure(req: InspectRequest, board: string) {
+    const t0 = performance.now();
+    const spec = req.inputs?.boards?.[board];
+    if (!spec) {
+      const known = Object.keys(req.inputs?.boards ?? {});
+      return {
+        op: 'enclosure', board, rays: [], clearance: {}, ms: 0,
+        findings: [{ code: 'pcb_seated', severity: 'error', part: 'pcb', value: null, msg: `no board JSON at inputs.boards.${board}${known.length ? `; boards: ${known.join(', ')}` : ''}` }],
+      };
+    }
+    const { out } = this.run({ ...req, params: { ...(req.params ?? {}), layout: 'assembled', show_board: true } });
+    const check = checkEnclosure(this.wasm, out.parts, spec);
+    return { op: 'enclosure', board, ...check, ms: Math.round(performance.now() - t0) };
   }
 
   fit(req: FitRequest) {

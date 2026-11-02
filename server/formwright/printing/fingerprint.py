@@ -194,6 +194,7 @@ async def measure(meter: Any, user: dict, asset: dict, prompt: str = "3D printed
     import meta_sam_parser as msp
 
     from ..llm.client import meta
+    from ..vision.maskcodec import decode_mask_to_raster
 
     H = await _calibration(meter, user, asset)
     path = settings().data_dir / "files" / asset["path"]
@@ -208,7 +209,7 @@ async def measure(meter: Any, user: dict, asset: dict, prompt: str = "3D printed
         if not isinstance(rec, msp.SegmentationMaskRecord):
             continue
         b = rec.bounds
-        mask = np.frombuffer(msp.decode_mask_to_raster(rec.mask), dtype=np.uint8).reshape(rec.mask.height, rec.mask.width)
+        mask = np.frombuffer(decode_mask_to_raster(rec.mask), dtype=np.uint8).reshape(rec.mask.height, rec.mask.width)
         contours, hierarchy = cv2.findContours((mask > 0).astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
         if hierarchy is None:
             continue

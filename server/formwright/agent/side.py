@@ -3,19 +3,35 @@ breeding (LLM as the crossover operator over programs) and visual edits."""
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
 from typing import Any
 
+from PIL import Image
+
 from .. import storage
 from ..db import get_db, new_id, now
 from ..geom import GeomError, geom
-from ..llm.client import meta
+from ..llm.client import RESPOND_DEADLINE_S, meta
+from ..llm.english import english
 from ..models import SendMessage
+from . import narrate
 from .prompts import SYSTEM
 from .runner import JobContext, add_message
 
 log = logging.getLogger(__name__)
+
+
+# a generated picture has no reference sheet in it: nothing to calibrate, and SAM measures it in pixels
+GENERATED = {"ok": False, "reason": "generated image"}
+
+
+def _size(data: bytes) -> tuple[int | None, int | None]:
+    try:
+        return Image.open(io.BytesIO(data)).size
+    except OSError:
+        return None, None
 
 
 async def _latest(ctx: JobContext) -> dict[str, Any] | None:
@@ -44,7 +60,7 @@ async def slice_job(ctx: JobContext, payload: dict[str, Any]) -> str:
     await ctx.emit("slice", result)
     s = result.get("stats", {})
     changed = len(result.get("diff", []))
-    text = f"Sliced: {s.get('minutes', 0):.0f} min, {s.get('grams', 0):.1f} g, {s.get('layers', 0)} layers. {changed} setting(s) changed from the printer's default profile, each with a reason."
+    text = narrate.sliced(s, changed, brief.get("language"))
     await add_message(ctx.project_id, "agent", text, {"slice": result})
     await ctx.emit("agent.message", {"text": text})
     return text
@@ -94,7 +110,7 @@ async def probe_job(ctx: JobContext, payload: dict[str, Any]) -> str:
 async def make_concepts(ctx: JobContext, prompt: str, n: int = 3) -> list[str]:
     n = max(1, min(n, 4))
     await ctx.status("Sketching concepts")
-    styled = (f"{prompt}. Product concept render of a 3D-printed object in matte PLA, single object on a plain light background, "
+    styled = (f"{await english(ctx.meter, prompt, ctx.models.fast)}. Product concept render of a 3D-printed object in matte PLA, single object on a plain light background, "
               "studio light, full object visible, no text.")
     images = await meta().image(ctx.meter, styled, n=n)
     db = await get_db()
@@ -103,7 +119,9 @@ async def make_concepts(ctx: JobContext, prompt: str, n: int = 3) -> list[str]:
     for img in images:
         aid = new_id("a_")
         rel = storage.save_bytes(ctx.project_id, "concepts", f"{aid}.png", img)
-        await db.insert("assets", {"id": aid, "project_id": ctx.project_id, "kind": "concept", "path": rel, "mime": "image/png", "meta": {"prompt": prompt}, "created_at": now()})
+        w, h = _size(img)
+        await db.insert("assets", {"id": aid, "project_id": ctx.project_id, "kind": "concept", "path": rel, "mime": "image/png", "width": w, "height": h,
+                                   "meta": {"prompt": prompt, "calibration": GENERATED}, "created_at": now()})
         rels.append(rel)
         items.append({"url": storage.url(rel), "prompt": prompt, "asset_id": aid})
     await ctx.emit("concepts", {"images": items})
@@ -153,14 +171,18 @@ async def breed_job(ctx: JobContext, payload: dict[str, Any]) -> str:
         "(new rhythm, profile, twist, texture, proportion). Keep the program format, params and all exact interfaces. "
         "Every child must be a complete program and visually distinct from the parents and from each other.",
         content=[{"type": "input_text", "text": f"{text}\n\nReturn {n} children."}], schema=BREED_SCHEMA, name="breed", effort="medium", max_output_tokens=16000,
+        deadline=RESPOND_DEADLINE_S,  # up to 8 whole programs in one answer
     )
     base = (await _latest(ctx))["version"]  # type: ignore[index]
     items = []
     version = base
-    for child in out.get("children", [])[:n]:
+    children = out.get("children", [])[:n]
+    # programs that read lib.inputs (photo outlines, heightmaps, uploaded meshes) need their parent's inputs to build
+    inputs = parents[0]["inputs"] or {}
+    for child in children:
         try:
-            built = await geom().build(child["source"], {}, analyze="fast")
-            png = await geom().render(child["source"], {}, view="iso", tile=384)
+            built = await geom().build(child["source"], {}, analyze="fast", inputs=inputs)
+            png = await geom().render(child["source"], {}, view="iso", tile=384, inputs=inputs)
         except GeomError as e:
             log.info("child failed: %s", e)
             continue
@@ -171,8 +193,9 @@ async def breed_job(ctx: JobContext, payload: dict[str, Any]) -> str:
         items.append({"version": version, "render": storage.url(rel), "summary": child["summary"][:200], "ok": built.get("checks", {}).get("ok", True)})
     if items:
         await db.update("projects", "id", ctx.project_id, {"version": version, "updated_at": now()})
-    await ctx.emit("variants", {"items": items})
-    return f"{len(items)} variants"
+    failed = len(children) - len(items)
+    await ctx.emit("variants", {"items": items, "failed": failed, "total": len(children)})
+    return f"{len(items)} variants" + (f", {failed} failed to build" if failed else "")
 
 
 async def visual_edit_job(ctx: JobContext, payload: dict[str, Any]) -> str:
@@ -182,15 +205,18 @@ async def visual_edit_job(ctx: JobContext, payload: dict[str, Any]) -> str:
     sketch = base64.b64decode(payload["sketch_png"].split(",")[-1])
     sketch_rel = storage.save_bytes(ctx.project_id, "edits", f"{new_id('s_')}.png", sketch)
     await ctx.status("Painting the requested change")
-    target = await meta().image(ctx.meter, f"Edit this product render: {payload['instruction']}. The user's strokes mark where. "
+    instruction = await english(ctx.meter, payload["instruction"], ctx.models.fast)
+    target = await meta().image(ctx.meter, f"Edit this product render: {instruction}. The user's strokes mark where. "
                                            "Keep everything else identical, same view and lighting, remove the strokes.",
                                 images=[storage.png_data_url(sketch)], n=1)
     db = await get_db()
     asset_ids = []
-    for rel, kind in ((sketch_rel, "sketch"),) + tuple((storage.save_bytes(ctx.project_id, "edits", f"{new_id('t_')}.png", t), "concept") for t in target):
+    for data, kind in ((sketch, "sketch"),) + tuple((t, "concept") for t in target):
+        rel = sketch_rel if kind == "sketch" else storage.save_bytes(ctx.project_id, "edits", f"{new_id('t_')}.png", data)
         aid = new_id("a_")
-        await db.insert("assets", {"id": aid, "project_id": ctx.project_id, "kind": kind, "path": rel, "mime": "image/png",
-                                   "meta": {"visual_edit": payload["instruction"]}, "created_at": now()})
+        w, h = _size(data)
+        await db.insert("assets", {"id": aid, "project_id": ctx.project_id, "kind": kind, "path": rel, "mime": "image/png", "width": w, "height": h,
+                                   "meta": {"visual_edit": payload["instruction"], "calibration": GENERATED}, "created_at": now()})
         asset_ids.append(aid)
     await ctx.emit("concepts", {"images": [{"url": storage.url(r["path"]), "prompt": payload["instruction"]} for r in
                                            await db.all("SELECT path FROM assets WHERE id IN (%s)" % ",".join("?" * len(asset_ids)), *asset_ids)]})

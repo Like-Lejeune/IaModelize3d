@@ -1,9 +1,14 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "formwright"
 version = "0.1.0"
 description = "Agent that designs printable 3D models from photos, measurements and ideas"
 requires-python = ">=3.12"
-license = { file = "../LICENSE" }
+# the text is in ../LICENSE; setuptools cannot package a file outside this folder
+license = "PolyForm-Noncommercial-1.0.0"
 dependencies = [
   "fastapi",
   "uvicorn[standard]",
@@ -21,6 +26,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio"]
+
+[tool.setuptools.packages.find]
+include = ["formwright*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

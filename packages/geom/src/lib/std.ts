@@ -45,8 +45,37 @@ export function makeStd(wasm: Wasm, ctx: LibContext) {
   };
 
   // ---------- extrusion ----------
-  // Chamfers are built as 0.1 mm steps: the printer prints layers anyway, and
-  // this works for any (also concave) outline where scaleTop would not.
+  // A chamfer removes the material within c - d of the outline at depth d below the face: the
+  // set offset(-(c - d), 'Round') leaves out, so it works for any (also concave) outline. For
+  // one edge that set is convex (distance to a segment plus depth), so its cutter is a hull of
+  // points: a circle of radius c around both ends on the face, the two ends at depth c. Every
+  // face of it is at 45°, so a bottom chamfer has no overhang a printer or the checks would see.
+  const chamferCutter = (cs: CrossSection, c: number, face: number, dir: 1 | -1): Manifold => {
+    const e = 0.01; // past the face and the outline, so no cut face is coplanar with the prism
+    const r = c + e;
+    const zFace = face - dir * e;
+    const zTip = face + dir * c;
+    const k = 8;
+    const ring = Array.from({ length: k }, (_, j) => [Math.cos((2 * Math.PI * j) / k), Math.sin((2 * Math.PI * j) / k)]);
+    const cutters: Manifold[] = [];
+    for (const loop of cs.toPolygons()) {
+      for (let i = 0; i < loop.length; i++) {
+        const a = loop[i];
+        const b = loop[(i + 1) % loop.length];
+        const pts: V3[] = [[a[0], a[1], zTip], [b[0], b[1], zTip]];
+        for (const q of [a, b]) for (const [x, y] of ring) pts.push([q[0] + r * x, q[1] + r * y, zFace]);
+        // The circle is a polygon; the points along the edge normal keep a straight edge's face exact.
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        if (len > 1e-9) {
+          const nx = (-(b[1] - a[1]) / len) * r;
+          const ny = ((b[0] - a[0]) / len) * r;
+          for (const q of [a, b]) pts.push([q[0] + nx, q[1] + ny, zFace], [q[0] - nx, q[1] - ny, zFace]);
+        }
+        cutters.push(M.hull(pts));
+      }
+    }
+    return M.union(cutters);
+  };
   const extrude = (
     cs: CrossSection,
     h: number,
@@ -61,27 +90,10 @@ export function makeStd(wasm: Wasm, ctx: LibContext) {
       const st = o.scaleTop ?? 1;
       solid = cs.extrude(h, div, o.twist ?? 0, typeof st === 'number' ? [st, st] : st);
     } else {
-      const slabs: Manifold[] = [];
-      const step = 0.1;
-      const steps = (c: number) => Math.max(1, Math.ceil(c / step));
-      if (cb > 0) {
-        const n = steps(cb);
-        for (let i = 0; i < n; i++) {
-          const inset = cb - (i + 0.5) * (cb / n);
-          const s = cs.offset(-inset, 'Round');
-          if (!s.isEmpty()) slabs.push(s.extrude(cb / n).translate([0, 0, (i * cb) / n]));
-        }
-      }
-      if (h - cb - ct > 1e-6) slabs.push(cs.extrude(h - cb - ct).translate([0, 0, cb]));
-      if (ct > 0) {
-        const n = steps(ct);
-        for (let i = 0; i < n; i++) {
-          const inset = (i + 0.5) * (ct / n);
-          const s = cs.offset(-inset, 'Round');
-          if (!s.isEmpty()) slabs.push(s.extrude(ct / n).translate([0, 0, h - ct + (i * ct) / n]));
-        }
-      }
-      solid = M.union(slabs);
+      const cutters: Manifold[] = [];
+      if (cb > 0) cutters.push(chamferCutter(cs, cb, 0, 1));
+      if (ct > 0) cutters.push(chamferCutter(cs, ct, h, -1));
+      solid = cs.extrude(h).subtract(M.union(cutters));
     }
     return o.center ? solid.translate([0, 0, -h / 2]) : solid;
   };

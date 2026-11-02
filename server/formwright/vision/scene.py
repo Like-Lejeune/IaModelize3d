@@ -7,6 +7,7 @@ interprets (which object is the reference, what the caliper display says).
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import math
@@ -20,6 +21,7 @@ from .. import quotas
 from ..config import settings
 from ..db import get_db, new_id, now
 from ..llm.client import CostMeter, meta
+from ..llm.english import english
 from . import geometry as g
 from .common import as_list, asset_image, data_url, norm_box_to_px
 from .refine import contrast_image, refine_polyline, trim_shadow
@@ -172,12 +174,13 @@ async def _ground_box(meter: CostMeter, img: np.ndarray, phrase: str, model: str
 async def detect(user: dict[str, Any], asset: dict[str, Any]) -> dict[str, Any]:
     if not _is_image(asset):
         raise ValueError("detection works on photos")
+    await quotas.check_light(user, 0.01)
     meter = CostMeter(budget_usd=0.05)
     model = (await quotas.choose_models(user)).fast
     try:
         found = await _detect(meter, asset, model)
     finally:
-        await quotas.settle(user["id"], meter.usd)
+        await quotas.settle(user["id"], meter.usd, is_job=False)
     await _update_meta(asset["id"], {"detected": found})
     return found
 
@@ -215,9 +218,25 @@ def calibration_from_mask(asset: dict[str, Any], mask: np.ndarray, ref_name: str
     return d
 
 
+_calibrating: dict[str, asyncio.Task] = {}
+
+
 async def calibrate(meter: CostMeter, asset: dict[str, Any], reference: str | None = None, *, mask: np.ndarray | None = None,
                     box: list[float] | None = None) -> dict[str, Any]:
-    """Find the reference, fit it, and store `asset.meta.calibration`."""
+    """Find the reference, fit it, and store `asset.meta.calibration`. The automatic search runs once per
+    photo even when the studio (spot) and the agent ask for it at the same time."""
+    if reference or mask is not None or box:
+        return await _calibrate(meter, asset, reference, mask=mask, box=box)
+    task = _calibrating.get(asset["id"])
+    if task is None:
+        task = asyncio.create_task(_calibrate(meter, asset))
+        _calibrating[asset["id"]] = task
+        task.add_done_callback(lambda _: _calibrating.pop(asset["id"], None))
+    return dict(await asyncio.shield(task))
+
+
+async def _calibrate(meter: CostMeter, asset: dict[str, Any], reference: str | None = None, *, mask: np.ndarray | None = None,
+                     box: list[float] | None = None) -> dict[str, Any]:
     if not _is_image(asset):
         return {"ok": False, "reason": "not a photo"}
     img = asset_image(asset)
@@ -489,10 +508,11 @@ async def _insert_selection(project_id: str, asset_id: str, role: str, name: str
     return await db.one("SELECT * FROM selections WHERE id = ?", sid)  # type: ignore[return-value]
 
 
-async def _unique_name(project_id: str, base: str) -> str:
+async def _unique_name(project_id: str, base: str, exclude: tuple[str, ...] = ()) -> str:
+    """`exclude`: selections about to be replaced, whose names are free again."""
     db = await get_db()
-    rows = await db.all("SELECT name FROM selections WHERE project_id = ?", project_id)
-    taken = {r["name"] for r in rows}
+    rows = await db.all("SELECT id, name FROM selections WHERE project_id = ?", project_id)
+    taken = {r["name"] for r in rows if r["id"] not in exclude}
     if base not in taken:
         return base
     i = 2
@@ -519,22 +539,31 @@ def without_reference(masks: list[Mask], cal: dict[str, Any]) -> list[Mask]:
     return keep
 
 
-async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], req: Any) -> dict[str, Any]:
-    """Segment what the user pointed at and measure it. `req` is models.SelectRequest."""
+async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], req: Any, masks: list[Mask] | None = None) -> dict[str, Any]:
+    """Segment what the user pointed at and measure it. `req` is models.SelectRequest;
+    `masks`: SAM's answer for that prompt when the caller already has it."""
     if not _is_image(asset):
         raise ValueError("selection works on photos; use video tracking for clips")
+    await quotas.check_light(user, 0.01)
     meter = CostMeter(budget_usd=0.10)
     choice = await quotas.choose_models(user)
-    prompt = {"points": [p.model_dump() for p in req.points], "box": req.box, "text": req.text}
-    name = await _unique_name(project_id, (req.name or req.role).strip().replace(" ", "_")[:40] or req.role)
+    prompt = {"points": [p.model_dump() for p in req.points], "box": req.box, "text": req.text, **({"by": req.by} if req.by else {})}
+    db = await get_db()
+    # a corrected selection takes the place (and the name) of the one it corrects
+    old = tuple(r["id"] for r in await db.all("SELECT id FROM selections WHERE project_id = ? AND asset_id = ? AND role = ?",
+                                              project_id, asset["id"], req.role)) if req.replace else ()
+    name = await _unique_name(project_id, (req.name or req.role).strip().replace(" ", "_")[:40] or req.role, old)
     try:
         if req.role == "caliper":
             reading = await read_caliper(meter, asset, choice.fast)
             return await _insert_selection(project_id, asset["id"], "caliper", name, prompt, None, {"caliper": reading, "found": reading.get("found", False)})
         img = asset_image(asset)
-        masks: list[Mask] = await segment(meter, img, text=req.text or None,
-                                          points=[p.model_dump() for p in req.points] if not req.text else None,
-                                          box=req.box if not req.text else None)
+        if masks is None:
+            # SAM's concept prompts are English noun phrases; people may type theirs in any language
+            phrase = await english(meter, req.text, choice.fast) if req.text else None
+            masks = await segment(meter, img, text=phrase or None,
+                                  points=[p.model_dump() for p in req.points] if not req.text else None,
+                                  box=req.box if not req.text else None)
         masks = [m for m in masks if m.score >= 0.2] or masks
         cal = (asset.get("meta") or {}).get("calibration") or {}
         only_reference = False
@@ -545,7 +574,7 @@ async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], r
             only_reference, masks = bool(masks) and not kept, kept
         if not masks and req.text:
             # SAM's concept prompts miss unusual objects; let Spark ground the phrase to a box, then SAM refines it.
-            box = await _ground_box(meter, img, req.text, choice.fast)
+            box = await _ground_box(meter, img, phrase, choice.fast)
             if box:
                 masks = await segment(meter, img, box=box)
                 if req.role != "reference":
@@ -577,9 +606,13 @@ async def select(user: dict[str, Any], project_id: str, asset: dict[str, Any], r
             data["shadow_trimmed"] = round(shadow_trimmed, 3)
         if not data.get("calibrated"):
             data["calibration_note"] = cal.get("reason") or "no reference in the photo: sizes are in pixels only"
-        return await _insert_selection(project_id, asset["id"], req.role, name, prompt, mask_path, data, sid)
+        sel = await _insert_selection(project_id, asset["id"], req.role, name, prompt, mask_path, data, sid)
+        if old:
+            await db.execute(f"DELETE FROM selections WHERE id IN ({','.join('?' * len(old))})", *old)
+        sel["replaced"] = list(old)
+        return sel
     finally:
-        await quotas.settle(user["id"], meter.usd)
+        await quotas.settle(user["id"], meter.usd, is_job=False)
 
 
 async def remeasure(project_id: str, selection_id: str, height_mm: float) -> dict[str, Any]:

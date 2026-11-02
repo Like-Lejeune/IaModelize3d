@@ -10,7 +10,7 @@ export interface Placement {
   s: number; // screen pixels per image pixel
 }
 
-export function place(cw: number, ch: number, w: number, h: number, fit: Fit, focus?: Box | null): Placement {
+export function place(cw: number, ch: number, w: number, h: number, fit: Fit, focus?: Box | null, zoom = 1.8): Placement {
   if (!cw || !ch || !w || !h) return { x: 0, y: 0, s: 1 };
   const cover = Math.max(cw / w, ch / h);
   const contain = Math.min(cw / w, ch / h);
@@ -18,10 +18,10 @@ export function place(cw: number, ch: number, w: number, h: number, fit: Fit, fo
   let cx = w / 2;
   let cy = h / 2;
   if (focus) {
-    // the whole object with a margin, zoomed in a little on small ones, centred where the photo allows
+    // the whole object with a margin, zoomed in a little on small ones (at most `zoom` x cover), centred where the photo allows
     const bw = Math.max(1, focus[2] - focus[0]);
     const bh = Math.max(1, focus[3] - focus[1]);
-    s = Math.min(Math.max(Math.min((cw * 0.8) / bw, (ch * 0.74) / bh), contain), cover * 1.8);
+    s = Math.min(Math.max(Math.min((cw * 0.8) / bw, (ch * 0.74) / bh), contain), cover * zoom);
     cx = (focus[0] + focus[2]) / 2;
     cy = (focus[1] + focus[3]) / 2;
   }

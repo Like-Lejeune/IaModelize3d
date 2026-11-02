@@ -5,12 +5,14 @@ dist/
 .venv/
 __pycache__/
 *.pyc
+*.egg-info/
 .pytest_cache/
 .ruff_cache/
 .env
 .env.*
 !.env.example
-data/
+!deploy/.env.template
+/data/
 *.log
 .DS_Store
 Thumbs.db

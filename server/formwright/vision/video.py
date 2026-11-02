@@ -16,6 +16,7 @@ from ..config import settings
 from ..llm import pricing
 from ..llm.client import CostMeter, meta
 from .common import abs_path
+from .maskcodec import decode_mask_to_raster
 from .sam import fit_raster, object_prompt
 
 INLINE_LIMIT = 45 * 1024 * 1024
@@ -44,6 +45,21 @@ def frames(asset: dict[str, Any], every: int = 1, max_frames: int | None = None)
     return out
 
 
+def stills(asset: dict[str, Any], n: int = 3) -> list[np.ndarray]:
+    """n frames spread over the clip, for a look at what it shows without decoding every frame."""
+    cap = cv2.VideoCapture(str(abs_path(asset["path"])))
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    out = []
+    for k in range(n):
+        if total > 0:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int((k + 0.5) / n * total))
+        ok, fr = cap.read()
+        if ok:
+            out.append(fr)
+    cap.release()
+    return out
+
+
 def decode_video(raw: str, width: int, height: int, keep_masks: bool = False, every: int = 1) -> dict[str, Any]:
     parser = msp.video_segmentation_format().create_parser()
     parser.push(raw)
@@ -56,7 +72,7 @@ def decode_video(raw: str, width: int, height: int, keep_masks: bool = False, ev
         fi = r.frame.frame_index if r.frame else 0
         l, t = int(round(r.bounds.left)), int(round(r.bounds.top))
         bw, bh = int(round(r.bounds.right)) - l, int(round(r.bounds.bottom)) - t
-        raster = fit_raster(msp.decode_mask_to_raster(r.mask), r.mask.width, r.mask.height, bw, bh)
+        raster = fit_raster(decode_mask_to_raster(r.mask), r.mask.width, r.mask.height, bw, bh)
         by_frame.setdefault(fi, []).append({"id": str(r.object_id), "bbox": [l, t, l + bw, t + bh],
                                             "score": r.confidence, "area": int(raster.sum())})
         if keep_masks and fi % every == 0:
@@ -110,5 +126,6 @@ async def understand(meter: CostMeter, asset: dict[str, Any], question: str) -> 
         model=settings().model_audio,
         input=[{"type": "message", "role": "user", "content": [{"type": "input_text", "text": text}, part]}],
         max_output_tokens=4000,
+        purpose="video",
     )
     return resp.output_text or ""

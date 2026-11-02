@@ -1,13 +1,22 @@
 """Pool of Node geometry workers (packages/geom/src/worker.ts).
 
-Each worker runs with the Node permission model: it may read only its own code and
-node_modules, cannot write files, spawn processes or load addons. Agent-written
-programs also run inside a `vm` context with a timeout. A worker that times out is
-killed and replaced.
+Each worker runs with the Node permission model (--permission): it may read only the geom
+package and node_modules (so not the repo, .env or data/), and may not write files, spawn
+processes, start worker threads or load native addons. The permission model does not cover
+network, so the worker itself severs every outbound socket and DNS route at startup
+(severNetwork); the container shares the API's network, so this sever is the only network
+barrier. Agent- or user-written programs (a program can be uploaded with
+PUT /api/projects/{id}/program) also run inside a `vm` context with a timeout, and their params
+are rebuilt in that realm. `lib` is still a host object, so a program can reach the worker's
+`process` and patch it (stdout, prototypes, timers): a worker therefore serves one program
+(source, params and inputs) only and is replaced before it runs another (0.2 s), so no program
+can read or rewrite another's calls. A worker that times out or answers out of protocol is
+killed and replaced, and every worker is replaced after a number of calls.
 """
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import itertools
 import json
 import logging
@@ -26,11 +35,34 @@ class GeomError(Exception):
         self.message = message
 
 
+# What each method's result carries; a reply without it means the two sides disagree.
+EXPECTED = {
+    "build": ("ok", "params", "parts"),
+    "render": ("png",),
+    "export": ("data", "mime"),
+    "inspect": ("results",),
+    "fit": ("params",),
+    "parseMesh": ("stats",),
+}
+
+
+def program_key(params: dict[str, Any]) -> str | None:
+    """What a call runs: its program with its params and inputs, or None for a call that runs no program (parseMesh)."""
+    if params.get("source") is None:
+        return None
+    blob = json.dumps([params.get("source"), params.get("params"), params.get("inputs")], sort_keys=True, default=str)
+    return hashlib.sha256(blob.encode()).hexdigest()
+
+
 class _Worker:
-    def __init__(self) -> None:
+    def __init__(self, recycle_after: int = 200) -> None:
         self.proc: asyncio.subprocess.Process | None = None
         self.lock = asyncio.Lock()
         self.ids = itertools.count(1)
+        self.recycle_after = recycle_after
+        self.calls = 0
+        # the program (program_key) this worker has run; None while it has run none
+        self.program: str | None = None
 
     async def start(self) -> None:
         s = settings()
@@ -68,8 +100,17 @@ class _Worker:
 
     async def call(self, method: str, params: dict[str, Any], timeout: float) -> dict[str, Any]:
         async with self.lock:
+            program = program_key(params)
+            # an escaped program can patch this process (stdout, prototypes, timers), so a worker serves one program only
+            if self.proc is not None and (self.calls >= self.recycle_after or self.program not in (None, program)):
+                await self.kill()
             if self.proc is None or self.proc.returncode is not None:
                 await self.start()
+                self.calls = 0
+                self.program = None
+            self.calls += 1
+            if program is not None:
+                self.program = program
             assert self.proc and self.proc.stdin and self.proc.stdout
             req_id = next(self.ids)
             self.proc.stdin.write((json.dumps({"id": req_id, "method": method, "params": params}) + "\n").encode())
@@ -100,20 +141,26 @@ class _Worker:
                     break
                 log.warning("geom worker: dropping stale reply id=%r (waiting for %d)", msg.get("id") if isinstance(msg, dict) else None, req_id)
             if "error" in msg:
-                raise GeomError(msg["error"].get("stage", "runtime"), msg["error"].get("message", ""))
-            return msg["result"]
+                err = msg["error"] if isinstance(msg["error"], dict) else {"message": str(msg["error"])}
+                raise GeomError(err.get("stage", "runtime"), err.get("message", ""))
+            result = msg.get("result")
+            missing = [k for k in EXPECTED.get(method, ()) if not isinstance(result, dict) or k not in result]
+            if missing:
+                await self.kill()
+                raise GeomError("protocol", f"{method} reply has no {', '.join(missing)}")
+            return result
 
 
 class GeomPool:
-    def __init__(self, size: int) -> None:
-        self.workers = [_Worker() for _ in range(max(1, size))]
+    def __init__(self, size: int, recycle_after: int = 200) -> None:
+        self.workers = [_Worker(recycle_after) for _ in range(max(1, size))]
         self.rr = itertools.cycle(range(len(self.workers)))
 
     async def call(self, method: str, params: dict[str, Any], timeout: float = 60) -> dict[str, Any]:
-        # prefer an idle worker, else round-robin
-        for w in self.workers:
-            if not w.lock.locked():
-                return await w.call(method, params, timeout)
+        # prefer an idle worker that already runs this program, then any idle one, else round-robin
+        program = program_key(params)
+        for w in sorted((w for w in self.workers if not w.lock.locked()), key=lambda w: w.program != program):
+            return await w.call(method, params, timeout)
         return await self.workers[next(self.rr)].call(method, params, timeout)
 
     async def close(self) -> None:

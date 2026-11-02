@@ -16,6 +16,7 @@ from ..geom import geom
 
 BANDS = (0.2, 0.35, 0.5, 0.65, 0.8)
 PANEL_H = 420
+LABEL_H = 30
 
 
 def _bbox(mask: np.ndarray) -> tuple[int, int, int, int] | None:
@@ -89,14 +90,15 @@ def _decode(r: dict[str, Any], cam: dict[str, Any]) -> tuple[np.ndarray, np.ndar
 
 
 def _label(img: np.ndarray, text: str) -> np.ndarray:
-    out = img.copy()
-    cv2.putText(out, text, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 3, cv2.LINE_AA)
-    cv2.putText(out, text, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (40, 40, 40), 1, cv2.LINE_AA)
+    """A caption band above the image: written over a tight crop it ran into the model ("deg abovee")."""
+    (tw, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+    out = cv2.copyMakeBorder(img, LABEL_H, 0, 0, max(0, tw + 20 - img.shape[1]), cv2.BORDER_CONSTANT, value=(255, 255, 255))
+    cv2.putText(out, text, (10, LABEL_H - 9), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (40, 40, 40), 1, cv2.LINE_AA)
     return out
 
 
 async def targets(project_id: str, limit: int = 2) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-    """The latest target selection on each photo: (asset, selection)."""
+    """The latest target selection on each photo or picked concept image: (asset, selection)."""
     db = await get_db()
     sels = await db.all("SELECT * FROM selections WHERE project_id = ? AND role = 'target' AND mask_path IS NOT NULL ORDER BY created_at DESC", project_id)
     out, seen = [], set()
@@ -104,15 +106,17 @@ async def targets(project_id: str, limit: int = 2) -> list[tuple[dict[str, Any],
         if s["asset_id"] in seen:
             continue
         a = await db.one("SELECT * FROM assets WHERE id = ?", s["asset_id"])
-        if a and a["kind"] == "photo":
+        if a and a["kind"] in ("photo", "concept"):
             seen.add(s["asset_id"])
             out.append((a, s))
     return out[:limit]
 
 
 async def panel(project_id: str, state: Any, asset: dict[str, Any], sel: dict[str, Any],
-                elevation: float = 15.0, azimuth: float = 0.0) -> tuple[dict[str, Any], str] | None:
-    """(facts, image path) comparing the current model with the selected object on one photo."""
+                elevation: float = 15.0, azimuth: float = 0.0, *, printer: dict[str, Any] | None = None,
+                inputs: dict[str, Any] | None = None) -> tuple[dict[str, Any], str] | None:
+    """(facts, image path) comparing the current model with the selected object on one photo.
+    `printer` and `inputs` as the build got them let the engine reuse that build instead of running the program again."""
     from ..vision import overlay, scene
     from ..vision.common import asset_image, encode_jpeg
     from ..vision.sam import load_mask_png
@@ -123,9 +127,10 @@ async def panel(project_id: str, state: Any, asset: dict[str, Any], sel: dict[st
     pmask = load_mask_png(sel["mask_path"])
     if _bbox(pmask) is None:
         return None
+    extra: dict[str, Any] = {"inputs": state.inputs if inputs is None else inputs, **({"printer": printer} if printer else {})}
     cam = scene.camera_for_render(asset)
     if cam:
-        r = await geom().render(state.source, state.params, camera=cam, inputs=state.inputs)
+        r = await geom().render(state.source, state.params, camera=cam, **extra)
         rgba, mmask = _decode(r, cam)
         if _bbox(mmask) is None:
             return None
@@ -142,15 +147,15 @@ async def panel(project_id: str, state: Any, asset: dict[str, Any], sel: dict[st
                  "offset_px": round(float(math.hypot(px - mx, py - my)))}
     else:
         cam = view_camera(state.last_build["checks"]["stats"]["bbox"], elevation, azimuth)
-        r = await geom().render(state.source, state.params, camera=cam, inputs=state.inputs)
+        r = await geom().render(state.source, state.params, camera=cam, **extra)
         rgba, mmask = _decode(r, cam)
         if _bbox(mmask) is None:
             return None
         a = rgba[..., 3:4].astype(np.float32) / 255
         model = (np.full(rgba.shape[:2] + (3,), 236, np.float32) * (1 - a) + rgba[..., :3] * a).astype(np.uint8)
-        left = _label(_to_height(_crop(photo, _bbox(pmask))), "photo")  # type: ignore[arg-type]
+        left = _label(_to_height(_crop(photo, _bbox(pmask))), "concept image" if asset["kind"] == "concept" else "photo")  # type: ignore[arg-type]
         right = _label(_to_height(_crop(model, _bbox(mmask))), f"model, {elevation:.0f} deg above")  # type: ignore[arg-type]
-        img = np.hstack([left, np.full((PANEL_H, 12, 3), 255, np.uint8), right])
+        img = np.hstack([left, np.full((PANEL_H + LABEL_H, 12, 3), 255, np.uint8), right])
         facts = {"view": f"model from {elevation:.0f} deg above, azimuth {azimuth:.0f} deg (match the photo's angle with look elevation=...)",
                  **silhouette_agreement(pmask, mmask),
                  "reading": "0.9+ is a close match; past that, judge counts and element shape by eye instead of chasing the number"}

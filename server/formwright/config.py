@@ -35,7 +35,14 @@ class Settings(BaseSettings):
     meta_base_url: str = "https://api.meta.ai/v1"
 
     data_dir: Path = REPO_DIR / "data"
-    public_url: str = "http://localhost:5173"
+    public_url: str = "http://localhost:5400"
+    # reverse proxies in front of the API that append the address they see to X-Forwarded-For: the visitor's address is
+    # the entry this many places from the right, so whatever a visitor writes further left never counts. The container
+    # sets 1 (one TLS proxy in front, see Containerfile). -1: one when uvicorn trusts every sender (FORWARDED_ALLOW_IPS="*":
+    # uvicorn then takes the leftmost entry, which the visitor writes), else none (uvicorn's pick stands)
+    proxy_hops: int = -1
+    # vite's port when it serves the web app next to the API (dev.ps1 sets it): pages opened here go there
+    web_dev_port: int = 0
 
     # model routing
     model_designer: str = "muse-spark-1.3"
@@ -50,16 +57,39 @@ class Settings(BaseSettings):
     open_base_url: str = ""
     open_api_key: str = ""
     open_model: str = ""
+    # roles the open model takes when it is configured (comma-separated); snap naming stays on Muse Spark (latency)
+    open_roles: str = "critic,classify,english"
+    open_timeout_s: float = 60.0
+    # its price per million tokens (0: self-hosted or unknown)
+    open_price_in_per_m: float = 0.0
+    open_price_out_per_m: float = 0.0
     # route the independent critic to another model, e.g. the open-weights one
     model_critic: str = ""
+    # let anonymous and free users pick Muse Wonder (for judges)
+    demo_wonder: bool = False
 
     # budgets (USD)
     job_budget_usd: float = 0.60
     daily_budget_usd: float = 25.0
+    # what anonymous visitors may spend of it together: the rest stays for people with a sign-in link (judges, Telegram)
+    # however many addresses the anonymous traffic comes from
+    anon_budget_share: float = 0.75
     max_iterations: int = 8
+    # wall-clock deadlines (s): past it a job wraps up, a minute later it is stopped
+    design_deadline_s: float = 600
+    side_deadline_s: float = 180
+    # how long a question waits for an answer; the wait does not count toward the deadline
+    ask_timeout_s: float = 180
+
+    # blur faces in uploaded photos before any model sees them
+    blur_faces: bool = True
 
     node_bin: str = Field(default_factory=lambda: shutil.which("node") or "node")
     geom_workers: int = 2
+    # PCB pipeline (packages/pcb, its own npm package): the server runs only <pcb_dir>/dist (npm run bundle)
+    pcb_dir: Path = REPO_DIR / "packages" / "pcb"
+    pcb_pool_size: int = 1
+    pcb_timeout: float = 90.0
     orca_bin: str = Field(default_factory=_default_orca)
     orca_profiles: Path = Path(r"C:\Program Files\OrcaSlicer\resources\profiles")
 

@@ -1,0 +1,3201 @@
+{
+ "schema": "fw.board/1",
+ "generated": "2026-10-30",
+ "note": "Mechanical data of popular dev boards for enclosure design. Each object has src (key of the board's sources map) and verify (fields NOT read from that document). Board frame: see frame.",
+ "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+ "typical": {
+  "_note": "Typical envelopes in mm when the board drawing gives no height. h = height above the PCB face. plug = cross-section of the mating cable plug overmold [w, h]; insert = how far the plug body must reach past the receptacle mouth. All verify:true.",
+  "usb_c": {
+   "w": 8.94,
+   "d": 7.3,
+   "h": 3.2,
+   "plug": [
+    12.4,
+    6.5
+   ],
+   "insert": 0,
+   "verify": true,
+   "src": "https://gct.co/files/drawings/usb4105.pdf"
+  },
+  "usb_micro_b": {
+   "w": 7.5,
+   "d": 5,
+   "h": 2.6,
+   "plug": [
+    10.6,
+    7.6
+   ],
+   "insert": 0,
+   "verify": true,
+   "src": "https://cdn.amphenol-cs.com/media/wysiwyg/files/drawing/10118194.pdf"
+  },
+  "usb_mini_b": {
+   "w": 7.7,
+   "d": 9.2,
+   "h": 3.9,
+   "plug": [
+    11,
+    8
+   ],
+   "insert": 0,
+   "verify": true,
+   "src": null
+  },
+  "usb_b": {
+   "w": 12,
+   "d": 16.3,
+   "h": 10.9,
+   "plug": [
+    16,
+    15
+   ],
+   "insert": 0,
+   "verify": true,
+   "src": null
+  },
+  "usb_a_single": {
+   "w": 13.1,
+   "d": 14,
+   "h": 5.7,
+   "plug": [
+    16,
+    8.5
+   ],
+   "insert": 0,
+   "verify": true,
+   "src": null
+  },
+  "usb_a_dual": {
+   "w": 13.1,
+   "d": 17.4,
+   "h": 16,
+   "plug": [
+    16,
+    8.5
+   ],
+   "insert": 0,
+   "verify": true,
+   "src": "https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf"
+  },
+  "rj45": {
+   "w": 16,
+   "d": 21.3,
+   "h": 13.5,
+   "plug": [
+    14,
+    13
+   ],
+   "insert": 0,
+   "verify": true,
+   "src": "https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf"
+  },
+  "hdmi_micro": {
+   "w": 6.5,
+   "d": 7.5,
+   "h": 3,
+   "plug": [
+    11,
+    7
+   ],
+   "insert": 0,
+   "verify": true,
+   "src": "https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf"
+  },
+  "hdmi_mini": {
+   "w": 11.2,
+   "d": 7.5,
+   "h": 3.2,
+   "plug": [
+    15,
+    8
+   ],
+   "insert": 0,
+   "verify": true,
+   "src": null
+  },
+  "dc_barrel_5_5": {
+   "w": 9,
+   "d": 14,
+   "h": 11,
+   "plug": [
+    11,
+    11
+   ],
+   "insert": 0,
+   "verify": true,
+   "src": null
+  },
+  "audio_3_5": {
+   "w": 7,
+   "d": 12,
+   "h": 6,
+   "plug": [
+    7.5,
+    7.5
+   ],
+   "insert": 0,
+   "verify": true,
+   "src": "https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf"
+  },
+  "pin_header_2_54": {
+   "pitch": 2.54,
+   "body_h": 2.5,
+   "pin_above": 6,
+   "pin_below": 3,
+   "verify": true,
+   "src": null
+  },
+  "female_header_2_54": {
+   "pitch": 2.54,
+   "h": 8.5,
+   "verify": false,
+   "src": "https://docs.arduino.cc/resources/datasheets/ABX00080-datasheet.pdf"
+  },
+  "tact_6x6": {
+   "w": 6,
+   "d": 6,
+   "h": 5,
+   "travel": 0.25,
+   "force_n": 1.6,
+   "verify": true,
+   "src": null
+  },
+  "tact_3x4_smd": {
+   "w": 3,
+   "d": 4,
+   "h": 2,
+   "travel": 0.2,
+   "force_n": 1.6,
+   "verify": true,
+   "src": null
+  },
+  "led_0603": {
+   "w": 1.6,
+   "d": 0.8,
+   "h": 0.6,
+   "verify": true,
+   "src": null
+  },
+  "led_0805": {
+   "w": 2,
+   "d": 1.25,
+   "h": 0.8,
+   "verify": true,
+   "src": null
+  },
+  "ufl": {
+   "w": 3,
+   "d": 3,
+   "h": 1.25,
+   "cable_bend_r": 5,
+   "verify": true,
+   "src": null
+  },
+  "fpc_22p_0_5": {
+   "w": 17,
+   "d": 4,
+   "h": 1.2,
+   "verify": true,
+   "src": null
+  },
+  "microsd_push": {
+   "w": 14,
+   "d": 15,
+   "h": 1.9,
+   "card_out": 2.5,
+   "verify": true,
+   "src": null
+  },
+  "jst_ph_2p": {
+   "w": 6,
+   "d": 4.5,
+   "h": 6,
+   "verify": true,
+   "src": null
+  },
+  "wroom_32_module": {
+   "w": 18,
+   "d": 25.5,
+   "h": 3.1,
+   "verify": false,
+   "src": "https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32e_esp32-wroom-32ue_datasheet_en.pdf"
+  }
+ },
+ "boards": [
+  {
+   "schema": "fw.board/1",
+   "id": "rpi-pico",
+   "name": "Raspberry Pi Pico",
+   "aliases": [
+    "Raspberry Pi Pico",
+    "Pico",
+    "RP2040",
+    "RPI-RP2"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://datasheets.raspberrypi.com/pico/pico-datasheet.pdf"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "ds": "https://datasheets.raspberrypi.com/pico/pico-datasheet.pdf"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "rect",
+     "w": 21,
+     "h": 51,
+     "r": 0,
+     "src": "ds",
+     "verify": []
+    },
+    "thickness": 1,
+    "thickness_src": "ds",
+    "holes": [
+     {
+      "x": 4.8,
+      "y": 2,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 16.2,
+      "y": 2,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 4.8,
+      "y": 49,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 16.2,
+      "y": 49,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     }
+    ],
+    "castellations": {
+     "pitch": 2.54,
+     "rows_x": [
+      1.61,
+      19.39
+     ],
+     "y0": 1.37,
+     "n": 20,
+     "hole_d": 1,
+     "src": "ds",
+     "note": "48.26 between first and last pin, 17.78 between rows"
+    }
+   },
+   "components": [
+    {
+     "id": "usb",
+     "type": "usb_micro_b",
+     "side": "top",
+     "edge": "+y",
+     "at": 10.5,
+     "w": 8,
+     "h": 2.6,
+     "d": 5.6,
+     "z0": 0,
+     "protrude": 1.3,
+     "plug": [
+      10.6,
+      7.6
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "h",
+      "d"
+     ],
+     "note": "width 8 and overhang 1.3 from Figure 3; height and depth are the typical micro-B receptacle"
+    },
+    {
+     "id": "bootsel",
+     "type": "tact_3x4_smd",
+     "side": "top",
+     "x": 6.9,
+     "y": 39,
+     "w": 3.4,
+     "d": 3.4,
+     "h": 1.9,
+     "access": "press",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ],
+     "note": "position scaled from Figure 3 pixels (±0.4); actuator height unknown"
+    },
+    {
+     "id": "led",
+     "type": "led_0603",
+     "side": "top",
+     "x": 4.7,
+     "y": 46.2,
+     "w": 1.6,
+     "d": 0.8,
+     "h": 0.6,
+     "access": "light",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "h"
+     ],
+     "note": "GP25 / WL_GPIO0 user LED left of the USB connector; scaled from Figure 3"
+    },
+    {
+     "id": "swd",
+     "type": "pin_header_2_54",
+     "side": "top",
+     "x": 10.5,
+     "y": 1.6,
+     "w": 7.6,
+     "d": 2.5,
+     "h": 0,
+     "access": "none",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y"
+     ],
+     "note": "unpopulated 3-pin SWD footprint; becomes a cable access if a header is soldered"
+    }
+   ],
+   "keepouts": [],
+   "heights": {
+    "top_max": 2.6,
+    "top_max_src": "typical usb_micro_b",
+    "bottom_max": 0,
+    "verify": [
+     "top_max"
+    ],
+    "note": "bare board. With 0.1\" headers soldered pins-down add 2.5 mm plastic + ~6 mm pins below (bottom_max 8.5)"
+   },
+   "mount": {
+    "preferred": "screw_or_peg",
+    "screw": "M2",
+    "note": "holes 2.1: M2 self-tapping into a printed standoff, or Ø1.8 printed pegs"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "rpi-pico-w",
+   "name": "Raspberry Pi Pico W",
+   "aliases": [
+    "Raspberry Pi Pico W",
+    "Pico W",
+    "RP2040 CYW43439",
+    "PICO W"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://datasheets.raspberrypi.com/picow/pico-w-datasheet.pdf"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "ds": "https://datasheets.raspberrypi.com/picow/pico-w-datasheet.pdf"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "rect",
+     "w": 21,
+     "h": 51,
+     "r": 0,
+     "src": "ds",
+     "verify": []
+    },
+    "thickness": 1,
+    "thickness_src": "ds",
+    "holes": [
+     {
+      "x": 4.8,
+      "y": 2,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 16.2,
+      "y": 2,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 4.8,
+      "y": 49,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 16.2,
+      "y": 49,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     }
+    ],
+    "castellations": {
+     "pitch": 2.54,
+     "rows_x": [
+      1.61,
+      19.39
+     ],
+     "y0": 1.37,
+     "n": 20,
+     "hole_d": 1,
+     "src": "ds",
+     "note": "48.26 between first and last pin, 17.78 between rows"
+    }
+   },
+   "components": [
+    {
+     "id": "usb",
+     "type": "usb_micro_b",
+     "side": "top",
+     "edge": "+y",
+     "at": 10.5,
+     "w": 8,
+     "h": 2.6,
+     "d": 5.6,
+     "z0": 0,
+     "protrude": 1.3,
+     "plug": [
+      10.6,
+      7.6
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "h",
+      "d"
+     ],
+     "note": "width 8 and overhang 1.3 from Figure 3; height and depth are the typical micro-B receptacle"
+    },
+    {
+     "id": "bootsel",
+     "type": "tact_3x4_smd",
+     "side": "top",
+     "x": 6.9,
+     "y": 39,
+     "w": 3.4,
+     "d": 3.4,
+     "h": 1.9,
+     "access": "press",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ],
+     "note": "position scaled from Figure 3 pixels (±0.4); actuator height unknown"
+    },
+    {
+     "id": "led",
+     "type": "led_0603",
+     "side": "top",
+     "x": 4.7,
+     "y": 46.2,
+     "w": 1.6,
+     "d": 0.8,
+     "h": 0.6,
+     "access": "light",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "h"
+     ],
+     "note": "GP25 / WL_GPIO0 user LED left of the USB connector; scaled from Figure 3"
+    },
+    {
+     "id": "swd",
+     "type": "pin_header_2_54",
+     "side": "top",
+     "x": 13.6,
+     "y": 19.8,
+     "w": 7.6,
+     "d": 2.5,
+     "h": 0,
+     "access": "none",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y"
+     ],
+     "note": "unpopulated 3-pin SWD footprint; becomes a cable access if a header is soldered"
+    },
+    {
+     "id": "rf_can",
+     "type": "shield",
+     "side": "top",
+     "x": 10.5,
+     "y": 13.3,
+     "w": 12.2,
+     "d": 10.4,
+     "h": 1.6,
+     "access": "none",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ],
+     "note": "CYW43439 under a shield can, scaled from Figure 3"
+    }
+   ],
+   "keepouts": [
+    {
+     "id": "antenna",
+     "rect": [
+      3.5,
+      -0.5,
+      17.5,
+      9
+     ],
+     "z": [
+      -20,
+      40
+     ],
+     "rule": "no_metal",
+     "src": "ds",
+     "verify": [
+      "rect"
+     ],
+     "note": "Section 2.2.1: antenna cutout 14 mm x 9 mm at the bottom edge; nothing should intrude. Metal screws here detune Wi-Fi: use plastic pegs on the two bottom holes"
+    }
+   ],
+   "heights": {
+    "top_max": 2.6,
+    "top_max_src": "typical usb_micro_b",
+    "bottom_max": 0,
+    "verify": [
+     "top_max"
+    ],
+    "note": "bare board. With 0.1\" headers soldered pins-down add 2.5 mm plastic + ~6 mm pins below (bottom_max 8.5)"
+   },
+   "mount": {
+    "preferred": "screw_or_peg",
+    "screw": "M2",
+    "note": "holes 2.1: M2 self-tapping into a printed standoff, or Ø1.8 printed pegs"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "rpi-pico2",
+   "name": "Raspberry Pi Pico 2",
+   "aliases": [
+    "Raspberry Pi Pico 2",
+    "Pico 2",
+    "RP2350"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://datasheets.raspberrypi.com/pico/pico-2-datasheet.pdf"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "ds": "https://datasheets.raspberrypi.com/pico/pico-2-datasheet.pdf"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "rect",
+     "w": 21,
+     "h": 51,
+     "r": 0,
+     "src": "ds",
+     "verify": []
+    },
+    "thickness": 1,
+    "thickness_src": "ds",
+    "holes": [
+     {
+      "x": 4.8,
+      "y": 2,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 16.2,
+      "y": 2,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 4.8,
+      "y": 49,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 16.2,
+      "y": 49,
+      "d": 2.1,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     }
+    ],
+    "castellations": {
+     "pitch": 2.54,
+     "rows_x": [
+      1.61,
+      19.39
+     ],
+     "y0": 1.37,
+     "n": 20,
+     "hole_d": 1,
+     "src": "ds",
+     "note": "48.26 between first and last pin, 17.78 between rows"
+    }
+   },
+   "components": [
+    {
+     "id": "usb",
+     "type": "usb_micro_b",
+     "side": "top",
+     "edge": "+y",
+     "at": 10.5,
+     "w": 8,
+     "h": 2.6,
+     "d": 5.6,
+     "z0": 0,
+     "protrude": 1.3,
+     "plug": [
+      10.6,
+      7.6
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "h",
+      "d"
+     ],
+     "note": "width 8 and overhang 1.3 from Figure 3; height and depth are the typical micro-B receptacle"
+    },
+    {
+     "id": "bootsel",
+     "type": "tact_3x4_smd",
+     "side": "top",
+     "x": 6.9,
+     "y": 39,
+     "w": 3.4,
+     "d": 3.4,
+     "h": 1.9,
+     "access": "press",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ],
+     "note": "position scaled from Figure 3 pixels (±0.4); actuator height unknown"
+    },
+    {
+     "id": "led",
+     "type": "led_0603",
+     "side": "top",
+     "x": 4.7,
+     "y": 46.2,
+     "w": 1.6,
+     "d": 0.8,
+     "h": 0.6,
+     "access": "light",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "h"
+     ],
+     "note": "GP25 / WL_GPIO0 user LED left of the USB connector; scaled from Figure 3"
+    },
+    {
+     "id": "swd",
+     "type": "pin_header_2_54",
+     "side": "top",
+     "x": 10.5,
+     "y": 1.6,
+     "w": 7.6,
+     "d": 2.5,
+     "h": 0,
+     "access": "none",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y"
+     ],
+     "note": "unpopulated 3-pin SWD footprint; becomes a cable access if a header is soldered"
+    }
+   ],
+   "keepouts": [],
+   "heights": {
+    "top_max": 2.6,
+    "top_max_src": "typical usb_micro_b",
+    "bottom_max": 0,
+    "verify": [
+     "top_max"
+    ],
+    "note": "bare board. With 0.1\" headers soldered pins-down add 2.5 mm plastic + ~6 mm pins below (bottom_max 8.5)"
+   },
+   "mount": {
+    "preferred": "screw_or_peg",
+    "screw": "M2",
+    "note": "holes 2.1: M2 self-tapping into a printed standoff, or Ø1.8 printed pegs"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "esp32-devkitc-v4",
+   "name": "Espressif ESP32-DevKitC V4",
+   "aliases": [
+    "ESP32-DevKitC",
+    "ESP32-DevKitC V4",
+    "ESP32-WROOM-32E",
+    "ESP32-WROOM-32",
+    "ESP32_DevKitc_V4"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://dl.espressif.com/dl/schematics/esp32_devkitc_v4_dimensions.pdf",
+     "https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "ds": "https://dl.espressif.com/dl/schematics/esp32_devkitc_v4_dimensions.pdf",
+    "guide": "https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html",
+    "wroom": "https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32e_esp32-wroom-32ue_datasheet_en.pdf"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "rect",
+     "w": 27.94,
+     "h": 48.26,
+     "r": 0.5,
+     "src": "ds",
+     "verify": [
+      "r"
+     ]
+    },
+    "thickness": 1.6,
+    "thickness_src": "typical",
+    "thickness_verify": true,
+    "holes": [],
+    "holes_note": "no mounting holes: hold it by the PCB edges (clips/rails) or by its pin headers in a socket strip",
+    "headers": {
+     "pitch": 2.54,
+     "rows_x": [
+      1.3,
+      26.64
+     ],
+     "y0": 1.29,
+     "n": 19,
+     "src": "ds",
+     "note": "25.40 between rows; 1.30 from the long edges; 1.29 from the -y edge"
+    }
+   },
+   "components": [
+    {
+     "id": "module",
+     "type": "wroom_32_module",
+     "side": "top",
+     "x": 13.97,
+     "y": 41.48,
+     "w": 18,
+     "d": 25.5,
+     "h": 3.1,
+     "access": "none",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "y"
+     ],
+     "note": "module 18 wide (drawing), overhangs the +y edge by 6.04 (drawing); 25.5 x 3.1 from the module datasheet"
+    },
+    {
+     "id": "usb",
+     "type": "usb_micro_b",
+     "side": "top",
+     "edge": "-y",
+     "at": 13.97,
+     "w": 8,
+     "h": 2.9,
+     "d": 5.5,
+     "z0": 0,
+     "protrude": 0.8,
+     "plug": [
+      10.6,
+      7.6
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "h",
+      "d",
+      "protrude"
+     ],
+     "note": "centred (drawing); size from typical micro-B, overhang scaled from the drawing"
+    },
+    {
+     "id": "btn_en",
+     "type": "tact_3x4_smd",
+     "side": "top",
+     "x": 6.1,
+     "y": 4,
+     "w": 3.1,
+     "d": 5.9,
+     "h": 2.5,
+     "access": "press",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ],
+     "note": "EN (reset); scaled from the drawing"
+    },
+    {
+     "id": "btn_boot",
+     "type": "tact_3x4_smd",
+     "side": "top",
+     "x": 21.9,
+     "y": 4,
+     "w": 3.1,
+     "d": 5.9,
+     "h": 2.5,
+     "access": "press",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ],
+     "note": "Boot (GPIO0)"
+    },
+    {
+     "id": "led_pwr",
+     "type": "led_0603",
+     "side": "top",
+     "x": 9.3,
+     "y": 8.4,
+     "w": 1.6,
+     "d": 0.8,
+     "h": 0.6,
+     "access": "light",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "guide",
+     "verify": [
+      "x",
+      "y"
+     ],
+     "note": "5V power-on LED"
+    }
+   ],
+   "keepouts": [
+    {
+     "id": "antenna",
+     "rect": [
+      4.97,
+      42,
+      22.97,
+      54.3
+     ],
+     "z": [
+      -20,
+      40
+     ],
+     "rule": "no_metal",
+     "src": "ds",
+     "verify": [
+      "rect"
+     ],
+     "note": "PCB antenna of the WROOM module, overhanging 6.04 mm past the +y edge; keep metal and thick walls away, ideally leave the antenna end open"
+    }
+   ],
+   "heights": {
+    "top_max": 3.1,
+    "bottom_max": 8.5,
+    "verify": [
+     "bottom_max"
+    ],
+    "note": "sold with male headers pins-down: plastic 2.5 + pins ~6 below the PCB"
+   },
+   "mount": {
+    "preferred": "edge_clips",
+    "note": "no holes: snap clips on the two long edges between the pin rows are impossible (pins at 1.3 mm); clip the short -y edge and support under the module end"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "xiao-esp32c3",
+   "name": "Seeed Studio XIAO ESP32C3",
+   "aliases": [
+    "XIAO ESP32C3",
+    "XIAO",
+    "ESP32-C3",
+    "Seeed Studio"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/",
+     "https://files.seeedstudio.com/wiki/XIAO_WiFi/Resources/XIAO-ESP32C3-DXF.zip"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "guide": "https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/",
+    "dxf": "https://files.seeedstudio.com/wiki/XIAO_WiFi/Resources/XIAO-ESP32C3-DXF.zip"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "rect",
+     "w": 17.8,
+     "h": 21,
+     "r": 1,
+     "src": "guide",
+     "verify": [
+      "r"
+     ]
+    },
+    "thickness": 1.2,
+    "thickness_src": "typical",
+    "thickness_verify": true,
+    "holes": [],
+    "holes_note": "no mounting holes; castellated 2x7 pins at 2.54 mm: hold it in a pocket with a lid boss pressing on the shield can, or clip the -y edge",
+    "castellations": {
+     "pitch": 2.54,
+     "rows_x": [
+      1.2,
+      16.6
+     ],
+     "n": 7,
+     "src": "dxf",
+     "verify": [
+      "rows_x"
+     ]
+    }
+   },
+   "components": [
+    {
+     "id": "usb",
+     "type": "usb_c",
+     "side": "top",
+     "edge": "+y",
+     "at": 8.9,
+     "w": 8.94,
+     "h": 3.2,
+     "d": 7.3,
+     "z0": 0,
+     "protrude": 1,
+     "plug": [
+      12.4,
+      6.5
+     ],
+     "access": "port",
+     "src": "guide",
+     "verify": [
+      "h",
+      "d",
+      "protrude"
+     ],
+     "note": "USB Type-C (guide); envelope typical"
+    },
+    {
+     "id": "btn_boot",
+     "type": "tact_3x4_smd",
+     "side": "top",
+     "x": 3.2,
+     "y": 17.8,
+     "w": 2.5,
+     "d": 3,
+     "h": 1.4,
+     "access": "press",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "guide",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ],
+     "note": "BOOT button beside the USB connector (pinout image)"
+    },
+    {
+     "id": "btn_reset",
+     "type": "tact_3x4_smd",
+     "side": "top",
+     "x": 14.6,
+     "y": 17.8,
+     "w": 2.5,
+     "d": 3,
+     "h": 1.4,
+     "access": "press",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "guide",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ],
+     "note": "RESET button"
+    },
+    {
+     "id": "can",
+     "type": "shield",
+     "side": "top",
+     "x": 8.9,
+     "y": 8.5,
+     "w": 13,
+     "d": 12,
+     "h": 1.8,
+     "access": "none",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "dxf",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ]
+    },
+    {
+     "id": "ufl",
+     "type": "ufl",
+     "side": "top",
+     "x": 2.5,
+     "y": 2.5,
+     "w": 3,
+     "d": 3,
+     "h": 1.25,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "guide",
+     "verify": [
+      "x",
+      "y"
+     ],
+     "note": "U.FL antenna connector (bottom-left of the front); the flat antenna cable must exit the case"
+    }
+   ],
+   "keepouts": [],
+   "heights": {
+    "top_max": 3.2,
+    "bottom_max": 0.8,
+    "verify": [
+     "top_max",
+     "bottom_max"
+    ],
+    "note": "bare board; the S3 Sense camera board adds height (21 x 17.8 x 15 with the expansion board)"
+   },
+   "mount": {
+    "preferred": "pocket_clip"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "xiao-esp32s3",
+   "name": "Seeed Studio XIAO ESP32S3",
+   "aliases": [
+    "XIAO ESP32S3",
+    "XIAO",
+    "ESP32-S3",
+    "Seeed Studio"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/",
+     "https://files.seeedstudio.com/wiki/SeeedStudio-XIAO-ESP32S3/res/XIAO_ESP32S3_v1.1_Dimensioning.dxf"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "guide": "https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/",
+    "dxf": "https://files.seeedstudio.com/wiki/SeeedStudio-XIAO-ESP32S3/res/XIAO_ESP32S3_v1.1_Dimensioning.dxf"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "rect",
+     "w": 17.8,
+     "h": 21,
+     "r": 1,
+     "src": "guide",
+     "verify": [
+      "r"
+     ]
+    },
+    "thickness": 1.2,
+    "thickness_src": "typical",
+    "thickness_verify": true,
+    "holes": [],
+    "holes_note": "no mounting holes; castellated 2x7 pins at 2.54 mm: hold it in a pocket with a lid boss pressing on the shield can, or clip the -y edge",
+    "castellations": {
+     "pitch": 2.54,
+     "rows_x": [
+      1.2,
+      16.6
+     ],
+     "n": 7,
+     "src": "dxf",
+     "verify": [
+      "rows_x"
+     ]
+    }
+   },
+   "components": [
+    {
+     "id": "usb",
+     "type": "usb_c",
+     "side": "top",
+     "edge": "+y",
+     "at": 8.9,
+     "w": 8.94,
+     "h": 3.2,
+     "d": 7.3,
+     "z0": 0,
+     "protrude": 1,
+     "plug": [
+      12.4,
+      6.5
+     ],
+     "access": "port",
+     "src": "guide",
+     "verify": [
+      "h",
+      "d",
+      "protrude"
+     ],
+     "note": "USB Type-C (guide); envelope typical"
+    },
+    {
+     "id": "btn_boot",
+     "type": "tact_3x4_smd",
+     "side": "top",
+     "x": 3.2,
+     "y": 17.8,
+     "w": 2.5,
+     "d": 3,
+     "h": 1.4,
+     "access": "press",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "guide",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ],
+     "note": "BOOT button beside the USB connector (pinout image)"
+    },
+    {
+     "id": "btn_reset",
+     "type": "tact_3x4_smd",
+     "side": "top",
+     "x": 14.6,
+     "y": 17.8,
+     "w": 2.5,
+     "d": 3,
+     "h": 1.4,
+     "access": "press",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "guide",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ],
+     "note": "RESET button"
+    },
+    {
+     "id": "can",
+     "type": "shield",
+     "side": "top",
+     "x": 8.9,
+     "y": 8.5,
+     "w": 13,
+     "d": 12,
+     "h": 1.8,
+     "access": "none",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "dxf",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ]
+    },
+    {
+     "id": "ufl",
+     "type": "ufl",
+     "side": "top",
+     "x": 2.5,
+     "y": 2.5,
+     "w": 3,
+     "d": 3,
+     "h": 1.25,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "guide",
+     "verify": [
+      "x",
+      "y"
+     ],
+     "note": "U.FL antenna connector (bottom-left of the front); the flat antenna cable must exit the case"
+    }
+   ],
+   "keepouts": [],
+   "heights": {
+    "top_max": 3.2,
+    "bottom_max": 0.8,
+    "verify": [
+     "top_max",
+     "bottom_max"
+    ],
+    "note": "bare board; the S3 Sense camera board adds height (21 x 17.8 x 15 with the expansion board)"
+   },
+   "mount": {
+    "preferred": "pocket_clip"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "arduino-nano",
+   "name": "Arduino Nano",
+   "aliases": [
+    "Arduino Nano",
+    "NANO",
+    "ATmega328P",
+    "Nano V3"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://docs.arduino.cc/resources/datasheets/A000005-datasheet.pdf"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "ds": "https://docs.arduino.cc/resources/datasheets/A000005-datasheet.pdf"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "rect",
+     "w": 43.18,
+     "h": 18,
+     "r": 0,
+     "src": "ds",
+     "verify": [
+      "w"
+     ]
+    },
+    "thickness": 1.6,
+    "thickness_src": "ds",
+    "holes": [
+     {
+      "x": 1.27,
+      "y": 1.38,
+      "d": 1.8,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": [
+       "x"
+      ]
+     },
+     {
+      "x": 41.91,
+      "y": 1.38,
+      "d": 1.8,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": [
+       "x"
+      ]
+     },
+     {
+      "x": 1.27,
+      "y": 16.62,
+      "d": 1.8,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": [
+       "x"
+      ]
+     },
+     {
+      "x": 41.91,
+      "y": 16.62,
+      "d": 1.8,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": [
+       "x"
+      ]
+     }
+    ],
+    "holes_note": "Ø1.8; 15.24 apart across (drawing); 40.64 apart along, on the pin-row ends (drawing); board length 43.2 (drawing)",
+    "headers": {
+     "pitch": 2.54,
+     "rows_y": [
+      1.38,
+      16.62
+     ],
+     "n": 15,
+     "src": "ds"
+    }
+   },
+   "components": [
+    {
+     "id": "usb",
+     "type": "usb_mini_b",
+     "side": "top",
+     "edge": "+x",
+     "at": 9,
+     "w": 7.7,
+     "h": 3.9,
+     "d": 9.2,
+     "z0": 0,
+     "protrude": 1.9,
+     "plug": [
+      11,
+      8
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "h",
+      "d",
+      "protrude"
+     ],
+     "note": "mini-B on the +x end, overhang scaled from the drawing (product page: 45 mm with connector)"
+    },
+    {
+     "id": "btn_reset",
+     "type": "tact_3x4_smd",
+     "side": "top",
+     "x": 19.4,
+     "y": 9.2,
+     "w": 3,
+     "d": 3.6,
+     "h": 2.5,
+     "access": "press",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ]
+    },
+    {
+     "id": "leds",
+     "type": "led_0603",
+     "side": "top",
+     "x": 14.6,
+     "y": 9,
+     "w": 1.6,
+     "d": 11,
+     "h": 0.6,
+     "access": "light",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "d"
+     ],
+     "note": "column of 4 LEDs (TX, RX, PWR, L)"
+    },
+    {
+     "id": "icsp",
+     "type": "pin_header_2_54",
+     "side": "top",
+     "x": 4.4,
+     "y": 9,
+     "w": 5.1,
+     "d": 7.6,
+     "h": 0,
+     "access": "none",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x"
+     ],
+     "note": "2x3 ICSP footprint"
+    }
+   ],
+   "keepouts": [],
+   "heights": {
+    "top_max": 3.9,
+    "bottom_max": 8.5,
+    "verify": [
+     "top_max",
+     "bottom_max"
+    ],
+    "note": "usually sold with headers pins-down"
+   },
+   "mount": {
+    "preferred": "screw_or_peg",
+    "screw": "M1.6 or Ø1.6 peg"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "arduino-uno-r3",
+   "name": "Arduino UNO R3",
+   "aliases": [
+    "Arduino UNO",
+    "UNO R3",
+    "ATmega328P",
+    "ATmega16U2"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://docs.arduino.cc/resources/datasheets/A000066-datasheet.pdf",
+     "https://docs.arduino.cc/resources/datasheets/ABX00080-datasheet.pdf"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "ds": "https://docs.arduino.cc/resources/datasheets/A000066-datasheet.pdf",
+    "r4": "https://docs.arduino.cc/resources/datasheets/ABX00080-datasheet.pdf"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "poly",
+     "points": [
+      [
+       0,
+       0
+      ],
+      [
+       66.04,
+       0
+      ],
+      [
+       68.58,
+       2.54
+      ],
+      [
+       68.58,
+       37.85
+      ],
+      [
+       66.04,
+       40.39
+      ],
+      [
+       66.04,
+       51.82
+      ],
+      [
+       64.52,
+       53.34
+      ],
+      [
+       0,
+       53.34
+      ]
+     ],
+     "w": 68.58,
+     "h": 53.34,
+     "src": "r4",
+     "verify": [
+      "points"
+     ],
+     "note": "68.58 x 53.34 (2.7 x 2.1 in) from the R4 drawing; the chamfered right edge vertices follow the classic UNO shield outline"
+    },
+    "thickness": 1.6,
+    "thickness_src": "r4",
+    "holes": [
+     {
+      "x": 13.97,
+      "y": 2.54,
+      "d": 3.2,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 15.24,
+      "y": 50.8,
+      "d": 3.2,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 66.04,
+      "y": 7.62,
+      "d": 3.2,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 66.04,
+      "y": 35.56,
+      "d": 3.2,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     }
+    ],
+    "holes_note": "4 x Ø3.2 (126 mil), section 5.4"
+   },
+   "components": [
+    {
+     "id": "usb",
+     "type": "usb_b",
+     "side": "top",
+     "edge": "-x",
+     "at": 37.9,
+     "w": 12,
+     "h": 10.9,
+     "d": 16.3,
+     "z0": 0,
+     "protrude": 6.4,
+     "plug": [
+      16,
+      15
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "at",
+      "h",
+      "d",
+      "protrude"
+     ],
+     "note": "USB-B; centre and overhang scaled from the 5.4 drawing"
+    },
+    {
+     "id": "dc",
+     "type": "dc_barrel_5_5",
+     "side": "top",
+     "edge": "-x",
+     "at": 7.4,
+     "w": 9,
+     "h": 11,
+     "d": 14,
+     "z0": 0,
+     "protrude": 1.4,
+     "plug": [
+      11,
+      11
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "at",
+      "h",
+      "d",
+      "protrude"
+     ],
+     "note": "2.1 mm barrel jack"
+    },
+    {
+     "id": "btn_reset",
+     "type": "tact_6x6",
+     "side": "top",
+     "x": 6.4,
+     "y": 49,
+     "w": 6,
+     "d": 3.5,
+     "h": 4.3,
+     "access": "press",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ]
+    },
+    {
+     "id": "hdr_top",
+     "type": "female_header_2_54",
+     "side": "top",
+     "x": 41,
+     "y": 50.8,
+     "w": 41,
+     "d": 2.54,
+     "h": 8.5,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "r4",
+     "verify": [
+      "x",
+      "w"
+     ]
+    },
+    {
+     "id": "hdr_bottom",
+     "type": "female_header_2_54",
+     "side": "top",
+     "x": 45,
+     "y": 2.54,
+     "w": 33,
+     "d": 2.54,
+     "h": 8.5,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "r4",
+     "verify": [
+      "x",
+      "w"
+     ]
+    }
+   ],
+   "keepouts": [],
+   "heights": {
+    "top_max": 10.9,
+    "bottom_max": 1.5,
+    "verify": [
+     "bottom_max"
+    ],
+    "note": "through-hole leads under the board"
+   },
+   "mount": {
+    "preferred": "screw",
+    "screw": "M3"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "arduino-uno-r4-minima",
+   "name": "Arduino UNO R4 Minima",
+   "aliases": [
+    "UNO R4 Minima",
+    "UNO R4",
+    "RA4M1",
+    "ABX00080"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://docs.arduino.cc/resources/datasheets/ABX00080-datasheet.pdf"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "r4": "https://docs.arduino.cc/resources/datasheets/ABX00080-datasheet.pdf"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "poly",
+     "points": [
+      [
+       0,
+       0
+      ],
+      [
+       66.04,
+       0
+      ],
+      [
+       68.58,
+       2.54
+      ],
+      [
+       68.58,
+       37.85
+      ],
+      [
+       66.04,
+       40.39
+      ],
+      [
+       66.04,
+       51.82
+      ],
+      [
+       64.52,
+       53.34
+      ],
+      [
+       0,
+       53.34
+      ]
+     ],
+     "w": 68.58,
+     "h": 53.34,
+     "src": "r4",
+     "verify": [
+      "points"
+     ],
+     "note": "68.58 x 53.34 (2.7 x 2.1 in) from the R4 drawing; the chamfered right edge vertices follow the classic UNO shield outline"
+    },
+    "thickness": 1.6,
+    "thickness_src": "r4",
+    "holes": [
+     {
+      "x": 13.97,
+      "y": 2.54,
+      "d": 3.2,
+      "plated": false,
+      "use": "mount",
+      "src": "r4",
+      "verify": []
+     },
+     {
+      "x": 15.24,
+      "y": 50.8,
+      "d": 3.2,
+      "plated": false,
+      "use": "mount",
+      "src": "r4",
+      "verify": []
+     },
+     {
+      "x": 66.04,
+      "y": 7.62,
+      "d": 3.2,
+      "plated": false,
+      "use": "mount",
+      "src": "r4",
+      "verify": []
+     },
+     {
+      "x": 66.04,
+      "y": 35.56,
+      "d": 3.2,
+      "plated": false,
+      "use": "mount",
+      "src": "r4",
+      "verify": []
+     }
+    ],
+    "holes_note": "4 x R1.6 (section 11)"
+   },
+   "components": [
+    {
+     "id": "usb",
+     "type": "usb_c",
+     "side": "top",
+     "edge": "-x",
+     "at": 37.8,
+     "w": 9.3,
+     "h": 3,
+     "d": 7.3,
+     "z0": 0,
+     "protrude": 0.9,
+     "plug": [
+      12.4,
+      6.5
+     ],
+     "access": "port",
+     "src": "r4",
+     "verify": [
+      "at",
+      "protrude"
+     ],
+     "note": "USB-C; 3 mm height from the side view"
+    },
+    {
+     "id": "dc",
+     "type": "dc_barrel_5_5",
+     "side": "top",
+     "edge": "-x",
+     "at": 7.4,
+     "w": 9,
+     "h": 11,
+     "d": 14,
+     "z0": 0,
+     "protrude": 1.4,
+     "plug": [
+      11,
+      11
+     ],
+     "access": "port",
+     "src": "r4",
+     "verify": [
+      "at",
+      "h",
+      "d",
+      "protrude"
+     ],
+     "note": "barrel jack: same place as R3 (not dimensioned in the R4 drawing)"
+    },
+    {
+     "id": "hdr_top",
+     "type": "female_header_2_54",
+     "side": "top",
+     "x": 41,
+     "y": 50.8,
+     "w": 41,
+     "d": 2.54,
+     "h": 8.5,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "r4",
+     "verify": [
+      "x",
+      "w"
+     ]
+    },
+    {
+     "id": "hdr_bottom",
+     "type": "female_header_2_54",
+     "side": "top",
+     "x": 45,
+     "y": 2.54,
+     "w": 33,
+     "d": 2.54,
+     "h": 8.5,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "r4",
+     "verify": [
+      "x",
+      "w"
+     ]
+    }
+   ],
+   "keepouts": [],
+   "heights": {
+    "top_max": 11,
+    "bottom_max": 1.5,
+    "verify": [
+     "top_max",
+     "bottom_max"
+    ]
+   },
+   "mount": {
+    "preferred": "screw",
+    "screw": "M3"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "lolin-d1-mini-v4",
+   "name": "LOLIN (Wemos) D1 mini V4",
+   "aliases": [
+    "D1 mini",
+    "WEMOS D1 mini",
+    "LOLIN D1 mini",
+    "ESP8266",
+    "ESP-12"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://www.wemos.cc/en/latest/_static/files/dim_d1_mini_v4.0.0.pdf",
+     "https://www.wemos.cc/en/latest/d1/d1_mini.html"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "ds": "https://www.wemos.cc/en/latest/_static/files/dim_d1_mini_v4.0.0.pdf",
+    "page": "https://www.wemos.cc/en/latest/d1/d1_mini.html"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "poly",
+     "w": 25.4,
+     "h": 34.3,
+     "src": "ds",
+     "verify": [
+      "points"
+     ],
+     "points": [
+      [
+       1.27,
+       0
+      ],
+      [
+       25.4,
+       0
+      ],
+      [
+       25.4,
+       31
+      ],
+      [
+       22,
+       34.3
+      ],
+      [
+       3.4,
+       34.3
+      ],
+      [
+       0,
+       31
+      ],
+      [
+       0,
+       7.6
+      ],
+      [
+       1.27,
+       7.6
+      ]
+     ],
+     "note": "25.4 x 34.3 with rounded top corners and a 1.27 step on the lower-left (22.86 wide there), from the V4 drawing"
+    },
+    "thickness": 1,
+    "thickness_src": "typical",
+    "thickness_verify": true,
+    "holes": [
+     {
+      "x": 2.5,
+      "y": 31.1,
+      "d": 2,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": [
+       "y"
+      ]
+     },
+     {
+      "x": 22.9,
+      "y": 31.1,
+      "d": 2,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": [
+       "y"
+      ]
+     }
+    ],
+    "holes_note": "Ø2.0, 20.4 apart, 2.5 from the left edge (drawing)",
+    "headers": {
+     "pitch": 2.54,
+     "rows_x": [
+      1.27,
+      24.13
+     ],
+     "n": 8,
+     "src": "ds"
+    }
+   },
+   "components": [
+    {
+     "id": "usb",
+     "type": "usb_c",
+     "side": "top",
+     "edge": "-y",
+     "at": 12.6,
+     "w": 8.94,
+     "h": 3.2,
+     "d": 7.3,
+     "z0": 0,
+     "protrude": 0.5,
+     "plug": [
+      12.4,
+      6.5
+     ],
+     "access": "port",
+     "src": "page",
+     "verify": [
+      "at",
+      "h",
+      "d",
+      "protrude"
+     ],
+     "note": "Type-C on V4 (page); position scaled from the drawing pads"
+    },
+    {
+     "id": "btn_reset",
+     "type": "tact_3x4_smd",
+     "side": "top",
+     "x": 23.8,
+     "y": 3.5,
+     "w": 2,
+     "d": 6.5,
+     "h": 1.8,
+     "access": "press",
+     "normal": [
+      1,
+      0,
+      0
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "normal"
+     ],
+     "note": "side-pressed reset at the lower-right corner (pads in the drawing)"
+    }
+   ],
+   "keepouts": [
+    {
+     "id": "antenna",
+     "rect": [
+      0,
+      27,
+      25.4,
+      34.3
+     ],
+     "z": [
+      -20,
+      40
+     ],
+     "rule": "no_metal",
+     "src": "ds",
+     "verify": [
+      "rect"
+     ],
+     "note": "ESP-12 PCB antenna end (+y)"
+    }
+   ],
+   "heights": {
+    "top_max": 3.2,
+    "bottom_max": 8.5,
+    "verify": [
+     "top_max",
+     "bottom_max"
+    ]
+   },
+   "mount": {
+    "preferred": "screw_or_peg",
+    "screw": "M2"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "rpi-zero-2-w",
+   "name": "Raspberry Pi Zero 2 W",
+   "aliases": [
+    "Raspberry Pi Zero 2 W",
+    "Zero 2 W",
+    "RP3A0"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://datasheets.raspberrypi.com/rpizero2/raspberry-pi-zero-2-w-mechanical-drawing.pdf"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "ds": "https://datasheets.raspberrypi.com/rpizero2/raspberry-pi-zero-2-w-mechanical-drawing.pdf"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "rect",
+     "w": 65,
+     "h": 30,
+     "r": 3,
+     "src": "ds",
+     "verify": [
+      "r"
+     ]
+    },
+    "thickness": 1,
+    "thickness_src": "typical",
+    "thickness_verify": true,
+    "holes": [
+     {
+      "x": 3.5,
+      "y": 3.5,
+      "d": 2.75,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": [
+       "d"
+      ]
+     },
+     {
+      "x": 61.5,
+      "y": 3.5,
+      "d": 2.75,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": [
+       "d"
+      ]
+     },
+     {
+      "x": 3.5,
+      "y": 26.5,
+      "d": 2.75,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": [
+       "d"
+      ]
+     },
+     {
+      "x": 61.5,
+      "y": 26.5,
+      "d": 2.75,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": [
+       "d"
+      ]
+     }
+    ],
+    "holes_note": "centres 3.5 from the edges, 58 x 23 apart (drawing); diameter not on the drawing (M2.5 clearance as on other Pis)"
+   },
+   "components": [
+    {
+     "id": "hdmi",
+     "type": "hdmi_mini",
+     "side": "top",
+     "edge": "-y",
+     "at": 12.4,
+     "w": 11.2,
+     "h": 3.2,
+     "d": 7.5,
+     "z0": 0,
+     "protrude": 0.5,
+     "plug": [
+      15,
+      8
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "h",
+      "d",
+      "protrude"
+     ]
+    },
+    {
+     "id": "usb",
+     "type": "usb_micro_b",
+     "side": "top",
+     "edge": "-y",
+     "at": 41.4,
+     "w": 7.5,
+     "h": 2.6,
+     "d": 5,
+     "z0": 0,
+     "protrude": 1,
+     "plug": [
+      10.6,
+      7.6
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "h",
+      "d",
+      "protrude"
+     ],
+     "note": "USB data (OTG)"
+    },
+    {
+     "id": "pwr",
+     "type": "usb_micro_b",
+     "side": "top",
+     "edge": "-y",
+     "at": 54,
+     "w": 7.5,
+     "h": 2.6,
+     "d": 5,
+     "z0": 0,
+     "protrude": 1,
+     "plug": [
+      10.6,
+      7.6
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "h",
+      "d",
+      "protrude"
+     ],
+     "note": "power in"
+    },
+    {
+     "id": "csi",
+     "type": "fpc_22p_0_5",
+     "side": "top",
+     "edge": "+x",
+     "at": 15,
+     "w": 17,
+     "h": 1.2,
+     "d": 4,
+     "z0": 0,
+     "protrude": 0,
+     "plug": null,
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "at",
+      "w",
+      "h",
+      "d"
+     ],
+     "note": "camera FPC; needs a 1 x 17 mm slot if a camera is used"
+    },
+    {
+     "id": "sd",
+     "type": "microsd_push",
+     "side": "top",
+     "edge": "-x",
+     "at": 16.9,
+     "w": 12,
+     "h": 1.9,
+     "d": 12,
+     "z0": 0,
+     "protrude": 2.5,
+     "plug": null,
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "at",
+      "w",
+      "h",
+      "protrude"
+     ],
+     "note": "microSD; card sticks out past the -x edge"
+    },
+    {
+     "id": "gpio",
+     "type": "pin_header_2_54",
+     "side": "top",
+     "x": 32.5,
+     "y": 26.5,
+     "w": 50.8,
+     "d": 5.08,
+     "h": 0,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [],
+     "note": "2x20 footprint, unpopulated on the W; centre 3.5 + 29 from the left (drawing)"
+    },
+    {
+     "id": "led",
+     "type": "led_0603",
+     "side": "top",
+     "x": 59.5,
+     "y": 21.5,
+     "w": 1.6,
+     "d": 0.8,
+     "h": 0.6,
+     "access": "light",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y"
+     ],
+     "note": "ACT LED near the right edge"
+    }
+   ],
+   "keepouts": [
+    {
+     "id": "wifi",
+     "rect": [
+      37,
+      7,
+      51,
+      22
+     ],
+     "z": [
+      -20,
+      40
+     ],
+     "rule": "no_metal",
+     "src": "ds",
+     "verify": [
+      "rect"
+     ],
+     "note": "Wi-Fi/BT module area (shielded package in the drawing)"
+    }
+   ],
+   "heights": {
+    "top_max": 3.2,
+    "bottom_max": 1.2,
+    "verify": [
+     "top_max",
+     "bottom_max"
+    ]
+   },
+   "mount": {
+    "preferred": "screw",
+    "screw": "M2.5"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "rpi-4b",
+   "name": "Raspberry Pi 4 Model B",
+   "aliases": [
+    "Raspberry Pi 4",
+    "Pi 4 Model B",
+    "BCM2711"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "ds": "https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "rect",
+     "w": 85,
+     "h": 56,
+     "r": 3,
+     "src": "ds",
+     "verify": []
+    },
+    "thickness": 1.4,
+    "thickness_src": "typical",
+    "thickness_verify": true,
+    "holes": [
+     {
+      "x": 3.5,
+      "y": 3.5,
+      "d": 2.7,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 61.5,
+      "y": 3.5,
+      "d": 2.7,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 3.5,
+      "y": 52.5,
+      "d": 2.7,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 61.5,
+      "y": 52.5,
+      "d": 2.7,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     }
+    ],
+    "holes_note": "58 x 49 pattern, 3.5 from the left/bottom/top edges, corner radius 3.0 (drawing)"
+   },
+   "components": [
+    {
+     "id": "usb_c",
+     "type": "usb_c",
+     "side": "top",
+     "edge": "-y",
+     "at": 11.2,
+     "w": 8.94,
+     "h": 3.2,
+     "d": 7.3,
+     "z0": 0,
+     "protrude": 1,
+     "plug": [
+      12.4,
+      6.5
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "d",
+      "protrude"
+     ],
+     "note": "x = 3.5 + 7.7, Z=3.2 (drawing)"
+    },
+    {
+     "id": "hdmi0",
+     "type": "hdmi_micro",
+     "side": "top",
+     "edge": "-y",
+     "at": 26,
+     "w": 6.5,
+     "h": 3,
+     "d": 7.5,
+     "z0": 0,
+     "protrude": 1,
+     "plug": [
+      11,
+      7
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "d",
+      "protrude"
+     ],
+     "note": "+14.8, Z=3.0"
+    },
+    {
+     "id": "hdmi1",
+     "type": "hdmi_micro",
+     "side": "top",
+     "edge": "-y",
+     "at": 39.5,
+     "w": 6.5,
+     "h": 3,
+     "d": 7.5,
+     "z0": 0,
+     "protrude": 1,
+     "plug": [
+      11,
+      7
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "d",
+      "protrude"
+     ],
+     "note": "+13.5, Z=3.0"
+    },
+    {
+     "id": "audio",
+     "type": "audio_3_5",
+     "side": "top",
+     "edge": "-y",
+     "at": 54,
+     "w": 7,
+     "h": 6,
+     "d": 12,
+     "z0": 0,
+     "protrude": 0.5,
+     "plug": [
+      7.5,
+      7.5
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "d",
+      "protrude"
+     ],
+     "note": "7.5 left of the right hole column, Z=6.0"
+    },
+    {
+     "id": "usb_a1",
+     "type": "usb_a_dual",
+     "side": "top",
+     "edge": "+x",
+     "at": 9,
+     "w": 13.1,
+     "h": 16,
+     "d": 17.4,
+     "z0": 0,
+     "protrude": 3,
+     "plug": [
+      16,
+      8.5
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "d",
+      "protrude"
+     ],
+     "note": "Z=16.0"
+    },
+    {
+     "id": "usb_a2",
+     "type": "usb_a_dual",
+     "side": "top",
+     "edge": "+x",
+     "at": 27,
+     "w": 13.1,
+     "h": 16,
+     "d": 17.4,
+     "z0": 0,
+     "protrude": 3,
+     "plug": [
+      16,
+      8.5
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "d",
+      "protrude"
+     ],
+     "note": "Z=16.0"
+    },
+    {
+     "id": "eth",
+     "type": "rj45",
+     "side": "top",
+     "edge": "+x",
+     "at": 45.75,
+     "w": 16,
+     "h": 13.5,
+     "d": 21.3,
+     "z0": 0,
+     "protrude": 3,
+     "plug": [
+      14,
+      13
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "d",
+      "protrude"
+     ],
+     "note": "Z=13.5"
+    },
+    {
+     "id": "sd",
+     "type": "microsd_push",
+     "side": "bottom",
+     "edge": "-x",
+     "at": 28,
+     "w": 12,
+     "h": 1.9,
+     "d": 12,
+     "z0": 0,
+     "protrude": 2.5,
+     "plug": null,
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "at",
+      "w",
+      "h",
+      "protrude"
+     ],
+     "note": "microSD on the underside"
+    },
+    {
+     "id": "gpio",
+     "type": "pin_header_2_54",
+     "side": "top",
+     "x": 32.5,
+     "y": 52.5,
+     "w": 50.8,
+     "d": 5.08,
+     "h": 8.5,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [],
+     "note": "29 + 3.5 from the left, Z=8.5"
+    },
+    {
+     "id": "dsi",
+     "type": "fpc_15p_1",
+     "side": "top",
+     "x": 4,
+     "y": 32.5,
+     "w": 3,
+     "d": 21,
+     "h": 5.5,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "w",
+      "d"
+     ],
+     "note": "display FPC, Z=5.5"
+    },
+    {
+     "id": "csi",
+     "type": "fpc_15p_1",
+     "side": "top",
+     "x": 45,
+     "y": 11.5,
+     "w": 3,
+     "d": 21,
+     "h": 5.5,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d"
+     ],
+     "note": "camera FPC, Z=5.5"
+    }
+   ],
+   "keepouts": [],
+   "heights": {
+    "top_max": 16,
+    "bottom_max": 2,
+    "verify": [
+     "bottom_max"
+    ]
+   },
+   "mount": {
+    "preferred": "screw",
+    "screw": "M2.5"
+   }
+  },
+  {
+   "schema": "fw.board/1",
+   "id": "rpi-5",
+   "name": "Raspberry Pi 5",
+   "aliases": [
+    "Raspberry Pi 5",
+    "Pi 5",
+    "BCM2712",
+    "RP1"
+   ],
+   "source": {
+    "kind": "dataset",
+    "urls": [
+     "https://datasheets.raspberrypi.com/rpi5/raspberry-pi-5-mechanical-drawing.pdf"
+    ],
+    "checked": "2026-10-30"
+   },
+   "sources": {
+    "ds": "https://datasheets.raspberrypi.com/rpi5/raspberry-pi-5-mechanical-drawing.pdf"
+   },
+   "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side, as drawn in the official drawing; x right, y up (away), z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+   "pcb": {
+    "outline": {
+     "kind": "rect",
+     "w": 85,
+     "h": 56,
+     "r": 3,
+     "src": "ds",
+     "verify": [
+      "r"
+     ]
+    },
+    "thickness": 1.4,
+    "thickness_src": "typical",
+    "thickness_verify": true,
+    "holes": [
+     {
+      "x": 3.5,
+      "y": 3.5,
+      "d": 2.7,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 61.5,
+      "y": 3.5,
+      "d": 2.7,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 3.5,
+      "y": 52.5,
+      "d": 2.7,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     },
+     {
+      "x": 61.5,
+      "y": 52.5,
+      "d": 2.7,
+      "plated": false,
+      "use": "mount",
+      "src": "ds",
+      "verify": []
+     }
+    ],
+    "holes_note": "Ø2.7 at the 58 x 49 pattern (drawing); the drawing also shows Ø3 holes for the active cooler"
+   },
+   "components": [
+    {
+     "id": "usb_c",
+     "type": "usb_c",
+     "side": "top",
+     "edge": "-y",
+     "at": 11.2,
+     "w": 8.94,
+     "h": 3.2,
+     "d": 7.3,
+     "z0": 0,
+     "protrude": 1,
+     "plug": [
+      12.4,
+      6.5
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "h",
+      "d",
+      "protrude"
+     ]
+    },
+    {
+     "id": "hdmi0",
+     "type": "hdmi_micro",
+     "side": "top",
+     "edge": "-y",
+     "at": 25.8,
+     "w": 6.5,
+     "h": 3,
+     "d": 7.5,
+     "z0": 0,
+     "protrude": 1,
+     "plug": [
+      11,
+      7
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "h",
+      "d",
+      "protrude"
+     ]
+    },
+    {
+     "id": "hdmi1",
+     "type": "hdmi_micro",
+     "side": "top",
+     "edge": "-y",
+     "at": 39.2,
+     "w": 6.5,
+     "h": 3,
+     "d": 7.5,
+     "z0": 0,
+     "protrude": 1,
+     "plug": [
+      11,
+      7
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "h",
+      "d",
+      "protrude"
+     ]
+    },
+    {
+     "id": "eth",
+     "type": "rj45",
+     "side": "top",
+     "edge": "+x",
+     "at": 10.2,
+     "w": 16,
+     "h": 13.5,
+     "d": 21.3,
+     "z0": 0,
+     "protrude": 3,
+     "plug": [
+      14,
+      13
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "h",
+      "d"
+     ],
+     "note": "overhang 3 (side view)"
+    },
+    {
+     "id": "usb_a1",
+     "type": "usb_a_dual",
+     "side": "top",
+     "edge": "+x",
+     "at": 29.1,
+     "w": 13.1,
+     "h": 16,
+     "d": 17.4,
+     "z0": 0,
+     "protrude": 3,
+     "plug": [
+      16,
+      8.5
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "h",
+      "d"
+     ]
+    },
+    {
+     "id": "usb_a2",
+     "type": "usb_a_dual",
+     "side": "top",
+     "edge": "+x",
+     "at": 47,
+     "w": 13.1,
+     "h": 16,
+     "d": 17.4,
+     "z0": 0,
+     "protrude": 3,
+     "plug": [
+      16,
+      8.5
+     ],
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "w",
+      "h",
+      "d"
+     ]
+    },
+    {
+     "id": "pwr_btn",
+     "type": "tact_side",
+     "side": "top",
+     "edge": "-x",
+     "at": 18.4,
+     "w": 4,
+     "h": 2,
+     "d": 3,
+     "z0": 0,
+     "protrude": 0.5,
+     "plug": null,
+     "access": "port",
+     "src": "ds",
+     "verify": [
+      "at",
+      "w",
+      "h",
+      "d",
+      "protrude"
+     ],
+     "note": "power button on the left edge (needs a flex pusher in the wall)"
+    },
+    {
+     "id": "gpio",
+     "type": "pin_header_2_54",
+     "side": "top",
+     "x": 32.5,
+     "y": 52.5,
+     "w": 50.8,
+     "d": 5.08,
+     "h": 8.5,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "h"
+     ]
+    },
+    {
+     "id": "fan",
+     "type": "jst_sh_4p",
+     "side": "top",
+     "x": 70.5,
+     "y": 49,
+     "w": 4,
+     "d": 3,
+     "h": 3,
+     "access": "cable",
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "src": "ds",
+     "verify": [
+      "x",
+      "y",
+      "w",
+      "d",
+      "h"
+     ]
+    }
+   ],
+   "keepouts": [],
+   "heights": {
+    "top_max": 16,
+    "bottom_max": 2,
+    "verify": [
+     "top_max",
+     "bottom_max"
+    ]
+   },
+   "mount": {
+    "preferred": "screw",
+    "screw": "M2.5"
+   }
+  }
+ ]
+}

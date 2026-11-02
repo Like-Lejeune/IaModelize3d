@@ -2,8 +2,10 @@
   "name": "formwright",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*", "web"],
+  "workspaces": ["packages/geom", "web"],
   "scripts": {
+    "dev": "npm run dev -w web",
+    "build": "npm run build -w web",
     "test": "npm run test -w @formwright/geom",
     "check": "tsc -p packages/geom --noEmit"
   }

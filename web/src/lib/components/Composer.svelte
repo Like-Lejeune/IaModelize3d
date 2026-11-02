@@ -1,8 +1,12 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import Icon from './Icon.svelte';
   import Picker from './Picker.svelte';
   import CaptureTips from './CaptureTips.svelte';
+  import PhotoFocus from './PhotoFocus.svelte';
   import PhotoSelect from './PhotoSelect.svelte';
+  import Sticker from './Sticker.svelte';
+  import { codeText } from '$lib/api';
   import { t, fmtDuration } from '$lib/i18n.svelte';
   import { prefs, setPref, models, modelName, REASONING } from '$lib/session.svelte';
   import type { ProjectStore } from '$lib/project.svelte';
@@ -15,15 +19,23 @@
   let tips = $state(false);
   let dragging = $state(false);
   let selecting = $state<AssetOut | null>(null);
+  let focusing = $state<AssetOut | null>(null);
   let rec: MediaRecorder | null = null;
+  let mic: MediaStream | null = null;
+  let destroyed = false;
   let recording = $state(false);
   let recStart = $state(0);
+  // what Muse Voice Transcribe heard in the last voice note: its length, or why nothing came of it
+  // (the code of a limit that stopped it, or null: the speech was not recognized)
+  let heard = $state<{ s: number } | { miss: string | null } | null>(null);
   let now = $state(Date.now());
   let area: HTMLTextAreaElement;
   let menuWrap: HTMLDivElement;
 
   const hasModel = $derived(!!store.source);
-  const ready = $derived((!!text.trim() || !!store.tray.length) && !uploading && !store.replaying);
+  // a Stop is on its way to the server: neither Stop nor Send until the job has really ended
+  const stopping = $derived(store.stopping);
+  const ready = $derived((!!text.trim() || !!store.tray.length) && !uploading && !store.replaying && !stopping);
   const modelOptions = $derived(
     models().map((m) => ({
       value: m.key,
@@ -81,9 +93,28 @@
       uploading++;
       const k = kind === 'camera' ? 'photo' : f.type.startsWith('video/') ? 'video' : f.type.startsWith('audio/') ? 'audio' : kind;
       const a = await store.upload(f, k);
-      if (a) store.tray = [...store.tray, a];
+      if (a) {
+        store.tray = [...store.tray, a];
+        store.spot(a, text.trim());
+      }
       uploading--;
     }
+  }
+
+  // the transcript goes into the text box, so the person sees what was heard and can fix it before sending
+  function addTranscript(a: AssetOut) {
+    const said = String(a.meta?.transcript ?? '').trim();
+    if (!said || a.meta?.transcript_error) {
+      heard = { miss: a.meta?.transcript_code ? String(a.meta.transcript_code) : null };
+      return;
+    }
+    text = text.trim() ? `${text.trimEnd()} ${said}` : said;
+    heard = { s: Math.max(1, Math.round(Number(a.meta?.duration_s) || 0)) };
+    queueMicrotask(() => {
+      fit();
+      area?.focus();
+      area?.setSelectionRange(text.length, text.length);
+    });
   }
 
   async function toggleRecord() {
@@ -95,16 +126,22 @@
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const chunks: Blob[] = [];
+      mic = stream;
       rec = new MediaRecorder(stream);
       rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       rec.onstop = async () => {
         stream.getTracks().forEach((tr) => tr.stop());
+        mic = null;
         recording = false;
+        if (destroyed) return;
         const type = rec?.mimeType || 'audio/webm';
         const ext = type.includes('ogg') ? 'ogg' : type.includes('mp4') ? 'm4a' : 'webm';
         uploading++;
         const a = await store.upload(new Blob(chunks, { type }), 'audio', `voice.${ext}`);
-        if (a) store.tray = [...store.tray, a];
+        if (a) {
+          store.tray = [...store.tray, a];
+          if (!destroyed) addTranscript(a);
+        }
         uploading--;
       };
       rec.start();
@@ -112,18 +149,29 @@
       recStart = Date.now();
       now = recStart;
     } catch (e: any) {
-      store.addError(e?.message ?? String(e));
+      mic?.getTracks().forEach((tr) => tr.stop());
+      mic = null;
+      // NotAllowedError / SecurityError: the person or the browser said no; anything else: no usable microphone
+      store.addError(t(e?.name === 'NotAllowedError' || e?.name === 'SecurityError' ? 'mic_denied' : 'mic_unavailable'));
     }
   }
+
+  // leaving the chat (a tab switch on a phone) must not leave the microphone on
+  onDestroy(() => {
+    destroyed = true;
+    if (rec && rec.state !== 'inactive') rec.stop();
+    mic?.getTracks().forEach((tr) => tr.stop());
+  });
 
   async function send() {
     if (!ready || store.running) return;
     const v = text.trim();
     const ids = store.tray.map((a) => a.id);
     text = '';
+    heard = null;
     store.tray = [];
     queueMicrotask(fit);
-    await store.send(v || '(see attached)', ids);
+    await store.send(v || t('see_attached'), ids);
   }
 
   function fmtTokens(n: number) {
@@ -147,6 +195,7 @@
     <div class="meta">
       <span>{fmtDuration(elapsed)}</span>
       {#if tokens}<span>{fmtTokens(tokens)} {t('tokens')}</span>{/if}
+      {#if store.running && job.kind === 'design' && !job.finished}<span class="eta">{t('eta_hint')}</span>{/if}
     </div>
   {/if}
 
@@ -170,7 +219,24 @@
       <div class="tray" aria-label={t('attached')}>
         {#each store.tray as a (a.id)}
           <div class="att">
-            {#if isImage(a)}
+            {#if a.kind === 'photo'}
+              {@const target = store.target(a.id)}
+              <button
+                class="thumb"
+                class:found={!!target?.mask_url}
+                class:scanning={!!store.spotting[a.id]}
+                onclick={() => (focusing = a)}
+                title={store.spotting[a.id] ? t('spot_finding') : (store.targetLabel(a.id) ?? t('select_object'))}
+              >
+                {#if target?.mask_url}
+                  <Sticker photo={a.url} mask={target.mask_url} bbox={target.data?.bbox_px ?? null} size={46} />
+                {:else}
+                  <img src={a.thumb_url ?? a.url} alt={a.kind} />
+                {/if}
+                {#if store.spotting[a.id]}<span class="sweep" aria-hidden="true"></span>{/if}
+                {#if store.assets.find((x) => x.id === a.id)?.meta?.calibration?.ok}<span class="cal" title={t('calibrated')}><Icon name="ruler" size={11} /></span>{/if}
+              </button>
+            {:else if isImage(a)}
               <button class="thumb" onclick={() => (selecting = a)} title={t('select_object')}>
                 <img src={a.thumb_url ?? a.url} alt={a.kind} />
                 {#if a.meta?.calibration}<span class="cal" title={t('calibrated')}><Icon name="ruler" size={11} /></span>{/if}
@@ -189,6 +255,11 @@
       </div>
     {/if}
 
+    {#if heard}
+      <div class="heard xs" class:empty={'miss' in heard}>
+        <Icon name="mic" size={12} /> {'s' in heard ? t('voice_caption', { s: heard.s }) : codeText(heard.miss) ?? t('voice_empty')}
+      </div>
+    {/if}
     <textarea
       bind:this={area}
       bind:value={text}
@@ -227,7 +298,9 @@
       <button class="round pressable" class:on={recording} onclick={toggleRecord} aria-label={t('record')} title={t('record')}><Icon name="mic" size={17} /></button>
       <span class="spacer"></span>
       {#if store.running && !store.replaying}
-        <button class="round pressable send stop" onclick={() => store.cancel()} aria-label={t('stop')} title={t('stop')}><Icon name="stop" size={13} /></button>
+        <button class="round pressable send stop" onclick={() => store.cancel()} disabled={stopping} aria-label={t(stopping ? 'stopping' : 'stop')} title={t(stopping ? 'stopping' : 'stop')}>
+          {#if stopping}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="stop" size={13} />{/if}
+        </button>
       {:else}
         <button class="round pressable send" onclick={send} disabled={!ready} aria-label={t('send')} title={t('send')}><Icon name="arrow-up" size={18} /></button>
       {/if}
@@ -239,6 +312,10 @@
     <Picker label={t('reasoning')} value={prefs.reasoning} options={reasoningOptions} quiet up onpick={(v) => setPref('reasoning', v)} />
   </div>
 </div>
+
+{#if focusing}
+  <PhotoFocus {store} asset={focusing} onClose={() => (focusing = null)} />
+{/if}
 
 {#if selecting}
   <PhotoSelect projectId={store.id} asset={selecting} selections={store.selections} onClose={() => (selecting = null)} />
@@ -339,9 +416,19 @@
     background: var(--on-surface);
     color: var(--surface);
   }
-  .send.stop:hover {
+  .send.stop:hover:not(:disabled) {
     background: var(--on-surface-var);
     color: var(--surface);
+  }
+  .heard {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 9px 14px 0;
+    color: var(--outline);
+  }
+  .heard.empty {
+    color: var(--warn-text);
   }
   .tray {
     display: flex;
@@ -375,6 +462,37 @@
     height: 100%;
     object-fit: cover;
     display: block;
+  }
+  /* the found object, cut out and glowing, instead of the whole photo */
+  .thumb.found {
+    background: radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--primary) 30%, transparent), transparent 70%), #111;
+    border-color: color-mix(in srgb, var(--primary) 60%, transparent);
+  }
+  .thumb.found :global(.sticker) {
+    filter: drop-shadow(0 0 3px var(--primary));
+    animation: lift 420ms var(--ease-pop);
+  }
+  @keyframes lift {
+    from {
+      transform: scale(0.6);
+      opacity: 0;
+    }
+  }
+  .sweep {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 30%, color-mix(in srgb, var(--primary) 70%, transparent) 50%, transparent 52%);
+    background-size: 100% 220%;
+    animation: sweep 1.4s var(--ease-standard) infinite;
+    pointer-events: none;
+  }
+  @keyframes sweep {
+    from {
+      background-position: 0 100%;
+    }
+    to {
+      background-position: 0 -120%;
+    }
   }
   .cal,
   .sel {
@@ -488,6 +606,11 @@
     color: var(--outline);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+  .eta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .pickers {
     justify-content: flex-end;

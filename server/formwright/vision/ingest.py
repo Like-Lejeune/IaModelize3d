@@ -1,7 +1,8 @@
 """Upload ingestion: validate, normalize, strip metadata, thumbnail, transcribe.
 
 Photos keep only what measurement needs from EXIF (35 mm-equivalent focal length,
-make, model) in `meta.exif`; the stored file has no metadata at all (no GPS).
+make, model) in `meta.exif`; the stored file has no metadata at all (no GPS). Videos are
+remuxed by ffmpeg without their metadata (a phone's location, camera and time tags).
 """
 from __future__ import annotations
 
@@ -21,6 +22,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from .. import quotas
 from ..config import settings
 from ..db import get_db, new_id, now
 from ..llm.client import CostMeter, meta
@@ -109,6 +111,8 @@ def _decode_photo(data: bytes) -> tuple[np.ndarray, dict[str, Any]]:
     try:
         pil = Image.open(io.BytesIO(data))
         pil.load()
+    except Image.DecompressionBombError as e:
+        raise ValueError("photo is too large") from e
     except (UnidentifiedImageError, OSError) as e:
         raise ValueError("unsupported image (use JPEG, PNG or WebP)") from e
     exif = _exif_info(pil)
@@ -121,16 +125,28 @@ def _decode_photo(data: bytes) -> tuple[np.ndarray, dict[str, Any]]:
     return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), exif
 
 
-async def _blur(img: np.ndarray) -> tuple[np.ndarray, int]:
-    if os.environ.get("FW_BLUR_FACES", "1") == "0" or not settings().meta_api_key:
+async def _owner(project_id: str) -> dict[str, Any] | None:
+    db = await get_db()
+    return await db.one("SELECT u.* FROM users u JOIN projects p ON p.user_id = u.id WHERE p.id = ?", project_id)
+
+
+async def _blur(img: np.ndarray, user: dict[str, Any] | None = None) -> tuple[np.ndarray, int]:
+    """`user`: whose daily budget pays for it; when that is spent the photo is refused, not kept unblurred."""
+    if not settings().blur_faces or not settings().meta_api_key:
         return img, 0
     from .privacy import blur_people
 
+    if user:
+        await quotas.check_light(user, 0.005)
+    meter = CostMeter(budget_usd=0.02)
     try:
-        return await blur_people(CostMeter(budget_usd=0.02), img)
+        return await blur_people(meter, img)
     except Exception as e:  # noqa: BLE001 — privacy pass must never block an upload
         log.warning("face blur skipped: %s", e)
         return img, 0
+    finally:
+        if user:
+            await quotas.settle(user["id"], meter.usd, is_job=False)
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
@@ -154,23 +170,80 @@ async def to_wav(data: bytes, suffix: str) -> bytes:
         return dst.read_bytes()
 
 
-async def transcribe(wav: bytes) -> str:
+async def _strip_video(data: bytes, suffix: str) -> bytes:
+    """The video without its metadata (a phone's GPS location, camera model, time) and chapters; the streams are copied
+    as they are. Refused when ffmpeg is missing or cannot read it: a stored video is served as uploaded."""
+    ff = ffmpeg_bin()
+    if not ff:
+        raise ValueError("videos need ffmpeg on the server (it removes their location tags)")
+    with tempfile.TemporaryDirectory() as d:
+        src, dst = Path(d) / f"in{suffix}", Path(d) / f"out{suffix}"
+        src.write_bytes(data)
+        res = await asyncio.to_thread(_run, [ff, "-y", "-loglevel", "error", "-i", str(src), "-map", "0", "-map_metadata", "-1",
+                                             "-map_metadata:s", "-1", "-map_chapters", "-1", "-c", "copy", "-fflags", "+bitexact", str(dst)])
+        if res.returncode != 0 or not dst.exists() or not dst.stat().st_size:
+            raise ValueError("cannot read video (use MP4/MOV with H.264/H.265)")
+        return dst.read_bytes()
+
+
+UPLOAD_MB_DAY = {"anon": 200}  # stored uploads a day per person, by tier (others: UPLOAD_MB_DAY_OTHER)
+UPLOAD_MB_DAY_OTHER = 2000
+UPLOAD_MB_NETWORK = 500  # and by every anonymous visitor of one network together (users.ip)
+
+
+async def upload_quota(project_id: str, size: int) -> None:
+    """A day's uploads, counted from the stored assets of the project owner's projects: QuotaExceeded 'upload_quota'
+    (a 429) past the limit, so a script cannot fill the server's disk. A new cookie is a new anonymous user, so their
+    uploads also count per network."""
+    owner = await _owner(project_id)
+    if not owner:
+        return
+    db = await get_db()
+    since = now() - 86400
+    total = "SELECT COALESCE(SUM(json_extract(a.meta, '$.size_bytes')), 0) AS n FROM assets a JOIN projects p ON p.id = a.project_id "
+    row = await db.one(total + "WHERE p.user_id = ? AND a.created_at > ?", owner["id"], since)
+    if float((row or {}).get("n") or 0) + size > UPLOAD_MB_DAY.get(owner["tier"], UPLOAD_MB_DAY_OTHER) * 1e6:
+        raise quotas.QuotaExceeded("today's uploads for this account are used up; try again tomorrow", code="upload_quota")
+    if owner["tier"] == "anon" and owner.get("ip"):
+        row = await db.one(total + "JOIN users u ON u.id = p.user_id WHERE u.tier = 'anon' AND u.ip = ? AND a.created_at > ?", owner["ip"], since)
+        if float((row or {}).get("n") or 0) + size > UPLOAD_MB_NETWORK * 1e6:
+            raise quotas.QuotaExceeded("today's uploads from this network are used up; try again tomorrow", code="upload_quota")
+
+
+async def transcribe(wav: bytes, user: dict[str, Any] | None = None) -> str:
+    """The spoken text; raises when the speech could not be transcribed (or `user`, who pays for it, has
+    spent today's budget)."""
     if not settings().meta_api_key:
-        return ""
+        raise RuntimeError("speech recognition is not set up on this server")
+    if user:
+        await quotas.check_light(user, 0.005)
     meter = CostMeter(budget_usd=0.05)
     try:
         return await meta().transcribe(meter, wav, keywords=PRINT_KEYWORDS, languages=["English", "Russian"])
     except Exception:  # noqa: BLE001 — retry without language bias (names may not be accepted)
-        try:
-            return await meta().transcribe(meter, wav, keywords=PRINT_KEYWORDS)
-        except Exception as e:  # noqa: BLE001
-            log.warning("transcription failed: %s", e)
-            return ""
+        return await meta().transcribe(meter, wav, keywords=PRINT_KEYWORDS)
+    finally:
+        if user:
+            await quotas.settle(user["id"], meter.usd, is_job=False)
+
+
+async def _transcript(wav: bytes, user: dict[str, Any] | None = None) -> dict[str, str]:
+    """meta.transcript, plus meta.transcript_error when the speech could not be read (the upload still succeeds)
+    and meta.transcript_code when today's limit stopped it (the QuotaExceeded code, e.g. 'daily_limit').
+    `user`: the project's owner, billed for it; with nobody to bill it is the plain one-argument call."""
+    try:
+        return {"transcript": await (transcribe(wav, user) if user else transcribe(wav))}
+    except quotas.QuotaExceeded as e:
+        return {"transcript": "", "transcript_error": str(e)[:200], "transcript_code": e.code}
+    except Exception as e:  # noqa: BLE001
+        log.warning("transcription failed: %s", e)
+        return {"transcript": "", "transcript_error": str(e)[:200] or type(e).__name__}
 
 
 async def ingest_asset(project_id: str, kind: str, filename: str, data: bytes, mime: str) -> dict[str, Any]:
     if not data:
         raise ValueError("empty file")
+    await upload_quota(project_id, len(data))
     kind = detect_kind(kind, filename, mime or "", data)
     aid = new_id("a_")
     base = f"{project_id}/{aid}"
@@ -185,7 +258,7 @@ async def ingest_asset(project_id: str, kind: str, filename: str, data: bytes, m
             img = cv2.resize(img, (round(w * k), round(h * k)), interpolation=cv2.INTER_AREA)
             meta_info["downscaled_from"] = [w, h]
         if kind in ("photo", "caliper", "print"):
-            img, faces = await _blur(img)
+            img, faces = await _blur(img, await _owner(project_id))
             if faces:
                 meta_info["faces_blurred"] = faces
         height, width = img.shape[:2]
@@ -196,11 +269,14 @@ async def ingest_asset(project_id: str, kind: str, filename: str, data: bytes, m
         mime = "image/jpeg"
     elif kind == "video":
         ext = _ext(filename) if _ext(filename) in VIDEO_EXT else ".mp4"
+        data = await _strip_video(data, ext)  # a phone writes where and with what it was filmed; photos lose it too
         path = write_bytes(f"{base}{ext}", data)
         from .common import abs_path
 
         cap = cv2.VideoCapture(str(abs_path(path)))
         if not cap.isOpened():
+            cap.release()
+            abs_path(path).unlink(missing_ok=True)  # a refused upload leaves nothing on disk
             raise ValueError("cannot read video (use MP4/MOV with H.264/H.265)")
         fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
         frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
@@ -215,9 +291,10 @@ async def ingest_asset(project_id: str, kind: str, filename: str, data: bytes, m
             meta_info["poster"] = write_bytes(f"{base}_poster.jpg", encode_jpeg(frame))
         try:
             wav = await to_wav(data, ext)
-            meta_info["transcript"] = await transcribe(wav)
         except ValueError:
-            pass  # silent video or no ffmpeg
+            wav = None  # silent video or no ffmpeg
+        if wav:
+            meta_info.update(await _transcript(wav, await _owner(project_id)))
         mime = "video/mp4" if ext != ".mov" else "video/quicktime"
     elif kind == "mesh":
         from ..geom import GeomError, geom
@@ -242,7 +319,7 @@ async def ingest_asset(project_id: str, kind: str, filename: str, data: bytes, m
         wav = await to_wav(data, _ext(filename))
         path = write_bytes(f"{base}.wav", wav)
         meta_info["duration_s"] = round(max(0, len(wav) - 44) / (24000 * 2), 2)
-        meta_info["transcript"] = await transcribe(wav)
+        meta_info.update(await _transcript(wav, await _owner(project_id)))
         mime = "audio/wav"
 
     db = await get_db()

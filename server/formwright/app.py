@@ -1,24 +1,39 @@
-"""HTTP API. Run: uvicorn formwright.app:app --port 8000 (from server/)."""
+"""HTTP API. Run: uvicorn formwright.app:app --port 8400 (from server/)."""
 from __future__ import annotations
 
 import asyncio
 import base64
+import bisect
+import importlib
 import json
 import logging
+import os
+import re
 import secrets
 import shutil
+import sqlite3
 from contextlib import asynccontextmanager
+from html import escape
+from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import quote, urlsplit
 
+import httpx
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from openai import APIConnectionError, APIStatusError, APITimeoutError
 from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import events, quotas
+from . import events, quotas, sessions, showcase
+from .agent import narrate
 from .config import REPO_DIR, settings
 from .db import close_db, get_db, new_id, now
 from .geom import GeomError, geom
+from .llm.client import BudgetExceeded
 from .models import (
     AnswerRequest,
     AssetOut,
@@ -36,6 +51,7 @@ from .models import (
     ProjectOut,
     SelectionOut,
     SelectRequest,
+    SpotRequest,
     SendMessage,
     SliceRequest,
     Usage,
@@ -46,9 +62,41 @@ log = logging.getLogger("formwright")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
+async def recover_interrupted() -> int:
+    """Jobs still 'running' or 'waiting' belonged to the previous process, whose tasks are gone: close them as failed
+    and free every project left 'working' (replay copies too), so nobody watches a dead job or is blocked by one."""
+    db = await get_db()
+    t = now()
+    stuck = await db.all("SELECT * FROM jobs WHERE status IN ('running', 'waiting')")
+    for j in stuck:
+        cost = (j["result"] if isinstance(j["result"], dict) else {}).get("cost") or {
+            "usd": j["cost_usd"], "tokens_in": j["tokens_in"], "tokens_out": j["tokens_out"], "tokens_cached": j["tokens_cached"], "calls": 0, "by_model": {}}
+        await db.update("jobs", "id", j["id"], {"status": "failed", "finished_at": t, "result": {"summary": "interrupted: the server restarted", "cost": cost}})
+        if not j["project_id"]:
+            continue
+        if j["kind"] == "design":
+            # as the runner does for a stopped job: "Continue" picks the interrupted request up again
+            p = await db.one("SELECT brief FROM projects WHERE id = ?", j["project_id"])
+            if p:
+                brief = p["brief"] or {}
+                req = j["input"] if isinstance(j["input"], dict) else {}
+                turns = (brief.get("turns") or []) + [f"{str(req.get('text', ''))[:200]} (interrupted: failed)"]
+                await db.update("projects", "id", j["project_id"], {"brief": {**brief, "turns": turns[-10:]}})
+        await events.emit(j["project_id"], "job.finished", {"job_id": j["id"], "status": "failed", "summary": "interrupted", "cost": cost}, j["id"])
+    working = await db.all("SELECT id FROM projects WHERE status = 'working'")
+    await db.execute("UPDATE projects SET status = 'idle', updated_at = ? WHERE status = 'working'", t)
+    if stuck or working:
+        log.info("startup recovery: %d interrupted jobs failed, %d projects set idle", len(stuck), len(working))
+    return len(stuck)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await get_db()
+    try:
+        await recover_interrupted()
+    except Exception:  # noqa: BLE001 - a bad row must not keep the API from starting
+        log.exception("startup recovery failed")
     async def sleep_cycle() -> None:
         from .memory.sleep import consolidate
 
@@ -60,6 +108,8 @@ async def lifespan(_: FastAPI):
                 log.exception("memory consolidation failed")
 
     sleeper = asyncio.create_task(sleep_cycle())
+    # example covers are built once per program; doing it now keeps the first home page visit quick
+    warm = asyncio.create_task(showcase.warm())
     bot = None
     if settings().telegram_token:
         from .integrations.telegram import run_bot
@@ -67,15 +117,96 @@ async def lifespan(_: FastAPI):
         bot = asyncio.create_task(run_bot())
     yield
     sleeper.cancel()
+    warm.cancel()
     if bot:
         bot.cancel()
     await geom().close()
+    from . import pcb
+
+    await pcb.close()
     await close_db()
 
 
 app = FastAPI(title="Formwright", lifespan=lifespan)
 FILES = settings().data_dir / "files"
-app.mount("/files", StaticFiles(directory=FILES), name="files")
+
+
+async def files_allowed(request: Request, top: str, rel: str) -> str | None:
+    """Whether this browser may read data/files/<rel>, whose first part <top> is a project id (or 'examples'):
+    'public' for anyone, 'private' for this signed-in viewer only, None when not.
+    Example covers and public projects are open; a private project's files go to its owner, the farm's operators
+    (they print, check and ship every order), and for a shop order only what its page shows: the project's cover to
+    whoever ordered it, a colleague's project to the repair shop, a catalog card's cover, an order's QC photo.
+    A showcase order (delivered, shown to anyone without its customer's data) opens the render of the version it printed
+    (not the project's cover: the customer's later versions stay theirs) and its QC photo and mask."""
+    if top == "examples":
+        return "public"
+    db = await get_db()
+    p = await db.one("SELECT id, user_id, public, cover, version FROM projects WHERE id = ?", top)
+    if not p:
+        return None
+    if p["public"]:
+        return "public"
+    user, _ = await sessions.user_for(request.cookies.get(sessions.COOKIE))
+    if user and user["id"] == p["user_id"]:
+        return "private"
+    from .shop import store
+
+    sdb = await store.shop_db()
+    if await sdb.one("SELECT 1 FROM shop_listings WHERE project_id = ? AND public = 1 AND flagged = 0 AND cover = ?", top, rel):
+        return "public"
+    url = f"/files/{rel}"  # a QC photo sits in the farm's own project
+    shown = "showcase = 1 AND status IN ('shipped', 'delivered')"
+    shows = await sdb.all(f"SELECT project_id, version FROM shop_orders WHERE project_id = ? AND {shown}", top)
+    if any(rel == store.shipped_cover(o, p) for o in shows) or await sdb.one(
+            f"SELECT 1 FROM shop_orders WHERE {shown} AND (json_extract(qc, '$.photo_url') = ? OR json_extract(qc, '$.mask_url') = ?)", url, url):
+        return "public"
+    if not user:
+        return None
+    role, org = await store.role(sdb, user["id"])
+    if role == "operator":
+        return "private"
+    mine = "(user_id = ? OR (org_id IS NOT NULL AND org_id = ?))"
+    orders = await sdb.all(f"SELECT user_id, org_id, project_id, version, listing_id FROM shop_orders WHERE project_id = ? AND {mine}",
+                           top, user["id"], org)
+    # someone else's catalog card, bought: that card's picture and the render of the version it prints, not the owner's
+    # cover as it is now (a later private version)
+    bought = [o for o in orders if o["listing_id"] and o["user_id"] != p["user_id"]]
+    own = [o for o in orders if o not in bought]
+    if own and (rel == p["cover"] or any(org and o["org_id"] == org and o["user_id"] == p["user_id"] for o in own)):
+        return "private"
+    if bought and (any(rel == store.shipped_cover(o, p) for o in bought) or await sdb.one(
+            f"SELECT 1 FROM shop_listings WHERE id IN ({', '.join('?' * len(bought))}) AND cover = ?", *[o["listing_id"] for o in bought], rel)):
+        return "private"
+    qc = await sdb.one(f"SELECT 1 FROM shop_orders WHERE {mine} AND (json_extract(qc, '$.photo_url') = ? OR json_extract(qc, '$.mask_url') = ?)",
+                       user["id"], org, url, url)
+    return "private" if qc else None
+
+
+class ProjectFiles(StaticFiles):
+    """data/files behind files_allowed (it was an open mount: board, QC, rating-plate and snap photos of private
+    projects went to anyone holding a URL). Starlette has already normalised the path; whatever it does not allow,
+    or does not exist, is a 404 alike. A file only this viewer may read is never stored by a shared proxy, nor kept in
+    the browser's cache, where it would still show after signing out (the server itself answers 404 without the cookie)."""
+
+    async def get_response(self, path: str, scope: Any) -> Response:
+        parts = Path(path).parts
+        access = await files_allowed(Request(scope), parts[0], Path(*parts).as_posix()) if parts else None
+        if not access:
+            raise StarletteHTTPException(404)
+        response = await super().get_response(path, scope)
+        if access == "private":
+            response.headers["Cache-Control"] = "private, no-store"
+        # as pcbapi serves them: a file is what its type says, and an SVG opened on its own runs nothing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        if path.lower().endswith(".svg"):
+            from .pcbapi import SVG_CSP
+
+            response.headers["Content-Security-Policy"] = SVG_CSP
+        return response
+
+
+app.mount("/files", ProjectFiles(directory=FILES), name="files")
 
 
 def file_url(path: str | None) -> str | None:
@@ -83,19 +214,45 @@ def file_url(path: str | None) -> str | None:
 
 
 # ------------------------------------------------------------------ session
+def _address(value: str) -> str:
+    """'203.0.113.7', '203.0.113.7:5123', '[2001:db8::1]:443' or '2001:db8::1' -> the address alone."""
+    value = value.strip().strip('"')
+    if value.startswith("[") and "]" in value:
+        return value[1:value.index("]")]
+    return value.rsplit(":", 1)[0] if value.count(":") == 1 else value
+
+
 def client_ip(request: Request) -> str:
+    """The visitor's address, for the per-address cap on anonymous use. With --proxy-headers uvicorn rewrites
+    request.client from X-Forwarded-For, but trusting every sender (FORWARDED_ALLOW_IPS="*") it takes the leftmost
+    entry, which the visitor writes. Proxies append the address they see, so the entry FW_PROXY_HOPS places from the
+    right is one a proxy of ours wrote."""
+    hops = settings().proxy_hops
+    if hops < 0:
+        hops = int(os.environ.get("FORWARDED_ALLOW_IPS", "").strip() == "*")
+    if hops:
+        chain = [h for v in request.headers.getlist("x-forwarded-for") for h in v.split(",") if h.strip()]
+        if chain:
+            return _address(chain[-hops] if len(chain) >= hops else chain[0])
     return request.client.host if request.client else "unknown"
 
 
 async def current_user(request: Request, response: Response) -> dict[str, Any]:
-    db = await get_db()
-    uid = request.cookies.get("fw_uid")
-    user = await db.one("SELECT * FROM users WHERE id = ?", uid) if uid else None
+    """The person behind this browser: its session, a cookie from before sessions swapped for one, or a new
+    anonymous user. The cookie is a random session token (sessions.py), never the user id."""
+    token = request.cookies.get(sessions.COOKIE)
+    user, renew = await sessions.user_for(token)
+    if not renew:
+        token = None  # the browser's cookie is still good as it is
     if not user:
-        uid = new_id("u_")
-        await db.insert("users", {"id": uid, "tier": "anon", "ip": client_ip(request), "created_at": now()})
-        user = await db.one("SELECT * FROM users WHERE id = ?", uid)
-        response.set_cookie("fw_uid", uid, httponly=True, samesite="lax", max_age=3600 * 24 * 365)
+        user = await sessions.adopt_legacy(request.cookies.get(sessions.LEGACY_COOKIE))
+        if not user:
+            db = await get_db()
+            uid = new_id("u_")
+            await db.insert("users", {"id": uid, "tier": "anon", "ip": quotas.network(client_ip(request)), "created_at": now()})
+            user = await db.one("SELECT * FROM users WHERE id = ?", uid)
+        token = await sessions.issue(user["id"])  # type: ignore[index]
+    sessions.send_cookie(response, request, token)
     return user  # type: ignore[return-value]
 
 
@@ -132,16 +289,70 @@ async def latest_program(project_id: str) -> dict[str, Any] | None:
     return await db.one("SELECT * FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", project_id)
 
 
-@app.get("/api/login/{token}")
-async def magic_login(token: str, next: str = "/"):
-    """One-time link (e.g. from the Telegram bot) that signs this browser in as that user."""
-    db = await get_db()
-    row = await db.one("SELECT * FROM logins WHERE token = ? AND expires_at > ?", token, now())
-    if not row:
-        raise HTTPException(404, "link expired")
-    target = next if next.startswith("/") and not next.startswith("//") else "/"
-    resp = RedirectResponse(target, status_code=303)
-    resp.set_cookie("fw_uid", row["user_id"], httponly=True, samesite="lax", max_age=3600 * 24 * 365)
+LOGIN_NONCE = "fw_login"
+LOGIN_CSS = (":root{color-scheme:dark;--bg:#13140f;--fg:#e4e3db;--muted:#c6c8b8;--accent:#b1d355;--on-accent:#273500}"
+             "@media (prefers-color-scheme:light){:root{color-scheme:light;--bg:#fbf9f1;--fg:#1b1c17;--muted:#45483c;--accent:#4f6700;--on-accent:#fff}}"
+             "body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--fg);font-family:Archivo,system-ui,sans-serif}"
+             "main{max-width:26rem;padding:2rem 16px;text-align:center}h1{font-size:1.4rem;margin:0 0 .75rem}p{line-height:1.5;color:var(--muted)}"
+             "button,a{display:inline-block;margin-top:.75rem;padding:.75rem 1.75rem;border:0;border-radius:999px;background:var(--accent);"
+             "color:var(--on-accent);font:inherit;font-weight:600;text-decoration:none;cursor:pointer}")
+
+
+def _safe_next(next: str) -> str:
+    # a path on this site only: to a browser "//host" and "/\host" are other sites
+    return next if re.fullmatch(r"/(?![/\\])[^\\\s]*", next) else "/"
+
+
+def _login_page(lang: str, text: str, action: str, status: int = 200) -> HTMLResponse:
+    title = escape(narrate.login_text("title", lang))
+    page = (f'<!doctype html><html lang="{narrate.login_text("lang", lang)}"><head><meta charset="utf-8">'
+            f'<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">'
+            f"<title>{title}</title><style>{LOGIN_CSS}</style></head><body><main><h1>{title}</h1><p>{escape(text)}</p>{action}</main></body></html>")
+    # the token is in this page's URL: keep it out of caches and of the Referer of anything the page leads to
+    return HTMLResponse(page, status_code=status, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
+
+def _login_gone(lang: str) -> HTMLResponse:
+    return _login_page(lang, narrate.login_text("gone", lang), f'<a href="/">{escape(narrate.login_text("home", lang))}</a>', status=404)
+
+
+def _login_lang(request: Request) -> str:
+    return request.headers.get("accept-language", "").split(",")[0].strip()
+
+
+@app.get("/api/login/{token}", include_in_schema=False)
+async def magic_login(token: str, request: Request, next: str = "/"):
+    """A sign-in link (scripts/judge_link.py, the Telegram bot) works once. Opening it only shows a button: link
+    previews and mail scanners open the URL too and must not use it up. The button posts back a nonce that a cookie
+    set here also carries; a form on another site cannot send that cookie, so nobody signs a visitor into their account."""
+    lang = _login_lang(request)
+    target = await sessions.login_target(token)
+    if not target:
+        return _login_gone(lang)
+    path = f"/api/login/{quote(token, safe='')}"
+    nonce = secrets.token_urlsafe(16)
+    text = narrate.login_text("as", lang, name=target["name"]) if target["name"] else narrate.login_text("plain", lang)
+    form = (f'<form method="post" action="{escape(path)}?next={escape(quote(_safe_next(next)))}">'
+            f'<input type="hidden" name="nonce" value="{nonce}"><button type="submit">{escape(narrate.login_text("go", lang))}</button></form>')
+    resp = _login_page(lang, text, form)
+    resp.set_cookie(LOGIN_NONCE, nonce, max_age=1800, httponly=True, samesite="lax", path=path, secure=request.url.scheme == "https")
+    return resp
+
+
+@app.post("/api/login/{token}", include_in_schema=False)
+async def magic_login_confirm(token: str, request: Request, next: str = "/", nonce: str = Form("")):
+    """The button on that page: uses the link up and signs this browser in with a session of its own."""
+    path = f"/api/login/{quote(token, safe='')}"
+    sent = request.cookies.get(LOGIN_NONCE, "")
+    if not (sent and nonce and secrets.compare_digest(sent.encode(), nonce.encode())):
+        # not posted from our page (a form on another site), or the page sat open too long: show it again
+        return RedirectResponse(f"{path}?next={quote(_safe_next(next))}", status_code=303)
+    uid = await sessions.redeem(token)
+    if not uid:
+        return _login_gone(_login_lang(request))
+    resp = RedirectResponse(_safe_next(next), status_code=303)
+    sessions.send_cookie(resp, request, await sessions.issue(uid))
+    resp.delete_cookie(LOGIN_NONCE, path=path)
     return resp
 
 
@@ -180,8 +391,100 @@ async def list_projects(user=Depends(current_user)):
 @app.get("/api/gallery")
 async def gallery():
     db = await get_db()
-    rows = await db.all("SELECT * FROM projects WHERE public = 1 ORDER BY updated_at DESC LIMIT 60")
+    rows = await db.all("SELECT * FROM projects WHERE public = 1 AND replay_of IS NULL ORDER BY updated_at DESC LIMIT 60")
     return [project_out(p) for p in rows]
+
+
+@app.get("/api/featured")
+async def featured():
+    """Real agent runs picked for the home page (projects.featured, set by scripts/curate_demo.py): watching one
+    replays its event log, so it costs nothing. Empty when nothing is featured."""
+    db = await get_db()
+    rows = await db.all("SELECT * FROM projects WHERE public = 1 AND featured > 0 AND replay_of IS NULL ORDER BY featured DESC, updated_at DESC LIMIT 6")
+    out = []
+    for p in rows:
+        jobs = await db.all("SELECT kind, status, result, created_at, finished_at FROM jobs WHERE project_id = ? ORDER BY created_at", p["id"])
+        design = [j for j in jobs if j["kind"] == "design" and j["finished_at"]]
+        first = next((j for j in design if j["status"] == "done"), design[0] if design else None)
+        costs = [c for j in jobs if isinstance(j["result"], dict) and (c := j["result"].get("cost"))]
+        # calls per model when every job counted them (older jobs kept only USD per model); the two units never mix
+        key = "calls_by_model" if costs and all("calls_by_model" in c for c in costs) else "by_model"
+        models: dict[str, float] = {}
+        for c in costs:
+            for m, v in (c.get(key) or {}).items():
+                models[m] = models.get(m, 0) + v
+        # a run opened from a ready example still has that example's title in the language it was opened in (open_example
+        # names it, the agent renames only 'New project'): the home page shows the example's own title in the UI's language.
+        # Matched by the words (any case), so a title the person changed stays theirs
+        said = str(p["title"] or "").strip().casefold()
+        ex = next((e for e in showcase.EXAMPLES if said in {v.casefold() for v in e["title"].values()}), None)
+        out.append({
+            "id": p["id"], "title": p["title"], "cover": file_url(p["cover"]), "pack": p["pack"], "versions": p["version"],
+            **({"title_en": ex["title"]["en"], "title_ru": ex["title"]["ru"]} if ex else await _order_titles(p)),
+            "summary": str((p["brief"] or {}).get("summary") or "")[:200],
+            "duration_s": round(first["finished_at"] - first["created_at"]) if first else None,
+            "models": {m: round(v, 5) for m, v in models.items()} if key == "by_model" else models,
+        })
+    return out
+
+
+async def _order_titles(p: dict[str, Any]) -> dict[str, str]:
+    """A run born from a shop order (the designer of a new part): the project keeps its title on its own script's side,
+    and the other language gets the intake's catalog title, as the order page names it. {} for any other run."""
+    from .shop import store
+
+    sdb = await store.shop_db()
+    o = store._dec(await sdb.one("SELECT intake FROM shop_orders WHERE project_id = ? AND json_extract(intake, '$.request.kind') = 'photo' "
+                                 "ORDER BY created_at LIMIT 1", p["id"]))
+    data = (o or {}).get("intake") or {}
+    cls = data.get("classify") if isinstance(data.get("classify"), dict) else {}
+    if not o or cls.get("error") or (data.get("review") or {}).get("code") == "safety_disagreement" or not (cls.get("title_en") and cls.get("title_ru")):
+        return {}
+    title = str(p["title"] or "")
+    ru = bool(re.search(r"[А-Яа-яЁё]", title))
+    return {"title_en": cls["title_en"] if ru else title, "title_ru": title if ru else cls["title_ru"]}
+
+
+@app.get("/api/examples")
+async def list_examples():
+    out = []
+    for ex in showcase.EXAMPLES:
+        ready = await showcase.prepared(ex)
+        if ready:
+            # kind 'part': a spare part with its fit checked (the home page marks it)
+            out.append({k: ex[k] for k in ("key", "pack", "title", "caption", "prompt")} | {"cover": file_url(ready["cover"]),
+                                                                                         "kind": "part" if ex.get("fit") else "model"})
+    return out
+
+
+@app.post("/api/examples/{key}")
+async def open_example(key: str, body: dict[str, Any], user=Depends(current_user)):
+    """A ready example as the visitor's own project: the model opens at once, no agent run and no cost."""
+    from .agent.runner import add_message
+
+    ex = showcase.BY_KEY.get(key)
+    ready = await showcase.prepared(ex) if ex else None
+    if not ex or not ready:
+        raise HTTPException(404, "no such example")
+    lang = "ru" if body.get("lang") == "ru" else "en"
+    db = await get_db()
+    pid = new_id("p_")
+    t = now()
+    await db.insert("projects", {"id": pid, "user_id": user["id"], "title": ex["title"][lang], "pack": ex["pack"], "version": 1, "cover": ready["cover"],
+                                 "brief": {"turns": [ex["prompt"][lang]], "summary": f"Ready example: {ex['title']['en']}", "language": lang,
+                                           **({"material": ex["material"]} if ex.get("material") else {})},
+                                 "created_at": t, "updated_at": t})
+    await db.insert("programs", {"project_id": pid, "version": 1, "source": ex["source"], "params": ready["params"],
+                                 "inputs": ready.get("inputs") or ex.get("inputs") or {},
+                                 "summary": ex["title"][lang], "checks": ready["checks"], "author": "example", "created_at": t})
+    if ready.get("pcb"):
+        # the routed board the case was made from, as the project's PCB version 1 (files copied from the example's cache)
+        await showcase.add_pcb(pid, ready)
+    intro = showcase.intro(ex, ready, lang)
+    await add_message(pid, "user", ex["prompt"][lang])
+    await add_message(pid, "agent", intro)
+    await events.emit(pid, "agent.message", {"text": intro})
+    return project_out(await db.one("SELECT * FROM projects WHERE id = ?", pid))  # type: ignore[arg-type]
 
 
 @app.get("/api/projects/{project_id}")
@@ -202,6 +505,10 @@ async def project_detail(project_id: str, user=Depends(current_user)) -> Project
         messages=[MessageOut(id=m["id"], role=m["role"], text=m["text"], data=m["data"], created_at=m["created_at"]) for m in msgs],
         last_seq=last["s"] if last else 0,
         job=job,
+        printer=p["brief"].get("printer") if isinstance(p["brief"], dict) and isinstance(p["brief"].get("printer"), str) else None,
+        material=p["brief"].get("material") if isinstance(p["brief"], dict) and isinstance(p["brief"].get("material"), str) else None,
+        # load_project(write=True)'s rule, the one send_message answers 403 by
+        can_edit=p["user_id"] == user["id"],
     )
 
 
@@ -224,10 +531,20 @@ async def _replay(src_id: str, dst_id: str, speed: float) -> None:
     db = await get_db()
     rows = await db.all("SELECT * FROM events WHERE project_id = ? ORDER BY seq", src_id)
     prev_ts = rows[0]["ts"] if rows else now()
+    clock: list[tuple[float, float]] = []  # (the original's time, the replay's time) of each event
+
+    def replayed(ts: float) -> float:
+        # a moment of the original run on the replay's clock, so the copied chat sorts among the replayed events
+        i = bisect.bisect_right([o for o, _ in clock], ts) - 1
+        if i < 0:
+            return (clock[0][1] - min(max(clock[0][0] - ts, 0) / speed, 2.5)) if clock else now()
+        return clock[i][1] + min(max(ts - clock[i][0], 0) / speed, 2.5)
+
     try:
         for r in rows:
             await asyncio.sleep(min(max(r["ts"] - prev_ts, 0) / speed, 2.5))
             prev_ts = r["ts"]
+            clock.append((r["ts"], now()))
             if r["type"] in REPLAY_SKIP:
                 continue
             if r["type"] == "program.updated":
@@ -239,7 +556,8 @@ async def _replay(src_id: str, dst_id: str, speed: float) -> None:
                     await db.update("projects", "id", dst_id, {"version": v, "updated_at": now()})
             await events.emit(dst_id, r["type"], {**r["data"], "replay": True}, r["job_id"])
         for m in await db.all("SELECT * FROM messages WHERE project_id = ? ORDER BY created_at", src_id):
-            await db.insert("messages", {"id": new_id("msg_"), "project_id": dst_id, "role": m["role"], "text": m["text"], "data": m["data"], "created_at": now()})
+            await db.insert("messages", {"id": new_id("msg_"), "project_id": dst_id, "role": m["role"], "text": m["text"], "data": m["data"],
+                                         "created_at": replayed(m["created_at"])})
     finally:
         await db.update("projects", "id", dst_id, {"status": "idle", "updated_at": now()})
 
@@ -273,6 +591,35 @@ async def fork_project(project_id: str, user=Depends(current_user)):
 
 
 # ------------------------------------------------------------------ assets & selection
+ASSET_LIMIT = 60 * 1024 * 1024
+SNAP_LIMIT = 30 * 1024 * 1024
+
+
+class BodyLimit:
+    """Refuses a body larger than any endpoint accepts by its Content-Length, before the multipart form is parsed."""
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] == "http":
+            length = dict(scope["headers"]).get(b"content-length", b"")
+            if length.isdigit() and int(length) > ASSET_LIMIT + 1024 * 1024:
+                await error_response(413, "file too large (60 MB max)", "too_large")(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(BodyLimit)
+
+
+def public_base() -> str | None:
+    """FW_PUBLIC_URL without the trailing slash, when other devices can reach it (not a localhost address)."""
+    url = settings().public_url.rstrip("/")
+    host = urlsplit(url).hostname or ""
+    return None if not host or host in ("localhost", "127.0.0.1", "::1") or host.endswith(".localhost") else url
+
+
 @app.post("/api/projects/{project_id}/capture-token")
 async def capture_token(project_id: str, user=Depends(current_user)):
     """Short-lived token so a phone (another session) can add photos to this project via QR."""
@@ -281,7 +628,8 @@ async def capture_token(project_id: str, user=Depends(current_user)):
     token = secrets.token_urlsafe(18)
     await db.execute("DELETE FROM captures WHERE expires_at < ?", now())
     await db.insert("captures", {"token": token, "project_id": project_id, "expires_at": now() + 3600})
-    return {"token": token, "url": f"/c/{project_id}?t={token}"}
+    # absolute when the app has a public address: the QR code then works from any phone, not only on this network
+    return {"token": token, "url": f"{public_base() or ''}/c/{project_id}?t={token}"}
 
 
 async def _capture_allowed(request: Request, project_id: str) -> bool:
@@ -295,10 +643,11 @@ async def _capture_allowed(request: Request, project_id: str) -> bool:
 
 @app.post("/api/projects/{project_id}/assets")
 async def upload_asset(project_id: str, request: Request, file: UploadFile = File(...), kind: str = Form("photo"), user=Depends(current_user)):
-    if not await _capture_allowed(request, project_id):
+    phone = await _capture_allowed(request, project_id)
+    if not phone:
         await load_project(project_id, user, write=True)
-    data = await file.read()
-    if len(data) > 60 * 1024 * 1024:
+    data = await file.read(ASSET_LIMIT + 1)
+    if len(data) > ASSET_LIMIT:
         raise HTTPException(413, "file too large (60 MB max)")
     from .vision import ingest
 
@@ -306,6 +655,11 @@ async def upload_asset(project_id: str, request: Request, file: UploadFile = Fil
         asset = await ingest.ingest_asset(project_id, kind, file.filename or "upload", data, file.content_type or "")
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+    if phone:
+        # sent from the QR page: the studio on the desktop puts it straight into the message being written
+        asset["meta"] = {**asset["meta"], "via": "phone"}
+        db = await get_db()
+        await db.update("assets", "id", asset["id"], {"meta": asset["meta"]})
     await events.emit(project_id, "asset.added", asset_out(asset))
     return asset_out(asset)
 
@@ -334,13 +688,38 @@ async def select_object(project_id: str, asset_id: str, body: SelectRequest, use
     asset = await db.one("SELECT * FROM assets WHERE id = ? AND project_id = ?", asset_id, project_id)
     if not asset:
         raise HTTPException(404, "asset not found")
+    body.by = "user"
     try:
         sel = await scene.select(user, project_id, asset, body)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+    for sid in sel.get("replaced") or []:
+        await events.emit(project_id, "selection.removed", {"id": sid})
     out = selection_out(sel)
     await events.emit(project_id, "selection.added", out)
     return out
+
+
+@app.post("/api/projects/{project_id}/assets/{asset_id}/spot")
+async def spot_object(project_id: str, asset_id: str, body: SpotRequest, user=Depends(current_user)):
+    """The object on a freshly uploaded photo, cut out before the agent starts (the person may correct it)."""
+    await load_project(project_id, user, write=True)
+    from .vision import spot
+
+    db = await get_db()
+    asset = await db.one("SELECT * FROM assets WHERE id = ? AND project_id = ?", asset_id, project_id)
+    if not asset:
+        raise HTTPException(404, "asset not found")
+    try:
+        r = await asyncio.shield(spot.start(user, project_id, asset, body.hint, body.lang))
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    out = selection_out(r["selection"]) if r["selection"] else None
+    for sid in (r["selection"] or {}).get("replaced") or []:
+        await events.emit(project_id, "selection.removed", {"id": sid})
+    if out:
+        await events.emit(project_id, "selection.added", out)
+    return {"selection": out, "label": r["label"], "objects": r["objects"]}
 
 
 @app.delete("/api/projects/{project_id}/selections/{selection_id}")
@@ -358,11 +737,10 @@ async def send_message(project_id: str, body: SendMessage, user=Depends(current_
     p = await load_project(project_id, user, write=True)
     from .agent.runner import start_design_job
 
-    try:
-        job_id = await start_design_job(user, p, body)
-    except quotas.QuotaExceeded as e:
-        raise HTTPException(429, str(e)) from e
-    return {"job_id": job_id}
+    # `shown` is for the server's own callers (a shop order's brief): from the browser, the words shown are the words sent
+    body = body.model_copy(update={"shown": None})
+    # quotas.QuotaExceeded becomes a 429 with its code (quota_error below)
+    return {"job_id": await start_design_job(user, p, body)}
 
 
 @app.post("/api/jobs/{job_id}/answer")
@@ -378,7 +756,9 @@ async def answer(job_id: str, body: AnswerRequest, user=Depends(current_user)):
 async def cancel(job_id: str, user=Depends(current_user)):
     from .agent.runner import cancel_job
 
-    await cancel_job(job_id, user["id"])
+    if not await cancel_job(job_id, user["id"]):
+        # already over, unknown or someone else's: a 404 tells the client to drop its stale job id
+        raise HTTPException(404, "no running job to stop")
     return {"ok": True}
 
 
@@ -453,9 +833,16 @@ async def _save_user_version(project_id: str, prog: dict[str, Any], source: str,
         await db.execute("UPDATE programs SET source = ?, params = ?, checks = ? WHERE project_id = ? AND version = ?",
                          source, params, checks, project_id, version)
     else:
-        version = prog["version"] + 1
-        await db.insert("programs", {"project_id": project_id, "version": version, "source": source, "params": params,
-                                     "inputs": prog["inputs"], "summary": summary, "checks": checks, "author": "user", "created_at": t})
+        for attempt in range(3):
+            # an agent step may commit a version at the same moment: take the next free number at the last moment
+            version = (await db.one("SELECT COALESCE(MAX(version), 0) AS v FROM programs WHERE project_id = ?", project_id))["v"] + 1  # type: ignore[index]
+            try:
+                await db.insert("programs", {"project_id": project_id, "version": version, "source": source, "params": params,
+                                             "inputs": prog["inputs"], "summary": summary, "checks": checks, "author": "user", "created_at": t})
+                break
+            except sqlite3.IntegrityError:
+                if attempt == 2:
+                    raise
     await db.update("projects", "id", project_id, {"version": version, "updated_at": t})
     event: dict[str, Any] = {"version": version, "params": params, "checks": checks, "author": "user", "client": client}
     if source != prog["source"]:
@@ -501,7 +888,9 @@ async def export(project_id: str, body: ExportRequest, user=Depends(current_user
         raise HTTPException(422, e.message) from e
     data = base64.b64decode(out["data"])
     name = "".join(c if c.isalnum() else "_" for c in p["title"])[:40] or "model"
-    return Response(data, media_type=out["mime"], headers={"Content-Disposition": f'attachment; filename="{name}.{body.format}"'})
+    # headers are latin-1: the title (often Cyrillic) goes in the RFC 5987 form, with a plain fallback
+    disposition = f"attachment; filename=\"model.{body.format}\"; filename*=UTF-8''{quote(name, safe='')}.{body.format}"
+    return Response(data, media_type=out["mime"], headers={"Content-Disposition": disposition})
 
 
 @app.post("/api/projects/{project_id}/render")
@@ -540,14 +929,15 @@ async def measure_fingerprint(printer_id: str, body: dict[str, str], user=Depend
     asset = await db.one("SELECT a.* FROM assets a JOIN projects p ON p.id = a.project_id WHERE a.id = ? AND p.user_id = ?", body.get("asset_id"), user["id"])
     if not asset:
         raise HTTPException(404, "asset not found")
-    await quotas.reserve(user, 0.05)
+    # a few model calls, not a job: it may run next to a design job and does not count as one
+    await quotas.check_light(user, 0.05)
     meter = CostMeter(budget_usd=0.05)
     try:
         fp = await fingerprint.measure(meter, user, asset)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     finally:
-        await quotas.settle(user["id"], meter.usd)
+        await quotas.settle(user["id"], meter.usd, is_job=False)
     await fingerprint.save(user["id"], printer_id, fp)
     return fp
 
@@ -647,8 +1037,8 @@ async def snap_photo(file: UploadFile = File(...), x: float | None = Form(None),
     """Phone camera shot of an object out in the world: a new collectible project with the tapped object selected and named."""
     from .vision import ingest, snap
 
-    data = await file.read()
-    if len(data) > 30 * 1024 * 1024:
+    data = await file.read(SNAP_LIMIT + 1)
+    if len(data) > SNAP_LIMIT:
         raise HTTPException(413, "photo too large (30 MB max)")
     db = await get_db()
     pid = new_id("p_")
@@ -658,15 +1048,23 @@ async def snap_photo(file: UploadFile = File(...), x: float | None = Form(None),
     try:
         asset = await ingest.ingest_asset(pid, "photo", file.filename or "snap.jpg", data, file.content_type or "image/jpeg")
     except ValueError as e:
-        await db.execute("DELETE FROM projects WHERE id = ?", pid)
+        await _drop_snap(pid)
         raise HTTPException(400, str(e)) from e
+    except quotas.QuotaExceeded:
+        await _drop_snap(pid)  # the face blur hit today's limit: no empty draft is left behind
+        raise
     p = await db.one("SELECT * FROM projects WHERE id = ?", pid)
-    r = await snap.snap(user, p, asset, x, y, lang)  # type: ignore[arg-type]
+    try:
+        r = await snap.snap(user, p, asset, x, y, lang)  # type: ignore[arg-type]
+    except quotas.QuotaExceeded:
+        await _drop_snap(pid)
+        raise
     await events.emit(pid, "asset.added", asset_out(asset))
     if r["selection"]:
         await events.emit(pid, "selection.added", selection_out(r["selection"]))
     return {"project": project_out(await db.one("SELECT * FROM projects WHERE id = ?", pid)), "asset": asset_out(asset),  # type: ignore[arg-type]
-            "selection": selection_out(r["selection"]) if r["selection"] else None, "label": r["label"], "objects": r["objects"]}
+            "selection": selection_out(r["selection"]) if r["selection"] else None, "label": r["label"], "objects": r["objects"],
+            "sticker": r.get("sticker")}
 
 
 @app.get("/api/snap/{project_id}/name")
@@ -712,10 +1110,7 @@ async def snap_confirm(project_id: str, body: SnapConfirm, user=Depends(current_
         p["title"] = label[:1].upper() + label[1:]
         await db.update("projects", "id", project_id, {"brief": p["brief"], "title": p["title"], "updated_at": now()})
     msg = SendMessage(text=body.text.strip()[:2000] or label, asset_ids=[asset["id"]], model=body.model, reasoning=body.reasoning)
-    try:
-        return await snap.start_or_queue(user, p, msg)
-    except quotas.QuotaExceeded as e:
-        raise HTTPException(429, str(e)) from e
+    return await snap.start_or_queue(user, p, msg)
 
 
 @app.delete("/api/snap/{project_id}")
@@ -725,11 +1120,17 @@ async def snap_discard(project_id: str, user=Depends(current_user)):
     db = await get_db()
     if p["version"] or await db.one("SELECT id FROM jobs WHERE project_id = ? LIMIT 1", project_id):
         raise HTTPException(400, "this snap is already being modelled")
+    await _drop_snap(project_id)
+    return {"ok": True}
+
+
+async def _drop_snap(project_id: str) -> None:
+    """Removes a snap draft with its rows and files (Retake, or a snap that failed before anyone saw it)."""
+    db = await get_db()
     for table in ("selections", "assets", "events", "messages"):
         await db.execute(f"DELETE FROM {table} WHERE project_id = ?", project_id)
     await db.execute("DELETE FROM projects WHERE id = ?", project_id)
     shutil.rmtree(settings().data_dir / "files" / project_id, ignore_errors=True)
-    return {"ok": True}
 
 
 @app.get("/api/collection")
@@ -742,6 +1143,8 @@ async def collection(user=Depends(current_user)):
     items = []
     for p in rows:
         brief = p["brief"] or {}
+        if brief.get("plate"):
+            continue  # a print plate made from collected objects (collect.py), not one of them
         job = await db.one("SELECT status FROM jobs WHERE project_id = ? AND kind = 'design' ORDER BY created_at DESC LIMIT 1", p["id"])
         asset = await db.one("SELECT * FROM assets WHERE id = ?", snap.snap_asset_id(p) or "")
         sel = await db.one("SELECT mask_path, data FROM selections WHERE project_id = ? AND asset_id = ? AND role = 'target' ORDER BY created_at DESC LIMIT 1",
@@ -768,19 +1171,163 @@ async def collection(user=Depends(current_user)):
     return items
 
 
+# ------------------------------------------------------------------ feature routers
+# Each module exports `router` (an APIRouter) and reaches this file lazily (`from formwright import app as _app`, then
+# _app.current_user and _app.load_project). Mounted here, before the SPA catch-all, so /api/... never falls through
+# to index.html. A module that is missing or fails to import is logged and skipped: the rest of the API still starts.
+ROUTERS = ("formwright.shop.routes", "formwright.pcbapi", "formwright.collect")
+
+
+def include_routers(target: FastAPI, names: tuple[str, ...] = ROUTERS) -> list[str]:
+    mounted = []
+    for name in names:
+        try:
+            module = importlib.import_module(name)
+        except ModuleNotFoundError as e:
+            if e.name and name.startswith(e.name):
+                log.error("feature router %s is not there, skipped", name)
+            else:
+                log.exception("feature router %s failed to import, skipped", name)
+            continue
+        except Exception:  # noqa: BLE001 - one broken feature must not take the whole API down
+            log.exception("feature router %s failed to import, skipped", name)
+            continue
+        router = getattr(module, "router", None)
+        if router is None:
+            log.error("feature module %s has no `router`, skipped", name)
+            continue
+        target.include_router(router)
+        mounted.append(name)
+    return mounted
+
+
+include_routers(app)
+
+
 # ------------------------------------------------------------------ web app
 WEB_BUILD = REPO_DIR / "web" / "build"
-if WEB_BUILD.exists():
+if settings().web_dev_port:
+    # vite runs next to the API: a page opened on this port goes to the live app, not to an old web/build
+    @app.get("/{path:path}", include_in_schema=False)
+    async def spa_dev(path: str, request: Request):
+        if path.startswith(("api/", "files/")):
+            raise HTTPException(404)  # vite proxies these here, sending them back would loop
+        return RedirectResponse(str(request.url.replace(port=settings().web_dev_port)), status_code=307)
+
+elif WEB_BUILD.exists():
     app.mount("/_app", StaticFiles(directory=WEB_BUILD / "_app"), name="web-assets")
 
     @app.get("/{path:path}", include_in_schema=False)
-    async def spa(path: str):
-        target = WEB_BUILD / path
-        if path and target.is_file():
+    async def spa(path: str, request: Request):
+        if path.startswith(("api/", "files/")):
+            raise HTTPException(404)
+        root = WEB_BUILD.resolve()
+        target = _spa_file(root, path)
+        if target != root / "index.html":
             return FileResponse(target)
-        return FileResponse(WEB_BUILD / "index.html")
+        return HTMLResponse(await share_page(_index_html(), path, public_base() or str(request.base_url).rstrip("/")))
+
+
+def _spa_file(root: Path, path: str) -> Path:
+    """The build file a path names, or index.html: %2e%2e, backslashes and absolute paths never leave the build folder."""
+    index = root / "index.html"
+    if not path:
+        return index
+    try:
+        target = (root / path).resolve()
+    except (OSError, ValueError):
+        return index
+    return target if target.is_relative_to(root) and target.is_file() else index
+
+
+_index: dict[str, Any] = {}
+
+
+def _index_html() -> str:
+    """The built index.html, read again only when a new build replaces it."""
+    path = WEB_BUILD / "index.html"
+    stamp = path.stat().st_mtime_ns
+    if _index.get("stamp") != stamp:
+        _index.update(stamp=stamp, html=path.read_text(encoding="utf-8"))
+    return _index["html"]
+
+
+def _set_meta(page: str, key: str, value: str) -> str:
+    """Fill one <meta property|name="key" content="..."> tag of app.html."""
+    return re.sub(rf'(<meta (?:property|name)="{re.escape(key)}" content=")[^"]*"', lambda m: f'{m.group(1)}{escape(value)}"', page, count=1)
+
+
+async def share_page(page: str, path: str, base: str) -> str:
+    """Link previews (X, chats) read the meta tags without running the app: the image has to be absolute, and a
+    shared public project (/r/<id>, /p/<id>) shows its own title, summary and cover."""
+    page = _set_meta(page, "og:image", f"{base}/og.png")
+    m = re.fullmatch(r"[rp]/([\w-]+)/?", path)
+    if not m:
+        return page
+    db = await get_db()
+    p = await db.one("SELECT title, cover, brief FROM projects WHERE id = ? AND public = 1", m.group(1))
+    if not p:
+        return page
+    page = _set_meta(page, "og:title", p["title"])
+    page = page.replace("<title>Formwright</title>", f"<title>{escape(p['title'])} · Formwright</title>", 1)
+    summary = str((p["brief"] or {}).get("summary") or "").strip()[:200]
+    if summary:
+        page = _set_meta(_set_meta(page, "og:description", summary), "description", summary)
+    if p["cover"]:
+        page = _set_meta(page, "og:image", base + quote(file_url(p["cover"]) or ""))
+    return page
+
+
+# ------------------------------------------------------------------ errors
+# every error is JSON {detail, code, ...}: the web app turns the code into a localized next step
+HTTP_CODES = {400: "bad_request", 403: "forbidden", 404: "not_found", 405: "not_allowed", 409: "conflict", 413: "too_large", 422: "invalid", 429: "quota"}
+
+
+def error_response(status: int, detail: Any, code: str, headers: dict[str, str] | None = None, **info: Any) -> JSONResponse:
+    return JSONResponse({"detail": detail, "code": code, **info}, status_code=status, headers=headers)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error(_: Request, exc: StarletteHTTPException):
+    if isinstance(exc.detail, dict) and isinstance(exc.detail.get("code"), str):
+        # HTTPException(409, {"detail": ..., "code": "order_guard"}) from a feature router: its own code, not the status's
+        info = {k: v for k, v in exc.detail.items() if k not in ("detail", "code")}
+        return error_response(exc.status_code, exc.detail.get("detail"), exc.detail["code"], headers=getattr(exc, "headers", None), **info)
+    return error_response(exc.status_code, exc.detail, HTTP_CODES.get(exc.status_code, "error"), headers=getattr(exc, "headers", None))
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(_: Request, exc: RequestValidationError):
+    return error_response(422, jsonable_encoder(exc.errors()), "invalid")
 
 
 @app.exception_handler(GeomError)
 async def geom_error(_: Request, exc: GeomError):
-    return JSONResponse({"detail": exc.message, "stage": exc.stage}, status_code=422)
+    return error_response(422, exc.message, "geom", stage=exc.stage)
+
+
+@app.exception_handler(quotas.QuotaExceeded)
+async def quota_error(_: Request, exc: quotas.QuotaExceeded):
+    # code and info (e.g. the blocking job's project_id and job_id for 'job_running') come from quotas.reserve
+    return error_response(429, str(exc), getattr(exc, "code", "quota"), **getattr(exc, "info", {}))
+
+
+@app.exception_handler(BudgetExceeded)
+async def budget_error(_: Request, exc: BudgetExceeded):
+    return error_response(429, str(exc), "budget")
+
+
+async def model_busy(request: Request, exc: Exception):
+    log.warning("model service error on %s %s: %s: %s", request.method, request.url.path, type(exc).__name__, exc)
+    return error_response(503, "the model service is busy or unreachable; try again in a minute", "model_busy")
+
+
+for _exc in (APIStatusError, APIConnectionError, APITimeoutError, httpx.HTTPError):
+    app.add_exception_handler(_exc, model_busy)
+
+
+@app.exception_handler(Exception)
+async def internal_error(request: Request, exc: Exception):
+    eid = new_id("e_")
+    log.error("internal error %s on %s %s", eid, request.method, request.url.path, exc_info=exc)
+    return error_response(500, "internal error", "internal", id=eid)

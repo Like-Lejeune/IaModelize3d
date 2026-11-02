@@ -15,3 +15,5 @@ export { detail, withDetail } from './kernel.ts';
 export { hashString } from './hash.ts';
 export { isMeshDoc, parseMeshDoc, resolveOp, evalExpr, runMeshDoc, clearMeshCache, MESH_CACHE, type MeshDoc } from './meshdoc/doc.ts';
 export { OPS as MESH_OPS, opAnchor } from './meshdoc/ops.ts';
+export { boardModel, boardGhost, type BoardSpec, type BoardComponent, type BoardModel, type EnclosureReport } from './lib/elec.ts';
+export { checkEnclosure, type EnclosureCheck, type Finding as EnclosureFinding } from './enclosure.ts';

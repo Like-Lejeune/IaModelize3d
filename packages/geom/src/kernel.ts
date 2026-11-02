@@ -101,7 +101,15 @@ function patchForCollection(wasm: any) {
     Object.setPrototypeOf(Wrapped, Orig);
     Wrapped.prototype = Orig.prototype;
     wasm[name] = Wrapped;
+    Object.freeze(Wrapped);
+    Object.freeze(Orig);
   }
+  // Workers keep the kernel across builds, and programs reach these objects through any
+  // solid (Object.getPrototypeOf(box)). Frozen, one program cannot swap volume() or
+  // delete() under the next build; a write throws in strict code and is ignored otherwise.
+  Object.freeze(protos.Manifold);
+  Object.freeze(protos.CrossSection);
+  Object.freeze(Object.getPrototypeOf(protos.Manifold));
 }
 
 // Preview builds (while a slider or handle is being dragged) trade detail for speed:

@@ -6,6 +6,14 @@
     <meta name="theme-color" content="#13140f" />
     <link rel="icon" href="%sveltekit.assets%/favicon.svg" />
     <title>Formwright</title>
+    <!-- link previews (X, chats); the API rewrites these for shared projects and makes og:image absolute -->
+    <meta name="description" content="Printable parts that fit your real world: a photo or an idea becomes a checked, printable 3D model with sliders to adjust it." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Formwright" />
+    <meta property="og:title" content="Formwright" />
+    <meta property="og:description" content="Printable parts that fit your real world: a photo or an idea becomes a checked, printable 3D model with sliders to adjust it." />
+    <meta property="og:image" content="/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
     <!-- apply the saved theme before first paint, so a light or recoloured theme does not flash dark -->
     <script>
       (function () {
@@ -33,11 +41,11 @@
         this.rel = 'stylesheet';
       "
     />
-    <link rel="preload" as="font" type="font/woff2" crossorigin href="%sveltekit.assets%/fonts/tabler-icons/fonts/tabler-icons.woff2?v=55e0d462" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="%sveltekit.assets%/fonts/tabler-icons/fonts/tabler-icons.woff2?v=cfa7a28a" />
     <link
       rel="preload"
       as="style"
-      href="%sveltekit.assets%/fonts/tabler-icons/tabler-icons.min.css?v=55e0d462"
+      href="%sveltekit.assets%/fonts/tabler-icons/tabler-icons.min.css?v=cfa7a28a"
       onload="
         this.onload = null;
         this.rel = 'stylesheet';
@@ -45,7 +53,7 @@
     />
     <noscript>
       <link rel="stylesheet" href="%sveltekit.assets%/fonts/archivo/archivo.css" />
-      <link rel="stylesheet" href="%sveltekit.assets%/fonts/tabler-icons/tabler-icons.min.css?v=55e0d462" />
+      <link rel="stylesheet" href="%sveltekit.assets%/fonts/tabler-icons/tabler-icons.min.css?v=cfa7a28a" />
     </noscript>
     %sveltekit.head%
   </head>

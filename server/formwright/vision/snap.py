@@ -4,10 +4,15 @@ The tap on the phone screen is SAM's point prompt, so the object is found withou
 a fast model names it in the user's language and lists other objects the person might
 have meant. Street photos have no scale reference, so calibration is skipped and the
 agent sizes the miniature from typical dimensions.
+
+Right after the mask comes the instant 3D sticker (relief.py): outline loops and a relief
+heightmap that lib.collect turns into a printable sticker in a second or two, in the
+browser for the preview and in the geometry pool when it is kept (formwright/collect.py).
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Any
 
@@ -17,8 +22,9 @@ import numpy as np
 from .. import quotas
 from ..db import get_db, new_id, now
 from ..llm.client import CostMeter, meta
-from .common import asset_image, data_url, norm_box_to_px
-from .sam import Mask, save_mask_png, segment
+from . import relief
+from .common import abs_path, asset_image, data_url, norm_box_to_px, write_bytes
+from .sam import Mask, load_mask_png, save_mask_png, segment
 from .scene import _insert_selection, _unique_name, _update_meta, measure_mask
 
 log = logging.getLogger(__name__)
@@ -35,6 +41,8 @@ NAME_SCHEMA = {
         "box": {"type": "array", "items": {"type": "number"}, "description": "[x_min, y_min, x_max, y_max] of the whole object, 0-1000 grid"},
         "organic": {"type": "boolean", "description": "true for living or free-form shapes (animals, plants, sculptures, rocks), "
                                                        "false for built objects with flat faces (benches, lamps, buildings, vehicles)"},
+        "person": {"type": "boolean", "description": "true when the outlined object is a person or part of one (face, hands); "
+                                                     "a statue or a toy is not a person"},
         "objects": {
             "type": "array",
             "description": "up to 4 other distinct objects in the photo worth collecting",
@@ -45,7 +53,7 @@ NAME_SCHEMA = {
             },
         },
     },
-    "required": ["label", "part_only", "box", "organic", "objects"],
+    "required": ["label", "part_only", "box", "organic", "person", "objects"],
 }
 
 
@@ -64,7 +72,10 @@ def _outlined(img: np.ndarray, mask: np.ndarray) -> np.ndarray:
 async def _name(meter: CostMeter, img: np.ndarray, mask: np.ndarray | None, gx: float, gy: float, lang: str, model: str) -> dict[str, Any]:
     where = ("The selected object is outlined in bright green." if mask is not None
              else f"Nothing was selected automatically; the person tapped x={gx:.0f}, y={gy:.0f} on a 0-1000 grid.")
-    out = await meta().json(
+    client = meta()
+    if hasattr(client, "model_for"):
+        model = client.model_for("snap_name", model)  # may go to the open-weights model
+    out = await client.json(
         meter,
         model=model,
         system=(
@@ -139,6 +150,7 @@ def _fallback_label(lang: str) -> str:
 async def snap(user: dict[str, Any], project: dict[str, Any], asset: dict[str, Any], x: float | None, y: float | None, lang: str) -> dict[str, Any]:
     """Segment the tapped object and answer as soon as the mask is there; the name follows (`named`).
     Naming takes longer than segmenting, and the highlight is what the person waits for."""
+    await quotas.check_light(user, 0.02)
     asset["meta"] = (await _update_meta(asset["id"], {"calibration": NO_REFERENCE}))["meta"]
     img = asset_image(asset)
     h, w = img.shape[:2]
@@ -156,11 +168,15 @@ async def snap(user: dict[str, Any], project: dict[str, Any], asset: dict[str, A
     if mask is not None and not mask.mask.any():
         mask = None
     await _set_subject(project, "", language=lang[:2], snap={"asset_id": asset["id"], "tap": [round(px), round(py)]})
-    out: dict[str, Any] = {"label": None, "objects": [], "selection": None, "removed": []}
+    out: dict[str, Any] = {"label": None, "objects": [], "selection": None, "removed": [], "sticker": None}
     if mask is not None:
         data = _selection_data(img, mask, {"tap_px": [round(px), round(py)]})
         out["selection"], out["removed"] = await _replace_target(project["id"], asset["id"], _fallback_label(lang), {"points": [point], "box": None, "text": None},
                                                                  mask, data)
+        try:
+            out["sticker"] = await sticker_for(project["id"], asset, out["selection"], img=img, mask=mask.mask)
+        except Exception as e:  # noqa: BLE001 - the highlight still stands; the sticker is asked for again
+            log.warning("snap sticker failed: %s", e)
     _naming[project["id"]] = asyncio.create_task(_finish_naming(user, project, asset, img, choice.fast, meter, point, mask, out["selection"], lang))
     return out
 
@@ -216,12 +232,12 @@ async def _finish_naming(user: dict[str, Any], project: dict[str, Any], asset: d
                 await db.update("selections", "id", current["id"], {"name": current["name"]})
             out["selection"] = current
         fresh = (await db.one("SELECT brief FROM projects WHERE id = ?", project["id"]) or {}).get("brief") or {}
-        snap_info = {**(fresh.get("snap") or {}), "objects": objects, "organic": bool(named.get("organic"))}
+        snap_info = {**(fresh.get("snap") or {}), "objects": objects, "organic": bool(named.get("organic")), "person": bool(named.get("person"))}
         await _set_subject(project, fresh.get("subject") or label, snap=snap_info)
         out["label"] = fresh.get("subject") or label
         return out
     finally:
-        await quotas.settle(user["id"], meter.usd)
+        await quotas.settle(user["id"], meter.usd, is_job=False)
 
 
 async def named(project: dict[str, Any], lang: str = "en") -> dict[str, Any]:
@@ -245,12 +261,13 @@ async def reselect(user: dict[str, Any], project: dict[str, Any], asset: dict[st
     """Refine the selection with more taps (positive/negative) or switch to another object by its box."""
     if not points and not box:
         raise ValueError("tap the object or pick one of the suggestions")
+    await quotas.check_light(user, 0.01)
     img = asset_image(asset)
     meter = CostMeter(budget_usd=0.05)
     try:
         masks = await segment(meter, img, points=points or None, box=box)
     finally:
-        await quotas.settle(user["id"], meter.usd)
+        await quotas.settle(user["id"], meter.usd, is_job=False)
     first = next((p for p in points if p.get("positive", True)), None)
     mask = _pick(masks, first["x"], first["y"]) if first else (max(masks, key=lambda m: m.score) if masks else None)
     if mask is None or not mask.mask.any():
@@ -267,15 +284,50 @@ async def reselect(user: dict[str, Any], project: dict[str, Any], asset: dict[st
     return {"selection": sel, "removed": removed, "label": label or brief.get("subject") or name}
 
 
+# ------------------------------------------------------------------ the instant 3D sticker
+def sticker_detail(brief: dict[str, Any] | None, asset: dict[str, Any]) -> float:
+    """Photo detail of the relief: none for a person, and none while a photo with blurred faces is still unnamed."""
+    snap_info = (brief or {}).get("snap") or {}
+    if "person" in snap_info:
+        return 0.0 if snap_info["person"] else relief.DETAIL
+    return 0.0 if (asset.get("meta") or {}).get("faces_blurred") else relief.DETAIL
+
+
+async def sticker_for(project_id: str, asset: dict[str, Any], sel: dict[str, Any], *, img: np.ndarray | None = None,
+                      mask: np.ndarray | None = None) -> dict[str, Any]:
+    """The sticker payload (relief.sticker) of the current target selection, named after the subject.
+    Kept on disk next to the mask until the selection changes: ~0.1 s to make, ~130 KB to send."""
+    db = await get_db()
+    brief = (await db.one("SELECT brief FROM projects WHERE id = ?", project_id) or {}).get("brief") or {}
+    detail = sticker_detail(brief, asset)
+    key = f"{sel['id']}_{'d' if detail else 'p'}"
+    rel = f"{project_id}/sticker/{key}.json"
+    path = abs_path(rel)
+    if path.exists():
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    else:
+        if img is None:
+            img = asset_image(asset)
+        if mask is None:
+            if not sel.get("mask_path"):
+                raise ValueError("the selection has no mask")
+            mask = load_mask_png(sel["mask_path"])
+        payload = await asyncio.to_thread(relief.sticker, img, mask, detail=detail)
+        for old in path.parent.glob("*.json") if path.parent.exists() else []:
+            old.unlink(missing_ok=True)  # an earlier selection's sticker
+        write_bytes(rel, json.dumps(payload, separators=(",", ":")).encode())
+    payload["inputs"]["values"]["name"] = str(brief.get("subject") or "")
+    return {**payload, "key": key, "selection_id": sel["id"]}
+
+
 # ------------------------------------------------------------------ starting the agent
 def snap_asset_id(project: dict[str, Any]) -> str | None:
     return ((project.get("brief") or {}).get("snap") or {}).get("asset_id")
 
 
 async def running_jobs(user_id: str) -> int:
-    db = await get_db()
-    row = await db.one("SELECT COUNT(*) AS n FROM jobs WHERE user_id = ? AND status IN ('running', 'waiting')", user_id)
-    return int(row["n"]) if row else 0
+    """Jobs that hold the next snap back: a row a restart left 'running' or a job waiting for an answer does not."""
+    return len(quotas.blocking(await quotas.active_jobs(user_id)))
 
 
 def concurrent_limit(user: dict[str, Any]) -> int:
@@ -328,12 +380,17 @@ async def _drain(user_id: str) -> None:
                 continue
             project = waiting[0]
             brief = dict(project["brief"] or {})
-            req = {k: v for k, v in (brief.pop("queued") or {}).items() if k != "at"}
+            queued = brief.pop("queued") or {}
+            req = {k: v for k, v in queued.items() if k != "at"}
             await db.update("projects", "id", project["id"], {"brief": brief})
             project["brief"] = brief
             try:
                 await start_design_job(user, project, SendMessage(**req))
             except quotas.QuotaExceeded as e:
+                if e.code in ("job_running", "project_busy"):
+                    # another job started meanwhile: back in the queue
+                    await db.update("projects", "id", project["id"], {"brief": {**brief, "queued": queued}})
+                    continue
                 # out of budget for today: every waiting snap would fail the same way
                 for p in waiting:
                     b = {k: v for k, v in (p["brief"] or {}).items() if k != "queued"}

@@ -3,13 +3,15 @@
 //   final - full-quality build for display, then the full printability report; a stale
 //           final build is cut short (the worker is replaced) when a newer one comes in
 // Inputs (outlines, heightmaps, imported meshes) go to each worker once, not with every build.
-import type { BuildError, BuildResult, CheckReport } from '../types';
+import type { BoardSpec, BuildError, BuildResult, CheckReport } from '../types';
 
 export interface BuildArgs {
   source: string;
   params?: Record<string, any>;
   printer?: any;
   vaseMode?: boolean;
+  /** with a final build: the case check against this board, returned as `enclosure` beside `checks` (worker.ts) */
+  enclosure?: { board: string; spec?: BoardSpec };
 }
 
 type Reply = Record<string, any> & { id: number; ok: boolean; done?: boolean };
@@ -22,6 +24,7 @@ interface Job {
   onPartial?: (r: Reply) => void;
   resolve: (r: Reply) => void;
   started?: number;
+  cold?: boolean; // the first job of a new worker: it also loads and compiles the WASM kernel
 }
 
 const superseded = (): Reply => ({ id: 0, ok: false, done: true, stage: 'superseded', message: 'superseded' });
@@ -35,6 +38,7 @@ class Lane {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private sentInputs = '';
   private fresh = true;
+  private closed = false;
   /** Typical duration of this lane's last jobs, ms. */
   typical = 0;
 
@@ -85,6 +89,8 @@ class Lane {
   }
 
   submit(job: Omit<Job, 'resolve'>): Promise<Reply> {
+    // after dispose nothing may spawn a worker again
+    if (this.closed) return Promise.resolve(superseded());
     return new Promise((resolve) => {
       const j: Job = { ...job, resolve };
       if (j.droppable)
@@ -93,9 +99,10 @@ class Lane {
           q.resolve(superseded());
           return false;
         });
-      // A stale final build that still has a while to go is cheaper to kill than to wait for.
+      // A stale final build that still has a while to go is cheaper to kill than to wait for,
+      // unless the worker is still loading WASM: a new one would only start loading from scratch.
       const cur = this.current;
-      if (cur && cur.preemptible && j.preemptible && cur.started) {
+      if (cur && cur.preemptible && j.preemptible && cur.started && !cur.cold) {
         const left = (this.typical || 1000) - (performance.now() - cur.started);
         if (left > 400) {
           this.kill();
@@ -110,7 +117,7 @@ class Lane {
   }
 
   private pump() {
-    if (this.current || !this.queue.length) return;
+    if (this.closed || this.current || !this.queue.length) return;
     const job = this.queue.shift()!;
     if (!this.worker) this.spawn();
     const inp = this.inputs();
@@ -122,6 +129,7 @@ class Lane {
     this.currentId = ++this.seq;
     job.started = performance.now();
     // the first job of a new worker also loads and compiles the WASM kernel
+    job.cold = this.fresh;
     const grace = this.fresh ? 20000 : 0;
     this.fresh = false;
     this.timer = setTimeout(() => {
@@ -132,6 +140,7 @@ class Lane {
   }
 
   dispose() {
+    this.closed = true;
     this.kill();
     if (this.timer) clearTimeout(this.timer);
     for (const q of this.queue) q.resolve(superseded());

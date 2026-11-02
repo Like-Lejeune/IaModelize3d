@@ -1,0 +1,45 @@
+# Exact versions for the image's `pip install -c server/constraints.txt` (Containerfile), so a rebuild gets the server
+# that was tested, not whatever fastapi/openai/pydantic release came out since. pyproject.toml keeps the open names.
+# What this is: `pip freeze` of the working server/.venv (Python 3.14, Windows), cut to what pyproject's dependencies
+# pull in on the image (CPython 3.12, Linux x86_64): no pytest, no colorama. uvloop (uvicorn[standard], Linux only) is
+# not in that venv; its pin is the release pip resolves for the image's platform.
+# Every pin has a cp312 manylinux wheel: pip install --dry-run --ignore-installed --python-version 3.12
+#   --platform manylinux_2_28_x86_64 --only-binary=:all: -r <pyproject's dependencies> -c server/constraints.txt
+# Refresh after an upgrade in the venv: freeze again and keep only these names (plus any new dependency's).
+aiosqlite==0.22.1
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+certifi==2026.10.23
+click==8.5.0
+fastapi==0.162.0
+h11==0.16.0
+httpcore==1.0.9
+httpcore2==2.16.0
+httptools==0.9.0
+httpx==0.28.1
+httpx2==2.16.0
+idna==3.20
+jiter==0.18.0
+meta-sam-parser==0.1.0
+numpy==2.5.4
+openai==3.39.0
+opencv-python-headless==5.0.0.93
+opentelemetry-api==1.45.1
+pillow==13.0.0
+pydantic==2.14.1
+pydantic-settings==2.16.1
+pydantic_core==2.50.1
+python-dotenv==1.2.4
+python-multipart==0.0.32
+PyYAML==6.0.3
+scipy==1.18.1
+sniffio==1.3.1
+starlette==1.10.0
+truststore==0.10.5
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+uvicorn==0.54.0
+uvloop==0.23.0
+watchfiles==1.3.0
+websockets==17.3

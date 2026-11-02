@@ -1,8 +1,10 @@
 <script lang="ts">
   // A photo with the selected object lifted out of it: the rest dims, the object stays bright
   // with a soft glow, and a light runs along its outline. Also the scanning state while the
-  // object is being found, and the taps that refine the selection.
+  // object is being found, the taps that refine the selection, and the labelled boxes of a
+  // board scan (holes and ports bright, edge pads faint).
   import { cutout, place, toImage, toScreen, type Box, type Fit } from '$lib/snapframe';
+  import type { ScanBox } from '$lib/types';
 
   let {
     src,
@@ -12,11 +14,14 @@
     outline = null,
     fit = 'cover',
     focus = null,
+    zoom = 1.8,
     scanning = false,
     scanAt = null,
     points = [],
     label = null,
+    anchor = null,
     compact = false,
+    boxes = [],
     onTap,
   }: {
     src: string;
@@ -26,13 +31,34 @@
     outline?: number[][] | null;
     fit?: Fit;
     focus?: Box | null;
+    /** How far the focus box may zoom in, in multiples of the cover scale (a part on a whole A4 sheet needs more). */
+    zoom?: number;
     scanning?: boolean;
     scanAt?: { x: number; y: number } | null;
     points?: { x: number; y: number; positive: boolean }[];
     label?: string | null;
+    /** Box the name chip sits on (the focus box by default). */
+    anchor?: Box | null;
     compact?: boolean;
+    /** Labelled boxes in photo pixels; 'strong' ones flash in first with their label, 'dim' ones stay faint. */
+    boxes?: ScanBox[];
     onTap?: (p: { x: number; y: number }) => void;
   } = $props();
+
+  // strong boxes one after another, then the normal ones, then the faint crowd at once
+  const RANK = { strong: 0, normal: 1, dim: 2 } as const;
+  const shown = $derived.by(() => {
+    const order = [...boxes].map((b, i) => ({ b, i, e: b.emphasis ?? 'normal' })).sort((a, b) => RANK[a.e] - RANK[b.e] || a.i - b.i);
+    let strong = 0, normal = 0;
+    const named = new Set<string>();
+    return order.map(({ b, e }) => {
+      const delay = e === 'strong' ? 150 + 140 * strong++ : e === 'normal' ? 700 + 70 * normal++ : 900 + Math.random() * 300;
+      // a label once per kind (four "mounting hole"s read as one), right-aligned near the photo's right edge
+      const text = e === 'strong' && !named.has(b.label) ? b.label : '';
+      if (text) named.add(b.label);
+      return { ...b, e, delay, text, end: b.box[0] > width * 0.6 };
+    });
+  });
 
   let cw = $state(0);
   let ch = $state(0);
@@ -42,12 +68,13 @@
   let cut = $state<HTMLCanvasElement | null>(null);
   let moving = $state(false);
 
-  const p = $derived(place(cw, ch, width, height, fit, focus));
+  const p = $derived(place(cw, ch, width, height, fit, focus, zoom));
   const path = $derived(outline && outline.length > 2 ? `M${outline.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L')}Z` : '');
   const ring = $derived(scanAt ? toScreen(p, scanAt.x, scanAt.y) : null);
   const chip = $derived.by(() => {
-    if (!label || !focus || !cut) return null;
-    const a = toScreen(p, (focus[0] + focus[2]) / 2, focus[1]);
+    const at = anchor ?? focus;
+    if (!label || !at || !cut) return null;
+    const a = toScreen(p, (at[0] + at[2]) / 2, at[1]);
     return { x: Math.min(Math.max(a.x, 70), cw - 70), y: Math.max(a.y - 14, 34) };
   });
 
@@ -90,7 +117,7 @@
 
 <div class="hl" class:compact class:tappable={!!onTap} bind:this={host} bind:clientWidth={cw} bind:clientHeight={ch} role="application" aria-label={label ?? undefined} onpointerup={tap}>
   <div class="frame" class:moving style:width="{width}px" style:height="{height}px" style:transform="translate({p.x}px, {p.y}px) scale({p.s})">
-    <img class="photo" class:dim={!!cut} {src} alt="" draggable="false" />
+    <img class="photo" class:dim={!!cut} class:boxed={!cut && boxes.length > 0} {src} alt="" draggable="false" />
     {#if maskUrl}
       {#key maskUrl}
         <canvas class="glow" class:on={!!cut} bind:this={glow} style:--r1="{(compact ? 5 : 9) / p.s}px" style:--r2="{(compact ? 1.5 : 2.5) / p.s}px"></canvas>
@@ -102,6 +129,19 @@
           </svg>
         {/if}
       {/key}
+    {/if}
+    {#if shown.length}
+      <svg class="boxes" viewBox="0 0 {width} {height}" aria-hidden="true">
+        {#each shown as b, i (i)}
+          {@const [x1, y1, x2, y2] = b.box}
+          <g class="bx {b.e}" style:animation-delay="{b.delay}ms">
+            <rect x={x1} y={y1} width={Math.max(1, x2 - x1)} height={Math.max(1, y2 - y1)} rx={2 / p.s} stroke-width={(b.e === 'dim' ? 1 : 2) / p.s} pathLength="100" />
+            {#if b.text && !compact}
+              <text x={b.end ? x2 : x1} y={y1 - 4 / p.s} text-anchor={b.end ? 'end' : 'start'} font-size={11 / p.s} stroke-width={3 / p.s}>{b.text}</text>
+            {/if}
+          </g>
+        {/each}
+      </svg>
     {/if}
   </div>
 
@@ -160,6 +200,70 @@
   }
   .compact .photo.dim {
     filter: brightness(0.5) saturate(0.5);
+  }
+  .photo.boxed {
+    filter: brightness(0.62) saturate(0.6);
+  }
+  .boxes {
+    overflow: visible;
+    pointer-events: none;
+  }
+  .bx {
+    opacity: 0;
+    animation: box-in 460ms var(--ease-pop) forwards;
+  }
+  .bx rect {
+    fill: color-mix(in srgb, var(--primary) 10%, transparent);
+    stroke: var(--primary);
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: draw 520ms var(--ease-out) forwards;
+    animation-delay: inherit;
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--primary) 70%, transparent));
+  }
+  .bx.normal rect {
+    stroke: color-mix(in srgb, var(--primary) 70%, white);
+    fill: none;
+    filter: none;
+  }
+  .bx.dim rect {
+    stroke: rgb(255 255 255 / 0.45);
+    fill: none;
+    filter: none;
+  }
+  .bx.dim {
+    animation-name: box-in-dim;
+  }
+  .bx text {
+    fill: #fff;
+    stroke: rgb(0 0 0 / 0.65);
+    paint-order: stroke;
+    font-weight: var(--font-weight-bold);
+    font-family: var(--font-mono, monospace);
+  }
+  @keyframes box-in {
+    from {
+      opacity: 0;
+    }
+    30% {
+      opacity: 1;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes box-in-dim {
+    to {
+      opacity: 0.8;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bx,
+    .bx rect {
+      animation: none;
+      opacity: 1;
+      stroke-dashoffset: 0;
+    }
   }
   canvas {
     opacity: 0;

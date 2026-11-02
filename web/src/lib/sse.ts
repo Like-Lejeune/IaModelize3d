@@ -2,6 +2,10 @@
 // last seq after network drops (server also honours Last-Event-ID).
 import type { EventRow } from './types';
 
+// The server pings every 15 s. A stream silent for longer is dead without having said so (a dev proxy whose API
+// restarted, a laptop that slept): drop it and reconnect.
+const IDLE_MS = 40_000;
+
 export interface EventStream {
   close(): void;
 }
@@ -11,11 +15,17 @@ export function streamEvents(projectId: string, after: number, onEvent: (e: Even
   let closed = false;
   let ctrl: AbortController | null = null;
   let delay = 500;
+  let idle: ReturnType<typeof setTimeout> | undefined;
 
   const run = async () => {
     while (!closed) {
-      ctrl = new AbortController();
+      const mine = (ctrl = new AbortController());
+      const kick = () => {
+        clearTimeout(idle);
+        idle = setTimeout(() => mine.abort(), IDLE_MS);
+      };
       try {
+        kick();
         const res = await fetch(`/api/projects/${projectId}/events?after=${last}`, {
           headers: { Accept: 'text/event-stream', 'Last-Event-ID': String(last) },
           credentials: 'same-origin',
@@ -24,11 +34,13 @@ export function streamEvents(projectId: string, after: number, onEvent: (e: Even
         if (!res.ok || !res.body) throw new Error(`events ${res.status}`);
         onState?.('open');
         delay = 500;
+        kick();
         const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
         let buf = '';
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
+          kick();
           buf += value;
           let idx: number;
           while ((idx = buf.indexOf('\n\n')) >= 0) {
@@ -51,6 +63,8 @@ export function streamEvents(projectId: string, after: number, onEvent: (e: Even
         }
       } catch (e) {
         if (closed) return;
+      } finally {
+        clearTimeout(idle);
       }
       if (closed) return;
       onState?.('retry');

@@ -43,5 +43,23 @@ async def test_anonymous_spend_is_capped_per_ip(fresh_db, monkeypatch):
     await quotas.settle("u0", 0.3)
     await quotas.settle("u1", 0.18)
     user = await db.one("SELECT * FROM users WHERE id = 'u2'")
-    with pytest.raises(quotas.QuotaExceeded):
+    with pytest.raises(quotas.QuotaExceeded) as e:
         await quotas.reserve(user, 0.6)
+    assert e.value.code == "ip_daily_cap"
+
+
+async def test_a_replay_copy_keeps_the_question_above_the_answer(fresh_db):
+    # the chat is copied at the end of the replay: its times go on the replay's clock, not the moment it is copied
+    db = fresh_db
+    t = dbmod.now()
+    for pid in ("p_src", "p_dst"):
+        await db.insert("projects", {"id": pid, "user_id": "u1", "title": "x", "created_at": t, "updated_at": t})
+    await db.insert("messages", {"id": "m_q", "project_id": "p_src", "role": "user", "text": "a hook", "created_at": t - 1})
+    await events.emit("p_src", "user.message", {"text": "a hook"})
+    await events.emit("p_src", "job.started", {"job_id": "j1"}, "j1")
+    await events.emit("p_src", "job.finished", {"status": "done"}, "j1")
+    await db.insert("messages", {"id": "m_a", "project_id": "p_src", "role": "agent", "text": "done", "created_at": dbmod.now() + 0.01})
+    await asyncio.wait_for(_replay("p_src", "p_dst", 20), 10)
+    ev = {e["type"]: e["ts"] for e in await events.since("p_dst", 0)}
+    msgs = {m["role"]: m["created_at"] for m in await db.all("SELECT * FROM messages WHERE project_id = 'p_dst'")}
+    assert msgs["user"] < ev["job.started"] <= ev["job.finished"] <= msgs["agent"]

@@ -1,0 +1,385 @@
+{
+ "about": "Real intake answers for tests/test_shop.py. Muse Spark 1.3 alone decides refuse; Muse Spark Open classifies (category, safety_critical, catalog titles) and a disagreement holds the order for the farm operator.",
+ "cases": [
+  {
+   "name": "voice_wheel_plate_a4",
+   "recorded": "2026-10-30 04:41",
+   "source": "live run of shop.intake.extract",
+   "inputs": {
+    "text": "Посудомойка, колёсико нижней корзины\nVoice note: Здравствуйте, это мастерская техно FX. Посудомойка Bosch SMS сорок шесть. На нижней нижней корзине отломились два колесика вместе с осью. Нужно четыре штуки. Фото колесика на листе листе А4 и таблички прилагаю.",
+    "photos": [
+     "part: wheel_on_a4.jpg (synthetic)",
+     "plate: plate.jpg (synthetic BOSCH rating plate)"
+    ],
+    "voice": "voice.wav (Windows TTS, ru-RU) -> muse-voice-transcribe-1.0"
+   },
+   "transcript": "Здравствуйте, это мастерская техно FX. Посудомойка Bosch SMS сорок шесть. На нижней нижней корзине отломились два колесика вместе с осью. Нужно четыре штуки. Фото колесика на листе листе А4 и таблички прилагаю.",
+   "seconds": 19.1,
+   "spark_model": "muse-spark-1.3-contributor",
+   "spark": {
+    "appliance": {
+     "brand": "BOSCH",
+     "kind": "dishwasher",
+     "model": "SMS46GI01E/09",
+     "serial_or_enr": "FD: 9709 Z-Nr.: 300123 Typ: S9KT1B"
+    },
+    "customer_type": "repair_shop",
+    "environment": {
+     "food_contact": false,
+     "load": "rolling basket weight",
+     "max_temp_c": 70,
+     "wet": true
+    },
+    "ip_flags": [
+     "BOSCH logo",
+     "BOSCH trademark"
+    ],
+    "language": "ru",
+    "material": "PETG",
+    "notes": "Repair shop order 4 pcs. Lower basket wheel with axle for Bosch dishwasher, wet 70C dishwasher environment so PETG. Functional shape only, do not reproduce Bosch logos.",
+    "part": {
+     "condition": "broken",
+     "failure": "отломились два колесика вместе с осью",
+     "name_en": "dishwasher lower basket wheel",
+     "name_user": "колёсико нижней корзины",
+     "part_number": "",
+     "quantity": 4
+    },
+    "questions": [
+     "Уточните диаметр колеса и диаметр/д длину оси?"
+    ],
+    "reason": "Safe mechanical dishwasher basket part, no electrical, pressure, gas or safety risk.",
+    "refuse": false,
+    "urgency": "normal"
+   },
+   "open_model": "meta-models/muse-spark-open-1026",
+   "open": {
+    "category": "plumbing",
+    "safety_critical": false,
+    "why": "Чисто механическое опорное колёсико корзины посудомойки, его поломка только затрудняет выкатывание корзины и не может вызвать поражение током, утечку газа/давления, отказ тормозов/рулевого и т.п.",
+    "title_en": "Dishwasher lower basket wheel with axle",
+    "title_ru": "Колёсико с осью для нижней корзины посудомойки"
+   },
+   "expect": {
+    "refuse": false,
+    "review": null,
+    "material": "PETG",
+    "quantity": 4,
+    "brand": "BOSCH",
+    "model": "SMS46GI01E/09",
+    "ip_flags": true
+   }
+  },
+  {
+   "name": "gas_knob",
+   "recorded": "2026-10-30 (Spark 1.3: intake_probe2.py) / 2026-10-30 04:41 (Spark Open: intake_live.py)",
+   "inputs": {
+    "text": "Hi, the plastic knob on my gas stove (Whirlpool AKT 8130) cracked and the gas valve shaft now spins freely. Can you print a knob? Also the little clip that holds the grease filter on my range hood broke off."
+   },
+   "spark_model": "muse-spark-1.3-contributor",
+   "spark": {
+    "appliance": {
+     "brand": "Whirlpool",
+     "kind": "gas stove",
+     "model": "AKT 8130",
+     "serial_or_enr": ""
+    },
+    "customer_type": "consumer",
+    "environment": {
+     "food_contact": false,
+     "load": "manual turning torque on gas valve shaft",
+     "max_temp_c": 80,
+     "wet": false
+    },
+    "ip_flags": [],
+    "language": "en",
+    "material": "ASA",
+    "notes": "Cannot print gas control knob for safety; obtain OEM knob from Whirlpool/dealer and have valve checked since shaft spins freely. Second item - range-hood grease-filter clip - not entered here; please submit separate request with hood brand/model and photo.",
+    "part": {
+     "condition": "broken",
+     "failure": "cracked and gas valve shaft now spins freely",
+     "name_en": "gas stove control knob",
+     "name_user": "plastic knob on my gas stove",
+     "part_number": "",
+     "quantity": 1
+    },
+    "questions": [],
+    "reason": "Gas control part: printed knob can crack, slip or misindicate valve position causing uncontrolled gas release, fire/explosion risk. Requires original manufacturer part.",
+    "refuse": true,
+    "urgency": "normal"
+   },
+   "open_model": "meta-models/muse-spark-open-1026",
+   "open": {
+    "category": "appliance",
+    "safety_critical": true,
+    "why": "Gas valve knob is a gas control - if printed copy cracks, melts or slips the valve can be left open causing gas leak, fire or explosion.",
+    "title_en": "Gas stove control knob",
+    "title_ru": "Ручка управления газовой плиты"
+   },
+   "expect": {
+    "refuse": true,
+    "review": null,
+    "material": "ASA"
+   }
+  },
+  {
+   "name": "ru_voice_text_wheel",
+   "recorded": "2026-10-30 (intake_probe.py)",
+   "inputs": {
+    "text": "Короче, мастерская «ТехноФикс», у клиента посудомойка Бош, модель эс эм эс сорок шесть джи ай ноль один е, на нижней корзине отломились два колёсика, вместе с осью, родную запчасть ждать месяц. Надо четыре штуки, на всякий. Фото на листе скину. И ещё ручка дверцы духовки Электролюкс треснула, но её потом."
+   },
+   "spark_model": "muse-spark-1.3-contributor",
+   "spark": {
+    "appliance": {
+     "brand": "Bosch",
+     "kind": "dishwasher",
+     "model": "SMS46GI01E",
+     "serial_or_enr": ""
+    },
+    "customer_type": "repair_shop",
+    "environment": {
+     "food_contact": false,
+     "load": "rolling load of full lower basket",
+     "max_temp_c": 70,
+     "wet": true
+    },
+    "ip_flags": [],
+    "language": "ru",
+    "material": "PETG",
+    "notes": "Мастерская «ТехноФикс», заказ для клиента. Сломано 2 шт, просят 4 шт про запас. Оригинал ждать месяц. Фото на листе обещано отдельно. Вторая задача - треснувшая ручка дверцы духовки Electrolux - отложена, в этот заказ не входит. Печать PETG для влажной среды и температуры посудомойки.",
+    "part": {
+     "condition": "broken",
+     "failure": "отломились вместе с осью",
+     "name_en": "dishwasher lower basket wheel with axle",
+     "name_user": "колёсико нижней корзины с осью",
+     "part_number": "",
+     "quantity": 4
+    },
+    "questions": [
+     "Пришлите фото на листе с линейкой?",
+     "Уточните диаметр колеса и посадку оси?"
+    ],
+    "reason": "Non-critical plastic basket wheel, print failure poses no safety risk.",
+    "refuse": false,
+    "urgency": "normal"
+   },
+   "open_model": null,
+   "open": null,
+   "expect": {
+    "refuse": false,
+    "review": null,
+    "material": "PETG",
+    "quantity": 4,
+    "brand": "Bosch",
+    "model": "SMS46GI01E"
+   }
+  },
+  {
+   "name": "plate_photo",
+   "recorded": "2026-10-30 (intake_probe.py)",
+   "inputs": {
+    "text": "Rating plate photo from a repair technician. Part needed: lower basket wheel, 2 pcs.",
+    "photos": [
+     "plate: plate.jpg"
+    ]
+   },
+   "spark_model": "muse-spark-1.3-contributor",
+   "spark": {
+    "appliance": {
+     "brand": "BOSCH",
+     "kind": "dishwasher",
+     "model": "SMS46GI01E/09",
+     "serial_or_enr": "FD: 9709 Z-Nr.: 300123 Typ: S9KT1B"
+    },
+    "customer_type": "repair_shop",
+    "environment": {
+     "food_contact": false,
+     "load": "medium",
+     "max_temp_c": 70.0,
+     "wet": true
+    },
+    "ip_flags": [
+     "BOSCH logo"
+    ],
+    "language": "en",
+    "material": "PETG",
+    "notes": "Dishwasher lower basket wheel, wet environment up to ~70 C. Print in PETG for water/heat resistance. Functional shape only, do not reproduce BOSCH branding.",
+    "part": {
+     "condition": "broken",
+     "failure": "",
+     "name_en": "dishwasher lower basket wheel",
+     "name_user": "lower basket wheel",
+     "part_number": "",
+     "quantity": 2
+    },
+    "questions": [
+     "Can you send a photo of an intact wheel?",
+     "What is the wheel diameter and axle/mount type?"
+    ],
+    "reason": "Non-safety-critical mechanical dishwasher part; print failure cannot cause electric shock, pressure, gas or injury hazard.",
+    "refuse": false,
+    "urgency": "normal"
+   },
+   "open_model": null,
+   "open": null,
+   "expect": {
+    "refuse": false,
+    "review": null,
+    "material": "PETG",
+    "quantity": 2,
+    "brand": "BOSCH",
+    "model": "SMS46GI01E/09",
+    "ip_flags": true
+   }
+  },
+  {
+   "name": "gas_knob_spark_ok_open_unsafe",
+   "recorded": "constructed from the two real answers above",
+   "about": "Spark's answer to the wheel request paired with the open model's gas-knob verdict: a disagreement, so the order waits for the operator",
+   "inputs": {
+    "text": "(constructed)"
+   },
+   "spark_model": "muse-spark-1.3-contributor",
+   "spark": {
+    "appliance": {
+     "brand": "BOSCH",
+     "kind": "dishwasher",
+     "model": "SMS46GI01E/09",
+     "serial_or_enr": "FD: 9709 Z-Nr.: 300123 Typ: S9KT1B"
+    },
+    "customer_type": "repair_shop",
+    "environment": {
+     "food_contact": false,
+     "load": "rolling basket weight",
+     "max_temp_c": 70,
+     "wet": true
+    },
+    "ip_flags": [
+     "BOSCH logo",
+     "BOSCH trademark"
+    ],
+    "language": "ru",
+    "material": "PETG",
+    "notes": "Repair shop order 4 pcs. Lower basket wheel with axle for Bosch dishwasher, wet 70C dishwasher environment so PETG. Functional shape only, do not reproduce Bosch logos.",
+    "part": {
+     "condition": "broken",
+     "failure": "отломились два колесика вместе с осью",
+     "name_en": "dishwasher lower basket wheel",
+     "name_user": "колёсико нижней корзины",
+     "part_number": "",
+     "quantity": 4
+    },
+    "questions": [
+     "Уточните диаметр колеса и диаметр/д длину оси?"
+    ],
+    "reason": "Safe mechanical dishwasher basket part, no electrical, pressure, gas or safety risk.",
+    "refuse": false,
+    "urgency": "normal"
+   },
+   "open_model": "meta-models/muse-spark-open-1026",
+   "open": {
+    "category": "appliance",
+    "safety_critical": true,
+    "why": "Gas valve knob is a gas control - if printed copy cracks, melts or slips the valve can be left open causing gas leak, fire or explosion.",
+    "title_en": "Gas stove control knob",
+    "title_ru": "Ручка управления газовой плиты"
+   },
+   "expect": {
+    "refuse": false,
+    "review": "safety_disagreement"
+   }
+  },
+  {
+   "name": "open_model_wrong_object",
+   "recorded": "2026-10-30 (intake_probe2.py)",
+   "about": "Spark Open once answered the gas-knob request in the full intake schema with refuse=false and an invented appliance: the open model never decides refuse, and an answer that is not a classification is ignored",
+   "inputs": {
+    "text": "Hi, the plastic knob on my gas stove (Whirlpool AKT 8130) cracked and the gas valve shaft now spins freely. Can you print a knob? Also the little clip that holds the grease filter on my range hood broke off."
+   },
+   "spark_model": "muse-spark-1.3-contributor",
+   "spark": {
+    "appliance": {
+     "brand": "Whirlpool",
+     "kind": "gas stove",
+     "model": "AKT 8130",
+     "serial_or_enr": ""
+    },
+    "customer_type": "consumer",
+    "environment": {
+     "food_contact": false,
+     "load": "manual turning torque on gas valve shaft",
+     "max_temp_c": 80,
+     "wet": false
+    },
+    "ip_flags": [],
+    "language": "en",
+    "material": "ASA",
+    "notes": "Cannot print gas control knob for safety; obtain OEM knob from Whirlpool/dealer and have valve checked since shaft spins freely. Second item - range-hood grease-filter clip - not entered here; please submit separate request with hood brand/model and photo.",
+    "part": {
+     "condition": "broken",
+     "failure": "cracked and gas valve shaft now spins freely",
+     "name_en": "gas stove control knob",
+     "name_user": "plastic knob on my gas stove",
+     "part_number": "",
+     "quantity": 1
+    },
+    "questions": [],
+    "reason": "Gas control part: printed knob can crack, slip or misindicate valve position causing uncontrolled gas release, fire/explosion risk. Requires original manufacturer part.",
+    "refuse": true,
+    "urgency": "normal"
+   },
+   "open_model": "meta-models/muse-spark-open-1026",
+   "open": {
+    "customer_type": "consumer",
+    "language": "en",
+    "appliance": {
+     "kind": "reception-desk",
+     "brand": "Whirlpool",
+     "model": "AKT 8130",
+     "serial_or_enr": ""
+    },
+    "part": {
+     "name_en": "dishwasher lower basket wheel",
+     "name_user": "",
+     "part_number": "",
+     "quantity": 0,
+     "condition": "broken",
+     "failure": ""
+    },
+    "environment": {
+     "max_temp_c": 55,
+     "wet": false,
+     "food_contact": false,
+     "load": "low"
+    },
+    "material": "PLA",
+    "urgency": "normal",
+    "refuse": false,
+    "reason": "",
+    "ip_flags": [],
+    "questions": [],
+    "notes": ""
+   },
+   "expect": {
+    "refuse": true,
+    "review": null
+   }
+  },
+  {
+   "name": "spark_unparsable",
+   "recorded": "2026-10-30 (intake_probe.py: Spark Open on the gas knob returned nothing parsable)",
+   "about": "no usable intake answer means the safety gate did not run: the order waits for the operator",
+   "inputs": {
+    "text": "Hi, the plastic knob on my gas stove (Whirlpool AKT 8130) cracked and the gas valve shaft now spins freely. Can you print a knob? Also the little clip that holds the grease filter on my range hood broke off."
+   },
+   "spark_model": "muse-spark-1.3",
+   "spark": {},
+   "open_model": null,
+   "open": null,
+   "expect": {
+    "refuse": false,
+    "review": "intake_failed"
+   }
+  }
+ ]
+}

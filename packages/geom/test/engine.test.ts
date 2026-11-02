@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Engine, loadKernel, functionEvaluator } from '../src/index.ts';
+import { strFromU8, unzipSync, unzlibSync } from 'fflate';
+import { Engine, loadKernel, functionEvaluator, fromBase64 } from '../src/index.ts';
 import { BAG_HOOK, VASE, BAD_SHELF } from './fixtures.ts';
 
 const engine = new Engine(await loadKernel(), functionEvaluator());
@@ -43,6 +44,92 @@ test('render sheet and 3mf export produce bytes', () => {
   assert.ok(png.png.length > 1000);
   const tmf = engine.export({ source: BAG_HOOK, format: '3mf', title: 'hook' });
   assert.ok(tmf.data.length > 1000);
+});
+
+// A table from two parts: the top's underside overhangs the leg, so a heat render shows red there.
+const TWO_PARTS = `
+function build(p, lib) {
+  const { std, part } = lib;
+  const leg = std.box([10, 10, 30]);
+  const top = std.box([50, 50, 4]).translate([0, 0, 30]);
+  const grey = '#d6d8de';
+  return [part(leg, { name: 'leg', color: grey }), part(top, { name: 'top', color: grey }),
+          part(std.box([8, 8, 8]).translate([0, 0, 10]), { name: 'dense', role: 'modifier', settings: { sparse_infill_density: '40%' } })];
+}
+return { meta: { title: 'Table' }, params: {}, build };
+`;
+
+// RGBA pixels of a PNG from encodePng (one IDAT, filter 0 on every row).
+function pixels(b64: string) {
+  const png = fromBase64(b64);
+  const dv = new DataView(png.buffer, png.byteOffset);
+  const width = dv.getUint32(16);
+  let o = 8;
+  const idat: Uint8Array[] = [];
+  while (o < png.length) {
+    const len = dv.getUint32(o);
+    const type = String.fromCharCode(...png.subarray(o + 4, o + 8));
+    if (type === 'IDAT') idat.push(png.subarray(o + 8, o + 8 + len));
+    o += 12 + len;
+  }
+  const raw = unzlibSync(Uint8Array.from(idat.flatMap((c) => [...c])));
+  const rows = raw.length / (width * 4 + 1);
+  const out = new Uint8Array(width * rows * 4);
+  for (let y = 0; y < rows; y++) out.set(raw.subarray(y * (width * 4 + 1) + 1, (y + 1) * (width * 4 + 1)), y * width * 4);
+  return out;
+}
+const reddish = (rgba: Uint8Array) => {
+  let n = 0;
+  for (let i = 0; i < rgba.length; i += 4) if (rgba[i] > 150 && rgba[i] - rgba[i + 1] > 70 && rgba[i] - rgba[i + 2] > 70) n++;
+  return n;
+};
+
+test('a multi-part render shows overhang heat under the overhanging part', () => {
+  const r = engine.build({ source: TWO_PARTS, analyze: 'none' });
+  assert.deepEqual(r.parts.map((p: any) => p.role), ['model', 'model', 'modifier']);
+  // the sheet's red 10 mm scale bars are in both renders
+  const hot = reddish(pixels(engine.render({ source: TWO_PARTS, view: 'sheet', tile: 160, heat: true }).png));
+  const plain = reddish(pixels(engine.render({ source: TWO_PARTS, view: 'sheet', tile: 160 }).png));
+  assert.ok(hot - plain > 200, `only ${hot - plain} heat pixels`);
+});
+
+test('STL export round-trips to a closed solid of the same volume', () => {
+  for (const source of [BAG_HOOK, TWO_PARTS]) {
+    const volume = engine.build({ source, analyze: 'fast' }).checks.stats.volume;
+    const stl = engine.export({ source, format: 'stl' });
+    assert.equal(stl.mime, 'model/stl');
+    const back = engine.parseMesh({ data: stl.data, format: 'stl' });
+    assert.equal(back.stats.closed, true, back.stats.reason);
+    assert.ok(Math.abs(back.stats.volume - volume) / volume < 0.001, `${back.stats.volume} vs ${volume}`);
+  }
+});
+
+test('3MF export: millimetres, one part per part with its subtype, extruder slots, production ids', () => {
+  const tmf = engine.export({ source: TWO_PARTS, format: '3mf', title: 'Table' });
+  const files = unzipSync(fromBase64(tmf.data));
+  const text = (name: string) => strFromU8(files[name]);
+  assert.ok(files['[Content_Types].xml'] && files['_rels/.rels'] && files['3D/_rels/3dmodel.model.rels']);
+  const root = text('3D/3dmodel.model');
+  const objects = text('3D/Objects/object_1.model');
+  for (const xml of [root, objects]) {
+    assert.match(xml, /<model unit="millimeter"/);
+    assert.match(xml, /requiredextensions="p"/);
+  }
+  assert.equal((objects.match(/<object /g) ?? []).length, 3);
+  assert.equal((root.match(/<component p:path="\/3D\/Objects\/object_1.model"/g) ?? []).length, 3);
+  // the production extension needs an id on every object, component, the build and its items
+  const tags = [...root.matchAll(/<(object|component|build|item) [^>]*>/g), ...objects.matchAll(/<object [^>]*>/g)].map((m) => m[0]);
+  assert.equal(tags.length, 1 + 3 + 1 + 1 + 3);
+  for (const tag of tags) assert.match(tag, /p:UUID="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"/, tag);
+  const ids = tags.map((t) => /p:UUID="([^"]+)"/.exec(t)![1]);
+  assert.equal(new Set(ids).size, ids.length);
+  const cfg = text('Metadata/model_settings.config');
+  const parts = [...cfg.matchAll(/<part id="(\d+)" subtype="([a-z_]+)">(.*?)<\/part>/g)].map((m) => ({ id: m[1], subtype: m[2], body: m[3] }));
+  assert.deepEqual(parts.map((p) => p.subtype), ['normal_part', 'normal_part', 'modifier_part']);
+  assert.deepEqual(parts.map((p) => /key="name" value="([^"]+)"/.exec(p.body)?.[1]), ['leg', 'top', 'dense']);
+  // same colour, same filament slot; modifiers take no slot but carry their settings
+  assert.deepEqual(parts.map((p) => /key="extruder" value="(\d+)"/.exec(p.body)?.[1] ?? null), ['1', '1', null]);
+  assert.match(parts[2].body, /key="sparse_infill_density" value="40%"/);
 });
 
 test('extrude keeps its cross-section (scalar scaleTop binding bug)', async () => {

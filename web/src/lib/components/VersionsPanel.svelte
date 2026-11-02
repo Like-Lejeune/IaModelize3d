@@ -22,6 +22,8 @@
     picked = [];
   }
 
+  // who made the version, in the UI language; an unknown author shows as stored
+  const author = (a: string) => (t(`author.${a}`) === `author.${a}` ? a : t(`author.${a}`));
   const when = (ts: number) => new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 </script>
 
@@ -42,11 +44,11 @@
     {#each list as v (v.version)}
       <li class:cur={v.version === store.version}>
         <label class="row">
-          <input type="checkbox" checked={picked.includes(v.version)} onchange={() => toggle(v.version)} aria-label="pick v{v.version}" />
+          <input type="checkbox" checked={picked.includes(v.version)} onchange={() => toggle(v.version)} aria-label={t('pick_version', { v: v.version })} />
           <span class="chip">v{v.version}</span>
           <span class="sum">{v.summary ?? ''}</span>
         </label>
-        <span class="muted small">{v.author} · {when(v.created_at)}{v.version === store.version ? ` · ${t('current')}` : ''}</span>
+        <span class="muted small">{author(v.author)} · {when(v.created_at)}{v.version === store.version ? ` · ${t('current')}` : ''}</span>
       </li>
     {/each}
   </ul>

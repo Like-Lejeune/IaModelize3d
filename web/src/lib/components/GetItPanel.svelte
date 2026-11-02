@@ -1,25 +1,49 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
   import { api, download, errorText } from '$lib/api';
-  import { t } from '$lib/i18n.svelte';
+  import { t, projectTitle } from '$lib/i18n.svelte';
   import type { ProjectStore } from '$lib/project.svelte';
+  import { shop } from '$lib/shop/api';
+  import { moneyRange, st } from '$lib/shop/i18n';
+  import type { Quote } from '$lib/shop/types';
 
   let { store, readonly = false, onPublish }: { store: ProjectStore; readonly?: boolean; onPublish?: () => void } = $props();
 
-  const MATERIALS = ['PLA', 'PETG', 'ABS', 'ASA', 'TPU'];
+  // what the Axo farm prints (server/formwright/shop/quote.py)
+  const MATERIALS = ['PLA', 'PETG', 'ASA', 'TPU'];
   let busy = $state<string | null>(null);
   let error = $state<string | null>(null);
-  let qty = $state(1);
   let material = $state('PLA');
-  let color = $state('');
-  let comment = $state('');
-  let order = $state<Record<string, any> | null>(null);
+  // what the project is meant to print in (a ready example's brief: PETG for the dishwasher wheel), until one is picked here
+  let picked = $state(false);
+  $effect(() => {
+    const m = store.detail?.material?.toUpperCase();
+    if (!picked && m && MATERIALS.includes(m)) material = m;
+  });
   let copied = $state(false);
+  let instant = $state<Quote | null>(null);
+
+  // Formwright Parts: the kernel's instant range for this version; the binding price comes from OrcaSlicer on /parts/new
+  $effect(() => {
+    const v = store.version;
+    const m = material;
+    instant = null;
+    if (readonly || !v) return;
+    const h = setTimeout(() => {
+      shop
+        .instantQuote(store.id, { material: m })
+        .then((q) => store.version === v && (instant = q))
+        .catch(() => {});
+    }, 600);
+    return () => clearTimeout(h);
+  });
 
   async function dl(format: 'stl' | '3mf') {
     busy = format;
     error = null;
-    const name = `${(store.detail?.title ?? 'model').replace(/[^\w-]+/g, '_').slice(0, 40)}.${format}`;
+    // letters of any script are fine in a download name; only separators and symbols go
+    const base = (store.detail?.title ?? '').replace(/[^\p{L}\p{N}_-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+    const name = `${base || 'model'}.${format}`;
     // built here, from exactly what the viewer shows; the server only as a fallback
     try {
       await download(await store.exportFile(format), name);
@@ -35,11 +59,31 @@
     }
   }
 
-  async function placeOrder() {
-    busy = 'order';
+  const recipeUrl = $derived(`${location.origin}/r/${store.id}`);
+  const xUrl = $derived(
+    `https://x.com/intent/post?text=${encodeURIComponent(t('share_x_text', { title: projectTitle(store.detail?.title) }))}&url=${encodeURIComponent(recipeUrl)}`,
+  );
+
+  // a link only works for others once the recipe is public
+  async function ensurePublic() {
+    if (!store.detail || store.detail.public) return;
+    const p = await api.patchProject(store.id, { public: true });
+    store.detail.public = p.public;
+  }
+
+  // one step: publish if needed, then copy the link
+  async function share() {
+    busy = 'share';
     error = null;
     try {
-      order = await api.order(store.id, { quantity: qty, material, color: color || undefined, comment: comment || undefined });
+      await ensurePublic();
+      try {
+        await navigator.clipboard.writeText(recipeUrl);
+        copied = true;
+        setTimeout(() => (copied = false), 1800);
+      } catch {
+        prompt('URL', recipeUrl);
+      }
     } catch (e) {
       error = errorText(e);
     } finally {
@@ -47,15 +91,9 @@
     }
   }
 
-  async function copyLink() {
-    const url = `${location.origin}/r/${store.id}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      copied = true;
-      setTimeout(() => (copied = false), 1800);
-    } catch {
-      prompt('URL', url);
-    }
+  // the X tab opens right away (a popup must come from the click itself); publishing finishes meanwhile
+  function postX() {
+    ensurePublic().catch((e) => (error = errorText(e)));
   }
 </script>
 
@@ -72,39 +110,30 @@
   {#if !readonly}
     <section class="stack">
       <h4 class="section-title">{t('order')}</h4>
-      <p class="muted small">{t('order_hint')}</p>
-      {#if order}
-        <div class="done card">
-          {#if order.checkout_url}
-            <strong>{t('order_done')}</strong>
-            <a class="btn primary" href={order.checkout_url} target="_blank" rel="noopener noreferrer">{t('open_checkout')} ↗</a>
-          {:else}
-            <span class="small">{order.message ?? order.status}</span>
-          {/if}
-        </div>
-      {:else}
-        <div class="form">
-          <label class="field">{t('quantity')}<input type="number" min="1" max="50" bind:value={qty} /></label>
-          <label class="field">{t('material')}<select bind:value={material}>{#each MATERIALS as m (m)}<option>{m}</option>{/each}</select></label>
-          <label class="field">{t('color')}<input type="text" bind:value={color} placeholder="black" /></label>
-          <label class="field wide">{t('comment')}<input type="text" bind:value={comment} /></label>
-        </div>
-        <button class="btn" onclick={placeOrder} disabled={!store.source || busy === 'order'}>
-          {#if busy === 'order'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="package" size={15} />{/if} {t('order')}
-        </button>
-      {/if}
+      <p class="muted small">{st('new.project_hint')}</p>
+      <div class="quote">
+        <select bind:value={material} onchange={() => (picked = true)} aria-label={t('material')}>{#each MATERIALS as m (m)}<option>{m}</option>{/each}</select>
+        <a class="btn" class:disabled={!store.version} href="/parts/new?project={store.id}&material={material}">
+          <Icon name="package" size={15} /> {st('getit.quote')}
+        </a>
+        {#if instant?.range}<span class="range small">≈ {moneyRange(instant.range.total, instant.range.total_usd)}</span>{/if}
+      </div>
     </section>
 
     <section class="stack">
       <h4 class="section-title">{t('share')}</h4>
       <p class="muted small">{t('share_hint')}</p>
       <div class="row">
-        <button class="btn small" onclick={onPublish}>
-          <Icon name={store.detail?.public ? 'lock' : 'globe'} size={14} /> {store.detail?.public ? t('unpublish') : t('publish')}
+        <button class="btn small primary" onclick={share} disabled={!store.source || busy === 'share'}>
+          {#if busy === 'share'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name={copied ? 'check' : 'copy'} size={14} />{/if}
+          {copied ? t('link_copied') : t('share')}
         </button>
+        <a class="btn small" class:disabled={!store.source} href={xUrl} target="_blank" rel="noopener noreferrer" onclick={postX}>
+          <span class="x" aria-hidden="true">𝕏</span> {t('share_x')}
+        </a>
         {#if store.detail?.public}
-          <button class="btn small" onclick={copyLink}><Icon name={copied ? 'check' : 'copy'} size={14} /> {copied ? t('link_copied') : t('share')}</button>
           <a class="btn small ghost" href="/r/{store.id}" target="_blank" rel="noopener">{t('recipe')} ↗</a>
+          <button class="btn small ghost" onclick={onPublish}><Icon name="lock" size={14} /> {t('unpublish')}</button>
         {/if}
       </div>
     </section>
@@ -118,28 +147,25 @@
     flex-direction: column;
     gap: 16px;
   }
-  .form {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-  }
-  .form .wide {
-    grid-column: 1 / -1;
-  }
-  .form input,
-  .form select {
-    width: 100%;
-  }
-  .done {
-    padding: var(--space-4);
+  .quote {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     align-items: center;
-    justify-content: space-between;
     flex-wrap: wrap;
+  }
+  .quote select {
+    width: auto;
+  }
+  .range {
+    font-weight: var(--font-weight-semibold);
+    font-variant-numeric: tabular-nums;
   }
   .err {
     color: var(--error);
+  }
+  .x {
+    font-weight: var(--font-weight-semibold);
+    line-height: 1;
   }
   p {
     margin: 0;

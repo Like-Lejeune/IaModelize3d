@@ -3,7 +3,7 @@
 // overhang heat), translucent helper volumes, and feature edges.
 import type { PrinterProfile } from './lib/index.ts';
 import { weld } from './lib/meshops.ts';
-import { triangleHeat } from './checks.ts';
+import { meshHeat, type HeatMesh } from './checks.ts';
 import type { Part } from './program.ts';
 
 export interface DisplayBuffers {
@@ -13,6 +13,11 @@ export interface DisplayBuffers {
   groups: [number, number, number][];
   // modifier / negative volumes, drawn translucent
   ghost: Float32Array;
+  // 'reference' parts (the board inside a case): never printed or picked, drawn translucent blue.
+  // reference[i] = [firstVertex, vertexCount, partIndex] into referencePosition. Not in displayTransfer:
+  // posted by copy, so a worker that caches these buffers keeps its own.
+  referencePosition: Float32Array;
+  reference: [number, number, number][];
   // feature edges as line segments (6 floats each); empty when skipped
   edges: Float32Array;
   triangles: number;
@@ -20,8 +25,7 @@ export interface DisplayBuffers {
 
 const EDGE_COS = Math.cos((28 * Math.PI) / 180);
 
-function expand(solid: Part['solid'], pos: Float32Array, at: number) {
-  const m = solid.getMesh();
+function expand(m: HeatMesh, pos: Float32Array, at: number) {
   const np = m.numProp, P = m.vertProperties, T = m.triVerts;
   for (let k = 0; k < T.length; k++) {
     const v = T[k] * np;
@@ -68,18 +72,22 @@ function featureEdges(solid: Part['solid'], out: number[]) {
 export function displayBuffers(parts: Part[], printer: PrinterProfile, o: { heat?: boolean; edges?: boolean; maxEdgeTriangles?: number } = {}): DisplayBuffers {
   const models = parts.map((p, i) => ({ p, i })).filter(({ p }) => p.role === 'model');
   const ghosts = parts.filter((p) => p.role === 'modifier' || p.role === 'negative');
+  const refs = parts.map((p, i) => ({ p, i })).filter(({ p }) => p.role === 'reference');
   const nModel = models.reduce((s, { p }) => s + p.solid.numTri(), 0);
   const nGhost = ghosts.reduce((s, p) => s + p.solid.numTri(), 0);
   const position = new Float32Array(nModel * 9);
   const heat = new Uint8Array(nModel * 3);
   const groups: [number, number, number][] = [];
+  // faces on the bed are not overhangs, wherever a keepPosition program put the body
+  const floor = Math.min(...models.map(({ p }) => p.solid.boundingBox().min[2]));
   let at = 0;
   for (const { p, i } of models) {
     const start = at / 3;
-    at = expand(p.solid, position, at);
+    const m = p.solid.getMesh();
+    at = expand(m, position, at);
     groups.push([start, at / 3 - start, i]);
     if (o.heat !== false) {
-      const h = triangleHeat(p.solid, printer).heat;
+      const h = meshHeat(m, printer, floor).heat;
       for (let t = 0; t < h.length; t++) {
         const v = Math.round(h[t] * 255);
         if (v) heat.fill(v, start + t * 3, start + t * 3 + 3);
@@ -88,10 +96,18 @@ export function displayBuffers(parts: Part[], printer: PrinterProfile, o: { heat
   }
   const ghost = new Float32Array(nGhost * 9);
   let g = 0;
-  for (const p of ghosts) g = expand(p.solid, ghost, g);
+  for (const p of ghosts) g = expand(p.solid.getMesh(), ghost, g);
+  const referencePosition = new Float32Array(refs.reduce((s, { p }) => s + p.solid.numTri(), 0) * 9);
+  const reference: [number, number, number][] = [];
+  let ra = 0;
+  for (const { p, i } of refs) {
+    const start = ra / 3;
+    ra = expand(p.solid.getMesh(), referencePosition, ra);
+    reference.push([start, ra / 3 - start, i]);
+  }
   const lines: number[] = [];
   if (o.edges && nModel <= (o.maxEdgeTriangles ?? 400_000)) for (const { p } of models) featureEdges(p.solid, lines);
-  return { position, heat, groups, ghost, edges: Float32Array.from(lines), triangles: nModel };
+  return { position, heat, groups, ghost, referencePosition, reference, edges: Float32Array.from(lines), triangles: nModel };
 }
 
 export function displayTransfer(d: DisplayBuffers): ArrayBuffer[] {

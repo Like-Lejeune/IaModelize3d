@@ -1,12 +1,17 @@
 <script lang="ts">
   // Snap & collect: point the phone at something, tap it, and it becomes a printable miniature.
   // The tap is the segmentation prompt; the object lights up, can be corrected with more taps,
-  // and goes to the agent while the next object is already being photographed.
+  // and its cut-out rises into a 3D sticker (built right here from the server's relief) that goes
+  // into the collection at once. A full figurine from the agent stays one tap away.
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import Icon from '$lib/components/Icon.svelte';
   import SnapHighlight from '$lib/components/SnapHighlight.svelte';
+  import Sticker from '$lib/components/Sticker.svelte';
+  import StickerPreview from '$lib/components/StickerPreview.svelte';
   import { api, errorText } from '$lib/api';
+  import { collectApi, collectError, type KeepResult, type StickerPayload } from '$lib/collect/api';
+  import { ct, num, secs } from '$lib/collect/i18n';
   import { i18n, t, unitLabel } from '$lib/i18n.svelte';
   import { chosenModel, prefs } from '$lib/session.svelte';
   import { place, toImage, toJpeg, type Box, type Fit } from '$lib/snapframe';
@@ -14,7 +19,7 @@
 
   type Phase = 'camera' | 'aim' | 'scan' | 'review' | 'sent';
   type Pt = { x: number; y: number; positive: boolean };
-  const SIZES = [40, 60, 90];
+  const SIZES = [40, 50, 60]; // mm along the longest side
 
   let phase = $state<Phase>('camera');
   let camera = $state<'starting' | 'on' | 'off'>('starting');
@@ -36,6 +41,16 @@
   let sending = $state(false);
   let queued = $state(false);
   let error = $state<string | null>(null);
+  // the instant sticker: relief from the server, 3D from this page's geometry worker
+  let sticker = $state.raw<StickerPayload | null>(null); // ~130 KB of relief: replaced whole, never deep-watched
+  let lifted = $state(false); // the 3D sticker replaced the flat cut-out
+  let built = $state<{ ms: number; size: [number, number, number] } | null>(null);
+  let samMs = $state(0); // shutter to highlight, upload included
+  let kept = $state<KeepResult | null>(null);
+  let keeping = $state(false);
+  // a shot the server could not take is kept, so Retry sends the same photo with the same tap
+  let failed = $state<{ blob: Blob; w: number; h: number; fit: Fit; x: number; y: number } | null>(null);
+  let toastTimer: ReturnType<typeof setTimeout> | undefined;
   let flash = $state(0);
   let count = $state(0);
   let sheetH = $state(0);
@@ -54,9 +69,9 @@
   function savedSize(): number {
     try {
       const v = Number(localStorage.getItem('fw_snap_size'));
-      return SIZES.includes(v) ? v : 60;
+      return SIZES.includes(v) ? v : 50;
     } catch {
-      return 60;
+      return 50;
     }
   }
   function pickSize(v: number) {
@@ -77,6 +92,7 @@
     return () => {
       stream?.getTracks().forEach((tr) => tr.stop());
       if (shot) URL.revokeObjectURL(shot.url);
+      clearTimeout(toastTimer);
     };
   });
 
@@ -113,9 +129,36 @@
     box = null;
     mode = 'add';
     error = null;
+    failed = null;
     queued = false;
     busy = false;
     naming = false;
+    sticker = null;
+    lifted = false;
+    built = null;
+    samMs = 0;
+    kept = null;
+    keeping = false;
+  }
+
+  // over the viewfinder an error shows for a few seconds, then the camera is clear again
+  function toast(msg: string) {
+    error = msg;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      if (error !== msg) return;
+      error = null;
+      failed = null;
+    }, 5000);
+  }
+
+  function retry() {
+    const f = failed;
+    if (!f) return;
+    clearTimeout(toastTimer);
+    reset();
+    shot = { url: URL.createObjectURL(f.blob), blob: f.blob, w: f.w, h: f.h, fit: f.fit };
+    send(f.x, f.y);
   }
 
   async function shoot(ev?: PointerEvent) {
@@ -134,7 +177,7 @@
       shot = { url: URL.createObjectURL(blob), blob, w, h, fit: 'cover' };
       send(nx, ny);
     } catch (e) {
-      error = errorText(e);
+      toast(errorText(e));
     }
   }
 
@@ -163,8 +206,10 @@
     tap = { x: nx, y: ny };
     phase = 'scan';
     error = null;
+    const t0 = performance.now();
     try {
       const r = await api.snap(shot.blob, { x: nx, y: ny, lang: i18n.lang });
+      samMs = performance.now() - t0;
       res = r;
       sel = r.selection;
       label = r.label ?? '';
@@ -172,11 +217,20 @@
       points = [{ x: Math.round(nx * r.asset.width!), y: Math.round(ny * r.asset.height!), positive: true }];
       if (!r.selection) error = t('snap_nothing');
       phase = 'review';
+      // the relief comes with the snap answer, or right after it from the cache next to the mask
+      const first = (r as SnapResult & { sticker?: StickerPayload | null }).sticker;
+      if (first) sticker = first;
+      else if (r.selection) loadSticker(r.project.id);
       if (r.label === null) nameIt(r.project.id);
     } catch (e) {
-      error = errorText(e);
-      phase = shot.fit === 'cover' ? 'camera' : 'aim';
-      if (phase === 'camera') reset();
+      // a camera shot goes back to the viewfinder, a picked photo stays to be tapped again; either way reset first, so the error survives
+      const s = shot;
+      if (s.fit === 'cover') {
+        reset();
+        phase = 'camera';
+      } else phase = 'aim';
+      failed = { blob: s.blob, w: s.w, h: s.h, fit: s.fit, x: nx, y: ny };
+      toast(errorText(e));
     }
   }
 
@@ -193,6 +247,8 @@
         sel = r.selection;
         if (error === t('snap_nothing')) error = null;
       }
+      // a grown selection, or a person (no photo detail), changes the relief
+      if (r.selection && seq === edits) loadSticker(pid);
     } catch {
       /* unnamed is fine: the field stays editable */
     } finally {
@@ -219,6 +275,7 @@
       if (my !== seq) return;
       sel = r.selection;
       if (newLabel) label = r.label;
+      loadSticker(res.project.id);
     } catch (e) {
       if (my !== seq) return;
       error = errorText(e);
@@ -238,13 +295,42 @@
     reselect(o.label);
   }
 
+  let stickerSeq = 0;
+  async function loadSticker(pid: string) {
+    const my = ++stickerSeq;
+    try {
+      const s = await collectApi.sticker(pid, sticker?.key);
+      if (my !== stickerSeq || res?.project.id !== pid || 'same' in s) return;
+      sticker = s;
+    } catch {
+      /* no sticker: the flat cut-out and "make a figurine" still work */
+    }
+  }
+
+  // into the collection as the instant 3D sticker: no agent, ready at once
+  async function keep() {
+    if (!res || !sel) return;
+    keeping = true;
+    error = null;
+    try {
+      kept = await collectApi.keep(res.project.id, { label: label.trim() || undefined, size });
+      phase = 'sent';
+      queued = false;
+      count++;
+    } catch (e) {
+      error = collectError(e);
+    } finally {
+      keeping = false;
+    }
+  }
+
   async function make() {
     if (!res || !sel) return;
     sending = true;
     error = null;
     const name = label.trim();
     try {
-      const r = await api.snapConfirm(res.project.id, { text: t('snap_msg', { label: name, size }), label: name, model: chosenModel(), reasoning: prefs.reasoning });
+      const r = await api.snapConfirm(res.project.id, { text: ct('figure_msg', { label: name, size }), label: name, model: chosenModel(), reasoning: prefs.reasoning });
       queued = r.queued;
       phase = 'sent';
       count++;
@@ -325,7 +411,12 @@
     {/if}
   </header>
 
-  {#if error && !sheet}<p class="toast" role="alert">{error}</p>{/if}
+  {#if error && !sheet}
+    <div class="toast" role="alert">
+      <span>{error}</span>
+      {#if failed}<button class="toast-btn" onclick={retry}><Icon name="refresh" size={14} /> {t('snap_retry')}</button>{/if}
+    </div>
+  {/if}
 
   {#if phase === 'camera'}
     <div class="controls">
@@ -358,6 +449,32 @@
 
   {#if sheet}
     <section class="panel" bind:clientHeight={sheetH} aria-live="polite">
+      {#if res && sel}
+        <!-- the flat cut-out, then the 3D sticker rising out of it -->
+        <div class="lift">
+          {#if sel.mask_url}
+            <span class="cut" class:up={lifted} aria-hidden="true">
+              <Sticker photo={res.asset.url} mask={sel.mask_url} bbox={Array.isArray(sel.data?.bbox_px) ? sel.data.bbox_px : null} size={150} />
+            </span>
+          {/if}
+          {#if sticker}
+            <StickerPreview
+              {sticker}
+              {size}
+              {label}
+              fallback={() => collectApi.stickerPng(res!.project.id, { size, label: label.trim() })}
+              onbuilt={(i) => {
+                lifted = true;
+                built = i;
+              }}
+            />
+          {/if}
+          <div class="models">
+            {#if samMs}<span class="mchip">{ct('chip_sam', { s: secs(samMs) })}</span>{/if}
+            {#if naming}<span class="mchip">{ct('chip_naming')}</span>{:else if label.trim()}<span class="mchip">{ct('chip_name', { name: label.trim() })}</span>{/if}
+          </div>
+        </div>
+      {/if}
       {#if phase === 'review'}
         <div class="name-row">
           <input class="name" bind:value={label} aria-label={t('snap_name')} placeholder={t('snap_name')} maxlength="40" />
@@ -379,19 +496,41 @@
           </div>
         {/if}
         <div class="group">
-          <span class="section-title">{t('snap_size')}</span>
-          <div class="sizes" role="radiogroup" aria-label={t('snap_size')}>
+          <span class="section-title">
+            {ct('sticker_size')}{#if built}<span class="dims">{' · '}{built.size[0].toFixed(0)} × {built.size[1].toFixed(0)} × {num(built.size[2])} {unitLabel('mm')}</span>{/if}
+          </span>
+          <div class="sizes" role="radiogroup" aria-label={ct('sticker_size')}>
             {#each SIZES as v (v)}
               <button class="chip" class:on={size === v} role="radio" aria-checked={size === v} onclick={() => pickSize(v)}>{v} {unitLabel('mm')}</button>
             {/each}
           </div>
         </div>
         <div class="acts">
-          <button class="btn" onclick={retake}><Icon name="refresh" size={16} /> {t('snap_retake')}</button>
-          <button class="btn primary grow" onclick={make} disabled={!sel || !label.trim() || busy || sending}>
-            {#if sending}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="sparkles" size={16} />{/if}
-            {t('snap_make')}
+          <button class="btn icon-btn" onclick={retake} aria-label={t('snap_retake')} title={t('snap_retake')}><Icon name="refresh" size={16} /></button>
+          <button class="btn primary grow" onclick={keep} disabled={!sel || busy || keeping || sending}>
+            {#if keeping}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="plus" size={16} />{/if}
+            {ct('keep')}
           </button>
+        </div>
+        <button class="figure" onclick={make} disabled={!sel || !label.trim() || busy || sending || keeping}>
+          {#if sending}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="sparkles" size={15} />{/if}
+          {ct('figure')}
+        </button>
+      {:else if kept}
+        <div class="done">
+          <span class="tick"><Icon name="check" size={20} /></span>
+          <div>
+            <strong>{ct('kept')}</strong>
+            <p class="muted small">
+              {ct('kept_hint', { w: kept.size_mm[0]?.toFixed(0) ?? '', h: kept.size_mm[1]?.toFixed(0) ?? '', min: kept.est.minutes, g: num(kept.est.grams) })}
+            </p>
+            <p class="muted xs">{ct('two_colour')} · {ct('kept_plate')}</p>
+          </div>
+        </div>
+        <div class="acts">
+          <button class="btn" onclick={() => res && goto(`/p/${res.project.id}`)}>{t('open')}</button>
+          <a class="btn" href="/collection"><Icon name="grid" size={16} /> {t('collection')}</a>
+          <button class="btn primary grow" onclick={next}><Icon name="camera" size={16} /> {t('snap_next')}</button>
         </div>
       {:else}
         <div class="done">
@@ -635,6 +774,22 @@
     color: #fff;
     font-size: var(--text-card-from);
     font-weight: var(--font-weight-semibold);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+  }
+  .toast-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: var(--radius-btn);
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
   }
 
   .controls {
@@ -766,6 +921,82 @@
   }
   .panel p {
     margin: 0;
+  }
+  /* the cut-out and its 3D sticker share one box; the cut-out fades as the relief rises */
+  .lift {
+    position: relative;
+    height: clamp(140px, 24dvh, 200px);
+    margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-2)) 0;
+    border-radius: 14px;
+    background: radial-gradient(70% 80% at 50% 45%, color-mix(in srgb, var(--primary) 10%, var(--surface-high)), var(--surface-container));
+    overflow: hidden;
+  }
+  .cut {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    transition:
+      opacity var(--dur-slow) var(--ease-standard),
+      transform var(--dur-slow) var(--ease-standard);
+    filter: drop-shadow(0 6px 12px rgb(0 0 0 / 0.35));
+  }
+  .cut.up {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.92);
+  }
+  .models {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    pointer-events: none;
+  }
+  .mchip {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    background: color-mix(in srgb, var(--surface-container) 85%, transparent);
+    color: var(--on-surface-var);
+    border: 1px solid var(--outline-variant);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dims {
+    font-weight: var(--font-weight-regular);
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--on-surface-var);
+  }
+  .icon-btn {
+    flex: none;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .figure {
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    background: transparent;
+    color: var(--primary);
+    font: inherit;
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--text-card-from);
+    padding: 4px 10px;
+    margin-top: calc(-1 * var(--space-1));
+    cursor: pointer;
+  }
+  .figure:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
   .name-row {
     display: flex;

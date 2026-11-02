@@ -1,10 +1,24 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import { tick, untrack } from 'svelte';
   import { api } from '$lib/api';
   import { t } from '$lib/i18n.svelte';
   import type { ProjectStore } from '$lib/project.svelte';
 
-  let { store, snapshot, onUseConcept }: { store: ProjectStore; snapshot: () => string | null; onUseConcept: (url: string) => void } = $props();
+  let {
+    store,
+    snapshot,
+    onUseConcept,
+    focus = null,
+    onFocused,
+  }: {
+    store: ProjectStore;
+    snapshot: () => string | null;
+    onUseConcept: (url: string) => void;
+    /** Sketch concepts for this prompt right away ("Ideas first"), or start drawing a change (viewer toolbar). */
+    focus?: { prompt?: string; draw?: boolean } | null;
+    onFocused?: () => void;
+  } = $props();
 
   let prompt = $state('');
   let instruction = $state('');
@@ -72,6 +86,23 @@
     await store.startSide(() => api.visualEdit(store.id, instruction.trim(), png));
     instruction = '';
   }
+
+  // each request is handled once and handed back, so opening the tab again does not repeat it
+  $effect(() => {
+    const f = focus;
+    if (!f) return;
+    untrack(() => {
+      onFocused?.();
+      if (f.prompt) {
+        prompt = f.prompt;
+        if (!store.running) concepts();
+      }
+      if (f.draw && store.build) {
+        grab();
+        tick().then(() => canvas?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+      }
+    });
+  });
 </script>
 
 <div class="stack">
@@ -79,7 +110,7 @@
     <h3 class="section-title">{t('concepts')}</h3>
     <p class="muted small">{t('concepts_hint')}</p>
     <div class="row nowrap">
-      <input type="text" bind:value={prompt} placeholder="twisted ceramic vase, art deco ribs" aria-label={t('concepts')} style="flex:1;min-width:0" />
+      <input type="text" bind:value={prompt} placeholder={t('concepts_placeholder')} aria-label={t('concepts')} style="flex:1;min-width:0" />
       <button class="btn" onclick={concepts} disabled={!prompt.trim() || store.running}><Icon name="sparkles" size={16} /> {t('generate')}</button>
     </div>
     {#if store.concepts.length}

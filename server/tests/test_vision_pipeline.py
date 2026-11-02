@@ -202,6 +202,8 @@ def test_turntable_pose_from_aruco_ring():
 async def test_ingest_video_and_audio(env, monkeypatch, tmp_path):
     from formwright.vision import ingest
 
+    if not ingest.ffmpeg_bin():
+        pytest.skip("ffmpeg not installed")  # a video is stored only once ffmpeg has removed its metadata
     path = tmp_path / "clip.mp4"
     vw = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), 10, (320, 240))
     for i in range(20):
@@ -211,9 +213,6 @@ async def test_ingest_video_and_audio(env, monkeypatch, tmp_path):
     vw.release()
     v = await ingest.ingest_asset("p1", "photo", "clip.mp4", path.read_bytes(), "video/mp4")
     assert v["kind"] == "video" and v["meta"]["frames"] == 20 and v["meta"]["thumb"]
-
-    if not ingest.ffmpeg_bin():
-        pytest.skip("ffmpeg not installed")
 
     async def fake_transcribe(wav):
         return "shelf is 18 mm thick"

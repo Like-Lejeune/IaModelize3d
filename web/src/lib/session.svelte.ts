@@ -1,4 +1,6 @@
 import { api } from './api';
+import { t } from './i18n.svelte';
+import { isContributor, modelName as friendlyName } from './models';
 import type { ModelOption, Usage } from './types';
 
 export const session = $state<{ me: Usage | null }>({ me: null });
@@ -28,12 +30,8 @@ const FALLBACK_MODELS: ModelOption[] = [
 ];
 export const models = () => (session.me?.models?.length ? session.me.models : FALLBACK_MODELS);
 
-/** "muse-spark-1.3-contributor" -> "Muse Spark 1.3 Contributor" */
-export const modelName = (id: string) =>
-  id
-    .split('-')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
+/** "muse-spark-1.3-contributor" -> "Muse Spark 1.3 · contributor": the same model, on the tier that may train Meta models */
+export const modelName = (id: string) => (isContributor(id) ? `${friendlyName(id)} · ${t('contributor_tag')}` : friendlyName(id));
 
 function saved<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {

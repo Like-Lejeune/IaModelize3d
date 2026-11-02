@@ -1,6 +1,7 @@
 """Consolidation ("sleep"): keep memory small and useful.
 
-- archive items that are unused for long or fail more than they help
+- archive items that are unused for long or fail more than they help, and lessons about checks
+  that supports answer (they would teach every design to avoid supports)
 - merge near-duplicate lessons/skills (by name/doc similarity), keeping the better one
 - enforce hard per-kind budgets (weakest out first)
 - re-run every active skill's test; a skill that no longer passes is archived
@@ -15,7 +16,7 @@ from typing import Any
 
 from ..db import get_db
 from ..geom import geom
-from .store import BUDGET
+from .store import BUDGET, TRADE_OFF_CODES
 
 
 def _strength(m: dict[str, Any]) -> float:
@@ -46,7 +47,8 @@ async def consolidate() -> dict[str, int]:
     for m in rows:
         stale = (now - (m["last_used"] or m["created_at"])) > 60 * 86400 and m["kind"] in ("lesson", "skill")
         failing = m["failures"] >= 3 and m["failures"] > 2 * m["successes"]
-        if stale or failing:
+        trade_off = m["kind"] == "lesson" and m["body"].get("code") in TRADE_OFF_CODES
+        if stale or failing or trade_off:
             await db.update("memory", "id", m["id"], {"status": "archived"})
             stats["archived"] += 1
     for kind in ("lesson", "skill"):

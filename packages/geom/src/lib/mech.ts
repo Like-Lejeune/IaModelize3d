@@ -3,7 +3,7 @@ import type { CrossSection, Manifold, Wasm } from '../kernel.ts';
 
 type V2 = [number, number];
 
-export function makeMech(wasm: Wasm, fit: (kind: any) => number) {
+export function makeMech(wasm: Wasm, fit: (kind: any) => number, lineWidth = 0.42) {
   const { Manifold: M, CrossSection: CS } = wasm;
 
   // Spur gear outline (module m, z teeth), centred at the origin.
@@ -91,13 +91,17 @@ export function makeMech(wasm: Wasm, fit: (kind: any) => number) {
   };
 
   // Cantilever snap hook in the XZ plane, extruded along Y. Hook tip at x = length.
-  const snapHook = (o: { length: number; thickness: number; width: number; overhang?: number; lead?: number }) => {
+  // The lead-in ramp stops where it is still tipMin thick (default two lines): a knife-edge tip
+  // prints as a sliver the slicer drops (too_thin).
+  const snapHook = (o: { length: number; thickness: number; width: number; overhang?: number; lead?: number; tipMin?: number }) => {
     const L = o.length;
     const t = o.thickness;
     const h = o.overhang ?? t * 0.8;
     const lead = o.lead ?? h * 1.5;
+    const tip = Math.max(0.01, Math.min(o.tipMin ?? 2 * lineWidth, 0.6 * (t + h)));
+    const xTip = L + lead * (1 - tip / (t + h));
     const profile: V2[] = [
-      [0, 0], [L, 0], [L + lead, 0], [L + lead, 0.01], [L, t + h], [L - h * 0.6, t + h], [L - h * 0.6, t], [0, t],
+      [0, 0], [L, 0], [xTip, 0], [xTip, tip], [L, t + h], [L - h * 0.6, t + h], [L - h * 0.6, t], [0, t],
     ];
     return new CS([profile], 'NonZero').extrude(o.width).rotate([90, 0, 0]).translate([0, o.width / 2, 0]);
   };

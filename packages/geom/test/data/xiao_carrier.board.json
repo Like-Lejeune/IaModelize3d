@@ -1,0 +1,565 @@
+{
+ "schema": "fw.board/1",
+ "id": "pcb-xiao-carrier",
+ "name": "XIAO ESP32-C3 carrier v1",
+ "aliases": [
+  "carrier board for XIAO ESP32-C3"
+ ],
+ "source": {
+  "kind": "pcb",
+  "pcb_job": "pcb:v1"
+ },
+ "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side; x right, y up, z up from the PCB bottom face. Component z values are heights above the face they sit on.",
+ "uncertainty_mm": 0,
+ "pcb": {
+  "outline": {
+   "kind": "rect",
+   "w": 44,
+   "h": 36,
+   "r": 0
+  },
+  "thickness": 1.6,
+  "holes": [
+   {
+    "x": 3.5,
+    "y": 32.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount"
+   },
+   {
+    "x": 40.5,
+    "y": 32.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount"
+   },
+   {
+    "x": 3.5,
+    "y": 3.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount"
+   },
+   {
+    "x": 40.5,
+    "y": 3.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount"
+   },
+   {
+    "x": 14.38,
+    "y": 17.88,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 14.38,
+    "y": 20.42,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 14.38,
+    "y": 22.96,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 14.38,
+    "y": 25.5,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 14.38,
+    "y": 28.04,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 14.38,
+    "y": 30.58,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 14.38,
+    "y": 33.12,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 29.62,
+    "y": 17.88,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 29.62,
+    "y": 20.42,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 29.62,
+    "y": 22.96,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 29.62,
+    "y": 25.5,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 29.62,
+    "y": 28.04,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 29.62,
+    "y": 30.58,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 29.62,
+    "y": 33.12,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 41.5,
+    "y": 18.19,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 41.5,
+    "y": 20.73,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 41.5,
+    "y": 23.27,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 41.5,
+    "y": 25.81,
+    "d": 1.0,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 6.75,
+    "y": 8.75,
+    "d": 1.1,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 6.75,
+    "y": 13.25,
+    "d": 1.1,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 13.25,
+    "y": 8.75,
+    "d": 1.1,
+    "plated": true,
+    "use": "pin"
+   },
+   {
+    "x": 13.25,
+    "y": 13.25,
+    "d": 1.1,
+    "plated": true,
+    "use": "pin"
+   }
+  ]
+ },
+ "components": [
+  {
+   "id": "J1",
+   "type": "usb_c",
+   "side": "top",
+   "access": "port",
+   "edge": "-y",
+   "at": 22.005,
+   "w": 10.35,
+   "h": 3.26,
+   "d": 8.4,
+   "z0": 0,
+   "protrude": -0.02,
+   "plug": [
+    12.4,
+    6.5
+   ],
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "J1",
+    "footprint": "usbcmidmount"
+   },
+   "note": "courtyard box; plug overmold from typical usb_c"
+  },
+  {
+   "id": "U1",
+   "type": "xiao_esp32c3",
+   "side": "top",
+   "access": "none",
+   "x": 22.0,
+   "y": 25.5,
+   "w": 17.8,
+   "d": 21,
+   "z0": 2.5,
+   "h": 1.2,
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm"
+   },
+   "note": "Seeed XIAO ESP32-C3 module PCB on 2.5 mm header spacers (modules.json seat)"
+  },
+  {
+   "id": "U1_hdr_l",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 14.38,
+   "y": 25.5,
+   "w": 2.5,
+   "d": 17.78,
+   "h": 2.5,
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm"
+   }
+  },
+  {
+   "id": "U1_hdr_r",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 29.62,
+   "y": 25.5,
+   "w": 2.5,
+   "d": 17.78,
+   "h": 2.5,
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm"
+   }
+  },
+  {
+   "id": "U1_usb",
+   "type": "usb_c",
+   "side": "top",
+   "access": "port",
+   "edge": "+y",
+   "at": 22.0,
+   "w": 8.94,
+   "h": 3.3,
+   "d": 7.3,
+   "z0": 3.7,
+   "protrude": 1.0,
+   "plug": [
+    12.4,
+    6.5
+   ],
+   "verify": [
+    "h",
+    "d",
+    "protrude"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm"
+   },
+   "note": "USB-C of the XIAO itself, z 3.7-7.0 over the carrier"
+  },
+  {
+   "id": "U1_can",
+   "type": "shield",
+   "side": "top",
+   "access": "none",
+   "x": 22.0,
+   "y": 23.5,
+   "w": 13,
+   "d": 12,
+   "h": 1.8,
+   "z0": 3.7,
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm"
+   }
+  },
+  {
+   "id": "U1_boot",
+   "type": "tact_3x4_smd",
+   "side": "top",
+   "access": "press",
+   "x": 16.3,
+   "y": 32.8,
+   "w": 2.5,
+   "d": 3,
+   "h": 1.4,
+   "z0": 3.7,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm"
+   }
+  },
+  {
+   "id": "U1_reset",
+   "type": "tact_3x4_smd",
+   "side": "top",
+   "access": "press",
+   "x": 27.7,
+   "y": 32.8,
+   "w": 2.5,
+   "d": 3,
+   "h": 1.4,
+   "z0": 3.7,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm"
+   }
+  },
+  {
+   "id": "U1_ufl",
+   "type": "ufl",
+   "side": "top",
+   "access": "cable",
+   "x": 15.6,
+   "y": 17.5,
+   "w": 3,
+   "d": 3,
+   "h": 1.25,
+   "z0": 3.7,
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm"
+   }
+  },
+  {
+   "id": "SW1",
+   "type": "tact_6x6",
+   "side": "top",
+   "access": "press",
+   "x": 10.0,
+   "y": 11.0,
+   "w": 7.0,
+   "d": 9.0,
+   "h": 5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "SW1",
+    "footprint": "pushbutton"
+   }
+  },
+  {
+   "id": "LED1",
+   "type": "led_0603",
+   "side": "top",
+   "access": "light",
+   "x": 37.0,
+   "y": 7.0,
+   "w": 1.46,
+   "d": 2.96,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "evidence": {
+    "ref": "LED1",
+    "footprint": "0603_color(green)"
+   }
+  },
+  {
+   "id": "J2",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "cable",
+   "x": 41.5,
+   "y": 22.0,
+   "w": 3.54,
+   "d": 11.16,
+   "h": 8.5,
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "J2",
+    "footprint": "pinrow4_p2.54_nopinlabels"
+   },
+   "note": "I2C header on the +x edge"
+  },
+  {
+   "id": "D1",
+   "type": "sod123",
+   "side": "top",
+   "access": "none",
+   "x": 33.0,
+   "y": 5.0,
+   "w": 2.3,
+   "d": 4.7,
+   "h": 1.35,
+   "evidence": {
+    "ref": "D1",
+    "footprint": "sod123"
+   }
+  },
+  {
+   "id": "R1",
+   "type": "res0603",
+   "side": "top",
+   "access": "none",
+   "x": 16.0,
+   "y": 10.5,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "evidence": {
+    "ref": "R1",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "R2",
+   "type": "res0603",
+   "side": "top",
+   "access": "none",
+   "x": 28.0,
+   "y": 10.5,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "evidence": {
+    "ref": "R2",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "R3",
+   "type": "res0603",
+   "side": "top",
+   "access": "none",
+   "x": 37.0,
+   "y": 12.0,
+   "w": 1.46,
+   "d": 2.96,
+   "h": 0.55,
+   "evidence": {
+    "ref": "R3",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "R4",
+   "type": "res0603",
+   "side": "top",
+   "access": "none",
+   "x": 35.0,
+   "y": 23.0,
+   "w": 1.46,
+   "d": 2.96,
+   "h": 0.55,
+   "evidence": {
+    "ref": "R4",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "R5",
+   "type": "res0603",
+   "side": "top",
+   "access": "none",
+   "x": 35.0,
+   "y": 18.0,
+   "w": 1.46,
+   "d": 2.96,
+   "h": 0.55,
+   "evidence": {
+    "ref": "R5",
+    "footprint": "res0603"
+   }
+  }
+ ],
+ "keepouts": [],
+ "heights": {
+  "top_max": 8.5,
+  "bottom_max": 2,
+  "verify": [
+   "top_max",
+   "bottom_max"
+  ]
+ },
+ "mount": {
+  "preferred": "screw_or_peg",
+  "screw": "M3"
+ }
+}

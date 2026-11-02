@@ -5,6 +5,7 @@ covers exactly its bounds (right/bottom exclusive) and already excludes holes.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Sequence
@@ -15,6 +16,7 @@ import numpy as np
 
 from ..llm.client import CostMeter, meta
 from .common import data_url, encode_png, read_image, write_bytes
+from .maskcodec import decode_mask_to_raster
 
 # SAM can take the stored image as is; keep requests reasonable for very large photos.
 MAX_SAM_SIDE = 4096
@@ -50,16 +52,14 @@ def fit_raster(raster: bytes, mw: int, mh: int, bw: int, bh: int) -> np.ndarray:
 
 def decode(raw: str, width: int, height: int) -> list[Mask]:
     """SAM token text -> full-size masks, highest score first."""
-    boxes: dict[str, float | None] = {}
+    records = _records(raw)  # parsing decodes every mask; once is enough
+    boxes = {r.object_id: r.confidence for r in records if isinstance(r, msp.SegmentationBoxRecord)}
     out: list[Mask] = []
-    for r in _records(raw):
-        if isinstance(r, msp.SegmentationBoxRecord):
-            boxes[r.object_id] = r.confidence
-    for r in _records(raw):
+    for r in records:
         if not isinstance(r, msp.SegmentationMaskRecord):
             continue
         l, t = int(round(r.bounds.left)), int(round(r.bounds.top))
-        box = fit_raster(msp.decode_mask_to_raster(r.mask), r.mask.width, r.mask.height,
+        box = fit_raster(decode_mask_to_raster(r.mask), r.mask.width, r.mask.height,
                          int(round(r.bounds.right)) - l, int(round(r.bounds.bottom)) - t)
         full = np.zeros((height, width), dtype=bool)
         h = min(box.shape[0], height - t)
@@ -119,7 +119,8 @@ async def segment(
         sb = [v * scale for v in box] if box else None
         prompt = object_prompt(sw, sh, sp, sb)
     raw = await meta().sam(meter, data_url(img, quality=93), prompt)
-    masks = decode(raw, sw, sh)
+    # decoding is pure Python: off the event loop, so other requests (and agent runs) keep going
+    masks = await asyncio.to_thread(decode, raw, sw, sh)
     if scale != 1.0:
         for m in masks:
             m.mask = cv2.resize(m.mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0

@@ -52,6 +52,9 @@
     copy: 'ti-copy',
     hammer: 'ti-hammer',
     adapter: 'ti-plug',
+    // printed circuit boards (the PCB tab, the PCB example); Tabler has no board glyph, its chip reads as one
+    cpu: 'ti-cpu',
+    'circuit-board': 'ti-cpu',
     vase: 'ti-bottle',
     landmark: 'ti-building-monument',
     gear: 'ti-settings',

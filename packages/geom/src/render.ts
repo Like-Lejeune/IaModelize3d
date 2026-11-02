@@ -20,6 +20,9 @@ export interface Camera {
 
 export interface RenderOptions {
   colors?: Uint8Array; // rgb per triangle
+  // opacity per triangle, 255 = opaque. Translucent triangles (reference parts) are blended over the
+  // opaque image after it is drawn: they never hide what is behind them, write no depth and get no edges.
+  alpha?: Uint8Array;
   background?: [number, number, number, number];
   edges?: boolean;
   edgeColor?: [number, number, number];
@@ -107,7 +110,11 @@ export function render(mesh: FlatMesh, cam: Camera, opts: RenderOptions = {}): R
     normals.set(n, f * 3);
     shade[f] = 0.32 + 0.68 * Math.abs(n[0] * L[0] + n[1] * L[1] + n[2] * L[2]);
   }
+  const alpha = opts.alpha;
+  for (let pass = 0; pass < (alpha ? 2 : 1); pass++)
   for (let f = 0; f < nTri; f++) {
+    const op = alpha ? alpha[f] / 255 : 1;
+    if ((pass === 0) !== (op >= 1)) continue;
     const a = I[f * 3], b = I[f * 3 + 1], c = I[f * 3 + 2];
     if (!cam.ortho && (sz[a] <= 1e-3 || sz[b] <= 1e-3 || sz[c] <= 1e-3)) continue;
     const x0 = sx[a], y0 = sy[a], x1 = sx[b], y1 = sy[b], x2 = sx[c], y2 = sy[c];
@@ -135,6 +142,13 @@ export function render(mesh: FlatMesh, cam: Camera, opts: RenderOptions = {}): R
         const zc = cam.ortho ? iz : 1 / iz;
         const k = py * W + px;
         if (zc >= depth[k]) continue;
+        if (pass === 1) {
+          rgba[k * 4] += (cr * s - rgba[k * 4]) * op;
+          rgba[k * 4 + 1] += (cg * s - rgba[k * 4 + 1]) * op;
+          rgba[k * 4 + 2] += (cb * s - rgba[k * 4 + 2]) * op;
+          rgba[k * 4 + 3] = Math.max(rgba[k * 4 + 3], op * 255);
+          continue;
+        }
         depth[k] = zc;
         ids[k] = f;
         rgba[k * 4] = cr * s;
@@ -250,7 +264,7 @@ export const SHEET_VIEWS: SheetView[] = [
 
 // 3x2 sheet of orthographic views with labels, size and a 10 mm scale bar.
 // `size` labels the model's real size when bbox only frames a close-up.
-export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { tile?: number; colors?: Uint8Array; views?: SheetView[]; title?: string; size?: number[]; markers?: Marker[] } = {}) {
+export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { tile?: number; colors?: Uint8Array; alpha?: Uint8Array; views?: SheetView[]; title?: string; size?: number[]; markers?: Marker[] } = {}) {
   const tile = opts.tile ?? 360;
   const views = opts.views ?? SHEET_VIEWS;
   const cols = Math.min(3, views.length);
@@ -260,7 +274,7 @@ export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { 
   for (let i = 0; i < W * H; i++) img.set([246, 246, 243, 255], i * 4);
   views.forEach((v, idx) => {
     const cam = orthoFit(v.dir, bbox, tile, tile, 0.12);
-    const r = render(mesh, cam, { colors: opts.colors, background: [246, 246, 243, 255] });
+    const r = render(mesh, cam, { colors: opts.colors, alpha: opts.alpha, background: [246, 246, 243, 255] });
     const ox = (idx % cols) * tile, oy = Math.floor(idx / cols) * tile;
     for (let y = 0; y < tile; y++) img.set(r.rgba.subarray(y * tile * 4, (y + 1) * tile * 4), ((oy + y) * W + ox) * 4);
     drawText(img, W, H, v.name, ox + 8, oy + 18, 12, [90, 90, 90]);

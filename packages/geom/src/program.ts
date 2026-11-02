@@ -35,7 +35,9 @@ export type Handle =
   | { type: 'angle'; param: string; center: Vec3; axis: Vec3; at: Vec3; label?: string }
   | { type: 'point'; params: [string, string]; at: Vec3; plane: 'xy' | 'xz' | 'yz'; label?: string };
 
-export type PartRole = 'model' | 'modifier' | 'negative' | 'support_blocker' | 'support_enforcer';
+// 'reference': something the model is built around (the board inside a case). Never exported or
+// sliced, not in the checks or stats; renders and the viewer draw it translucent.
+export type PartRole = 'model' | 'modifier' | 'negative' | 'support_blocker' | 'support_enforcer' | 'reference';
 
 export interface Part {
   name: string;
@@ -44,6 +46,8 @@ export interface Part {
   color?: string;
   material?: string;
   settings?: Record<string, string | number | boolean>;
+  // data for the engine's own checks (lib.elec puts the board id and the case report on its ghost)
+  meta?: Record<string, any>;
 }
 
 export interface ProgramMeta {
@@ -68,6 +72,12 @@ export type ParamValues = Record<string, number | string | boolean>;
 export interface Evaluator {
   compile(source: string): Program;
   call<T>(fn: () => T): T;
+  // Rebuild plain data as objects of the program's own realm. On the server the program runs in a
+  // separate `vm` realm, so a main-realm params object would hand the program a bridge to main-realm
+  // intrinsics (p.constructor.constructor('return process')()); cloned into the vm realm, that chain
+  // reaches only the sandbox (no process, string codegen disabled). The browser has one realm, so it
+  // is the identity there. Only JSON-safe data (resolveParams output) is ever passed through it.
+  realmClone?<T>(data: T): T;
 }
 
 export class ProgramError extends Error {
@@ -140,6 +150,7 @@ function normalizeParts(result: unknown, wasm: Wasm): Part[] {
         color: item.color,
         material: item.material,
         settings: item.settings,
+        meta: item.meta,
       });
     } else {
       throw new ProgramError('result', `build returned ${typeof item}; expected a Manifold or lib.part(...)`);
@@ -159,11 +170,13 @@ export function buildProgram(
   ctx: LibContext,
 ): BuildOutput {
   const params = resolveParams(program, overrides);
+  // Hand the program a copy of its params made in its own realm (see Evaluator.realmClone).
+  const realm = <T>(data: T): T => (evaluator.realmClone ? evaluator.realmClone(data) : data);
   return withDetail(wasm, ctx.quality === 'preview' ? PREVIEW_FACTOR : 1, () => withArena((keep) => {
     const lib = makeLib(wasm, ctx);
     let result: unknown;
     try {
-      result = evaluator.call(() => program.build({ ...params }, lib));
+      result = evaluator.call(() => program.build(realm({ ...params }), lib));
     } catch (e: any) {
       throw new ProgramError('build', e?.message ?? String(e));
     }
@@ -187,7 +200,7 @@ export function buildProgram(
     let handles: Handle[] = [];
     if (program.handles) {
       try {
-        handles = evaluator.call(() => program.handles!({ ...params })) ?? [];
+        handles = evaluator.call(() => program.handles!(realm({ ...params }))) ?? [];
       } catch {
         handles = [];
       }

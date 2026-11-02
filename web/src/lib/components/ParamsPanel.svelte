@@ -1,7 +1,8 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
   import SourceBadge from './SourceBadge.svelte';
-  import { t, unitLabel } from '$lib/i18n.svelte';
+  import { i18n, t, unitLabel } from '$lib/i18n.svelte';
+  import { paramGroup, paramLabel, paramOption } from '$lib/paramtext';
   import type { ParamSpec } from '$lib/types';
 
   let {
@@ -20,16 +21,20 @@
 
   let legend = $state(false);
 
+  // groups by the heading shown, so 'Shape' and 'Form' (both 'Форма') make one section; `orig` is the program's word
   const groups = $derived.by(() => {
-    const out = new Map<string, [string, ParamSpec][]>();
+    const out = new Map<string, { orig: string; items: [string, ParamSpec][] }>();
     for (const [name, spec] of Object.entries(specs ?? {})) {
       if (spec.hidden) continue;
       const g = spec.group ?? '';
-      if (!out.has(g)) out.set(g, []);
-      out.get(g)!.push([name, spec]);
+      const shown = paramGroup(g, i18n.lang);
+      if (!out.has(shown)) out.set(shown, { orig: g, items: [] });
+      out.get(shown)!.items.push([name, spec]);
     }
     return [...out.entries()];
   });
+  /** The original English as a tooltip, only where the panel shows something else. */
+  const orig = (shown: string, raw: string) => (shown !== raw ? raw : undefined);
 
   const sources = $derived([...new Set(Object.values(specs ?? {}).map((s) => (s.source === 'request' ? 'user' : s.source)).filter(Boolean))] as string[]);
 
@@ -56,14 +61,16 @@
       {#if !building}<p class="muted small">{t('no_program_hint')}</p>{/if}
     </div>
   {:else}
-    {#each groups as [group, items] (group)}
+    {#each groups as [group, { orig: groupRaw, items }] (group)}
       <section>
-        {#if group}<h4 class="section-title">{group}</h4>{/if}
+        {#if group}<h4 class="section-title" title={orig(group, groupRaw)}>{group}</h4>{/if}
         {#each items as [name, s] (name)}
           {@const k = kind(s)}
+          {@const raw = s.label ?? name}
+          {@const label = paramLabel(raw, i18n.lang)}
           <div class="param" class:changed={changed(name)}>
             <div class="head">
-              <label for="p-{name}">{s.label ?? name}</label>
+              <label for="p-{name}" title={orig(label, raw) ?? label}>{label}</label>
               <SourceBadge source={s.source} />
               <span class="spacer"></span>
               {#if changed(name)}
@@ -73,7 +80,7 @@
                 <input
                   class="num mono"
                   type="number"
-                  aria-label="{s.label ?? name}"
+                  aria-label={label}
                   min={s.min}
                   max={s.max}
                   step={step(s)}
@@ -96,20 +103,21 @@
                   onchange={(e) => onChange(name, Number((e.currentTarget as HTMLInputElement).value), true)}
                 />
                 {#if k === 'seed'}
-                  <button class="btn small icon" aria-label="random" onclick={() => onChange(name, Math.floor(Math.random() * ((s.max ?? 9999) - (s.min ?? 0))) + (s.min ?? 0), true)}><Icon name="refresh" size={14} /></button>
+                  <button class="btn small icon" aria-label={t('random_value')} title={t('random_value')} onclick={() => onChange(name, Math.floor(Math.random() * ((s.max ?? 9999) - (s.min ?? 0))) + (s.min ?? 0), true)}><Icon name="refresh" size={14} /></button>
                 {/if}
               </div>
             {:else if k === 'bool'}
-              <label class="toggle"><input id="p-{name}" type="checkbox" checked={!!values[name]} onchange={(e) => onChange(name, (e.currentTarget as HTMLInputElement).checked, true)} /> <span class="small">{values[name] ? 'on' : 'off'}</span></label>
+              <label class="toggle"><input id="p-{name}" type="checkbox" checked={!!values[name]} onchange={(e) => onChange(name, (e.currentTarget as HTMLInputElement).checked, true)} /> <span class="small">{values[name] ? t('bool_on') : t('bool_off')}</span></label>
             {:else if k === 'choice' && s.options}
-              <div class="choices" role="radiogroup" aria-label={s.label ?? name}>
+              <div class="choices" role="radiogroup" aria-label={label}>
                 {#if s.options.length <= 4}
                   {#each s.options as o (o)}
-                    <button class="chip opt" class:on={values[name] === o} role="radio" aria-checked={values[name] === o} onclick={() => onChange(name, o, true)}>{o}</button>
+                    {@const ol = paramOption(o, i18n.lang)}
+                    <button class="chip opt" class:on={values[name] === o} role="radio" aria-checked={values[name] === o} title={orig(ol, o)} onclick={() => onChange(name, o, true)}>{ol}</button>
                   {/each}
                 {:else}
                   <select id="p-{name}" value={values[name]} onchange={(e) => onChange(name, (e.currentTarget as HTMLSelectElement).value, true)}>
-                    {#each s.options as o (o)}<option value={o}>{o}</option>{/each}
+                    {#each s.options as o (o)}<option value={o}>{paramOption(o, i18n.lang)}</option>{/each}
                   </select>
                 {/if}
               </div>
@@ -179,9 +187,12 @@
     font-size: var(--text-card-from);
     color: var(--on-surface);
     font-weight: var(--font-weight-semibold);
+    /* two lines before it is cut: 'Gap around the board' fits a narrow column */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     min-width: 0;
   }
   .num {

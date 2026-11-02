@@ -28,7 +28,11 @@ export interface CheckStats {
   triangles: number;
   bodies: number;
   firstLayerArea: number;
+  // print layers at the printer's layer height
   layers?: number;
+  // slices the mini-slicer walked (full level), one every sliceStep mm: fewer than the layers on tall parts
+  slicesChecked?: number;
+  sliceStep?: number;
   estGrams: number;
   estMinutes: number;
 }
@@ -89,8 +93,19 @@ function issue(code: string, severity: Severity, message: string, extra: Partial
   return { code, severity, message: message || RULES[code]?.title || code, hints: hintsFor(code), ...extra };
 }
 
-export function triangleHeat(body: Manifold, printer: PrinterProfile): { heat: Float32Array; overhangArea: number; lowestZ: number } {
-  const mesh = body.getMesh();
+export interface HeatMesh {
+  vertProperties: ArrayLike<number>;
+  numProp: number;
+  triVerts: ArrayLike<number>;
+}
+
+export function triangleHeat(body: Manifold, printer: PrinterProfile, floor = 0) {
+  return meshHeat(body.getMesh(), printer, floor);
+}
+
+// Per-triangle overhang heat of a mesh already extracted (manifold's getMesh(), or a flat
+// render mesh with numProp 3). Faces within 1.5 layers of `floor` rest on the bed.
+export function meshHeat(mesh: HeatMesh, printer: PrinterProfile, floor = 0): { heat: Float32Array; overhangArea: number; lowestZ: number } {
   const P = mesh.vertProperties;
   const np = mesh.numProp;
   const T = mesh.triVerts;
@@ -107,7 +122,7 @@ export function triangleHeat(body: Manifold, printer: PrinterProfile): { heat: F
     const len = Math.hypot(nx, ny, nz) || 1;
     const zmin = Math.min(P[a + 2], P[b + 2], P[c + 2]);
     const down = -nz / len;
-    if (down > lim && zmin > printer.layer * 1.5) {
+    if (down > lim && zmin - floor > printer.layer * 1.5) {
       heat[i] = Math.min(1, (down - lim) / (1 - lim) + 0.25);
       area += len / 2;
       lowestZ = Math.min(lowestZ, zmin);
@@ -126,6 +141,24 @@ function contourLength(cs: CrossSection): number {
     }
   }
   return total;
+}
+
+// Narrowest width of a section's convex hull: the largest distance from each hull edge,
+// minimised over the edges (rotating calipers, done plainly).
+function minWidth(cs: CrossSection): number {
+  if (cs.isEmpty()) return 0;
+  const hull = cs.hull().toPolygons()[0] ?? [];
+  let best = Infinity;
+  for (let i = 0; i < hull.length; i++) {
+    const [x0, y0] = hull[i];
+    const [x1, y1] = hull[(i + 1) % hull.length];
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    if (len < 1e-9) continue;
+    let far = 0;
+    for (const [x, y] of hull) far = Math.max(far, Math.abs((x1 - x0) * (y - y0) - (y1 - y0) * (x - x0)) / len);
+    best = Math.min(best, far);
+  }
+  return Number.isFinite(best) ? best : 0;
 }
 
 // Merges per-layer findings that overlap in XY on consecutive layers into one issue.
@@ -167,17 +200,20 @@ export function analyze(wasm: Wasm, body: Manifold, printer: PrinterProfile, opt
       issues.push(issue('exceeds_bed', 'error', `size ${size.map((v) => v.toFixed(1)).join(' x ')} mm vs bed ${bx} x ${by} x ${bz}`, { value: Math.max(...size) }));
     }
 
-    const first = body.slice(Math.min(printer.layer / 2, size[2] / 2));
+    // from the body's own base: keepPosition programs need not rest at z = 0
+    const first = body.slice(box.min[2] + Math.min(printer.layer / 2, size[2] / 2));
     const firstLayerArea = first.area();
     if (firstLayerArea < 30 && volume > 200) {
       issues.push(issue('small_contact', 'warn', `first layer only ${firstLayerArea.toFixed(1)} mm²`, { value: firstLayerArea, limit: 30 }));
     }
-    const footprint = Math.sqrt(Math.max(firstLayerArea, 1e-6));
+    // A part tips across the narrowest width of what it stands on, not across sqrt(area):
+    // a thin ring under a lamp shade is a wide base.
+    const footprint = Math.max(minWidth(first), 1e-3);
     if (size[2] / footprint > 6 && size[2] > 40) {
       issues.push(issue('tip_over', 'warn', `height/base ratio ${(size[2] / footprint).toFixed(1)}`, { value: size[2] / footprint, limit: 6 }));
     }
 
-    const { heat, overhangArea, lowestZ } = triangleHeat(body, printer);
+    const { heat, overhangArea, lowestZ } = triangleHeat(body, printer, box.min[2]);
     if (level === 'fast' && overhangArea > 20) {
       issues.push(issue('overhang', 'warn', `${overhangArea.toFixed(0)} mm² of surface steeper than ${printer.maxOverhang}°`, { value: overhangArea, z: [lowestZ, lowestZ] }));
     }
@@ -190,21 +226,28 @@ export function analyze(wasm: Wasm, body: Manifold, printer: PrinterProfile, opt
     const estGrams = (extruded * density) / 1000;
     const estMinutes = extruded / 8 / 60 + size[2] / printer.layer * 0.05;
 
-    let layers: number | undefined;
+    const layers = Math.ceil(size[2] / printer.layer - 1e-6);
+    let slicesChecked: number | undefined;
+    let sliceStep: number | undefined;
     if (level === 'full' && status === 'NoError' && volume > 0) {
       const maxLayers = opts.maxLayers ?? 320;
       const step = Math.max(printer.layer, size[2] / maxLayers);
       const reach = step * Math.tan((printer.maxOverhang * Math.PI) / 180);
       const lw = printer.lineWidth;
       const minArea = Math.max(0.6, 4 * lw * lw);
+      // A speck smaller than one bead (a relief grazing the slice plane) is not printed and holds
+      // nothing up: it is no island, and it does not count as support for the slice above, so a
+      // real island that starts as a speck is still found where it grows.
+      const minIsland = lw * lw;
       const acc = new RegionAccumulator();
       let prev: CrossSection | null = null;
       let sawEmptyAfterSolid = false;
-      layers = 0;
+      slicesChecked = 0;
+      sliceStep = step;
       for (let z = box.min[2] + step / 2; z < box.max[2]; z += step) {
-        layers++;
+        slicesChecked++;
         const cs = body.slice(z);
-        if (cs.isEmpty()) {
+        if (cs.isEmpty() || (sawEmptyAfterSolid && cs.area() < minIsland)) {
           if (prev) sawEmptyAfterSolid = true;
           prev = null;
           continue;
@@ -234,13 +277,15 @@ export function analyze(wasm: Wasm, body: Manifold, printer: PrinterProfile, opt
           const b = piece.bounds();
           acc.add('thin_wall', z, step, { min: b.min as [number, number], max: b.max as [number, number] }, piece.area());
         }
+        const specks: CrossSection[] = [];
         if (prev && z > printer.layer * 2) {
           const supported = prev.offset(reach + 0.01, 'Round');
           for (const comp of cs.decompose()) {
             const b = comp.bounds();
             const bb = { min: b.min as [number, number], max: b.max as [number, number] };
             if (comp.intersect(prev).area() < 1e-3) {
-              acc.add('floating_island', z, step, bb, comp.area());
+              if (comp.area() < minIsland) specks.push(comp);
+              else acc.add('floating_island', z, step, bb, comp.area());
               continue;
             }
             const unsupported = comp.subtract(supported);
@@ -269,10 +314,12 @@ export function analyze(wasm: Wasm, body: Manifold, printer: PrinterProfile, opt
           const b = cs.bounds();
           acc.add('short_layer_time', z, step, { min: b.min as [number, number], max: b.max as [number, number] }, area, layerTime);
         }
-        prev = cs;
+        prev = specks.length ? cs.subtract(wasm.CrossSection.union(specks)) : cs;
       }
+      // A region in mid-air prints on supports (the print profile turns them on), so it is a
+      // trade-off to weigh, not a defect that blocks the design.
       const severityOf: Record<string, Severity> = {
-        floating_island: 'error',
+        floating_island: 'warn',
         too_thin: 'error',
         fine_detail: 'info',
         thin_wall: 'warn',
@@ -281,9 +328,11 @@ export function analyze(wasm: Wasm, body: Manifold, printer: PrinterProfile, opt
         vase_incompatible: 'error',
         short_layer_time: 'info',
       };
+      // A thin ring in a single slice is where a flat floor or a fillet meets the slice plane
+      // (meshed surfaces are not exactly level), not a wall: walls go up through several slices.
       const ranked = acc.regions
-        .filter((r) => !(r.code === 'overhang' && r.area < minArea * 3) && !(r.code === 'fine_detail' && r.area < minArea * 20))
-        .sort((a, b) => (severityOf[a.code] === 'error' ? 0 : 1) - (severityOf[b.code] === 'error' ? 0 : 1) || b.area - a.area)
+        .filter((r) => !(r.code === 'overhang' && r.area < minArea * 3) && !(r.code === 'fine_detail' && r.area < minArea * 20) && !(r.code === 'thin_wall' && r.z1 === r.z0))
+        .sort((a, b) => RANK[severityOf[a.code] ?? 'warn'] - RANK[severityOf[b.code] ?? 'warn'] || b.area - a.area)
         .slice(0, 12);
       for (const r of ranked) {
         const where = `z ${r.z0.toFixed(1)}–${r.z1.toFixed(1)} mm, x ${r.min[0].toFixed(0)}..${r.max[0].toFixed(0)}, y ${r.min[1].toFixed(0)}..${r.max[1].toFixed(0)}`;
@@ -320,6 +369,8 @@ export function analyze(wasm: Wasm, body: Manifold, printer: PrinterProfile, opt
         bodies,
         firstLayerArea,
         layers,
+        slicesChecked,
+        sliceStep,
         estGrams,
         estMinutes,
       },

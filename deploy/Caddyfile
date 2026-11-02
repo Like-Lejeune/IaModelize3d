@@ -1,0 +1,22 @@
+# Caddy in front of Formwright (compose.yaml): a Let's Encrypt certificate for FW_DOMAIN, http:// redirected to
+# https://, and every request passed to the API on 127.0.0.1:8000. Caddy replaces whatever X-Forwarded-For a visitor
+# sends with the address it sees and sets X-Forwarded-Proto, which is what the API expects with FW_PROXY_HOPS=1.
+{$FW_DOMAIN} {
+	# the studio's work log is a server-sent event stream (GET /api/projects/<id>/events): compressing it would hold
+	# events back until a buffer fills, so it goes out as it is
+	@compress not path_regexp ^/api/projects/[^/]+/events$
+	encode @compress zstd gzip
+
+	reverse_proxy 127.0.0.1:8000 {
+		# write each event to the browser the moment the API sends it
+		flush_interval -1
+	}
+
+	# ? sets a default only: the API's own headers win (the sign-in page sends Referrer-Policy no-referrer)
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		?X-Content-Type-Options nosniff
+		?Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

@@ -1,9 +1,11 @@
 <script lang="ts">
   // One agent run as plain chat: what the agent says reads as text, its work folds into step groups.
   import Icon from './Icon.svelte';
+  import ModelStrip from './ModelStrip.svelte';
+  import ResultCard from './ResultCard.svelte';
   import StepRow from './StepRow.svelte';
   import { markdown } from '$lib/md';
-  import { t, fmtMinutes } from '$lib/i18n.svelte';
+  import { t, fmtDuration, fmtMinutes } from '$lib/i18n.svelte';
   import { callTitle, groupSummary, isSystemStatus } from '$lib/steps';
   import type { JobInfo, ProjectStore, TimelineItem } from '$lib/project.svelte';
 
@@ -32,9 +34,15 @@
   let free = $state<Record<string, string>>({});
   let opened = $state<Record<string, boolean>>({});
   let copied = $state<string | null>(null);
+  let reasoning = $state(false);
 
   const active = $derived(job.status === 'running' || job.status === 'waiting');
   const stoppedEarly = $derived(job.status === 'failed' || job.status === 'budget' || job.status === 'cancelled');
+  const stopping = $derived(store.stopping && store.jobId === job.id);
+  // the model's reasoning summaries, folded into one group per run
+  const thoughts = $derived(items.filter((i): i is Extract<TimelineItem, { kind: 'thinking' }> => i.kind === 'thinking' && !!i.text.trim()));
+  // one plain line of the latest summary for the live line
+  const thought = $derived(job.thought ? job.thought.replace(/[*_`#>]+/g, '').replace(/\s+/g, ' ').trim() : '');
 
   const blocks = $derived.by(() => {
     const out: Block[] = [];
@@ -60,6 +68,13 @@
   const busyStep = $derived(tail?.type === 'group' && tail.items.some((i) => i.kind === 'tool' && !i.result));
   const showLive = $derived(active && job.status !== 'waiting' && !busyStep);
   const hasModel = $derived(!!store.source);
+  // a crash ends the run without a closing message: the server's calm line with the error id is all there is.
+  // Older servers stored the raw exception there, so only that line (and the deadline stop) is shown.
+  const stopNote = $derived.by(() => {
+    const s = job.status === 'failed' ? (job.summary ?? '').trim() : '';
+    if (s === 'took too long; the latest version is kept') return t('job_too_long');
+    return /(Error id|Код ошибки): e_\w+/.test(s) ? s : null;
+  });
   const suggestions = $derived(
     hasModel
       ? [t('suggest_stronger'), t('suggest_lighter'), t('suggest_round'), t('suggest_explain')].map((s) => ({ label: s, text: s, send: true }))
@@ -77,7 +92,7 @@
   function groupLabel(g: TimelineItem[]): { text: string; live: boolean } {
     const busy = g.find((i) => i.kind === 'tool' && !i.result) as Extract<TimelineItem, { kind: 'tool' }> | undefined;
     if (busy) return { text: callTitle(busy.name, busy.args, busy.title), live: true };
-    return { text: groupSummary(g as { kind: string; tkind?: string }[]), live: false };
+    return { text: groupSummary(g as { kind: string; tkind?: string; name?: string }[]), live: false };
   }
 
   async function copy(key: string, text: string) {
@@ -97,6 +112,21 @@
 </script>
 
 <section class="turn" aria-label={t(`job_${job.kind}`)}>
+  {#if thoughts.length}
+    <div class="group">
+      <button class="ghead" onclick={() => (reasoning = !reasoning)} aria-expanded={reasoning}>
+        <Icon name="brain" size={13} />
+        <span class="glabel">{t('reasoning_summary')} · {thoughts.length}</span>
+        <span class="chev" class:open={reasoning}><Icon name="chevron" size={12} /></span>
+      </button>
+      {#if reasoning}
+        <div class="gbox thoughts">
+          {#each thoughts as th (th.key)}<div class="md">{@html markdown(th.text)}</div>{/each}
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   {#each blocks as b, i (b.key)}
     {#if b.type === 'text'}
       <div class="say md">{@html markdown(b.text)}</div>
@@ -179,21 +209,44 @@
           <button class="btn small ghost" onclick={() => onAction('probe')}>{t('print')} →</button>
         </div>
       {:else if it.kind === 'error'}
-        <p class="err small"><Icon name="alert" size={14} /> {it.text}</p>
+        <p class="err small">
+          <Icon name="alert" size={14} />
+          <span>{it.text}{#if it.code === 'job_running' && it.projectId && it.projectId !== store.id}&nbsp;<a href="/p/{it.projectId}">{t('open_blocking')}</a>{/if}</span>
+        </p>
       {/if}
     {/if}
   {/each}
 
-  {#if showLive}<div class="live shimmer" aria-live="polite">{t('agent_thinking')}</div>{/if}
-
-  {#if stoppedEarly}
-    <div class="stopped small">
-      <span>{job.status === 'budget' ? t('budget_hint') : t('retry_hint')}</span>
-      <button class="btn small" onclick={() => store.continueJob()} disabled={store.running || store.replaying}><Icon name="play" size={12} /> {t('continue')}</button>
+  {#if showLive}
+    <div class="live" aria-live="polite">
+      {#if stopping}
+        <span class="shimmer">{t('stopping')}</span>
+      {:else if thought}
+        <span class="shimmer lbl">{t('reasoning_summary')}</span>
+        <span class="thought" title={thought}>{thought}</span>
+      {:else}
+        <span class="shimmer">{t('agent_thinking')}</span>
+      {/if}
+      {#if job.wait?.seconds && !stopping}<span class="secs">{fmtDuration(job.wait.seconds)}</span>{/if}
     </div>
   {/if}
 
-  {#if last && !active && !store.running && !store.replaying}
+  {#if job.result && !active}<ResultCard result={job.result} {onAction} {onZoom} readonly={store.readonly} />{/if}
+
+  <!-- a visitor's studio (someone else's run) offers no next turn: Remix is theirs to take -->
+  {#if stoppedEarly && last && !store.running && !store.readonly}
+    <div class="stopped small">
+      <!-- with no model yet there is no version to keep -->
+      <span>{stopNote ?? (job.status === 'budget' ? t('budget_hint') : hasModel ? t('retry_hint') : t('retry_hint_new'))}</span>
+      <button class="btn small" onclick={() => store.continueJob()} disabled={store.running || store.replaying}><Icon name="play" size={12} /> {t('continue')}</button>
+    </div>
+  {:else if stoppedEarly}
+    <div class="stopped xs">{stopNote ?? t('job_stopped_old')}</div>
+  {/if}
+
+  {#if !active && job.cost}<ModelStrip cost={job.cost} />{/if}
+
+  {#if last && !active && !store.running && !store.replaying && !store.readonly}
     <div class="chips" role="group">
       {#each suggestions as s (s.label)}<button class="chip sbtn" onclick={() => suggest(s)}>{s.label}</button>{/each}
     </div>
@@ -283,8 +336,38 @@
     overflow: hidden;
   }
   .live {
-    width: fit-content;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
     font-size: var(--text-card-from);
+  }
+  .live .lbl,
+  .secs {
+    flex: none;
+  }
+  .thought {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--on-surface-var);
+  }
+  .secs {
+    color: var(--outline);
+    font-variant-numeric: tabular-nums;
+  }
+  .thoughts {
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 360px;
+    overflow-y: auto;
+    font-size: var(--text-card-from);
+    line-height: 1.5;
+    color: var(--on-surface-var);
+    overflow-wrap: anywhere;
   }
   .ask {
     background: var(--surface);
@@ -357,6 +440,10 @@
     align-items: center;
     flex-wrap: wrap;
     color: var(--outline);
+  }
+  .err a {
+    color: inherit;
+    font-weight: var(--font-weight-semibold);
   }
   .chips {
     display: flex;

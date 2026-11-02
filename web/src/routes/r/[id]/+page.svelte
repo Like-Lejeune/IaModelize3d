@@ -7,10 +7,12 @@
   import ParamsPanel from '$lib/components/ParamsPanel.svelte';
   import ChecksPanel from '$lib/components/ChecksPanel.svelte';
   import GetItPanel from '$lib/components/GetItPanel.svelte';
+  import ModelStrip from '$lib/components/ModelStrip.svelte';
   import { ProjectStore } from '$lib/project.svelte';
   import { api, errorText } from '$lib/api';
-  import { t } from '$lib/i18n.svelte';
-  import type { Issue } from '$lib/types';
+  import { streamEvents } from '$lib/sse';
+  import { t, isText, projectTitle } from '$lib/i18n.svelte';
+  import type { Issue, JobCost } from '$lib/types';
 
   let store = $state<ProjectStore | null>(null);
   let selectedIssue = $state<Issue | null>(null);
@@ -24,12 +26,38 @@
     return () => s.dispose();
   });
 
+  // a case around a board or a PCB has views this page lacks (the PCB tab, the check against the board, its rays);
+  // the studio shows them read-only to a visitor, so a shared link to one opens there
+  $effect(() => {
+    const s = store;
+    if (!s?.detail) return;
+    if (s.detail.pack === 'pcb' || s.detail.pack === 'enclosure' || s.pcb.versions.length > 0 || /lib\.elec|\bE\.enclosure\(|inputs\.boards/.test(s.source ?? ''))
+      goto(`/p/${s.id}`, { replaceState: true });
+  });
+
+  // the Meta models behind this recipe: what each finished job spent, read once from its public event log
+  let costs = $state<JobCost[]>([]);
+  $effect(() => {
+    const d = store?.detail;
+    if (!d?.last_seq) return;
+    const last = d.last_seq;
+    const found: JobCost[] = [];
+    const es = streamEvents(d.id, 0, (e) => {
+      if (e.type === 'job.finished' && e.data?.cost) found.push(e.data.cost);
+      if (e.seq >= last) {
+        costs = found;
+        es.close();
+      }
+    });
+    return () => es.close();
+  });
+
   let watching = $state(false);
   async function watch() {
     if (!store) return;
     watching = true;
     try {
-      const p = await api.replay(store.id, 4);
+      const p = await api.replay(store.id, 8);
       goto(`/p/${p.id}`);
     } catch (e) {
       error = errorText(e);
@@ -48,14 +76,15 @@
   }
 </script>
 
-<svelte:head><title>{store?.detail?.title ?? t('recipe')} · Formwright</title></svelte:head>
+<svelte:head><title>{store?.detail ? projectTitle(store.detail.title) : t('recipe')} · Formwright</title></svelte:head>
 
 <Header>
-  {#if store?.detail}<strong class="ttl">{store.detail.title}</strong>{/if}
+  {#if store?.detail}<strong class="ttl">{projectTitle(store.detail.title)}</strong>{/if}
 </Header>
 
 {#if store?.loadError}
-  <div class="center"><p class="err">{store.loadError}</p><a class="btn" href="/">{t('back')}</a></div>
+  <!-- a private project the visitor cannot read: said plainly, as on /p (no remix offer) -->
+  <div class="center"><p class="err">{isText(store.loadError, 'forbidden') ? t('private_project') : store.loadError}</p><a class="btn" href="/">{t('back')}</a></div>
 {:else if !store?.detail}
   <div class="center"><i class="ti ti-loader-2 spin" aria-hidden="true"></i></div>
 {:else}
@@ -82,6 +111,7 @@
           <a class="btn ghost" href="/">{t('make_your_own')}</a>
         </div>
         {#if error}<p class="err small">{error}</p>{/if}
+        <ModelStrip cost={costs} />
       </div>
       <div class="seg" role="tablist">
         {#each ['model', 'checks', 'get'] as tb (tb)}

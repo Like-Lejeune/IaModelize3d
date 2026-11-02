@@ -136,6 +136,7 @@ async def test_measure_uses_calibration_and_sam(monkeypatch, tmp_path):
     import meta_sam_parser as msp
 
     from formwright.config import settings
+    from formwright.vision import maskcodec
 
     monkeypatch.setattr(settings(), "data_dir", tmp_path)
     (tmp_path / "files" / "p").mkdir(parents=True)
@@ -188,6 +189,7 @@ async def test_measure_uses_calibration_and_sam(monkeypatch, tmp_path):
     monkeypatch.setattr(msp, "image_segmentation_format", lambda: SimpleNamespace(create_parser=FakeParser))
     monkeypatch.setattr(msp, "SegmentationMaskRecord", SimpleNamespace)
     monkeypatch.setattr(msp, "decode_mask_to_raster", lambda m: m.raw)
+    monkeypatch.setattr(maskcodec, "decode_mask_to_raster", lambda m: m.raw)
 
     async def fake_sam(meter, url, prompt):
         assert url.startswith("data:image/jpeg;base64,") and base64.b64decode(url.split(",", 1)[1])

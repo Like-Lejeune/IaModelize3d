@@ -24,11 +24,12 @@ from .profile import apply_diff, features, propose_with_report
 
 log = logging.getLogger(__name__)
 
+# the Axo farm's printers first: what the studio slices for unless the project or the person picked another
 POPULAR = [
-    "Bambu Lab X1 Carbon 0.4 nozzle",
-    "Bambu Lab P1S 0.4 nozzle",
     "Bambu Lab A1 0.4 nozzle",
     "Bambu Lab A1 mini 0.4 nozzle",
+    "Bambu Lab X1 Carbon 0.4 nozzle",
+    "Bambu Lab P1S 0.4 nozzle",
     "Prusa MK4 0.4 nozzle",
     "Prusa MINI 0.4 nozzle",
     "Creality K1 (0.4 nozzle)",
@@ -36,7 +37,15 @@ POPULAR = [
     "Elegoo Neptune 4 0.4 nozzle",
     "Voron 2.4 350 0.4 nozzle",
 ]
-DEFAULT_PRINTER = POPULAR[0]
+# the farm's preset id as shop/quote.py has it (ShopSettings.farm_preset); FW_FARM_PRESET moves both
+DEFAULT_PRINTER = "bambu-lab-a1-0-4-nozzle"
+
+
+def farm_printer() -> str:
+    """The farm's Orca preset (FW_FARM_PRESET): the default printer for checks, slicing and the studio."""
+    from ..shop.quote import shop_settings
+
+    return shop_settings().farm_preset or DEFAULT_PRINTER
 
 # max overhang (deg from vertical) and bridge (mm) that print cleanly, by material
 MATERIAL_LIMITS = {"PLA": (50, 12), "PETG": (45, 8), "ABS": (45, 8), "ASA": (45, 8), "TPU": (40, 5), "PC": (45, 8), "PA": (45, 8)}
@@ -52,14 +61,17 @@ def list_printers() -> list[dict[str, Any]]:
     by_name = {p.name: p for p in printers}
     popular = [by_name[n] for n in POPULAR if n in by_name]
     rest = sorted((p for p in printers if p.name not in POPULAR), key=lambda p: (p.vendor.lower(), p.name.lower()))
+    default = resolve_printer(None)
     return [
-        {"id": p.id, "name": p.name, "vendor": p.vendor, "model": p.model, "bed": p.bed, "nozzle": p.nozzle, "popular": p.name in POPULAR}
+        {"id": p.id, "name": p.name, "vendor": p.vendor, "model": p.model, "bed": p.bed, "nozzle": p.nozzle, "popular": p.name in POPULAR,
+         "default": default is not None and p.id == default.id}
         for p in popular + rest
     ]
 
 
 def resolve_printer(printer_id: str | None) -> presets.Printer | None:
-    return presets.printer_by(printer_id) or presets.printer_by(DEFAULT_PRINTER) or (presets.printers()[0] if presets.printers() else None)
+    return (presets.printer_by(printer_id) or presets.printer_by(farm_printer()) or presets.printer_by(DEFAULT_PRINTER)
+            or (presets.printers()[0] if presets.printers() else None))
 
 
 def printer_profile(printer_id: str | None, fingerprint: dict | None = None, material: str = "PLA") -> dict[str, Any]:
@@ -189,6 +201,17 @@ def _clean(preset: dict) -> dict:
     return {k: v for k, v in preset.items() if not k.startswith("_")}
 
 
+_RU_LATIN = dict(zip("абвгдеёжзийклмнопрстуфхцчшщъыьэюя", [
+    "a", "b", "v", "g", "d", "e", "e", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u", "f", "kh", "ts", "ch", "sh",
+    "shch", "", "y", "", "e", "yu", "ya"]))
+
+
+def slug(title: str) -> str:
+    """File name for a title: Cyrillic transliterated, so a Russian project is not saved as '_.gcode'."""
+    latin = "".join(_RU_LATIN.get(c, c) for c in title.lower())
+    return re.sub(r"[^a-z0-9_-]+", "_", latin).strip("_")[:40] or "model"
+
+
 async def slice(
     meter: CostMeter | None,
     *,
@@ -258,7 +281,7 @@ async def slice(
         header = parse_gcode_header(text)
         info = parse_slice_info(work / "project.3mf") if (work / "project.3mf").exists() else {}
         used = applied_settings(text, [d["key"] for d in diff if not d.get("part")])
-        safe = re.sub(r"[^A-Za-z0-9_-]+", "_", title)[:40] or "model"
+        safe = slug(title)
         shutil.copy(gcode, dest / f"{safe}.gcode")
         if (work / "project.3mf").exists():
             shutil.copy(work / "project.3mf", dest / f"{safe}.3mf")
@@ -267,8 +290,6 @@ async def slice(
     warnings: list[str] = []
     if info.get("outside"):
         warnings.append("model is outside the printable area")
-    if info.get("support_used"):
-        warnings.append("supports are used")
     for d in diff:
         if d.get("part") or d["key"] not in used:
             continue
@@ -283,6 +304,7 @@ async def slice(
         "grams": round(float(grams), 2) if grams else None,
         "filament_m": header.get("filament_m"),
         "layers": header.get("layers"),
+        "supports": bool(info.get("support_used")),  # a normal way to print, not a warning
         "warnings": warnings,
         "filaments": info.get("filaments", []),
         "slice_seconds": round(time.monotonic() - t0, 2),

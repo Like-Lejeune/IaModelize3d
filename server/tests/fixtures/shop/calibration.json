@@ -1,0 +1,124 @@
+{
+ "about": "Kernel estimate (checks.stats estGrams/estMinutes) vs OrcaSlicer on the same file for 17 real projects of the local DB (Bambu Lab X1 Carbon 0.4, PLA, Orca default process, measured 2026-10-30).",
+ "points": [
+  {
+   "title": "Park Bench Copy",
+   "est_g": 73.015,
+   "est_min": 133.674,
+   "orca_g": 107.45,
+   "orca_min": 354.6
+  },
+  {
+   "title": "Подставка под банку",
+   "est_g": 46.059,
+   "est_min": 81.434,
+   "orca_g": 31.95,
+   "orca_min": 53.9
+  },
+  {
+   "title": "Twisted lamp shade",
+   "est_g": 103.885,
+   "est_min": 212.038,
+   "orca_g": 100.89,
+   "orca_min": 526.8
+  },
+  {
+   "title": "Сова с крыльями",
+   "est_g": 32.21,
+   "est_min": 71.616,
+   "orca_g": 36.17,
+   "orca_min": 82.6
+  },
+  {
+   "title": "Подставка под банку",
+   "est_g": 11.419,
+   "est_min": 22.185,
+   "orca_g": 12.68,
+   "orca_min": 29.9
+  },
+  {
+   "title": "Мыльница-галька",
+   "est_g": 39.157,
+   "est_min": 71.287,
+   "orca_g": 40.23,
+   "orca_min": 63.8
+  },
+  {
+   "title": "Белый кот",
+   "est_g": 37.692,
+   "est_min": 78.327,
+   "orca_g": 46.1,
+   "orca_min": 108.5
+  },
+  {
+   "title": "Mesh cat",
+   "est_g": 12.194,
+   "est_min": 35.487,
+   "orca_g": 13.7,
+   "orca_min": 50.1
+  },
+  {
+   "title": "Perf test cat",
+   "est_g": 45.297,
+   "est_min": 99.153,
+   "orca_g": 50.91,
+   "orca_min": 103.3
+  },
+  {
+   "title": "Кот с банкой",
+   "est_g": 63.612,
+   "est_min": 138.15,
+   "orca_g": 71.68,
+   "orca_min": 133.3
+  },
+  {
+   "title": "Four Color Column",
+   "est_g": 56.767,
+   "est_min": 126.624,
+   "orca_g": 58.31,
+   "orca_min": 91.0
+  },
+  {
+   "title": "Exact Part Replica",
+   "est_g": 28.875,
+   "est_min": 73.51,
+   "orca_g": 41.19,
+   "orca_min": 126.4
+  },
+  {
+   "title": "Jumping Cat Replica",
+   "est_g": 55.55,
+   "est_min": 106.954,
+   "orca_g": 64.54,
+   "orca_min": 128.8
+  },
+  {
+   "title": "White Cat Replica",
+   "est_g": 154.973,
+   "est_min": 293.888,
+   "orca_g": 166.16,
+   "orca_min": 261.1
+  },
+  {
+   "title": "Realme 8i Case",
+   "est_g": 36.623,
+   "est_min": 64.431,
+   "orca_g": 37.35,
+   "orca_min": 51.3
+  },
+  {
+   "title": "Design check",
+   "est_g": 0.69,
+   "est_min": 3.66,
+   "orca_g": 0.97,
+   "orca_min": 11.5
+  },
+  {
+   "title": "White Smug Cat",
+   "est_g": 61.922,
+   "est_min": 130.475,
+   "orca_g": 69.02,
+   "orca_min": 132.5
+  }
+ ]
+}

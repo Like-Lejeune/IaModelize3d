@@ -35,9 +35,27 @@ def test_presets_resolve():
 @needs_orca
 def test_list_printers_popular_first():
     ps = service.list_printers()
-    assert ps[0]["name"] == "Bambu Lab X1 Carbon 0.4 nozzle"
+    # the Axo farm's printer leads the list and is the one marked default
+    assert ps[0]["name"] == "Bambu Lab A1 0.4 nozzle" and ps[0]["id"] == "bambu-lab-a1-0-4-nozzle"
+    assert [p["id"] for p in ps if p["default"]] == ["bambu-lab-a1-0-4-nozzle"]
     assert [p["popular"] for p in ps[:5]] == [True] * 5
     assert len(ps) > 100
+
+
+@needs_orca
+def test_the_default_printer_is_the_farm_preset(monkeypatch):
+    from formwright.shop import quote
+
+    assert service.DEFAULT_PRINTER == quote.ShopSettings.model_fields["farm_preset"].default
+    assert service.resolve_printer(None).id == "bambu-lab-a1-0-4-nozzle"
+    assert service.resolve_printer("no such printer").id == "bambu-lab-a1-0-4-nozzle"
+    assert service.printer_profile(None)["name"] == "Bambu Lab A1 0.4 nozzle"
+    # a farm on another printer moves the default with FW_FARM_PRESET
+    monkeypatch.setattr(quote, "shop_settings", lambda: quote.ShopSettings(farm_preset="prusa-mk4-0-4-nozzle"))
+    assert service.resolve_printer(None).id == "prusa-mk4-0-4-nozzle"
+    assert [p["id"] for p in service.list_printers() if p["default"]] == ["prusa-mk4-0-4-nozzle"]
+    # an explicit printer still wins
+    assert service.resolve_printer("bambu-lab-x1-carbon-0-4-nozzle").name == "Bambu Lab X1 Carbon 0.4 nozzle"
 
 
 @needs_orca

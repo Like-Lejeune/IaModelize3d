@@ -14,11 +14,15 @@ import re
 from typing import Any
 
 from ..db import get_db, new_id, now
+from ..llm.english import is_english
 
 BUDGET = {"skill": 60, "lesson": 40, "interface": 200, "pref": 30}
 PROMPT_K = {"skill": 3, "lesson": 4, "interface": 6, "pref": 4}
 LESSON_EVIDENCE = 3
 SKILL_SUCCESSES = 2
+# Checks that supports answer: getting rid of them is a design choice, not a fix worth teaching
+# (lessons like "a keel instead of the leg" would push every later design away from supports).
+TRADE_OFF_CODES = ("overhang", "floating_island", "long_bridge")
 
 
 def _fts(text: str) -> str:
@@ -39,11 +43,16 @@ async def recall(user_id: str, query: str, pack: str | None = None) -> dict[str,
     for kind, k in PROMPT_K.items():
         scope_sql = "(m.user_id = ?)" if kind in ("interface", "pref") else "(m.scope = 'global' OR m.user_id = ?)"
         status_sql = "m.status = 'active'" if kind in ("skill", "lesson") else "m.status != 'archived'"
+        if kind == "lesson":
+            status_sql += f" AND json_extract(m.body, '$.code') NOT IN ({', '.join(repr(c) for c in TRADE_OFF_CODES)})"
         rows = await db.all(
             f"SELECT m.* FROM memory_fts JOIN memory m ON m.id = memory_fts.id WHERE memory_fts MATCH ? AND m.kind = ? "
             f"AND {scope_sql} AND {status_sql} ORDER BY m.successes DESC, m.uses DESC LIMIT ?",
             q, kind, user_id, k,
         )
+        if kind == "lesson":
+            # the prompt is English; lessons recorded before that rule are left out until rewritten
+            rows = [r for r in rows if is_english(r["body"].get("text") or "")]
         if kind == "pref" and not rows:
             rows = await db.all("SELECT * FROM memory WHERE kind = 'pref' AND user_id = ? AND status != 'archived' LIMIT ?", user_id, k)
         out[kind] = rows
@@ -105,18 +114,24 @@ async def remember_pref(user_id: str, text: str) -> None:
 
 
 async def observe_fix(code: str, fix_text: str, pack: str | None, job_id: str) -> None:
-    """A check failed and the next edit fixed it. Repeated evidence turns it into a lesson."""
+    """A check failed and the next edit fixed it. Repeated evidence turns it into a lesson.
+    `fix_text` must be English: lessons go into every later prompt."""
+    if code in TRADE_OFF_CODES or not fix_text.strip() or not is_english(fix_text):
+        return
     db = await get_db()
     name = f"{code}:{pack or 'any'}"
+    text = f"When '{code}' fails in {pack or 'any'} designs: {fix_text[:200]}"
     row = await db.one("SELECT * FROM memory WHERE kind = 'lesson' AND name = ?", name)
     if row:
-        fixes = row["body"].get("fixes", [])[-4:] + [fix_text[:200]]
+        fixes = [f for f in row["body"].get("fixes", []) if is_english(f)][-4:] + [fix_text[:200]]
         status = "active" if row["evidence"] + 1 >= LESSON_EVIDENCE else row["status"]
-        await db.update("memory", "id", row["id"], {"evidence": row["evidence"] + 1, "status": status,
-                                                    "body": {**row["body"], "fixes": fixes}})
+        body = {**row["body"], "fixes": fixes}
+        if not is_english(body.get("text") or ""):
+            body["text"] = text
+            await _index(row["id"], name, f"{code} {pack or ''}", text)
+        await db.update("memory", "id", row["id"], {"evidence": row["evidence"] + 1, "status": status, "body": body})
         return
     item_id = new_id("m_")
-    text = f"When '{code}' fails in {pack or 'any'} designs: {fix_text[:200]}"
     await db.insert("memory", {"id": item_id, "kind": "lesson", "name": name, "scope": "global", "body": {"text": text, "code": code, "fixes": [fix_text[:200]]},
                                "tags": f"{code} {pack or ''}", "status": "candidate", "evidence": 1, "origin_job": job_id, "created_at": now()})
     await _index(item_id, name, f"{code} {pack or ''}", text)

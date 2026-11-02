@@ -1,0 +1,72 @@
+# Formwright on one VPS: the API (the repo's Containerfile) on 127.0.0.1:8000 and Caddy in front of it with automatic
+# HTTPS for FW_DOMAIN. Run every command from this folder (deploy/): compose reads ./.env for the names below and
+# hands the same file to the API as its settings.
+#   cp .env.template .env && chmod 600 .env    # then fill it in
+#   docker compose up -d --build
+name: formwright
+
+services:
+  formwright:
+    build:
+      context: ..
+      dockerfile: Containerfile
+      args:
+        # OrcaSlicer for binding quotes on the farm's A1 0.4 preset; ORCA_APPIMAGE_URL= (empty) builds without it,
+        # and customers then see the instant range only
+        ORCA_APPIMAGE_URL: ${ORCA_APPIMAGE_URL-https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.4.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage}
+    image: formwright:latest
+    # the name the scripts' own help uses: docker exec formwright python scripts/...
+    container_name: formwright
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # sign-in links, QR codes and share previews point here
+      FW_PUBLIC_URL: https://${FW_DOMAIN:?set FW_DOMAIN in deploy/.env}
+      # one proxy of ours (Caddy) appends the visitor's address to X-Forwarded-For; uvicorn believes X-Forwarded-Proto
+      # only from FORWARDED_ALLOW_IPS, which the image sets to loopback and the private docker ranges
+      FW_PROXY_HOPS: "1"
+      FW_DATA_DIR: /app/data
+    ports:
+      # loopback only: Caddy on this host is the one way in, and nothing is published to the internet
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # the SQLite database and every file (photos, versions, PCB artifacts, example covers); running jobs live in
+      # this one process, so there is one replica
+      - formwright-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-o", "/dev/null", "http://localhost:8000/api/examples"]
+      interval: 30s
+      timeout: 10s
+      # the first start on an empty volume builds and renders every example (covers, the PCB example's board)
+      start_period: 300s
+      retries: 3
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options: {max-size: 20m, max-file: "5"}
+
+  caddy:
+    image: caddy:2.11
+    container_name: formwright-caddy
+    restart: unless-stopped
+    # the host's network: Caddy takes ports 80 and 443 itself, sees every visitor's own address over IPv4 and IPv6 (a
+    # port published from an IPv4-only docker network hands IPv6 visitors over as the bridge gateway, one address for
+    # all of them), and reaches the API on 127.0.0.1:8000
+    network_mode: host
+    environment:
+      FW_DOMAIN: ${FW_DOMAIN:?set FW_DOMAIN in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # certificates and the ACME account: keep them, or every restart asks Let's Encrypt again
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - formwright
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+volumes:
+  formwright-data:
+  caddy-data:
+  caddy-config:

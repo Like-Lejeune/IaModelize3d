@@ -70,6 +70,10 @@ RULES: list[dict[str, Any]] = [
     {"id": "warp_brim", "evidence": "large_footprint", "materials": WARPING_MATERIALS,
      "changes": [{"key": "brim_type", "to": "outer_only"}, {"key": "brim_width", "at_least": 6}],
      "reason": "{material} on a {value:.0f} mm footprint tends to lift at the corners; a brim holds it down."},
+    {"id": "overhang_supports", "evidence": "overhang", "min": 100,
+     "changes": [{"key": "enable_support", "to": True}, {"key": "support_type", "to": "tree(auto)"}],
+     "reason": "{value:.0f} mm² of overhang steeper than the printer prints in the air (from z {z0:.1f} mm): tree supports hold it up "
+               "and only touch where needed."},
     {"id": "overhang_slowdown", "evidence": "overhang", "min": 30,
      "changes": [{"key": "enable_overhang_speed", "to": True}, {"key": "overhang_fan_speed", "at_least": 100}],
      "reason": "{value:.0f} mm² of steep overhang (from z {z0:.1f} mm): slow down and full fan on overhangs."},

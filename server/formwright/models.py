@@ -67,6 +67,11 @@ class ProjectDetail(ProjectOut):
     messages: list[MessageOut] = []
     last_seq: int = 0
     job: dict[str, Any] | None = None
+    printer: str | None = None  # brief.printer: the printer the agent checks this project for (a probe sets it)
+    material: str | None = None  # brief.material: what it is meant to print in (a ready example's: PETG for the dishwasher wheel)
+    # whether this browser may change the project (send messages, save edits): the rule the write routes' 403 follows;
+    # a visitor's studio opens read-only with a Remix offer
+    can_edit: bool = False
 
 
 class EventOut(BaseModel):
@@ -91,6 +96,12 @@ class SendMessage(BaseModel):
     model: Literal["contributor", "spark", "wonder"] | None = None
     # how long the designer thinks on each turn; every Muse model accepts these
     reasoning: Literal["minimal", "low", "medium", "high", "xhigh", "max"] = "medium"
+    # the run's answer language ('ru', 'en', ...); set by callers that know it (a shop order's intake).
+    # None: the loop detects it from the message (loop.message_language).
+    language: str | None = None
+    # what the person sees as their own message when `text` is written for the model (a shop order's English brief):
+    # the run shows these words and keeps `text` in the message's data.brief, which the reviewer reads. None: `text` is both.
+    shown: str | None = None
 
 
 class Point(BaseModel):
@@ -105,6 +116,13 @@ class SelectRequest(BaseModel):
     text: str | None = Field(default=None, description="concept prompt instead of points/box")
     role: Role = "target"
     name: str | None = None
+    replace: bool = Field(default=False, description="drop the earlier selections of this role on the photo")
+    by: Literal["user", "auto"] | None = None  # who outlined it; set by the server
+
+
+class SpotRequest(BaseModel):
+    hint: str | None = Field(default=None, description="the request text, so the right object is found")
+    lang: str = "en"
 
 
 class ParamsUpdate(BaseModel):

@@ -18,12 +18,17 @@ from ..geom import geom
 from ..models import OrderRequest
 
 
-async def create_order(user: dict[str, Any], project: dict[str, Any], body: OrderRequest) -> dict[str, Any]:
+async def create_order(user: dict[str, Any], project: dict[str, Any], body: OrderRequest, version: int | None = None) -> dict[str, Any]:
+    """Sends one version of the project to Axo: `version` pins it (a shop order's version, the one that was quoted and
+    checked), else the newest."""
     s = settings()
     db = await get_db()
-    prog = await db.one("SELECT * FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", project["id"])
+    if version:
+        prog = await db.one("SELECT * FROM programs WHERE project_id = ? AND version = ?", project["id"], version)
+    else:
+        prog = await db.one("SELECT * FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", project["id"])
     if not prog:
-        return {"status": "error", "message": "design something first"}
+        return {"status": "error", "message": f"there is no version {version} of this model" if version else "design something first"}
     if not s.axo_api_url:
         return {"status": "not_configured", "message": "Print & delivery via Axo is available in Kazakhstan. Download the 3MF to print it yourself."}
     tmf = await geom().export(prog["source"], prog["params"], "3mf", inputs=prog["inputs"], title=project["title"])

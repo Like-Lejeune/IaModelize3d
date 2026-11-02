@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
-  import { i18n, t, fmtMinutes, unitLabel } from '$lib/i18n.svelte';
-  import type { CheckReport, Issue } from '$lib/types';
+  import { i18n, t, fmtMinutes, unitLabel, encText, fmtClearance, fmtValue, partName } from '$lib/i18n.svelte';
+  import type { BoardSpec, CheckReport, EnclosureChecks, EnclosureFinding, Issue } from '$lib/types';
 
   let {
     checks,
@@ -9,18 +9,42 @@
     onSelect,
     building = false,
     onAskFix,
+    example = false,
+    enclosure = null,
+    enclosureStale = false,
+    board = null,
+    focusPart = null,
+    onFocusPart,
+    onRecheck,
+    assembled = false,
+    enclosureChecking = false,
   }: {
     checks: CheckReport | null;
     selected?: Issue | null;
     onSelect: (i: Issue | null) => void;
     building?: boolean;
     onAskFix?: (text: string) => void;
+    /** A hand-written home page example (author 'example'): no agent run explains its checks. */
+    example?: boolean;
+    /** A case's check against its board (checks.enclosure, C5). */
+    enclosure?: EnclosureChecks | null;
+    /** Made on another version or other params than the ones on show. */
+    enclosureStale?: boolean;
+    board?: BoardSpec | null;
+    /** The board part whose finding is open: the viewer lights up its rays. */
+    focusPart?: string | null;
+    onFocusPart?: (part: string | null) => void;
+    onRecheck?: () => void;
+    /** The case is shown closed: the printability report below is the print layout's. */
+    assembled?: boolean;
+    /** The studio is checking the case against its board for the values on show. */
+    enclosureChecking?: boolean;
   } = $props();
 
   // Plain-language names for the slicer-like checks (server titles are English and technical).
   const NAMES: Record<string, [string, string]> = {
-    floating_island: ['Part starts in mid-air — needs support', 'Часть начинается в воздухе — нужна опора'],
-    overhang: ['Steep overhang — may droop', 'Крутое нависание — может провиснуть'],
+    floating_island: ['Part starts in mid-air — prints on supports', 'Часть начинается в воздухе — печать с поддержками'],
+    overhang: ['Steep overhang — supports help', 'Крутое нависание — помогут поддержки'],
     long_bridge: ['Long unsupported span', 'Длинный пролёт без опоры'],
     too_thin: ['Too thin to print — will disappear', 'Слишком тонко — не напечатается'],
     thin_wall: ['Very thin wall — fragile', 'Очень тонкая стенка — хрупко'],
@@ -40,8 +64,8 @@
     load_across_layers: ['Load pulls layers apart', 'Нагрузка рвёт слои'],
   };
   const HINT_RU: Record<string, string> = {
-    floating_island: 'Добавить опору-конус снизу или повернуть деталь.',
-    overhang: 'Заменить нависание фаской 45° или повернуть деталь.',
+    floating_island: 'Поддержки включатся в настройках печати. Без них — конус или ребро снизу, или повернуть деталь.',
+    overhang: 'Поддержки включатся в настройках печати. Без них — фаска 45° снизу или повернуть деталь.',
     long_bridge: 'Сократить пролёт или поставить ребро посередине.',
     too_thin: 'Утолщить хотя бы до 0,9 мм или убрать элемент.',
     thin_wall: 'Делать стенки кратными ширине линии: 0,84 / 1,26 мм.',
@@ -85,9 +109,90 @@
   const level = $derived(!checks ? 'none' : errors ? 'err' : warns ? 'warn' : 'ok');
   const s = $derived(checks?.stats);
   let open = $state<string | null>(null);
+
+  // ---- the case against its board
+  const SEV = { error: 0, warn: 1, info: 2 } as Record<string, number>;
+  const encFindings = $derived([...(enclosure?.findings ?? [])].sort((a, b) => SEV[a.severity] - SEV[b.severity]));
+  const encProblems = $derived(encFindings.filter((f) => f.severity !== 'info'));
+  const encPassed = $derived(encFindings.filter((f) => f.severity === 'info'));
+  const encLevel = $derived(!enclosure ? 'none' : enclosure.error || encFindings.some((f) => f.severity === 'error') ? 'err' : encProblems.length ? 'warn' : 'ok');
+  const sm = $derived(enclosure?.summary);
+  // the button the gap is about, for the tile's label
+  const button = $derived(encFindings.find((f) => f.code === 'button_reach')?.part);
+  const boardFrom = $derived.by(() => {
+    const k = board?.source?.kind;
+    return k === 'pcb' ? t('enc_board_pcb') : k?.startsWith('photo') ? t('enc_board_photo') : k === 'dataset' ? t('enc_board_dataset') : '';
+  });
+  let passedOpen = $state(false);
+  let encOpen = $state<string | null>(null);
+  const fkey = (f: EnclosureFinding) => `${f.code}:${f.part}`;
+  const ru = $derived(i18n.lang === 'ru');
+
+  function pick(f: EnclosureFinding) {
+    const k = fkey(f);
+    encOpen = encOpen === k ? null : k;
+    onFocusPart?.(encOpen ? f.part : null);
+  }
 </script>
 
 <div class="checks">
+  {#if enclosure}
+    <section class="enc" aria-label={t('enc_title')}>
+      <h3 class="section-title">{t('enc_title')}</h3>
+      <div class="sum {encLevel}">
+        <span class="light"><Icon name={encLevel === 'ok' ? 'check' : 'alert'} size={16} /></span>
+        <div>
+          <strong>{t(encLevel === 'ok' ? 'enc_ok' : encLevel === 'warn' ? 'enc_warn' : 'enc_err')}</strong>
+          <div class="small">
+            {#if board}{board.name}{boardFrom ? ` · ${boardFrom}` : ''}{:else}{t(encLevel === 'ok' ? 'enc_ok_d' : encLevel === 'warn' ? 'enc_warn_d' : 'enc_err_d')}{/if}
+          </div>
+        </div>
+      </div>
+      {#if enclosure.error}<p class="small err-text">{enclosure.error}</p>{/if}
+      {#if enclosure.by === 'studio' && !enclosureStale}
+        <p class="xs muted note by">{ru ? 'Проверено здесь, в браузере, после вашей правки — тем же ядром, что у агента' : 'Checked here in the browser after your edit, with the same kernel the agent uses'}</p>
+      {/if}
+      {#if sm && (sm.usb_clearance_mm != null || sm.button_gap_mm != null || sm.snap_strain_pct != null)}
+        <dl class="stats">
+          {#if sm.usb_clearance_mm != null}<div><dt>{t('enc_usb')}</dt><dd class="mono">{fmtClearance(sm.usb_clearance_mm)}</dd></div>{/if}
+          {#if sm.button_gap_mm != null}<div><dt>{button ? `${t('enc_button')} · ${partName(button)}` : t('enc_button')}</dt><dd class="mono">{fmtValue(sm.button_gap_mm, 'mm')}</dd></div>{/if}
+          {#if sm.snap_strain_pct != null}<div><dt>{t('enc_snaps')}</dt><dd class="mono">{fmtValue(sm.snap_strain_pct, '%')}</dd></div>{/if}
+        </dl>
+      {/if}
+      {#if enclosureStale && enclosureChecking}
+        <div class="stale busy small" aria-live="polite">
+          <span><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {ru ? 'Проверяю корпус по плате для новых значений…' : 'Checking the case against the board for the new values…'}</span>
+        </div>
+      {:else if enclosureStale}
+        <div class="stale small">
+          <span>{t('enc_stale', { v: enclosure.version })}</span>
+          {#if onRecheck}<button class="btn small" onclick={onRecheck}><Icon name="refresh" size={14} /> {t('enc_recheck')}</button>{/if}
+        </div>
+      {/if}
+      {#if encProblems.length}
+        <ul class="groups">
+          {#each encProblems as f (fkey(f))}
+            {@render finding(f)}
+          {/each}
+        </ul>
+      {/if}
+      {#if encPassed.length}
+        <button class="fold small" onclick={() => (passedOpen = !passedOpen)} aria-expanded={passedOpen}>
+          <span class="chev" class:open={passedOpen}><Icon name="chevron" size={12} /></span>
+          {t('enc_passed', { n: encPassed.length })}
+        </button>
+        {#if passedOpen}
+          <ul class="groups">
+            {#each encPassed as f (fkey(f))}
+              {@render finding(f)}
+            {/each}
+          </ul>
+        {/if}
+      {/if}
+    </section>
+    {#if checks}<h3 class="section-title">{t('checks')}</h3>{/if}
+    {#if assembled && checks}<p class="xs muted note">{t('checks_print_layout')}</p>{/if}
+  {/if}
   {#if !checks}
     <div class="empty">
       {#if building}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="check-circle" size={40} />{/if}
@@ -98,7 +203,7 @@
       <span class="light"><Icon name={level === "ok" ? "check" : "alert"} size={16} /></span>
       <div>
         <strong>{t(level === 'ok' ? 'checks_ok' : level === 'warn' ? 'checks_warn' : 'checks_err')}</strong>
-        <div class="small">{t(level === 'ok' ? 'checks_ok_d' : level === 'warn' ? 'checks_warn_d' : 'checks_err_d')}</div>
+        <div class="small">{t(level === 'ok' ? 'checks_ok_d' : level === 'warn' ? (example ? 'checks_warn_example' : 'checks_warn_d') : 'checks_err_d')}</div>
       </div>
       {#if building}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{/if}
     </div>
@@ -108,7 +213,13 @@
         <div><dt>{t('size')}</dt><dd class="mono">{s.size.map((v) => +v.toFixed(1)).join(' × ')} {unitLabel('mm')}</dd></div>
         <div><dt>{t('weight')} · {t('est')}</dt><dd class="mono">≈ {Math.round(s.estGrams)} {t('grams')}</dd></div>
         <div><dt>{t('time')} · {t('est')}</dt><dd class="mono">≈ {fmtMinutes(s.estMinutes)}</dd></div>
-        {#if s.layers}<div><dt>{t('layers')}</dt><dd class="mono">{s.layers}</dd></div>{/if}
+        {#if s.layers}
+          <div>
+            <dt>{t('layers')}</dt>
+            <dd class="mono">{s.layers}</dd>
+            {#if s.sliceStep}<span class="xs muted step">{t('layers_checked', { mm: +s.sliceStep.toFixed(2) })}</span>{/if}
+          </div>
+        {/if}
       </dl>
     {/if}
 
@@ -148,6 +259,24 @@
     {/if}
   {/if}
 </div>
+
+{#snippet finding(f: EnclosureFinding)}
+  <li class={f.severity}>
+    <button class="g" class:lit={focusPart === f.part && encOpen === fkey(f)} aria-expanded={encOpen === fkey(f)} onclick={() => pick(f)}>
+      <span class="dot" aria-hidden="true"></span>
+      <span class="ttl">{encText(f)}</span>
+    </button>
+    {#if encOpen === fkey(f)}
+      <div class="detail">
+        <!-- the kernel's own words, with the number as measured -->
+        <div class="xs muted mono raw">{f.msg}</div>
+        {#if onAskFix && f.severity !== 'info'}
+          <button class="btn small" onclick={() => onAskFix?.(t('ask_fix_msg', { t: encText(f) }))}><Icon name="wand" size={14} /> {t('ask_fix')}</button>
+        {/if}
+      </div>
+    {/if}
+  </li>
+{/snippet}
 
 <style>
   .checks {
@@ -240,6 +369,9 @@
     font-weight: var(--font-weight-semibold);
     color: var(--on-surface);
   }
+  .step {
+    display: block;
+  }
   .groups {
     list-style: none;
     padding: 0;
@@ -295,5 +427,67 @@
   .detail ul {
     margin: 0;
     padding-left: 16px;
+  }
+  .enc {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: var(--space-3);
+    border-bottom: var(--border-width) solid var(--divider);
+  }
+  .stale {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: var(--radius-field);
+    background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+    color: var(--on-surface-var);
+  }
+  .stale.busy {
+    background: var(--surface);
+  }
+  .note.by {
+    margin: -4px 0 0;
+  }
+  .err-text {
+    color: var(--error);
+    margin: 0;
+  }
+  .note {
+    margin: -6px 0 0;
+  }
+  .g.lit {
+    border-color: var(--primary);
+  }
+  /* a check against the board that passed */
+  .enc .info .dot {
+    background: var(--primary);
+  }
+  .raw {
+    overflow-wrap: anywhere;
+  }
+  .fold {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: fit-content;
+    padding: 2px 0;
+    border: none;
+    background: none;
+    color: var(--outline);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .fold:hover {
+    color: var(--on-surface);
+  }
+  .chev {
+    display: grid;
+    transition: transform 0.12s;
+  }
+  .chev.open {
+    transform: rotate(90deg);
   }
 </style>

@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import Icon from './Icon.svelte';
   import { api, errorText } from '$lib/api';
-  import { t, fmtMinutes, i18n } from '$lib/i18n.svelte';
+  import { t, fmtMinutes, i18n, unitLabel } from '$lib/i18n.svelte';
+  import { paramLabel } from '$lib/paramtext';
   import type { ProjectStore } from '$lib/project.svelte';
   import type { Printer } from '$lib/types';
 
@@ -19,27 +20,41 @@
   let error = $state<string | null>(null);
   let fingerprint = $state<Record<string, any> | null>(null);
 
+  // Which printer to slice for: the project's own (brief.printer, or the one its last slice used), then the one the
+  // person picked here before, then the farm's (the server marks it default: the Axo farm prints on a Bambu Lab A1).
+  // Only a pick from the list is remembered, so an old default never sticks.
   onMount(async () => {
     try {
       printers = await api.printers();
+      let picked = '';
       try {
-        printer = localStorage.getItem('fw_printer') ?? '';
+        picked = localStorage.getItem('fw_printer_pick') ?? '';
         material = localStorage.getItem('fw_material') ?? 'PLA';
       } catch {
         /* storage unavailable */
       }
-      if (!printers.some((p) => p.id === printer || p.name === printer)) printer = printers[0]?.id ?? printers[0]?.name ?? '';
+      const known = (k: string | null | undefined) => (k ? printers.find((p) => p.id === k || p.name === k) : undefined);
+      const p = known(store.detail?.printer) ?? known(store.slice?.printer?.id) ?? known(picked) ?? printers.find((x) => x.default) ?? printers[0];
+      printer = p?.id ?? p?.name ?? '';
     } catch {
       printers = [];
     }
   });
+
+  function pickPrinter() {
+    try {
+      localStorage.setItem('fw_printer_pick', printer);
+    } catch {
+      /* ignore */
+    }
+  }
 
   const popular = $derived(printers.filter((p) => (p as any).popular));
   const byVendor = $derived.by(() => {
     const m = new Map<string, Printer[]>();
     for (const p of printers) {
       if ((p as any).popular) continue;
-      const v = p.vendor ?? 'Other';
+      const v = p.vendor ?? t('print_other');
       if (!m.has(v)) m.set(v, []);
       m.get(v)!.push(p);
     }
@@ -50,7 +65,6 @@
 
   async function slice() {
     try {
-      localStorage.setItem('fw_printer', printer);
       localStorage.setItem('fw_material', material);
     } catch {
       /* ignore */
@@ -65,7 +79,7 @@
   }
 
   function chooseProbe(v: { label: string; value: any }) {
-    store.send(`Probe result for ${store.probe?.dimension}: variant ${v.label} (${v.value}) fits best.`);
+    store.send(t('probe_fit_msg', { dim: store.probe?.dimension ?? '', label: v.label, value: v.value }));
   }
 
   async function calibrate(files: FileList | null) {
@@ -90,7 +104,7 @@
     error = null;
     try {
       const a = await api.upload(store.id, f, 'print');
-      await store.send('Here is a photo of the printed part on a reference sheet. Compare it with the target and tell me what to correct.', [a.id]);
+      await store.send(t('compare_print_msg'), [a.id]);
     } catch (e) {
       error = errorText(e);
     } finally {
@@ -138,10 +152,10 @@
   <section class="stack">
     <p class="muted small lead">{t('slice_hint')}</p>
     <label class="field">{t('printer')}
-      <select bind:value={printer}>
-        {#if !printers.length}<option value="">Generic 0.4 mm</option>{/if}
+      <select bind:value={printer} onchange={pickPrinter}>
+        {#if !printers.length}<option value="">{t('generic_nozzle')}</option>{/if}
         {#if popular.length}
-          <optgroup label="Popular">{#each popular as p (p.id ?? p.name)}<option value={p.id ?? p.name}>{p.name}</option>{/each}</optgroup>
+          <optgroup label={t('popular')}>{#each popular as p (p.id ?? p.name)}<option value={p.id ?? p.name}>{p.name}</option>{/each}</optgroup>
         {/if}
         {#each byVendor as [vendor, list] (vendor)}
           <optgroup label={vendor}>{#each list as p (p.id ?? p.name)}<option value={p.id ?? p.name}>{p.name}</option>{/each}</optgroup>
@@ -172,8 +186,9 @@
       <dl class="big">
         <div><dt>{t('time')}</dt><dd class="mono">{fmtMinutes(st.minutes)}</dd></div>
         <div><dt>{t('weight')}</dt><dd class="mono">{Math.round(st.grams ?? 0)} {t('grams')}</dd></div>
-        {#if st.filament_m}<div><dt>{t('filament')}</dt><dd class="mono">{(+st.filament_m).toFixed(1)} m</dd></div>{/if}
+        {#if st.filament_m}<div><dt>{t('filament')}</dt><dd class="mono">{(+st.filament_m).toFixed(1)} {unitLabel('m')}</dd></div>{/if}
         {#if st.layers}<div><dt>{t('layers')}</dt><dd class="mono">{st.layers}</dd></div>{/if}
+        {#if st.supports}<div><dt>{settingName('support_used')}</dt><dd>{t('yes')}</dd></div>{/if}
       </dl>
       {#if st.warnings?.length}<ul class="warnings">{#each st.warnings as w (w)}<li class="small">{w}</li>{/each}</ul>{/if}
       <div class="section-title">{t('profile_diff')}</div>
@@ -203,7 +218,7 @@
     <div class="row">
       <select bind:value={probeParam} aria-label={t('probe_param')} style="flex:1;min-width:0">
         <option value="">{t('probe_param')}…</option>
-        {#each numericParams as [n, s] (n)}<option value={n}>{s.label ?? n} ({store.values[n]} {s.unit ?? ''})</option>{/each}
+        {#each numericParams as [n, s] (n)}<option value={n}>{paramLabel(s.label ?? n, i18n.lang)} ({store.values[n]} {s.unit ? unitLabel(s.unit) : ''})</option>{/each}
       </select>
       <button class="btn small" onclick={probe} disabled={!probeParam || store.running}>{t('make_probe')}</button>
     </div>
@@ -222,24 +237,29 @@
     <p class="muted small">{t('calib_hint')}</p>
     <div class="row">
       <a class="btn small" href="/api/printers/coupon.3mf" download><Icon name="download" size={13} /> {t('coupon')}</a>
-      <label class="btn small" class:disabled={!printer || busy === 'calib'} title={printer ? '' : t('pick_printer_first')}>
-        {#if busy === 'calib'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="camera" size={13} />{/if} {t('calib_photo')}
-        <input class="sr-only" type="file" accept="image/*" capture="environment" disabled={!printer} onchange={(e) => calibrate((e.currentTarget as HTMLInputElement).files)} />
-      </label>
+      <!-- the photo goes into the project: its owner's only (a visitor still gets the coupon) -->
+      {#if !store.readonly}
+        <label class="btn small" class:disabled={!printer || busy === 'calib'} title={printer ? '' : t('pick_printer_first')}>
+          {#if busy === 'calib'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="camera" size={13} />{/if} {t('calib_photo')}
+          <input class="sr-only" type="file" accept="image/*" capture="environment" disabled={!printer} onchange={(e) => calibrate((e.currentTarget as HTMLInputElement).files)} />
+        </label>
+      {/if}
     </div>
     {#if fingerprint}
       <dl class="fp mono xs">{#each Object.entries(fingerprint).filter(([, v]) => typeof v === 'number') as [k, v] (k)}<div><dt>{k}</dt><dd>{(v as number).toFixed(2)}</dd></div>{/each}</dl>
     {/if}
   </details>
 
-  <details class="tool">
-    <summary><Icon name="scan" size={15} /> {t('compare')}<span class="chev"><Icon name="chevron-down" size={16} /></span></summary>
-    <p class="muted small">{t('compare_hint')}</p>
-    <label class="btn small" class:disabled={busy === 'compare' || store.running}>
-      {#if busy === 'compare'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="camera" size={13} />{/if} {t('compare_photo')}
-      <input class="sr-only" type="file" accept="image/*" capture="environment" onchange={(e) => comparePrint((e.currentTarget as HTMLInputElement).files)} />
-    </label>
-  </details>
+  {#if !store.readonly}
+    <details class="tool">
+      <summary><Icon name="scan" size={15} /> {t('compare')}<span class="chev"><Icon name="chevron-down" size={16} /></span></summary>
+      <p class="muted small">{t('compare_hint')}</p>
+      <label class="btn small" class:disabled={busy === 'compare' || store.running}>
+        {#if busy === 'compare'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="camera" size={13} />{/if} {t('compare_photo')}
+        <input class="sr-only" type="file" accept="image/*" capture="environment" onchange={(e) => comparePrint((e.currentTarget as HTMLInputElement).files)} />
+      </label>
+    </details>
+  {/if}
 
   {#if error}<p class="err small" role="alert">{error}</p>{/if}
 </div>

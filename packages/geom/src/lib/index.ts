@@ -1,5 +1,7 @@
 // The `lib` object handed to build(p, lib). Everything a program may touch lives here.
 import type { Manifold, Wasm } from '../kernel.ts';
+import { makeCollect } from './collect.ts';
+import { makeElec, type BoardSpec } from './elec.ts';
 import { makeForms, makeNoise } from './forms.ts';
 import { makeMech } from './mech.ts';
 import { makeMeshOps, type RawMesh } from './meshops.ts';
@@ -53,6 +55,8 @@ export interface Inputs {
   values?: Record<string, number | string>;
   // imported meshes (STL/OBJ uploads, scans): vertex xyz and triangle indices
   meshes?: Record<string, RawMesh>;
+  // boards an enclosure is built around (fw.board/1: dataset, photo or PCB), by name; 'board' by default
+  boards?: Record<string, BoardSpec>;
 }
 
 export interface LibContext {
@@ -67,7 +71,7 @@ export function makeLib(wasm: Wasm, ctx: LibContext) {
   const std = makeStd(wasm, ctx);
   const threads = makeThreads(wasm);
   const forms = makeForms(wasm);
-  const mech = makeMech(wasm, std.fit);
+  const mech = makeMech(wasm, std.fit, ctx.printer.lineWidth);
   const shape = makeShape(wasm);
   const lib: any = {
     Manifold: wasm.Manifold,
@@ -82,13 +86,14 @@ export function makeLib(wasm: Wasm, ctx: LibContext) {
     inputs: ctx.inputs ?? {},
     quality: ctx.quality ?? 'final',
     noise: makeNoise,
-    part: (solid: Manifold, o: { name?: string; color?: string; role?: string; settings?: Record<string, unknown>; material?: string } = {}) => ({
+    part: (solid: Manifold, o: { name?: string; color?: string; role?: string; settings?: Record<string, unknown>; material?: string; meta?: Record<string, unknown> } = {}) => ({
       solid,
       name: o.name ?? 'body',
       role: o.role ?? 'model',
       color: o.color,
       settings: o.settings,
       material: o.material,
+      meta: o.meta,
     }),
     rng: (seed = 1) => makeNoise(seed).rand,
     math: {
@@ -105,6 +110,9 @@ export function makeLib(wasm: Wasm, ctx: LibContext) {
       if (!cond) throw new Error(`assertion failed: ${message}`);
     },
   };
+  // cases for electronics around inputs.boards.<name> (fw.board/1)
+  lib.elec = makeElec(wasm, lib.std, ctx.printer, lib.part);
+  lib.collect = makeCollect(lib); // snap stickers and collection plates over inputs from vision/relief.py
   // Skills are saved, tested functions from the memory library: lib.skills.name(...args)
   lib.skills = Object.fromEntries(
     Object.entries(ctx.skills ?? {}).map(([name, fn]) => [name, (...args: unknown[]) => fn(lib, ...args)]),
