@@ -16,6 +16,9 @@ KIND = {
     # electronics: a board from a photo or the dataset, the case checked against it, the PCB and its fab files
     "scan_board": "measure", "use_board": "standard", "check_enclosure": "inspect",
     "write_circuit": "build", "check_pcb": "inspect", "export_fab": "export", "make_enclosure": "build",
+    # whole devices: parts from the LCSC catalogue, the device graph, its board, firmware and price
+    "search_parts": "standard", "part_info": "standard", "write_device": "build", "build_device": "build",
+    "write_firmware": "build", "quote_device": "export",
 }
 
 # which stage of the job a tool belongs to
@@ -103,12 +106,18 @@ RU = {
     "fab files ready": "файлы для фабрики готовы", "no fab files": "файлов для фабрики нет", " for PCB v": " для платы v", "PCB v": "Плата v",
     "Case v": "Корпус v", " — print plate ": " — на столе ", "The case did not build": "Корпус не собрался",
     "the board is not ready": "плата ещё не готова", "the case check found errors": "проверка корпуса нашла ошибки",
+    "Searching the LCSC catalogue": "Ищу в каталоге LCSC", "Reading the pins of": "Читаю распиновку", "Changing the device": "Меняю устройство",
+    "Drawing the device": "Собираю схему устройства", "Placing and routing the board": "Размещаю детали и развожу плату",
+    "Writing the firmware": "Пишу прошивку", "Pricing": "Считаю цену", "finished devices": "готовых устройств", "Device v": "Устройство v",
+    "Firmware: ": "Прошивка: ", " devices: $": " шт.: $", "ready by": "готово к", "first version": "первая версия",
+    "the device is not ready": "устройство ещё не готово", ", stock ": ", на складе ", "problems: ": "проблем: ", "notes: ": "замечаний: ",
 }
 
 # Russian counts decline their noun ("23 traces" -> "23 трассы"), so these go by pattern before the plain phrases
 RU_COUNTED = [(re.compile(rf"\b(\d+) {en}\b"), forms) for en, forms in (
     ("DRC errors?", ("ошибка DRC", "ошибки DRC", "ошибок DRC")), ("traces?", ("трасса", "трассы", "трасс")),
     ("vias?", ("переход", "перехода", "переходов")), ("layers?", ("слой", "слоя", "слоёв")), ("lines?", ("строка", "строки", "строк")),
+    ("parts?", ("деталь", "детали", "деталей")), ("nets?", ("цепь", "цепи", "цепей")), ("pins?", ("вывод", "вывода", "выводов")),
 )]
 
 
@@ -263,6 +272,19 @@ def _own_board(a: dict[str, Any]) -> bool:
 
 
 def _elec_call(name: str, a: dict[str, Any]) -> str:
+    if name == "search_parts":
+        return f"Searching the LCSC catalogue: {a.get('query', '')}"
+    if name == "part_info":
+        return f"Reading the pins of {a.get('lcsc', 'the part')}"
+    if name == "write_device":
+        verb = "Changing the device" if a.get("edits") and not a.get("doc") else "Drawing the device"
+        return f"{verb}: {a.get('summary') or 'first version'}"
+    if name == "build_device":
+        return "Placing and routing the board"
+    if name == "write_firmware":
+        return f"Writing the firmware ({a.get('lang') or 'arduino'})"
+    if name == "quote_device":
+        return f"Pricing {a.get('qty') or 5} finished devices"
     if name == "scan_board":
         return "Scanning the board on the photo" + (f": {a['hint']}" if a.get("hint") else "")
     if name == "use_board":
@@ -285,7 +307,8 @@ def _elec_call(name: str, a: dict[str, Any]) -> str:
         " and a printable mock-up of it" if a.get("with_mockup") is not False else "")
 
 
-ELEC_TOOLS = ("scan_board", "use_board", "check_enclosure", "write_circuit", "check_pcb", "export_fab", "make_enclosure")
+ELEC_TOOLS = ("scan_board", "use_board", "check_enclosure", "write_circuit", "check_pcb", "export_fab", "make_enclosure",
+              "search_parts", "part_info", "write_device", "build_device", "write_firmware", "quote_device")
 PCB_LOOKS = {"pcb": "Looking at the routed board from the top", "pcb_bottom": "Looking at the board from below", "schematic": "Reading the schematic"}
 
 
@@ -450,6 +473,23 @@ def _pcb(r: dict[str, Any]) -> str:
 
 def _elec_result(name: str, args: dict[str, Any], r: dict[str, Any]) -> str | None:
     """The electronics tools' results with their numbers; None leaves a plain failure to failure_title."""
+    if name == "search_parts" and r.get("ok"):
+        hits = r.get("parts") or []
+        return f"{_n(len(hits), 'part', 'parts')}" + (": " + ", ".join(f"{h.get('mpn')} ({h.get('lcsc')})" for h in hits[:3]) if hits else "")
+    if name == "part_info" and r.get("ok"):
+        return f"{r.get('mpn')} ({r.get('lcsc')}): {_n(len(r.get('pins') or []), 'pin', 'pins')}, {r.get('package')}, stock {r.get('stock')}"
+    if name == "write_device" and r.get("version") is not None:
+        bad = len(r.get("issues") or [])
+        warn = len(r.get("design_warnings") or [])
+        return (f"Device v{r['version']} — {_n(int(r.get('nodes') or 0), 'part', 'parts')}, {_n(int(r.get('nets') or 0), 'net', 'nets')}"
+                + (f", problems: {bad}" if bad else "") + (f", notes: {warn}" if warn else ""))
+    if name == "build_device" and r.get("version") is not None and "counts" in r:
+        size = f", {_size(r['board_mm'])}" if r.get("board_mm") else ""
+        return _pcb(r) + size
+    if name == "write_firmware" and r.get("ok"):
+        return "Firmware: " + ", ".join(r.get("files") or [])
+    if name == "quote_device" and r.get("ok"):
+        return f"{r.get('qty')} devices: ${r.get('total_usd')} ({r.get('total_kzt')} KZT), ready by {r.get('eta')}"
     if name in ("scan_board", "use_board") and r.get("ok") is not False and isinstance(r.get("board"), dict):
         b = r["board"]
         size = _size((b.get("size_mm") or [])[:2])

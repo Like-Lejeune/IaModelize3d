@@ -92,8 +92,9 @@ class SendMessage(BaseModel):
     asset_ids: list[str] = []
     # auto: agent picks; hard: allow the strongest (costlier) designer model
     effort: Literal["auto", "hard"] = "auto"
-    # picked in the composer; None keeps the old rule (account consent + effort)
-    model: Literal["contributor", "spark", "wonder"] | None = None
+    # picked in the composer; None keeps the old rule (account consent + effort). spark_open: the open-weights model
+    # (settings.open_model), when one is configured
+    model: Literal["contributor", "spark", "wonder", "spark_open"] | None = None
     # how long the designer thinks on each turn; every Muse model accepts these
     reasoning: Literal["minimal", "low", "medium", "high", "xhigh", "max"] = "medium"
     # the run's answer language ('ru', 'en', ...); set by callers that know it (a shop order's intake).
@@ -180,7 +181,7 @@ class BreedRequest(BaseModel):
 
 
 class ModelOption(BaseModel):
-    key: Literal["contributor", "spark", "wonder"]
+    key: Literal["contributor", "spark", "wonder", "spark_open"]
     id: str
     available: bool
 

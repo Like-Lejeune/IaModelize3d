@@ -40,6 +40,11 @@ try:
 except Exception:  # noqa: BLE001
     log.exception("agent tools: pcb_tools did not import, pack 'pcb' is off")
     pcb_tools = None  # type: ignore[assignment]
+try:
+    from . import device_tools
+except Exception:  # noqa: BLE001
+    log.exception("agent tools: device_tools did not import, pack 'device' is off")
+    device_tools = None  # type: ignore[assignment]
 
 
 @dataclass
@@ -69,6 +74,8 @@ class DesignState:
     view_azimuth: float = 0.0
     # pack 'pcb': the latest PCB version {version, source, ok, intent_ok, made (in this job), enclosure {version, pcb_version}}
     pcb: dict[str, Any] = field(default_factory=dict)
+    # pack 'device': the device version the job works on {version, built, pcb_version, firmware, quoted}
+    device: dict[str, Any] = field(default_factory=dict)
 
 
 def fn(name: str, description: str, properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -198,6 +205,9 @@ def tools_for(pack: str, *, photos: bool, prints: bool, engine: str = "cad") -> 
     if pack == "pcb" and pcb_tools:
         # the board is a circuit file, not a program: its own tools and views; make_enclosure writes the case program
         return pcb_tools.TOOLS + [pcb_tools.LOOK, DIMENSIONS, ASK, FINISH]
+    if pack == "device" and device_tools and pcb_tools:
+        # a device is a graph of parts: the board is compiled from it, the case comes from the board
+        return device_tools.TOOLS[:4] + [pcb_tools.MAKE_ENCLOSURE, pcb_tools.EXPORT_FAB] + device_tools.TOOLS[4:] + [pcb_tools.LOOK, DIMENSIONS, ASK, FINISH]
     tools = [WRITE, EDIT, SET_PARAMS, INSPECT, LOOK, DIMENSIONS, ASK]
     if engine == "mesh":
         tools = [MESH_WRITE, MESH_EDIT] + tools
@@ -564,6 +574,8 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
         return await elec_tools.run(ctx, state, name, args)
     if pcb_tools and name in pcb_tools.NAMES:
         return await pcb_tools.run(ctx, state, name, args)
+    if device_tools and name in device_tools.NAMES:
+        return await device_tools.run(ctx, state, name, args)
     if name == "write_program":
         if not str(args.get("source") or "").strip():
             return {"ok": False, "error": "source is empty: pass the complete program"}, []
@@ -699,7 +711,9 @@ def _case_verdict(enc: Any) -> dict[str, Any]:
         return {"ran": False}
     problems = [{k: f[k] for k in ("code", "part", "value") if f.get(k) is not None} for f in enc.get("errors") or [] if isinstance(f, dict)]
     usb = (enc.get("summary") or {}).get("usb_clearance_mm")
-    return {"fits": not problems, **({"problems": problems[:6]} if problems else {}), **({"more": len(problems) - 6} if len(problems) > 6 else {}),
+    # the case as it stands assembled; the build's size_mm is its print plate (base, lid and a mock-up side by side)
+    size = (enc.get("summary") or {}).get("case_mm")
+    return {"fits": not problems, **({"case_mm": size} if isinstance(size, list) else {}), **({"problems": problems[:6]} if problems else {}), **({"more": len(problems) - 6} if len(problems) > 6 else {}),
             **({"usb_clearance_mm": usb} if isinstance(usb, (int, float)) else {})}
 
 
@@ -823,7 +837,8 @@ async def _mesh_edit(ctx: JobContext, state: DesignState, args: dict[str, Any]):
 
 def pack_gate(pack: str) -> tuple[Any, str] | None:
     """The pack module whose finish_gate must pass before the review, and how a block reads."""
-    mod, reason = {"enclosure": (elec_tools, "the case check found errors"), "pcb": (pcb_tools, "the board is not ready")}.get(pack, (None, ""))
+    mod, reason = {"enclosure": (elec_tools, "the case check found errors"), "pcb": (pcb_tools, "the board is not ready"),
+                   "device": (device_tools, "the device is not ready")}.get(pack, (None, ""))
     return (mod, reason) if mod else None
 
 

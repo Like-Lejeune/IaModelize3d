@@ -64,26 +64,58 @@ const { netsOf, countsOf, checkIntent, checkLimits } = await import('./intent.mj
 const { gerberZip, bomCsv, cplCsv } = await import('./fab.mjs');
 const { previews } = await import('./preview.mjs');
 const { runAllChecks } = await import('@tscircuit/checks');
+const { tidyTraces } = await import('./tidy.mjs');
 
 const write = (o) => process.stdout.write(JSON.stringify(o) + '\n');
 const b64 = (u8) => ({ b64: Buffer.from(u8).toString('base64') });
+
+// tscircuit starts every pcbPath on the top layer; a hand trace that leaves a through-hole pad on the bottom (both its
+// ends there) is listed in meta.hand_bottom: its first run moves to the bottom, and what the render said about that
+// copper goes (the checks after this run on the real layers)
+function handBottom(json, names) {
+  if (!Array.isArray(names) || !names.length) return;
+  const want = new Set(names);
+  const display = new Map(json.filter((e) => e.type === 'source_trace').map((e) => [e.source_trace_id, e.display_name]));
+  const moved = new Set();
+  for (const t of json) {
+    if (t.type !== 'pcb_trace' || /^source_/.test(t.pcb_trace_id ?? '') || !want.has(display.get(t.source_trace_id))) continue;
+    for (const p of t.route) {
+      if (p.route_type === 'via') break;
+      p.layer = 'bottom';
+    }
+    moved.add(display.get(t.source_trace_id));
+  }
+  for (let i = json.length - 1; i >= 0; i--) {
+    const e = json[i];
+    if (/_error$/.test(e.type ?? '') && [...moved].some((n) => String(e.message ?? '').includes(n))) json.splice(i, 1);
+  }
+}
 
 async function build(params, id) {
   const t0 = performance.now();
   const { json, meta, frames, ms } = await buildCircuit(String(params.source ?? ''), {
     timeoutMs: params.timeoutMs ?? 80000,
     onFrame: params.frames === false ? undefined : (frame) => write({ id, frame }),
+    lcsc: params.lcsc ?? {},
   });
   const t1 = performance.now();
+  handBottom(json, meta.hand_bottom);
   let drc = [];
-  try { drc = await runAllChecks(json); } catch (e) { drc = [{ type: 'drc_crash_warning', message: String(e?.message ?? e).slice(0, 300) }]; }
+  let tidy = null;
+  try {
+    // straight runs and 45° corners where the checks allow them (tidy.mjs); its last check is the board's DRC
+    if (params.tidy !== false && json.some((e) => e.type === 'pcb_trace')) {
+      tidy = await tidyTraces(json, (cj) => runAllChecks(cj));
+      drc = tidy.drc;
+    } else drc = await runAllChecks(json);
+  } catch (e) { drc = [{ type: 'drc_crash_warning', message: String(e?.message ?? e).slice(0, 300) }]; }
   ms.drc = Math.round(performance.now() - t1);
   const nets = netsOf(json);
   const { errors, warnings, suppressed, quiet } = digest(json, drc, nets);
   const counts = countsOf(json, nets);
   let board = null;
   try {
-    board = boardFromCircuit(json, { id: params.board_id ?? 'pcb', name: params.name ?? meta.title ?? 'PCB' });
+    board = boardFromCircuit(json, { id: params.board_id ?? 'pcb', name: params.name ?? meta.title ?? 'PCB', lcsc: params.lcsc ?? {} });
   } catch (e) {
     warnings.push({ type: 'board_json_warning', message: `no board description: ${String(e?.message ?? e).slice(0, 300)}` });
   }
@@ -93,6 +125,7 @@ async function build(params, id) {
     ok: errors.length === 0, errors, warnings, suppressed, quiet, counts, board, intent, limits, frames, meta,
     nets: nets.nets.map((n) => ({ ports: n.ports, ...(n.names.length ? { names: n.names } : {}) })),
     circuit_json: json, ms: Math.round(performance.now() - t0), timings: ms,
+    ...(tidy ? { tidy: { tidied: tidy.tidied, reverted: tidy.reverted, segments: tidy.segments } } : {}),
   };
 }
 

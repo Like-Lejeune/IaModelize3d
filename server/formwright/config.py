@@ -65,8 +65,6 @@ class Settings(BaseSettings):
     open_price_out_per_m: float = 0.0
     # route the independent critic to another model, e.g. the open-weights one
     model_critic: str = ""
-    # let anonymous and free users pick Muse Wonder (for judges)
-    demo_wonder: bool = False
 
     # budgets (USD)
     job_budget_usd: float = 0.60

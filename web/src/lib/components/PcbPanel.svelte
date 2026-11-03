@@ -13,7 +13,12 @@
   import type { ProjectStore } from '$lib/project.svelte';
   import type { RouteFrame } from '$lib/types';
 
-  let { store, part, onSend }: { store: ProjectStore; part: 'stage' | 'side'; onSend?: (text: string) => void } = $props();
+  // caseActions: the "make a case" asks; a device's case comes with every build, so its workspace leaves them out.
+  // replays: play a version's stored routing frames on show; a workspace that only wants the board leaves it off (the
+  // frames of a build routing right now are always drawn)
+  let { store, part, onSend, caseActions = true, replays = true }: {
+    store: ProjectStore; part: 'stage' | 'side'; onSend?: (text: string) => void; caseActions?: boolean; replays?: boolean;
+  } = $props();
 
   const pcb = $derived(store.pcb);
   const v = $derived(pcb.current);
@@ -118,7 +123,7 @@
 
   // once per version on show, and again when a version arrives live
   $effect(() => {
-    if (part !== 'stage' || !frames?.frames.length || !topMap || !v) return;
+    if (part !== 'stage' || !replays || !frames?.frames.length || !topMap || !v) return;
     const arrived = pcb.arrived;
     if (replayed === v.version && arrived === arrivedSeen) return;
     replayed = v.version;
@@ -349,7 +354,7 @@
     <div class="foot">
       {#if live}
         <span class="xs muted">{t('pcb_frame', { i: live.frames.length, n: live.total })}</span>
-      {:else if frames?.frames.length && topMap && (view === 'top' || playing)}
+      {:else if replays && frames?.frames.length && topMap && (view === 'top' || playing)}
         <button class="btn small" onclick={replay} disabled={playing}><Icon name="play" size={14} /> {t('pcb_replay')}</button>
         {#if playing}<span class="xs muted">{t('pcb_frame', { i: Math.max(1, step), n: played.length })}</span>{/if}
       {/if}
@@ -459,11 +464,15 @@
               <a class="btn small" href={art[f]} download><Icon name="download" size={14} /> {FILE_LABEL[f] ?? f}</a>
             {/each}
           </div>
-          <span class="chip warn" title={t('pcb_lcsc_hint')}><Icon name="info" size={12} /> {t('pcb_lcsc')}</span>
+          {#if v?.lcsc_verified}
+            <span class="chip ok" title={t('pcb_lcsc_ok_hint')}><Icon name="check" size={12} /> {t('pcb_lcsc_ok')}</span>
+          {:else}
+            <span class="chip warn" title={t('pcb_lcsc_hint')}><Icon name="info" size={12} /> {t('pcb_lcsc')}</span>
+          {/if}
         {/if}
       </section>
 
-      {#if onSend}
+      {#if onSend && caseActions}
         <div class="next">
           <button class="btn primary" disabled={busy} onclick={() => onSend?.(t('pcb_case_msg', { v: v!.version }))}><Icon name="package" size={16} /> {t('pcb_make_case')}</button>
           <button class="btn" disabled={busy} onclick={() => onSend?.(t('pcb_mockup_msg', { v: v!.version }))}><Icon name="printer" size={16} /> {t('pcb_mockup')}</button>

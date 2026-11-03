@@ -72,8 +72,10 @@ export async function previews(cj) {
   const ms = {};
   const time = async (k, fn) => { const t = performance.now(); const r = await fn(); ms[k] = Math.round(performance.now() - t); return r; };
   const opts = { width: 960, matchBoardAspectRatio: true };
-  const top = await time('svg_top', () => convertCircuitJsonToPcbSvg(cj, { ...opts, layer: 'top' }));
-  const bottom = await time('svg_bottom', () => convertCircuitJsonToPcbSvg(cj, { ...opts, layer: 'bottom' }));
+  // both copper layers in each view, as an EDA tool shows them: the active one in full colour, the other dimmed
+  // behind it (top red, bottom blue)
+  const top = await time('svg_top', () => convertCircuitJsonToPcbSvg(cj, { ...opts, colorOverrides: { copper: { top: 'rgb(200, 52, 52)', bottom: 'rgba(77, 127, 196, 0.42)' } } }));
+  const bottom = await time('svg_bottom', () => convertCircuitJsonToPcbSvg(cj, { ...opts, colorOverrides: { copper: { top: 'rgba(200, 52, 52, 0.28)', bottom: 'rgb(77, 127, 196)' } } }));
   const schematic = await time('svg_schematic', () => convertCircuitJsonToSchematicSvg(cj));
   let glb = null, glbError = null;
   try {

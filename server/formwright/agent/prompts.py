@@ -331,6 +331,14 @@ def _electronics() -> list[str]:
         else:
             PACKS["pcb"] = "\n" + pcb_prompt.PACK_TEXT + "\n"
             hints.append(pcb_prompt.CLASSIFY_HINT)
+    if tools.device_tools and tools.pcb_tools:
+        try:
+            from . import device_prompt
+        except Exception:  # noqa: BLE001 - the pack is off, the rest works
+            log.exception("prompts: device_prompt did not import, pack 'device' is off")
+        else:
+            PACKS["device"] = "\n" + device_prompt.PACK_TEXT + "\n"
+            hints.append(device_prompt.CLASSIFY_HINT)
     return hints
 
 

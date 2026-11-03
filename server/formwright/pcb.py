@@ -219,7 +219,7 @@ class PcbPool:
             await w.kill()
 
     async def build(self, source: str, *, intent: dict | None = None, on_frame: FrameCallback | None = None, timeout: float | None = None,
-                    name: str | None = None) -> dict[str, Any]:
+                    name: str | None = None, lcsc: dict | None = None) -> dict[str, Any]:
         """TSX -> {ok, errors[{type, message, hint, ref?}], warnings, counts, board (fw.board/1), circuit_json, intent,
         limits, frames[{lines, progress}], nets, meta, ms}. on_frame({frame, total, progress, lines, w, h}) per live frame."""
         timeout = timeout or settings().pcb_timeout
@@ -228,6 +228,9 @@ class PcbPool:
             params["intent"] = intent
         if name:
             params["name"] = name
+        if lcsc:
+            # catalogue footprints (catalog.easyeda) the circuit names as footprint="lcsc:C123": the worker has no network
+            params["lcsc"] = lcsc
         return await self.call("build", params, timeout, on_frame)
 
     async def export(self, circuit_json: list, *, timeout: float = 60) -> dict[str, Any]:

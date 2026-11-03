@@ -19,7 +19,7 @@ export class ApiError extends Error {
   }
 }
 
-async function req<T>(method: string, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
+export async function req<T>(method: string, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {};
   let payload: BodyInit | undefined;
   if (body instanceof FormData) payload = body;

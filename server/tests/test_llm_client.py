@@ -243,6 +243,36 @@ def test_model_for_routes_only_the_open_roles(offline, monkeypatch):
     assert MetaClient().model_for("critic", "fast") == "fast"
 
 
+async def test_the_open_model_designs_through_the_responses_api(offline):
+    """Picked as the designer, Muse Spark Open gets the same Responses call with its effort spelled out, readable
+    summaries, a designer's timeout, no encrypted reasoning or cache key, and only the last images of a long history."""
+    seen: list[dict] = []
+
+    async def create(**kwargs):
+        seen.append(kwargs)
+        resp = SimpleNamespace(output=[], output_text="", status="completed",
+                               usage=SimpleNamespace(input_tokens=500, output_tokens=50, input_tokens_details=None))
+        return SimpleNamespace(parse=lambda: resp, headers=None)
+
+    mc = MetaClient()
+    mc.open = SimpleNamespace(responses=SimpleNamespace(with_raw_response=SimpleNamespace(create=create)))
+    img = lambda k: {"type": "input_image", "image_url": f"data:image/png;base64,{k}"}  # noqa: E731
+    history = [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "a lamp"}] + [img(k) for k in range(6)]},
+               {"type": "function_call_output", "call_id": "c1", "output": "{}"},
+               {"type": "message", "role": "user", "content": [img(k) for k in range(6, 10)]}]
+    meter = CostMeter()
+    await mc.respond(meter, model=OPEN, input=history, instructions="Design.", tools=[{"type": "function", "name": "finish"}],
+                     effort="minimal", cache_key="fw-agent", max_output_tokens=4000)
+    kw = seen[0]
+    assert kw["reasoning"] == {"effort": "low", "summary": "auto"} and "include" not in kw and "prompt_cache_key" not in kw
+    assert kw["timeout"].read > 60 and kw["tools"] == [{"type": "function", "name": "finish"}]
+    sent = [c.get("image_url", c.get("text")) for m in kw["input"] if m["type"] == "message" for c in m["content"]]
+    assert sent.count("(an earlier image, left out)") == 2 and sent[-1].endswith(",9") and sent[1] == "(an earlier image, left out)"
+    # the loop's own history keeps every image
+    assert sum(c["type"] == "input_image" for m in history if m["type"] == "message" for c in m["content"]) == 10
+    assert meter.summary()["calls_by_model"] == {OPEN: 1}
+
+
 def test_meter_counts_calls_per_model_and_purpose():
     m = CostMeter()
     m.add("muse-spark-1.3", 0.01, 100, 10, purpose="designer")

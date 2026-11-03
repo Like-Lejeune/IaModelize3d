@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import Icon from './Icon.svelte';
   import Picker from './Picker.svelte';
   import CaptureTips from './CaptureTips.svelte';
@@ -8,11 +8,12 @@
   import Sticker from './Sticker.svelte';
   import { codeText } from '$lib/api';
   import { t, fmtDuration } from '$lib/i18n.svelte';
-  import { prefs, setPref, models, modelName, REASONING } from '$lib/session.svelte';
+  import { prefs, setPref, models, modelName, REASONING, session, refreshMe } from '$lib/session.svelte';
   import type { ProjectStore } from '$lib/project.svelte';
   import type { AssetOut } from '$lib/types';
 
-  let { store }: { store: ProjectStore } = $props();
+  // placeholder: what to ask for, when the page knows better than the parts studio (a device workspace)
+  let { store, placeholder }: { store: ProjectStore; placeholder?: string } = $props();
   let text = $state('');
   let uploading = $state(0);
   let menu = $state(false);
@@ -46,6 +47,10 @@
     })),
   );
   const reasoningOptions = $derived(REASONING.map((r) => ({ value: r, title: t(`reasoning_${r}`) })));
+  // the server's own model list (a page without the site header, like the device workspace, has not asked for it yet)
+  onMount(() => {
+    if (!session.me) refreshMe();
+  });
 
   // status line: the current run, or the last one once it is over
   const job = $derived(store.currentJob ?? Object.values(store.jobs).sort((a, b) => b.started - a.started)[0] ?? null);
@@ -203,7 +208,7 @@
     class="box"
     class:dragging
     role="group"
-    aria-label={t(hasModel ? 'message_placeholder' : 'message_placeholder_new')}
+    aria-label={(placeholder ?? t(hasModel ? 'message_placeholder' : 'message_placeholder_new'))}
     ondragover={(e) => {
       e.preventDefault();
       dragging = true;
@@ -264,8 +269,8 @@
       bind:this={area}
       bind:value={text}
       rows="1"
-      placeholder={t(hasModel ? 'message_placeholder' : 'message_placeholder_new')}
-      aria-label={t(hasModel ? 'message_placeholder' : 'message_placeholder_new')}
+      placeholder={(placeholder ?? t(hasModel ? 'message_placeholder' : 'message_placeholder_new'))}
+      aria-label={(placeholder ?? t(hasModel ? 'message_placeholder' : 'message_placeholder_new'))}
       disabled={store.replaying}
       oninput={fit}
       onpaste={(e) => {

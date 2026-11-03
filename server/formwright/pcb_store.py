@@ -17,7 +17,7 @@ from .db import get_db, now
 # the only names a version has, and the only ones the API serves
 ARTIFACTS = (
     "circuit.tsx", "circuit.json", "board.json", "drc.json", "route_frames.json", "pcb_top.svg", "pcb_bottom.svg",
-    "schematic.svg", "board.glb", "gerbers.zip", "bom.csv", "cpl.csv",
+    "schematic.svg", "board.glb", "gerbers.zip", "bom.csv", "cpl.csv", "device.json",
 )
 
 SCHEMA = """
@@ -151,6 +151,20 @@ async def add(project_id: str, packed: dict[str, Any]) -> int:
             files["board.json"] = json.dumps(_stamp(board, version), ensure_ascii=False, indent=1)
         await _insert(project_id, version, {**packed, "files": files})
     return version
+
+
+async def copy(src: str, version: int, dst: str) -> int | None:
+    """One version of a project (with every file it has) as the next version of another: a replay or a remix keeps the
+    boards. Returns the new version, None when the source has no such version."""
+    row = await get(src, version)
+    if row is None:
+        return None
+    files: dict[str, bytes | str] = {}
+    for name in row.get("artifacts") or {}:
+        path = artifact_path(src, version, name)
+        if path is not None:
+            files[name] = path.read_text(encoding="utf-8") if name.endswith((".json", ".tsx", ".svg", ".csv")) else path.read_bytes()
+    return await add(dst, {"source": row["source"], "intent": row.get("intent"), "checks": row.get("checks") or {}, "files": files})
 
 
 async def versions(project_id: str) -> list[dict[str, Any]]:

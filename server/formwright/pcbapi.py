@@ -53,6 +53,8 @@ def version_out(project_id: str, row: dict[str, Any]) -> dict[str, Any]:
         "drc": {"errors": len(checks.get("errors") or []), "warnings": len(checks.get("warnings") or [])},
         "intent_ok": bool((checks.get("intent") or {}).get("ok", True)),
         "limits_ok": bool((checks.get("limits") or {}).get("ok", True)),
+        # a device build's BOM numbers come from the LCSC catalogue; a hand-written circuit's are as the model wrote them
+        "lcsc_verified": bool((checks.get("fab") or {}).get("lcsc_verified")),
         "artifacts": {n: pcb_store.artifact_url(project_id, v, n) for n in pcb_store.ARTIFACTS if n in names},
     }
 

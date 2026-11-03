@@ -72,3 +72,14 @@ async def test_checked_puts_it_first_only_for_a_checked_case(monkeypatch):
     assert out == plain
     out, _ = await tools._checked(None, SimpleNamespace(pack="enclosure"), ({"ok": False, "error": "x"}, []))  # type: ignore[arg-type]
     assert "case_fit" not in out
+
+
+def test_the_verdict_names_the_assembled_size():
+    # size_mm is the print plate; the check measured the case with its lid on
+    b = brief([])
+    b["summary"]["case_mm"] = [41, 40, 15.5]
+    r = build_result(b)
+    tools._verdict_first(r)
+    assert r["case_fit"] == {"fits": True, "case_mm": [41, 40, 15.5], "usb_clearance_mm": 0.29}
+    assert '"case_mm": [41, 40, 15.5]' in summary(r)
+

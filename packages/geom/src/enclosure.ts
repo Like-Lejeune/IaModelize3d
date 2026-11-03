@@ -89,7 +89,9 @@ export function checkEnclosure(wasm: Wasm, parts: Part[], spec: BoardSpec, pose?
     const clearance: Record<string, number> = {};
     const push = (code: FindingCode, severity: Finding['severity'], msg: string, part: string, value: number | null, unit?: Finding['unit']) =>
       findings.push({ code, severity, msg, part, value, ...(unit ? { unit } : {}) });
-    const done = () => ({ findings, rays, clearance, ms: Math.round(performance.now() - t0) });
+    // the assembled case's outer size (base and lid in place), once the shell is known
+    let size: V3 | undefined;
+    const done = () => ({ findings, rays, clearance, ...(size ? { size } : {}), ms: Math.round(performance.now() - t0) });
 
     const b = boardModel(wasm, spec);
     const refs = parts.filter((p) => p.role === 'reference');
@@ -103,6 +105,7 @@ export function checkEnclosure(wasm: Wasm, parts: Part[], spec: BoardSpec, pose?
     }
     const shell = models.length === 1 ? models[0].solid : M.union(models.map((p) => p.solid));
     const sb = shell.boundingBox();
+    size = [0, 1, 2].map((i) => +(sb.max[i] - sb.min[i]).toFixed(2)) as V3;
     const at = (p: V3): V3 => [p[0] + P[0], p[1] + P[1], p[2] + P[2]];
     // the case report is in the frame the case was built in; the engine may have moved it since
     const dz = report ? P[2] - report.zBoard : 0;

@@ -199,7 +199,7 @@ async def test_the_pcb_example_opens_with_its_routed_board_and_the_case_made_fro
     assert v["drc"]["errors"] == 0 and v["intent_ok"] and v["limits_ok"] and v["counts"]["traces"] >= 20
     # no engine notes next to DRC 0 on the card (the button legs and the power path width are right)
     assert v["drc"]["warnings"] == 0
-    assert set(v["artifacts"]) == set(pcb_store.ARTIFACTS)
+    assert set(v["artifacts"]) == set(pcb_store.ARTIFACTS) - {"device.json"}  # only a device build carries its graph
     for name, url in v["artifacts"].items():
         got = await client.get(url)
         assert got.status_code == 200 and got.content, name

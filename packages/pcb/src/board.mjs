@@ -185,7 +185,7 @@ function expandModule(c, mod, fwCenter, W, H, pins) {
 /**
  * fw.board/1 for a routed circuit. opts: {id, name, job ('pcb:v3' once the version is saved)}.
  */
-export function boardFromCircuit(cj, { id = 'pcb', name, job } = {}) {
+export function boardFromCircuit(cj, { id = 'pcb', name, job, lcsc = {} } = {}) {
   const { board, W, H, origin } = boardFrame(cj);
   const fw = (x, y) => [x - origin[0], y - origin[1]];
   const fwBox = (b) => [b[0] - origin[0], b[1] - origin[1], b[2] - origin[0], b[3] - origin[1]];
@@ -204,7 +204,10 @@ export function boardFromCircuit(cj, { id = 'pcb', name, job } = {}) {
       keepouts.push(...m.keepouts);
       continue;
     }
-    const rule = partRule(c.ftype, c.footprint) ?? { type: 'part', access: 'none', h: 2.0, unknown: true };
+    // a catalogue part (footprint 'lcsc:C123'): its height comes from the server, read off the part's 3D model name
+    const cat = lcsc[String(c.footprint).replace(/^lcsc:/i, '').toUpperCase()] ?? lcsc[String(c.src.supplier_part_numbers?.jlcpcb?.[0] ?? '').toUpperCase()] ?? null;
+    const rule = (cat ? { type: cat.type ?? 'chip', access: cat.access ?? 'none', h: cat.h ?? 2.0, unknown: cat.h == null } : null)
+      ?? partRule(c.ftype, c.footprint) ?? { type: 'part', access: 'none', h: 2.0, unknown: true };
     const box = fwBox(c.box);
     const th = rule.typical ? typicalHeight(rule.typical) : null;
     const h = th ?? rule.h ?? 2.0;

@@ -554,6 +554,16 @@ async def _replay(src_id: str, dst_id: str, speed: float) -> None:
                     await db.insert("programs", {**{k: prog[k] for k in ("version", "source", "params", "inputs", "summary", "checks", "author")},
                                                  "project_id": dst_id, "created_at": now()})
                     await db.update("projects", "id", dst_id, {"version": v, "updated_at": now()})
+            # boards and device graphs come along as their events come up, so the replay's tabs fill as the original's did
+            if r["type"] == "pcb.version" and r["data"].get("version"):
+                from . import pcb_store
+
+                if not await pcb_store.get(dst_id, int(r["data"]["version"])):
+                    await pcb_store.copy(src_id, int(r["data"]["version"]), dst_id)
+            if r["type"] == "device.version" and r["data"].get("version"):
+                from . import device_store
+
+                await device_store.copy_one(src_id, int(r["data"]["version"]), dst_id)
             await events.emit(dst_id, r["type"], {**r["data"], "replay": True}, r["job_id"])
         for m in await db.all("SELECT * FROM messages WHERE project_id = ? ORDER BY created_at", src_id):
             await db.insert("messages", {"id": new_id("msg_"), "project_id": dst_id, "role": m["role"], "text": m["text"], "data": m["data"],
@@ -587,6 +597,13 @@ async def fork_project(project_id: str, user=Depends(current_user)):
     if prog:
         await db.insert("programs", {"project_id": pid, "version": 1, "source": prog["source"], "params": prog["params"], "inputs": prog["inputs"],
                                      "summary": prog["summary"], "checks": prog["checks"], "author": "fork", "created_at": t})
+    # a device keeps its graph and its boards (same numbers, so the case still names the board it was made for)
+    from . import device_store, pcb_store
+
+    if src["pack"] in ("device", "pcb"):
+        await device_store.copy_all(project_id, pid)
+        for v in await pcb_store.versions(project_id):
+            await pcb_store.copy(project_id, int(v["version"]), pid)
     return project_out(await db.one("SELECT * FROM projects WHERE id = ?", pid))  # type: ignore[arg-type]
 
 
@@ -1016,7 +1033,7 @@ class SnapReselect(BaseModel):
 class SnapConfirm(BaseModel):
     text: str
     label: str | None = None
-    model: Literal["contributor", "spark", "wonder"] | None = None
+    model: Literal["contributor", "spark", "wonder", "spark_open"] | None = None
     reasoning: Literal["minimal", "low", "medium", "high", "xhigh", "max"] = "medium"
 
 
@@ -1175,7 +1192,7 @@ async def collection(user=Depends(current_user)):
 # Each module exports `router` (an APIRouter) and reaches this file lazily (`from formwright import app as _app`, then
 # _app.current_user and _app.load_project). Mounted here, before the SPA catch-all, so /api/... never falls through
 # to index.html. A module that is missing or fails to import is logged and skipped: the rest of the API still starts.
-ROUTERS = ("formwright.shop.routes", "formwright.pcbapi", "formwright.collect")
+ROUTERS = ("formwright.shop.routes", "formwright.pcbapi", "formwright.deviceapi", "formwright.collect")
 
 
 def include_routers(target: FastAPI, names: tuple[str, ...] = ROUTERS) -> list[str]:

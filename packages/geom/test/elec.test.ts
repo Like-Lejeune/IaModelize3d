@@ -95,6 +95,8 @@ test('every dataset board gets a printable case that passes check_enclosure', ()
 test('Pico W: plug clearance 0.29 mm, BOOTSEL plunger 0.30 mm, snap strain under 2 %, no metal at the antenna', () => {
   const c = check(board('rpi-pico-w'));
   assert.ok(c.clearance.usb >= 0.285 && c.clearance.usb <= 0.3, String(c.clearance.usb));
+  // the case as it stands with its lid on: the 21 x 51 mm board, walls round it
+  assert.ok(c.size[0] > 25 && c.size[0] < 35 && c.size[1] > 55 && c.size[1] < 65 && c.size[2] > 5, String(c.size));
   const port = find(c, 'port_clear', 'usb');
   assert.equal(port.severity, 'info');
   assert.equal(port.value, c.clearance.usb);

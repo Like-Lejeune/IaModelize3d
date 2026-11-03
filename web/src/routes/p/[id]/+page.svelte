@@ -18,7 +18,7 @@
   import SnapHighlight from '$lib/components/SnapHighlight.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import { ProjectStore } from '$lib/project.svelte';
-  import { takeFirst } from '$lib/pending';
+  import { stashFirst, takeFirst } from '$lib/pending';
   import { api, download, errorText } from '$lib/api';
   import { t, isText, projectTitle, unitLabel } from '$lib/i18n.svelte';
   import type { AssetOut, Calibration, Issue, ScanBox } from '$lib/types';
@@ -67,6 +67,12 @@
     // "Ideas first" from the home page: open the sketches with that text, once (a reload must not start them again)
     const idea = untrack(() => page.url.searchParams.get('ideas'))?.trim();
     s.load().then(() => {
+      // a device has its own workspace: its first message goes along
+      if (s.detail?.pack === 'device') {
+        if (first) stashFirst(id, first.text, first.files);
+        goto(`/d/${id}`, { replaceState: true });
+        return;
+      }
       if (first) s.sendFiles(first.text, first.files);
       // a board project without a 3D model yet: its PCB is the picture
       if (s.detail?.pack === 'pcb' && !s.source && wide) show('pcb');

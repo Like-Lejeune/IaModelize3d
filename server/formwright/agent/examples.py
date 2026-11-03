@@ -151,6 +151,12 @@ def _pack_examples() -> dict[str, str]:
         except Exception:  # noqa: BLE001 - prompts leaves the pack out as well
             return out
         out["pcb"] = f"# Reference board (built: 0 DRC errors, 23 traces, intent met)\n```tsx\n{CARRIER}```"
+    if tools.device_tools and tools.pcb_tools:
+        try:
+            from .device_prompt import EXAMPLE as DEVICE
+        except Exception:  # noqa: BLE001 - prompts leaves the pack out as well
+            return out
+        out["device"] = DEVICE
     return out
 
 

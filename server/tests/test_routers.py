@@ -38,7 +38,7 @@ def _paths(route) -> list[str]:
 
 
 def test_registry_names_the_three_feature_routers():
-    assert ROUTERS == ("formwright.shop.routes", "formwright.pcbapi", "formwright.collect")
+    assert ROUTERS == ("formwright.shop.routes", "formwright.pcbapi", "formwright.deviceapi", "formwright.collect")
 
 
 def test_feature_routes_come_before_the_catch_all():

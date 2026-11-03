@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -361,7 +362,10 @@ async def test_the_carrier_example_goes_from_circuit_to_checked_case(fresh_db, r
     assert [p["name"] for p in r["parts"]] == ["base", "lid", "pcb_mockup"]
     # both USB-C ports and the I2C header at the edge get a window (the header is a port, pcb-engine deviation 3)
     assert set(r["enclosure"]["clearance_mm"]) == {"J1", "J2", "U1_usb"}
-    assert '"case_fit": {"fits": true, "usb_clearance_mm": 0.29' in json.dumps(r, ensure_ascii=False)[:600]
+    # the case as it stands assembled, not the print plate of size_mm
+    W, H = r["case_fit"]["case_mm"][:2]
+    assert W < r["size_mm"][0] and H < r["size_mm"][1], r["case_fit"]
+    assert re.search(r'"case_fit": \{"fits": true, "case_mm": \[[\d., ]+\], "usb_clearance_mm": 0\.29', json.dumps(r, ensure_ascii=False)[:600])
     assert json.dumps(r, ensure_ascii=False).startswith('{"ok": true, "version": 1, "pcb_version": 1, ')
     assert await pcb_tools.finish_gate(ctx, state) == []
 

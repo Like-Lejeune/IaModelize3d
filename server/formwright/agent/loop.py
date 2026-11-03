@@ -28,7 +28,7 @@ from .runner import JobContext, add_message
 from . import narrate
 from . import compare
 from .side import GENERATED
-from .tools import DesignState, _crop_data_url, is_mesh_doc, pcb_tools, run_tool, tools_for
+from .tools import DesignState, _crop_data_url, device_tools, is_mesh_doc, pcb_tools, run_tool, tools_for
 
 log = logging.getLogger(__name__)
 
@@ -60,9 +60,10 @@ STOPS = (BudgetExceeded, APIStatusError, APIConnectionError, APITimeoutError, ht
 WRAP_UP = "You are close to the {} limit. Fix only blocking problems and call finish with an honest summary."
 CUT_OFF = "Your last answer was cut off at the output limit; use edit_program/mesh_edit or a shorter program."
 CUT_OFF_PCB = "Your last answer was cut off at the output limit; use write_circuit with edits on the current file, or a shorter file."
+CUT_OFF_DEVICE = "Your last answer was cut off at the output limit; use write_device with edits on the current device, or fewer parts."
 MAX_OUTPUT = {"high": 20000, "xhigh": 28000, "max": 32000}  # tokens per designer turn by effort; 12000 for the rest
 # Per pack: a circuit file is long, and in the PCB spike medium effort twice spent all 12k tokens thinking and answered nothing.
-PACK_LLM: dict[str, dict[str, Any]] = {"pcb": {"effort": "low", "max_output_tokens": 24000}}
+PACK_LLM: dict[str, dict[str, Any]] = {"pcb": {"effort": "low", "max_output_tokens": 24000}, "device": {"effort": "low", "max_output_tokens": 24000}}
 
 
 CYRILLIC = re.compile(r"[Ѐ-ӿ]")
@@ -429,7 +430,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         pack = "household"
     if current_is_mesh:
         engine = "mesh"
-    if pack in ("enclosure", "pcb"):
+    if pack in ("enclosure", "pcb", "device"):
         engine = "cad"  # boards and cases are exact geometry
     if concept:
         subject, photo_role = _concept_subject(concept) or subject, "copy"
@@ -444,6 +445,8 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         state.source, state.params, state.version, state.inputs = current["source"], current["params"], current["version"], current["inputs"] or {}
     if pack == "pcb" and pcb_tools:
         await pcb_tools.load(ctx.project_id, state)
+    elif pack == "device" and device_tools:
+        await device_tools.load(ctx.project_id, state)
 
     if concept or any(a["kind"] in ("photo", "sketch", "caliper", "print", "video") for a in (new_assets or all_assets)):
         await set_stage("measure")
@@ -518,6 +521,16 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     if pack == "pcb" and pcb_tools:
         # the circuit is what the designer edits; the case program is make_enclosure's
         ctx_lines.extend(pcb_tools.context_lines(state))
+    elif pack == "device" and device_tools:
+        # the device graph is what the designer edits; the board is compiled from it, the case comes from the board
+        ctx_lines.extend(await device_tools.context_lines(ctx.project_id, state))
+        # the person edited the device since the designer's last version: say in the chat that those edits are read
+        edits, _ = await device_tools.user_changes(ctx.project_id)
+        if edits:
+            n = len(edits)
+            text = (f"Учитываю ваши правки в устройстве: {n} {narrate._ru_form(n, ('изменение', 'изменения', 'изменений'))}."
+                    if narrate._ru(language) else f"Taking your {n} edit{'s' if n != 1 else ''} to the device into account.")
+            await ctx.emit("agent.status", {"text": text, "say": True})
     elif state.source and is_mesh_doc(state.source):
         ctx_lines.append(f"# Current mesh document (version {state.version}); params {json.dumps(state.params, ensure_ascii=False)}\n```json\n{state.source}\n```")
     elif state.source:
@@ -582,7 +595,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
                     calls.append(d)
             if not calls:
                 if cut and turn < max_turns - 1:
-                    history.append({"type": "message", "role": "user", "content": [{"type": "input_text", "text": CUT_OFF_PCB if pack == "pcb" else CUT_OFF}]})
+                    history.append({"type": "message", "role": "user", "content": [{"type": "input_text", "text": CUT_OFF_PCB if pack == "pcb" else CUT_OFF_DEVICE if pack == "device" else CUT_OFF}]})
                     continue
                 # The review gate lives in finish(); a model that just stops talking does not skip it.
                 if (state.source or state.pcb.get("made")) and not state.done and state.finish_attempts == 0 and turn < max_turns - 1:
@@ -645,7 +658,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
                     parts.append({"type": "input_image", "image_url": ref if ref.startswith("data:") else storage.data_url(ref, None if ref.endswith(".png") else 1280)})
                 history.append({"type": "message", "role": "user", "content": parts})
             if cut:
-                history.append({"type": "message", "role": "user", "content": [{"type": "input_text", "text": CUT_OFF_PCB if pack == "pcb" else CUT_OFF}]})
+                history.append({"type": "message", "role": "user", "content": [{"type": "input_text", "text": CUT_OFF_PCB if pack == "pcb" else CUT_OFF_DEVICE if pack == "device" else CUT_OFF}]})
             if state.done:
                 break
             closing = None if wrapped else _closing(ctx, turn, max_turns)
@@ -680,7 +693,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         await set_stage("done")
         card = result_card(ctx, state)
         card["next"] = [{**n, "label": narrate.localize(n["label"], language)} for n in card["next"]]
-        if pack == "pcb" and pcb_tools:
+        if pack in ("pcb", "device") and pcb_tools:
             card["pcb"] = await pcb_tools.card(ctx.project_id, state)
         await ctx.emit("result", card)
     # a run that ends as budget/failed has its request kept by the runner, marked as interrupted
@@ -690,7 +703,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
                                                                       "subject": subject, "photo_role": photo_role, "engine": engine}, "updated_at": now()})
     await memory.record_outcome(state.memory_ids, success=state.done)
     # skills are tested JS modules; a mesh document has none to harvest, and a PCB job's case program is generated
-    if state.done and state.source and not is_mesh_doc(state.source) and pack != "pcb" and (state.critic or {}).get("verdict") == "pass":
+    if state.done and state.source and not is_mesh_doc(state.source) and pack not in ("pcb", "device") and (state.critic or {}).get("verdict") == "pass":
         asyncio.create_task(_harvest_skill(ctx, state.source, pack))
     return text[:300]
 

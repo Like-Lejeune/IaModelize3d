@@ -1,11 +1,12 @@
 # Formwright
 
-**Formwright by Axo prints the spare part nobody stocks: measured from a photo, verified before you pay, printed on
-our farm in Kazakhstan and checked again before it ships.**
+**Formwright by Axo is hardware R&D from a sentence to a box on your desk: describe a device and get it finished —
+real parts from the LCSC catalogue wired in a node editor, a placed and routed board, its 3D-printed case and its
+firmware — then order it built. The same agent prints the spare part nobody stocks.**
 
-Under it is an agent that turns photos, caliper readings, sketches, voice notes and ideas into printable 3D models
-(spare parts, cases for electronics boards, the boards themselves) and checks each one against reality before
-anything is printed. Dimensions come from measurement, standards tables and official specs, not from guessing: the
+Under it is an agent that turns descriptions, photos, caliper readings, sketches and voice notes into things that can
+be made (whole devices, spare parts, cases for electronics boards) and checks each one against reality before
+anything is ordered. Dimensions come from measurement, standards tables and official specs, not from guessing: the
 agent writes a short parametric program, a geometry kernel builds it, and every version passes a slicer-like
 printability check and an independent reviewer.
 
@@ -16,6 +17,22 @@ Global AI Developer Hackathon
 
 ## Features
 
+- **Devices from a description.** “A weather station with an OLED display and Wi-Fi” becomes a device graph: the
+  agent searches the live LCSC catalogue (JLCPCB's parts search: stock, price breaks, basic/extended), reads every
+  chip's real pinout and footprint from EasyEDA, picks a module (XIAO ESP32-C3/S3, Pico, Pico W) or bare chips, and
+  wires parts and nets with pull-ups and decoupling. No coordinates are written by the model: a deterministic compiler
+  places connectors and the module's USB on their edges, lets tscircuit pack the rest next to the pins it connects,
+  autoroutes two layers, runs DRC and intent checks and grows the board until it routes. Then the snap-fit case,
+  firmware for the exact pins, a BOM with LCSC numbers and a price for N finished devices (parts, PCB, SMT assembly,
+  case, hand assembly, delivery) with dates, and an order.
+- **Node editor.** The device is a graph you can see and change: parts as nodes with their pins, signal nets as wires,
+  supplies as labels; drag a wire between two pins, add any LCSC part by number or function, change values, edges and
+  nets in the inspector, then rebuild the board without the agent. The agent and the editor edit the same document
+  (`fw.device/1`), so the next request keeps the person's changes.
+- **Placement and routing by hand.** On the board, drag and turn parts (they stay pinned), draw traces pad to pad with
+  45/90 degree corners, vias and widths on both layers, delete autorouted traces or keep the good ones. "Route the
+  rest" builds again: hand traces go in as fixed `pcbPath` traces, the autorouter joins only what is left around them,
+  DRC checks everything. The agent sees what the person changed and keeps their placement and traces.
 - **Spare parts (Formwright Parts).** A photo of the broken part on an A4 sheet, the appliance's rating plate and a
   voice note become an order: the intake reads and refuses what is dangerous to print, the agent designs a compatible
   part from the measured photo, OrcaSlicer gives a binding quote in tenge, the farm prints it, and a QC photo is
@@ -38,7 +55,7 @@ Global AI Developer Hackathon
 
 | Model | Role |
 |---|---|
-| Muse Spark 1.3 | designer, spare-part intake and refusals, circuits, board identification, caliper reading, dimension search |
+| Muse Spark 1.3 | designer (devices from a description, their parts, nets and firmware), spare-part intake and refusals, circuits, board identification, caliper reading, dimension search |
 | Muse Spark Open (open weights, Baseten) | independent critic, classification, the English layer, second opinion on spare-part requests |
 | Muse Wonder | designer for hard parts |
 | SAM 3.1 | measurement, board scan, Snap stickers, face blur, QC of printed parts |
@@ -56,7 +73,9 @@ All code in this repository was written during the building period; the first co
 its farm, its customers and its own code, none of which is here. `integrations/axo.py` can call Axo's external order
 API.
 
-Not ours: the open-source libraries in the `package.json` files and `server/pyproject.toml`; OrcaSlicer, run as an
+Not ours: the open-source libraries in the `package.json` files and `server/pyproject.toml` (among them tscircuit with
+its EasyEDA converter, and Svelte Flow for the node editor); part data, stock and prices read live from JLCPCB's parts
+search and EasyEDA's component library; OrcaSlicer, run as an
 external CLI; the Archivo font and Tabler Icons (`web/static/fonts/NOTICE.md`); the board dimensions in
 `packages/geom/src/boards.json`, taken from the manufacturers' published drawings (each board links its source).
 
@@ -66,7 +85,9 @@ external CLI; the Archivo font and Tabler Icons (`web/static/fonts/NOTICE.md`); 
  browser (SvelteKit, three.js)              server (FastAPI, SQLite)
  ┌─────────────────────────────────┐  SSE  ┌─────────────────────────────────────────────┐
  │ studio: chat, 3D view, sliders, │◄──────│ agent loop (Muse Spark / Wonder, tools)     │
- │ handles, photo AR, PCB tab,     │       │  ├ packs: household … enclosure, pcb        │
+ │ device node editor (Svelte Flow)│       │  ├ packs: household … enclosure, pcb, device│
+ │ handles, photo AR, PCB tab,     │       │  ├ device graph -> compiler -> board, quote │
+ │                                 │       │  ├ catalogue: LCSC (JLCPCB search, EasyEDA) │
  │ board ghost and port rays       │       │  ├ vision: SAM 3.1, calibration, board scan │
  │ /parts /orders /ops (Axo farm)  │       │  ├ knowledge: standards, web search         │
  │ /snap /collection               │       │  ├ critic: renders + photos, no code        │

@@ -4,6 +4,7 @@ import { api, ApiError, errorInfo, errorText } from './api';
 import { GeomClient } from './geom/client';
 import { i18n, t } from './i18n.svelte';
 import { pcbApi } from './pcb/api';
+import { DeviceStore } from './device/store.svelte';
 import { chosenModel, prefs, refreshMe } from './session.svelte';
 import { streamEvents, type EventStream } from './sse';
 import { KIND_STAGE, kindOf } from './steps';
@@ -267,6 +268,8 @@ export class ProjectStore {
   /** A board built into the program itself (a showcase case without inputs.boards). */
   private builtInBoard = $derived(boardIn(this.source));
   pcb: PcbState;
+  /** The device graph of a 'device' project (fw.device/1): the node editor and the Device tab. */
+  device: DeviceStore;
 
   geom = new GeomClient();
   /** Tags our saves so their echo on the event stream is not rebuilt again. */
@@ -308,6 +311,7 @@ export class ProjectStore {
     this.id = id;
     this.recipe = recipe;
     this.pcb = new PcbState(id);
+    this.device = new DeviceStore(id, () => !this.readonly);
   }
 
   /** Nothing here is saved or sent: sliders and handles still move the model in this browser. */
@@ -416,6 +420,7 @@ export class ProjectStore {
         this.jobKind = d.job.kind;
       }
       this.pcb.refresh();
+      if (d.pack === 'device') this.device.refresh();
       // a visitor's studio follows the run too: the stream only reads
       if (!this.recipe) this.connect();
     } catch (e) {
@@ -604,6 +609,10 @@ export class ProjectStore {
         break;
       case 'pcb.version':
         if (live) this.pcb.added();
+        break;
+      case 'device.version':
+      case 'device.build':
+        if (live) this.device.onEvent(e.type, d);
         break;
       case 'program.updated':
         // history: load() already applied the program it ended with

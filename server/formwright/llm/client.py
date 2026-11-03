@@ -196,6 +196,20 @@ def _usage(resp: Any) -> tuple[int, int, int]:
     return int(tin), int(tout), int(cached or 0)
 
 
+def _last_images(items: list[dict[str, Any]], keep: int) -> list[dict[str, Any]]:
+    """A Responses history with only its last `keep` images (a provider's cap per request): older ones become a short
+    note. A copy where anything is left out; the caller's history keeps every image."""
+    spots = [(i, j) for i, it in enumerate(items) if isinstance(it, dict) and isinstance(it.get("content"), list)
+             for j, c in enumerate(it["content"]) if isinstance(c, dict) and c.get("type") == "input_image"]
+    if len(spots) <= keep:
+        return items
+    drop = set(spots[:len(spots) - keep])
+    rows = {i for i, _ in drop}
+    return [{**it, "content": [{"type": "input_text", "text": "(an earlier image, left out)"} if (i, j) in drop else c
+                               for j, c in enumerate(it["content"])]} if i in rows else it
+            for i, it in enumerate(items)]
+
+
 class MetaClient:
     def __init__(self) -> None:
         s = settings()
@@ -268,11 +282,15 @@ class MetaClient:
         include: list[str] | None = None,
         purpose: str | None = "designer",
     ) -> Any:
-        """Responses API call. Input is the full append-only history (store=false)."""
+        """Responses API call. Input is the full append-only history (store=false).
+        The open-weights model (Muse Spark Open on Baseten, picked as the designer) speaks the same API, tools and
+        readable reasoning summaries included, but carries no encrypted reasoning, no prompt cache key and at most
+        OPEN_MAX_IMAGES images per request."""
         meter.check(0.002)
         is_open = model == self.s.open_model and self.open is not None
         client = self.open if is_open else self.oai
-        kwargs: dict[str, Any] = {"model": model, "input": input, "max_output_tokens": max_output_tokens, "store": False}
+        kwargs: dict[str, Any] = {"model": model, "input": _last_images(input, OPEN_MAX_IMAGES) if is_open else input,
+                                  "max_output_tokens": max_output_tokens, "store": False}
         if instructions:
             kwargs["instructions"] = instructions
         if tools:
@@ -283,12 +301,17 @@ class MetaClient:
             # summaries make the agent's thinking visible in the timeline
             kwargs["reasoning"] = {"effort": effort, "summary": "auto"}
             kwargs["include"] = ["reasoning.encrypted_content"] + (include or [])
-        elif include:
-            kwargs["include"] = include
+        else:
+            if effort:
+                # sent explicitly: the open model's own default is xhigh
+                kwargs["reasoning"] = {"effort": OPEN_EFFORT.get(effort, "medium"), "summary": "auto"}
+            if include:
+                kwargs["include"] = include
         if cache_key and not is_open:
             kwargs["prompt_cache_key"] = cache_key
-        if effort in ("xhigh", "max") and not is_open:
-            # the deepest reasoning answers in one piece after a long silence: give that read more room
+        if effort in ("xhigh", "max") or is_open:
+            # the deepest reasoning answers in one piece after a long silence: give that read more room (the open
+            # client's own short leash is for one-shot reviews, not a designer turn that writes a whole program)
             kwargs["timeout"] = httpx.Timeout(connect=10, read=RESPOND_DEADLINE_S - 10, write=60, pool=10)
         async with _deadline(RESPOND_DEADLINE_S, f"{model}/responses"):
             resp = await self._retry(model, lambda: client.responses.with_raw_response.create(**kwargs))  # type: ignore[union-attr]

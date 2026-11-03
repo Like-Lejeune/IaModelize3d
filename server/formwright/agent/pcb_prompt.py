@@ -77,8 +77,8 @@ trace coordinates: the autorouter routes.
   0 errors and intent ok (usually 1-3 rounds). look(what='pcb') shows the routed board.
 - export_fab gives the links (Gerber zip, BOM, CPL). LCSC numbers and CPL rotations are not checked yet: say so.
 - make_enclosure builds the snap-fit case from the same board.json and checks plug paths, buttons and LEDs; with_mockup adds a
-  printed 1.6 mm stand-in plate of the PCB, so the real module can be tried in the case before the board is made. Case errors:
-  its options (port_fit, clear, standoff) or move the part on the board.
+  printed 1.6 mm stand-in plate of the PCB, to try the real module in the case before the board is made. Case errors:
+  its options (port_fit, clear, standoff) or move the part on the board. Its size is case_fit.case_mm (not size_mm).
 - finish needs the latest version with 0 DRC errors, intent stated and ok, fab files, and a case of that version without errors.
 - Summary: what the board does and which pin drives what, size, DRC 0, fab files (2 layers; a fab house makes and assembles it,
   which takes weeks), the case (print time, the mock-up plate) and what is unverified (LCSC numbers, rotations, part heights).

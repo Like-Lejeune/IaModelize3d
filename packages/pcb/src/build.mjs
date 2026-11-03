@@ -7,6 +7,7 @@ import vm from 'node:vm';
 import { transform } from 'sucrase';
 import * as React from 'react';
 import { Circuit } from '@tscircuit/core';
+import { EasyEdaJsonSchema, convertEasyEdaJsonToCircuitJson } from 'easyeda';
 
 export const FRAME_CAP = 24; // routing frames kept for the animation
 const TOP_LEVEL_MS = 5000;
@@ -78,16 +79,40 @@ export function thinFrames(frames, cap = FRAME_CAP) {
 }
 
 /**
+ * Catalogue footprints: {C92489: {easyeda: <EasyEDA component JSON the server fetched>}} -> the resolver behind
+ * footprint="lcsc:C92489". The worker has no network, so a part the server did not send fails as an unknown footprint.
+ */
+export function lcscLibrary(parts = {}) {
+  const cache = new Map();
+  return async (name) => {
+    const code = String(name).trim().toUpperCase();
+    if (!cache.has(code)) {
+      const raw = parts[code]?.easyeda;
+      if (!raw) throw new StageError('compile', `footprint lcsc:${code} was not loaded: use part numbers from search_parts / part_info`);
+      let cj;
+      try {
+        cj = convertEasyEdaJsonToCircuitJson(EasyEdaJsonSchema.parse(raw));
+      } catch (e) {
+        throw new StageError('compile', `the EasyEDA footprint of ${code} could not be converted: ${String(e?.message ?? e).slice(0, 300)}`);
+      }
+      // the 3D model links would make the GLB preview fetch them: the board view draws a plain box instead
+      cache.set(code, cj.map((e) => (e.type === 'cad_component' ? Object.fromEntries(Object.entries(e).filter(([k]) => !k.startsWith('model_') || k.endsWith('alignment'))) : e)));
+    }
+    return { footprintCircuitJson: cache.get(code) };
+  };
+}
+
+/**
  * Build a circuit. onFrame({frame, total, progress, lines, w, h}) gets up to FRAME_CAP live routing frames (total is
  * that cap while routing runs); the result keeps the same number of frames spread evenly over the whole routing.
  */
-export async function buildCircuit(source, { timeoutMs = 80000, onFrame } = {}) {
+export async function buildCircuit(source, { timeoutMs = 80000, onFrame, lcsc } = {}) {
   const t0 = performance.now();
   const code = compile(source);
   const { Comp, meta } = evaluate(code);
   const tTranspile = performance.now() - t0;
 
-  const circuit = new Circuit({ platform: { partsEngineDisabled: true } });
+  const circuit = new Circuit({ platform: { partsEngineDisabled: true, footprintLibraryMap: { lcsc: lcscLibrary(lcsc) } } });
   const all = [];
   let live = 0, lastLive = 0;
   circuit.on('autorouting:progress', (e) => {

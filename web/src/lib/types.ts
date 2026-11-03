@@ -155,7 +155,7 @@ export interface Usage {
 }
 
 export interface ModelOption {
-  key: 'contributor' | 'spark' | 'wonder';
+  key: 'contributor' | 'spark' | 'wonder' | 'spark_open';
   id: string;
   available: boolean;
 }
@@ -303,6 +303,8 @@ export interface PcbVersion {
   counts: PcbCounts;
   drc: { errors: number; warnings: number };
   intent_ok: boolean;
+  /** The BOM's LCSC numbers came from the catalogue (a device build). */
+  lcsc_verified?: boolean;
   limits_ok?: boolean;
   /** artifact name -> URL; only the files this version has */
   artifacts: Record<string, string>;

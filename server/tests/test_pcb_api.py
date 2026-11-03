@@ -52,7 +52,7 @@ async def test_save_writes_a_version_with_its_files(fresh_db, tmp_path):
     assert row["version"] == 2 and row["source"] == "v2" and row["intent"] == {"gpio": {}}
     first = await pcb_store.get("p1", 1)
     assert first["intent"] == {"edge": {"J1": "-y"}}  # taken from the circuit's meta when not given
-    assert "evil.sh" not in first["artifacts"] and set(first["artifacts"]) <= set(pcb_store.ARTIFACTS)
+    assert "evil.sh" not in first["artifacts"] and set(first["artifacts"]) <= (set(pcb_store.ARTIFACTS) - {"device.json"})
     board = json.loads(pcb_store.artifact_path("p1", 1, "board.json").read_text())
     assert board["source"] == {"kind": "pcb", "pcb_job": "pcb:v1"}
     frames = json.loads(pcb_store.artifact_path("p1", 1, "route_frames.json").read_text())
@@ -68,13 +68,13 @@ async def test_save_writes_a_version_with_its_files(fresh_db, tmp_path):
 async def test_a_version_packed_elsewhere_is_added_under_its_new_number(fresh_db):
     # the home page's PCB example is packed once (as v1) and added to every project opened from it
     packed = pcb_store.pack(source="example", intent=None, build=BUILD, files=EXPORT)
-    assert set(packed["files"]) == set(pcb_store.ARTIFACTS) and packed["intent"] == {"edge": {"J1": "-y"}}
+    assert set(packed["files"]) == (set(pcb_store.ARTIFACTS) - {"device.json"}) and packed["intent"] == {"edge": {"J1": "-y"}}
     assert json.loads(packed["files"]["board.json"])["source"]["pcb_job"] == "pcb:v1"
     assert await pcb_store.add("p1", packed) == 1
     await pcb_store.save("p1", source="v2", intent=None, build=BUILD, files=EXPORT)
     assert await pcb_store.add("p1", packed) == 3
     row = await pcb_store.get("p1", 3)
-    assert row["source"] == "example" and row["checks"] == packed["checks"] and set(row["artifacts"]) == set(pcb_store.ARTIFACTS)
+    assert row["source"] == "example" and row["checks"] == packed["checks"] and set(row["artifacts"]) == (set(pcb_store.ARTIFACTS) - {"device.json"})
     # board.json names the version it is in here, so a case made from it points at v3
     assert json.loads(pcb_store.artifact_path("p1", 3, "board.json").read_text())["source"]["pcb_job"] == "pcb:v3"
     assert pcb_store.artifact_path("p1", 3, "gerbers.zip").read_bytes() == b"PKzip"

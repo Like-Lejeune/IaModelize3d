@@ -27,8 +27,11 @@ async def test_example_builds_without_warnings(pool, name):
 
 
 def test_pack_examples_sit_in_their_packs():
-    assert set(examples.PACK_EXAMPLES) == {"enclosure", "pcb"}
+    from formwright.agent import device_prompt
+
+    assert set(examples.PACK_EXAMPLES) == {"enclosure", "pcb", "device"}
     assert elec_tools.EXAMPLE in examples.PACK_EXAMPLES["enclosure"] and pcb_prompt.EXAMPLE in examples.PACK_EXAMPLES["pcb"]
+    assert examples.PACK_EXAMPLES["device"] == device_prompt.EXAMPLE
     # not in the shared, cached prefix
     assert "lib.elec" not in examples.EXAMPLES_TEXT and "<board" not in examples.EXAMPLES_TEXT
 

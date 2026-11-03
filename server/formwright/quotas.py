@@ -19,7 +19,7 @@ from .config import settings
 from .db import get_db
 
 TIERS = {
-    # daily USD, concurrent jobs, may use the strongest designer
+    # daily USD, concurrent jobs, (no longer read: every plan may pick every designer, see model_options)
     "anon": (1.00, 1, False),
     "free": (2.00, 1, False),
     "pro": (8.00, 3, True),
@@ -168,18 +168,23 @@ async def settle(user_id: str, usd: float, is_job: bool = True) -> None:
     )
 
 
-def _strong(user: dict) -> bool:
-    # judges try the service anonymously: FW_DEMO_WONDER opens the strongest designer to every plan
-    return TIERS.get(user["tier"], TIERS["anon"])[2] or settings().demo_wonder
+def _open_designer() -> str:
+    """The open-weights model as a designer (Muse Spark Open on Baseten speaks the Responses API, tools included),
+    or "" when none is configured."""
+    s = settings()
+    return s.open_model if s.open_base_url and s.open_model else ""
 
 
 def model_options(user: dict) -> list[dict]:
+    """Every model is on every plan (the per-plan USD limits still apply); Spark Open only when it is configured."""
     s = settings()
     options = [
         {"key": "contributor", "id": s.model_free, "available": True},
         {"key": "spark", "id": s.model_designer, "available": True},
-        {"key": "wonder", "id": s.model_designer_hard, "available": _strong(user)},
+        {"key": "wonder", "id": s.model_designer_hard, "available": True},
     ]
+    if _open_designer():
+        options.append({"key": "spark_open", "id": _open_designer(), "available": True})
     # dev configs may route the designer to the contributor model too; do not list it twice
     return [o for i, o in enumerate(options) if o["id"] not in {p["id"] for p in options[:i]}]
 
@@ -192,5 +197,11 @@ async def choose_models(user: dict, effort: str = "auto", model: str | None = No
         model = "wonder" if effort == "hard" else "contributor" if consent else "spark"
     contributor = model == "contributor"
     fast = s.model_free if contributor else s.model_fast
-    designer = s.model_designer_hard if (model == "wonder" and _strong(user) and not near_cap) else (s.model_free if contributor else s.model_designer)
+    if model == "wonder" and not near_cap:
+        # the strongest designer on any plan; near the day's cap the service falls back to Spark
+        designer = s.model_designer_hard
+    elif model == "spark_open" and _open_designer():
+        designer = _open_designer()
+    else:
+        designer = s.model_free if contributor else s.model_designer
     return ModelChoice(designer=designer, fast=fast, contributor=contributor)

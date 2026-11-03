@@ -125,15 +125,26 @@ async def test_one_agent_per_project(fresh_db):
         runner._jobs.pop(first.job_id, None)
 
 
-async def test_wonder_for_judges(fresh_db, monkeypatch):
+async def test_every_plan_picks_every_designer(fresh_db, monkeypatch):
     s = settings()
     monkeypatch.setattr(s, "model_designer_hard", "muse-wonder-1.0")
     monkeypatch.setattr(s, "model_designer", "muse-spark-1.3")
+    monkeypatch.setattr(s, "model_fast", "muse-spark-1.3")
+    monkeypatch.setattr(s, "open_base_url", "http://127.0.0.1:9/open/v1")
+    monkeypatch.setattr(s, "open_model", "meta-models/muse-spark-open-1026")
     anon = await _user(fresh_db, "u_judge")
-    wonder = lambda u: next(o for o in quotas.model_options(u) if o["key"] == "wonder")  # noqa: E731
-    assert not wonder(anon)["available"] and (await quotas.choose_models(anon, model="wonder")).designer == "muse-spark-1.3"
-    monkeypatch.setattr(s, "demo_wonder", True)
-    assert wonder(anon)["available"] and (await quotas.choose_models(anon, model="wonder")).designer == "muse-wonder-1.0"
+    opts = {o["key"]: o for o in quotas.model_options(anon)}
+    assert set(opts) == {"contributor", "spark", "wonder", "spark_open"} and all(o["available"] for o in opts.values())
+    assert opts["spark_open"]["id"] == "meta-models/muse-spark-open-1026"
+    assert (await quotas.choose_models(anon, model="wonder")).designer == "muse-wonder-1.0"
+    picked = await quotas.choose_models(anon, model="spark_open")
+    # the open model designs; the quick side calls (translation, search) stay on Spark
+    assert picked.designer == "meta-models/muse-spark-open-1026" and picked.fast == "muse-spark-1.3" and not picked.contributor
+    # without an open endpoint it is not offered, and an old client that still sends it gets Spark
+    monkeypatch.setattr(s, "open_base_url", "")
+    assert "spark_open" not in {o["key"] for o in quotas.model_options(anon)}
+    assert (await quotas.choose_models(anon, model="spark_open")).designer == "muse-spark-1.3"
+    assert SendMessage(text="x", model="spark_open").model == "spark_open"
 
 
 async def test_the_bigger_budget_only_when_wonder_runs(fresh_db, monkeypatch):
@@ -152,13 +163,15 @@ async def test_the_bigger_budget_only_when_wonder_runs(fresh_db, monkeypatch):
     monkeypatch.setattr(loop, "design", fake_design)
     user = await _user(fresh_db, "u_budget", tier="admin")
     anon = await _user(fresh_db, "u_budget_anon")
+    free = await _user(fresh_db, "u_budget_free", tier="free", ip="5.6.7.8")
     jobs = [await runner.start_design_job(user, {"id": "p_w1", "user_id": "u_budget"}, SendMessage(text="x", model="wonder")),
-            await runner.start_design_job(anon, {"id": "p_w2", "user_id": "u_budget_anon"}, SendMessage(text="x", model="wonder"))]
+            await runner.start_design_job(anon, {"id": "p_w2", "user_id": "u_budget_anon"}, SendMessage(text="x", model="wonder")),
+            await runner.start_design_job(free, {"id": "p_w3", "user_id": "u_budget_free"}, SendMessage(text="x", model="spark"))]
     reserved = [(await fresh_db.one("SELECT reserved_usd FROM jobs WHERE id = ?", j))["reserved_usd"] for j in jobs]
     gate.set()
     await asyncio.gather(*[t for j in jobs if (t := runner._tasks.get(j))])
-    # anonymous users do not get Wonder, so their job is not given Wonder's budget either
-    assert reserved == [pytest.approx(0.25), pytest.approx(0.1)]
+    # Wonder is on every plan, and so is its bigger budget; a Spark run keeps the usual one
+    assert reserved == [pytest.approx(0.25), pytest.approx(0.25), pytest.approx(0.1)]
 
 
 async def test_live_jobs_skip_stopped_ones():

@@ -10,6 +10,7 @@ export const TOOL_KIND: Record<string, string> = {
   look: 'look', measure: 'measure', dimensions: 'standard', mesh_write: 'build', mesh_edit: 'edit',
   scan_board: 'measure', use_board: 'standard', check_enclosure: 'inspect', write_circuit: 'build', check_pcb: 'inspect',
   export_fab: 'export', make_enclosure: 'build',
+  search_parts: 'standard', part_info: 'standard', write_device: 'build', build_device: 'build', write_firmware: 'build', quote_device: 'export',
 };
 
 export const KIND_ICON: Record<string, string> = {
@@ -20,7 +21,7 @@ export const KIND_ICON: Record<string, string> = {
 };
 
 /** Tools whose kind's icon would mislead: a circuit is not a cube, a case is a box. */
-export const TOOL_ICON: Record<string, string> = { write_circuit: 'cpu', make_enclosure: 'package' };
+export const TOOL_ICON: Record<string, string> = { write_circuit: 'cpu', make_enclosure: 'package', write_device: 'cpu', build_device: 'cpu', search_parts: 'search' };
 
 export const KIND_STAGE: Record<string, string> = {
   build: 'design', edit: 'design', params: 'design', skill: 'design', concepts: 'design', terrain: 'measure', measure: 'measure',
@@ -297,7 +298,8 @@ function enResult(name: string, r: Record<string, any>): string {
 // and the summary (cut at 600 characters, so only its front is sure), the way server/formwright/agent/narrate.py
 // builds them. A replay in the other UI language, or a run from before the server named these steps, still says
 // what happened, with its numbers.
-const ELEC_TOOLS = new Set(['scan_board', 'use_board', 'check_enclosure', 'write_circuit', 'check_pcb', 'export_fab', 'make_enclosure']);
+const ELEC_TOOLS = new Set(['scan_board', 'use_board', 'check_enclosure', 'write_circuit', 'check_pcb', 'export_fab', 'make_enclosure',
+  'search_parts', 'part_info', 'write_device', 'build_device', 'write_firmware', 'quote_device']);
 const PCB_LOOKS: Record<string, [string, string, string, string]> = {
   pcb: ['Looking at the routed board from the top', 'Смотрю на разведённую плату сверху', 'from the top', 'сверху'],
   pcb_bottom: ['Looking at the board from below', 'Смотрю на плату снизу', 'from below', 'снизу'],
@@ -398,6 +400,16 @@ function elecCall(name: string, a: any, ru: boolean): string | undefined {
   const s = (v: any) => (typeof v === 'string' && v !== '…' ? v : '');
   const v = verOf(a.version);
   switch (name) {
+    case 'search_parts': return `${ru ? 'Ищу в каталоге LCSC' : 'Searching the LCSC catalogue'}: ${s(a.query)}`;
+    case 'part_info': return ru ? `Читаю распиновку ${s(a.lcsc) || 'детали'}` : `Reading the pins of ${s(a.lcsc) || 'the part'}`;
+    case 'write_device': {
+      const change = !!a.edits && !a.doc;
+      const verb = change ? (ru ? 'Меняю устройство' : 'Changing the device') : ru ? 'Собираю схему устройства' : 'Drawing the device';
+      return `${verb}: ${s(a.summary) || (ru ? 'первая версия' : 'first version')}`;
+    }
+    case 'build_device': return ru ? 'Размещаю детали и развожу плату' : 'Placing and routing the board';
+    case 'write_firmware': return `${ru ? 'Пишу прошивку' : 'Writing the firmware'} (${s(a.lang) || 'arduino'})`;
+    case 'quote_device': return ru ? `Считаю цену ${a.qty || 5} готовых устройств` : `Pricing ${a.qty || 5} finished devices`;
     case 'scan_board': return (ru ? 'Сканирую плату на фото' : 'Scanning the board on the photo') + (s(a.hint) ? `: ${a.hint}` : '');
     case 'use_board': {
       if (!ownBoard(a)) return `${ru ? 'Беру плату из базы' : 'Taking the board from the dataset'}: ${s(a.board_id)}`;
@@ -426,6 +438,29 @@ function elecCall(name: string, a: any, ru: boolean): string | undefined {
 function elecResult(name: string, a: any, r: Record<string, any>, ru: boolean): string | undefined {
   const pcb = ru ? 'Плата' : 'PCB';
   switch (name) {
+    case 'search_parts': {
+      if (!Array.isArray(r.parts)) return undefined;
+      const hits = r.parts.slice(0, 3).map((h: any) => `${h.mpn} (${h.lcsc})`).join(', ');
+      return `${count(r.parts.length, ['part', 'parts'], ['деталь', 'детали', 'деталей'], ru)}${hits ? ': ' + hits : ''}`;
+    }
+    case 'part_info':
+      if (!r.lcsc) return undefined;
+      return `${r.mpn} (${r.lcsc}): ${count((r.pins ?? []).length, ['pin', 'pins'], ['вывод', 'вывода', 'выводов'], ru)}, ${r.package}`;
+    case 'write_device': {
+      if (r.version == null) return undefined;
+      const bits = [count(Number(r.nodes) || 0, ['part', 'parts'], ['деталь', 'детали', 'деталей'], ru), count(Number(r.nets) || 0, ['net', 'nets'], ['цепь', 'цепи', 'цепей'], ru)];
+      if (r.issues?.length) bits.push(ru ? `проблем: ${r.issues.length}` : `problems: ${r.issues.length}`);
+      return `${ru ? 'Устройство' : 'Device'} v${r.version} — ${bits.join(', ')}`;
+    }
+    case 'build_device': {
+      if (r.version == null || !r.counts) return undefined;
+      const size = Array.isArray(r.board_mm) ? `, ${r.board_mm.map((x: number) => +x.toFixed(1)).join(' × ')} ${ru ? 'мм' : 'mm'}` : '';
+      return `${pcb} v${r.version} — ${drcText(drc(r), ru)}${size}`;
+    }
+    case 'write_firmware': return r.files ? `${ru ? 'Прошивка' : 'Firmware'}: ${r.files.join(', ')}` : undefined;
+    case 'quote_device':
+      if (r.total_usd == null) return undefined;
+      return ru ? `${r.qty} шт.: $${r.total_usd} (${r.total_kzt} ₸), готово к ${r.eta}` : `${r.qty} devices: $${r.total_usd} (${r.total_kzt} KZT), ready by ${r.eta}`;
     case 'scan_board':
     case 'use_board': {
       const b = r.board;

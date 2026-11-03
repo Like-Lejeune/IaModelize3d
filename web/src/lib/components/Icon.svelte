@@ -86,6 +86,8 @@
     'grid-dots': 'ti-grid-dots',
     flip: 'ti-flip-vertical',
     user: 'ti-user',
+    topology: 'ti-topology-star-3',
+    code: 'ti-code',
   };
 </script>
 

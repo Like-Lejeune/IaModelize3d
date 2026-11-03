@@ -348,7 +348,8 @@ def summary(res: dict[str, Any], spec: dict[str, Any] | None) -> dict[str, Any]:
         v = [f["value"] for f in res.get("findings") or [] if f.get("code") == code and isinstance(f.get("value"), (int, float))]
         return pick(v) if v else None
 
-    return {"usb_clearance_mm": min(vals) if vals else None, "button_gap_mm": first("button_reach", min), "snap_strain_pct": first("snap_strain", max)}
+    return {"usb_clearance_mm": min(vals) if vals else None, "button_gap_mm": first("button_reach", min), "snap_strain_pct": first("snap_strain", max),
+            **({"case_mm": res["size"]} if isinstance(res.get("size"), list) else {})}
 
 
 def enclosure_checks(res: dict[str, Any], board: str, spec: dict[str, Any] | None, version: int) -> dict[str, Any]:

@@ -32,6 +32,7 @@
     focusPart = null,
     boardGlb = null,
     checking = false,
+    annotations = true,
   }: {
     build?: BuildResult | null;
     issues?: Issue[];
@@ -64,6 +65,8 @@
     boardGlb?: { url: string; matrix: number[][] } | null;
     /** The case is being checked against its board for the values on show. */
     checking?: boolean;
+    /** The plug rays and their labels over the model (false: the model alone; the checks stay in the side panel). */
+    annotations?: boolean;
   } = $props();
 
   let host: HTMLDivElement;
@@ -278,7 +281,7 @@
   let raysBorn = 0;
   let raysFor: unknown = null;
   let labels = $state<Label[]>([]);
-  const showRays = () => !!enclosure && hasReference() && !photoMode && !arActive;
+  const showRays = () => annotations && !!enclosure && hasReference() && !photoMode && !arActive;
 
   function clearRays() {
     for (const c of [...rayGroup.children]) {
@@ -1119,6 +1122,7 @@
     void focusPart;
     void photoMode;
     void arActive;
+    void annotations;
     if (renderer) untrack(rebuildRays);
   });
 

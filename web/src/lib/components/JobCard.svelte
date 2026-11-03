@@ -3,6 +3,8 @@
   import Icon from './Icon.svelte';
   import ModelStrip from './ModelStrip.svelte';
   import ResultCard from './ResultCard.svelte';
+  import DeviceResult from '$lib/device/DeviceResult.svelte';
+  import { dt } from '$lib/device/i18n';
   import StepRow from './StepRow.svelte';
   import { markdown } from '$lib/md';
   import { t, fmtDuration, fmtMinutes } from '$lib/i18n.svelte';
@@ -17,6 +19,7 @@
     onZoom,
     onAction,
     onUseConcept,
+    bare = false,
   }: {
     store: ProjectStore;
     job: JobInfo;
@@ -25,6 +28,8 @@
     onZoom: (url: string) => void;
     onAction: (a: string) => void;
     onUseConcept?: (url: string) => void;
+    /** The run alone: no "models in this run" strip and no follow-up suggestions after it (the device workspace). */
+    bare?: boolean;
   } = $props();
 
   type Block = { type: 'text'; key: string; text: string } | { type: 'group'; key: string; items: TimelineItem[] } | { type: 'item'; key: string; item: TimelineItem };
@@ -75,8 +80,14 @@
     if (s === 'took too long; the latest version is kept') return t('job_too_long');
     return /(Error id|Код ошибки): e_\w+/.test(s) ? s : null;
   });
+  // a device asks about the device, not about the plastic of its case
+  const isDevice = $derived(store.detail?.pack === 'device');
   const suggestions = $derived(
-    hasModel
+    isDevice
+      ? (hasModel ? ['sg_light', 'sg_battery', 'sg_smaller', 'sg_explain'] : ['sg_measures', 'sg_power', 'sg_where']).map((k) => ({
+          label: dt(k), text: dt(`${k}_t`), send: hasModel,
+        }))
+      : hasModel
       ? [t('suggest_stronger'), t('suggest_lighter'), t('suggest_round'), t('suggest_explain')].map((s) => ({ label: s, text: s, send: true }))
       : [
           { label: t('suggest_size'), text: t('suggest_size_t'), send: false },
@@ -231,7 +242,9 @@
     </div>
   {/if}
 
-  {#if job.result && !active}<ResultCard result={job.result} {onAction} {onZoom} readonly={store.readonly} />{/if}
+  {#if job.result && !active}
+    {#if isDevice}<DeviceResult {store} result={job.result} {onAction} />{:else}<ResultCard result={job.result} {onAction} {onZoom} readonly={store.readonly} />{/if}
+  {/if}
 
   <!-- a visitor's studio (someone else's run) offers no next turn: Remix is theirs to take -->
   {#if stoppedEarly && last && !store.running && !store.readonly}
@@ -244,9 +257,9 @@
     <div class="stopped xs">{stopNote ?? t('job_stopped_old')}</div>
   {/if}
 
-  {#if !active && job.cost}<ModelStrip cost={job.cost} />{/if}
+  {#if !active && job.cost && !bare}<ModelStrip cost={job.cost} />{/if}
 
-  {#if last && !active && !store.running && !store.replaying && !store.readonly}
+  {#if last && !bare && !active && !store.running && !store.replaying && !store.readonly}
     <div class="chips" role="group">
       {#each suggestions as s (s.label)}<button class="chip sbtn" onclick={() => suggest(s)}>{s.label}</button>{/each}
     </div>

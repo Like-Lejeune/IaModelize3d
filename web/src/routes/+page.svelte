@@ -11,6 +11,7 @@
   import { isOpenWeights } from '$lib/models';
   import { prefs, setPref, models, modelName, session, REASONING } from '$lib/session.svelte';
   import type { ExampleOut, ProjectOut } from '$lib/types';
+  import { dt } from '$lib/device/i18n';
 
   const ROW = 4; // one row of tiles on a wide screen, two on a phone
   // examples that are a replacement part, marked on their card: the server says so (kind 'part', from showcase.py's
@@ -18,6 +19,9 @@
   const SPARE_PARTS = new Set(['rack-wheel']);
 
   let text = $state('');
+  /** What the prompt makes: a finished device (board, parts, case, firmware) or a 3D-printed part. */
+  let mode = $state<'device' | 'part'>('device');
+  const DEVICE_IDEAS = ['idea_weather', 'idea_plant', 'idea_keypad', 'idea_fridge'];
   let files = $state<{ file: File; url: string | null }[]>([]);
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -94,9 +98,9 @@
     error = null;
     try {
       // the studio uploads and starts the job, so the user sees progress instead of a spinner here
-      const p = await api.createProject();
+      const p = await api.createProject(undefined, mode === 'device' ? 'device' : undefined);
       stashFirst(p.id, text.trim() || t('tmpl.copy'), files.map((f) => f.file));
-      goto(`/p/${p.id}`);
+      goto(mode === 'device' ? `/d/${p.id}` : `/p/${p.id}`);
     } catch (e) {
       error = errorText(e);
       busy = false;
@@ -125,8 +129,12 @@
   <Header />
   <main class="home">
     <section class="hero" aria-labelledby="home-title">
-      <h1 id="home-title">{t('tagline')}</h1>
-      <p class="sub">{t('tagline_sub')}</p>
+      <div class="modes seg" role="tablist" aria-label={dt('home_mode')}>
+        <button role="tab" aria-selected={mode === 'device'} onclick={() => (mode = 'device')}><Icon name="topology" size={15} /> {dt('home_device')}</button>
+        <button role="tab" aria-selected={mode === 'part'} onclick={() => (mode = 'part')}><Icon name="cube" size={15} /> {dt('home_part')}</button>
+      </div>
+      <h1 id="home-title">{mode === 'device' ? dt('home_title') : t('tagline')}</h1>
+      <p class="sub">{mode === 'device' ? dt('home_sub') : t('tagline_sub')}</p>
       <p class="powered xs">
         <span class="muted">{t('powered_by')}</span>
         {#each metaModels as m, i (m)}{#if i}<span class="muted" aria-hidden="true">·</span>{/if}<span class="mname">{m}</span>{/each}
@@ -167,8 +175,8 @@
             bind:this={input}
             bind:value={text}
             rows="1"
-            placeholder={t('prompt_placeholder')}
-            aria-label={t('prompt_placeholder')}
+            placeholder={mode === 'device' ? dt('home_placeholder') : t('prompt_placeholder')}
+            aria-label={mode === 'device' ? dt('home_placeholder') : t('prompt_placeholder')}
             oninput={fit}
             onpaste={(e) => {
               const imgs = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'));
@@ -187,10 +195,19 @@
         </div>
       </div>
 
+      {#if mode === 'device'}
+        <div class="ideas-row">
+          {#each DEVICE_IDEAS as k (k)}
+            <button class="chip pressable" onclick={() => ((text = dt(k)), input?.focus(), fit())}>{dt(`${k}_short`)}</button>
+          {/each}
+        </div>
+      {/if}
       <div class="strip">
-        <button class="ideas pressable" onclick={ideasFirst} disabled={busy || !text.trim() || !!files.length} title={t('ideas_first_d')}>
+{#if mode === 'part'}
+                  <button class="ideas pressable" onclick={ideasFirst} disabled={busy || !text.trim() || !!files.length} title={t('ideas_first_d')}>
           <Icon name="sparkles" size={14} /> {t('ideas_first')}
         </button>
+        {/if}
         <Picker label={t('model')} value={prefs.model} options={modelOptions} onpick={(v) => setPref('model', v)} />
         <Picker label={t('reasoning')} value={prefs.reasoning} options={reasoningOptions} quiet onpick={(v) => setPref('reasoning', v)} />
       </div>
@@ -261,7 +278,7 @@
         </div>
         <div class="grid" id="recent-grid">
           {#each shownRecent as p (p.id)}
-            <a class="card tile" href="/p/{p.id}">
+            <a class="card tile" href="/{p.pack === 'device' ? 'd' : 'p'}/{p.id}">
               <span class="pic">
                 {#if p.cover}<img src={p.cover} alt="" loading="lazy" />{:else}<span class="ph skeleton"><Icon name="cube" size={28} /></span>{/if}
                 {#if p.status === 'working'}
@@ -294,6 +311,52 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-8);
+  }
+  .modes {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    margin: 0 auto var(--space-3);
+    border-radius: 10px;
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-low);
+  }
+  .modes button {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 14px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--on-surface-var);
+    cursor: pointer;
+  }
+  .modes button[aria-selected='true'] {
+    background: var(--primary-container);
+    color: var(--on-primary-container);
+  }
+  .ideas-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin-top: var(--space-2);
+  }
+  .ideas-row .chip {
+    font: inherit;
+    font-size: 12.5px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-low);
+    color: var(--on-surface);
+    cursor: pointer;
+  }
+  .ideas-row .chip:hover {
+    border-color: var(--primary);
   }
   .hero {
     width: 100%;

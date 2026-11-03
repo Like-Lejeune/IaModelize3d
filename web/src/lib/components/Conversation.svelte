@@ -12,7 +12,14 @@
     store,
     onAction,
     onUseConcept,
-  }: { store: ProjectStore; onAction: (a: string) => void; onUseConcept?: (url: string) => void } = $props();
+    bare = false,
+  }: {
+    store: ProjectStore;
+    onAction: (a: string) => void;
+    onUseConcept?: (url: string) => void;
+    /** Runs without their model strip and follow-up suggestions (see JobCard). */
+    bare?: boolean;
+  } = $props();
 
   let scroller: HTMLDivElement;
   let feed: HTMLDivElement;
@@ -125,7 +132,7 @@
   <div class="feed" bind:this={feed} onclickcapture={(e) => (e.target as Element).closest('[aria-expanded]') && (stuck = false)}>
     {#each entries as e (e.key)}
       {#if e.type === 'job'}
-        <JobCard {store} job={e.job} items={e.items} last={e.key === lastJob} onZoom={(u) => (zoom = u)} {onAction} {onUseConcept} />
+        <JobCard {store} job={e.job} items={e.items} last={e.key === lastJob} onZoom={(u) => (zoom = u)} {onAction} {onUseConcept} {bare} />
       {:else if e.type === 'versions'}
         <div class="versions xs">
           <Icon name="layers" size={12} />

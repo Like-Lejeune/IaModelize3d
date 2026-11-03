@@ -53,5 +53,8 @@ await build({
   external: [...common.external, 'circuit-to-svg', 'circuit-json-to-gltf'],
 });
 fs.copyFileSync(require.resolve('@resvg/resvg-wasm/index_bg.wasm'), path.join(dist, 'resvg.wasm'));
+// the copper pour solver loads manifold's wasm from next to the bundle: the one its own manifold-3d ships
+const pourRequire = createRequire(require.resolve('@tscircuit/copper-pour-solver'));
+fs.copyFileSync(pourRequire.resolve('manifold-3d/manifold.wasm'), path.join(dist, 'manifold.wasm'));
 const size = (f) => `${(fs.statSync(path.join(dist, f)).size / 1e6).toFixed(1)} MB`;
-console.log(`dist/pcb-worker.mjs ${size('pcb-worker.mjs')}, svg-png.mjs ${size('svg-png.mjs')}, resvg.wasm ${size('resvg.wasm')} in ${Date.now() - t0} ms`);
+console.log(`dist/pcb-worker.mjs ${size('pcb-worker.mjs')}, svg-png.mjs ${size('svg-png.mjs')}, resvg.wasm ${size('resvg.wasm')}, manifold.wasm ${size('manifold.wasm')} in ${Date.now() - t0} ms`);
