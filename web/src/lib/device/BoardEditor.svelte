@@ -1,7 +1,9 @@
 <script lang="ts">
   // The board editor, one canvas as in KiCad's or EasyEDA's PCB editor: both copper layers (the active one in front),
   // parts, traces, pours and keepouts. Tools on the left: select and move (Esc), route (X), copper pour (Z), keepout (K),
-  // measure (M). Drag a part to move it, R turns it; X over a pad (or the route tool and a click on a pad) starts a
+  // measure (M). The grid (G shows it, N changes its step) and the magnet pull every point to the grid, pad centres,
+  // vias, trace corners and the board's edges, and a moved part lines up with its neighbours' centres and pads (guides
+  // show where); Shift moves freely. Drag a part to move it, R turns it; X over a pad (or the route tool and a click on a pad) starts a
   // trace: clicks put 45/90 degree corners, V or 1/2 drops a via, / turns the bend, a pad of the same net finishes,
   // Backspace steps back, Esc or the right button cancels. A right click elsewhere opens the menu of what is under it;
   // the middle or right button drags the view, the wheel zooms, F fits. Every change goes into the device document at
@@ -78,6 +80,30 @@
     flashTimer = setTimeout(() => (flash = null), 2600);
   }
   const WIDTHS = [0.2, 0.25, 0.3, 0.4, 0.5, 0.8];
+  // the grid and the magnet, remembered for this viewer
+  const GRIDS = [0.1, 0.25, 0.5, 1, 1.27, 2.54];
+  const saved = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('fw_board_grid') ?? 'null');
+    } catch {
+      return null;
+    }
+  })();
+  let gridMm = $state<number>(GRIDS.includes(saved?.g) ? saved.g : 0.5);
+  let showGrid = $state<boolean>(saved?.show ?? true);
+  let magnet = $state<boolean>(saved?.magnet ?? true);
+  $effect(() => {
+    const v = JSON.stringify({ g: gridMm, show: showGrid, magnet });
+    try {
+      localStorage.setItem('fw_board_grid', v);
+    } catch {
+      // private window: the defaults next time
+    }
+  });
+  let guides = $state<{ x?: number; y?: number }>({});
+  let pointer = $state<[number, number] | null>(null);
+  let boxW = $state(800);
+  let boxH = $state(600);
   const WIDE = /^(V5|V5V|VBUS|VSYS|VBAT|VIN|V12|V9)$/i;
   const pourNets = $derived((doc?.nets ?? []).map((n) => n.name).filter((n): n is string => !!n && !WIDE.test(n)));
 
@@ -234,10 +260,57 @@
     return best;
   }
   const grid = (v: number, step: number) => Math.round(Math.round(v / step) * step * 1000) / 1000;
-  const snapTo = (x: number, y: number, fine: boolean): [number, number] => {
-    const step = fine ? 0.05 : 0.25;
-    return lastAt ? align(lastAt, [grid(x, step), grid(y, step)], step) : [grid(x, step), grid(y, step)];
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  const mmPerPx = $derived(Math.max(vb.w / Math.max(1, boxW), vb.h / Math.max(1, boxH)));
+  // the magnet's reach: a few screen pixels, whatever the zoom
+  const reach = () => 7 * mmPerPx;
+  const free = (e: { shiftKey: boolean }) => !magnet || e.shiftKey;
+  /** What the magnet pulls to besides the grid: pad centres, vias and trace corners. */
+  const anchors = $derived.by(() => {
+    const out: [number, number][] = padsNow.map((p) => [p.x, p.y]);
+    for (const it of items) {
+      for (const v of it.vias) out.push(v);
+      for (const sg of it.segs) out.push([sg.x1, sg.y1], [sg.x2, sg.y2]);
+    }
+    return out;
+  });
+  function onAnchor(x: number, y: number): [number, number] | null {
+    let best: [number, number] | null = null, bd = reach();
+    for (const a of anchors) {
+      const d = Math.hypot(a[0] - x, a[1] - y);
+      if (d < bd) {
+        bd = d;
+        best = a;
+      }
+    }
+    return best;
+  }
+  /** A trace corner: the grid, kept on the straight or diagonal line from the last corner. */
+  const snapTo = (x: number, y: number, e: { shiftKey: boolean }): [number, number] => {
+    if (free(e)) return [r2(x), r2(y)];
+    const g: [number, number] = [grid(x, gridMm), grid(y, gridMm)];
+    return lastAt ? align(lastAt, g, gridMm) : g;
   };
+  /** A measured point: a pad, via or corner nearby, else the grid. */
+  const snapPt = (x: number, y: number, e: { shiftKey: boolean }): [number, number] =>
+    free(e) ? [r2(x), r2(y)] : (onAnchor(x, y) ?? [grid(x, gridMm), grid(y, gridMm)]);
+  /** A zone's corner: the grid, or the board's edge when it is near. */
+  function snapEdge(x: number, y: number, e: { shiftKey: boolean }): [number, number] {
+    if (free(e)) return [r2(x), r2(y)];
+    let gx = grid(x, gridMm), gy = grid(y, gridMm);
+    for (const ex of [-W / 2, W / 2]) if (Math.abs(x - ex) < reach()) gx = ex;
+    for (const ey of [-H / 2, H / 2]) if (Math.abs(y - ey) < reach()) gy = ey;
+    return [gx, gy];
+  }
+  // the grid drawn: the step, or a multiple of it while the step is too dense to see
+  const gridView = $derived.by(() => {
+    let step = gridMm;
+    for (const k of [1, 2, 5, 10, 20, 50, 100]) {
+      step = gridMm * k;
+      if (step / mmPerPx >= 8) break;
+    }
+    return { step, major: step * 5, r: 0.7 * mmPerPx };
+  });
 
   // ---- edits (each one goes into the document; Ctrl+Z undoes it)
   const EDGE_OF_TURN: Record<string, Record<number, string>> = {
@@ -413,7 +486,7 @@
   // ---- pointer
   type Act =
     | { k: 'pan'; sx: number; sy: number; vb: typeof vb }
-    | { k: 'part'; id: string; sx: number; sy: number; bx: number; by: number; live: boolean; from: Map<string, Pose> }
+    | { k: 'part'; id: string; sx: number; sy: number; bx: number; by: number; live: boolean; from: Map<string, Pose>; cx: number[]; cy: number[]; mine: [number, number][] }
     | { k: 'rect' }
     | { k: 'measure' }
     | { k: 'right'; sx: number; sy: number; vb: typeof vb; panned: boolean };
@@ -428,18 +501,18 @@
       const p = padHit(x, y);
       if (p && p.net === draft.net && !(p.key === draft.from && !draft.points.length)) return finish(p);
       if (p && p.net !== draft.net) return say(dt('route_other_net'));
-      cursor = snapTo(x, y, e.shiftKey);
+      cursor = snapTo(x, y, e);
       return commit(cursor);
     }
     if (tool === 'route') {
       const p = padHit(x, y);
       if (p) return start(p);
     } else if ((tool === 'pour' || tool === 'keepout') && !readonly) {
-      const a: [number, number] = [grid(x, 0.5), grid(y, 0.5)];
+      const a = snapEdge(x, y, e);
       rect = { tool, a, b: a };
       return void (act = { k: 'rect' });
     } else if (tool === 'measure') {
-      const a: [number, number] = [x, y];
+      const a = snapPt(x, y, e);
       meas = { a, b: a };
       return void (act = { k: 'measure' });
     } else {
@@ -447,7 +520,18 @@
       if (p) {
         sel = { kind: 'part', id: p.id };
         dev.pickNode(p.id);
-        if (!readonly) act = { k: 'part', id: p.id, sx: e.clientX, sy: e.clientY, bx: x, by: y, live: false, from: new Map(withCaps(p.id).map((m) => [m, { ...poses.get(m)! }])) };
+        if (!readonly) {
+          // what it lines up with: the other parts' centres and pads, and the board's centre lines
+          const group = new Set(withCaps(p.id));
+          const pose = poses.get(p.id)!;
+          const others = [...partsNow.filter((q) => !group.has(q.id)), ...padsNow.filter((q) => !group.has(q.comp))];
+          act = {
+            k: 'part', id: p.id, sx: e.clientX, sy: e.clientY, bx: x, by: y, live: false,
+            from: new Map(withCaps(p.id).map((m) => [m, { ...poses.get(m)! }])),
+            cx: [...new Set([0, ...others.map((q) => r2(q.x))])], cy: [...new Set([0, ...others.map((q) => r2(q.y))])],
+            mine: [[0, 0], ...padsNow.filter((q) => q.comp === p.id).map((q) => [q.x - pose.x, q.y - pose.y] as [number, number])],
+          };
+        }
         return;
       }
       const t = traceHit(x, y);
@@ -466,6 +550,7 @@
   }
   function move(e: PointerEvent) {
     const [x, y] = toBoard(e);
+    pointer = free(e) ? [r2(x), r2(y)] : [grid(x, gridMm), grid(y, gridMm)];
     if (act?.k === 'pan') return panBy(act, e);
     if (act?.k === 'right') {
       if (act.panned || Math.hypot(e.clientX - act.sx, e.clientY - act.sy) > 4) {
@@ -477,18 +562,35 @@
     if (act?.k === 'part') {
       if (!act.live && Math.hypot(e.clientX - act.sx, e.clientY - act.sy) < 3) return;
       act.live = true;
-      const step = e.shiftKey ? 0.1 : 0.5;
       const main = act.from.get(act.id)!;
-      const nx = grid(main.x + x - act.bx, step), ny = grid(main.y + y - act.by, step);
+      const rx = main.x + x - act.bx, ry = main.y + y - act.by;
+      let nx = r2(rx), ny = r2(ry);
+      let gx: number | undefined, gy: number | undefined;
+      if (!free(e)) {
+        nx = grid(rx, gridMm);
+        ny = grid(ry, gridMm);
+        let bx = reach(), by = reach();
+        for (const [ox, oy] of act.mine) {
+          for (const c of act.cx) {
+            const d = Math.abs(c - (rx + ox));
+            if (d < bx) [bx, nx, gx] = [d, r2(c - ox), c];
+          }
+          for (const c of act.cy) {
+            const d = Math.abs(c - (ry + oy));
+            if (d < by) [by, ny, gy] = [d, r2(c - oy), c];
+          }
+        }
+      }
+      guides = { x: gx, y: gy };
       const m = new Map<string, Pose>();
       for (const [id, q] of act.from) m.set(id, { x: q.x + nx - main.x, y: q.y + ny - main.y, rot: q.rot });
       moving = m;
       return;
     }
-    if (act?.k === 'rect' && rect) return void (rect = { ...rect, b: [grid(x, 0.5), grid(y, 0.5)] });
-    if (act?.k === 'measure' && meas) return void (meas = { ...meas, b: [x, y] });
+    if (act?.k === 'rect' && rect) return void (rect = { ...rect, b: snapEdge(x, y, e) });
+    if (act?.k === 'measure' && meas) return void (meas = { ...meas, b: snapPt(x, y, e) });
     hoverPad = padHit(x, y);
-    if (draft) cursor = hoverPad && hoverPad.net === draft.net ? (portAt(hoverPad.key) ?? [hoverPad.x, hoverPad.y]) : snapTo(x, y, e.shiftKey);
+    if (draft) cursor = hoverPad && hoverPad.net === draft.net ? (portAt(hoverPad.key) ?? [hoverPad.x, hoverPad.y]) : snapTo(x, y, e);
   }
   function up(e: PointerEvent) {
     const a = act;
@@ -496,6 +598,7 @@
     if (a?.k === 'part') {
       if (a.live && moving) place(new Map(moving), a.id, `${a.id} moved on the board`);
       moving = null;
+      guides = {};
     } else if (a?.k === 'rect' && rect) {
       const [x0, y0] = rect.a, [x1, y1] = rect.b;
       const r: [number, number, number, number] = [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)];
@@ -573,6 +676,8 @@
     } else if (k === 'z' && !readonly) tool = 'pour';
     else if (k === 'k' && !readonly) tool = 'keepout';
     else if (k === 'm') tool = 'measure';
+    else if (k === 'g') showGrid = !showGrid;
+    else if (k === 'n') gridMm = GRIDS[(GRIDS.indexOf(gridMm) + (e.shiftKey ? GRIDS.length - 1 : 1)) % GRIDS.length];
     else if (k === 'f' || k === 'home') fit();
     else if (!draft && sel?.kind === 'part' && k === 'r' && !readonly) rotate(sel.id, e.shiftKey ? -90 : 90);
     else if (!draft && sel && !readonly && (k === 'delete' || k === 'backspace')) {
@@ -633,7 +738,7 @@
 
 <svelte:window onkeydown={key} />
 
-<div class="ed" class:crosshair={!!draft || tool !== 'select'}>
+<div class="ed" class:crosshair={!!draft || tool !== 'select'} bind:clientWidth={boxW} bind:clientHeight={boxH}>
   {#if err}
     <p class="msg">{err}</p>
   {:else if !copper}
@@ -644,12 +749,22 @@
       ondblclick={(e) => { if (tool === 'select' && !draft) { const [x, y] = toBoard(e); const p = padHit(x, y); if (p) start(p); } }}
       role="application" aria-label={dt('ed_title')}>
       <defs>
+        <pattern id="grid-minor" width={gridView.step} height={gridView.step} x={-gridView.step / 2} y={-gridView.step / 2} patternUnits="userSpaceOnUse">
+          <circle cx={gridView.step / 2} cy={gridView.step / 2} r={gridView.r} fill="rgba(255, 255, 255, 0.22)" />
+        </pattern>
+        <pattern id="grid-major" width={gridView.major} height={gridView.major} x={-gridView.major / 2} y={-gridView.major / 2} patternUnits="userSpaceOnUse">
+          <circle cx={gridView.major / 2} cy={gridView.major / 2} r={gridView.r * 1.5} fill="rgba(255, 255, 255, 0.38)" />
+        </pattern>
         <pattern id="ko-hatch" width="0.8" height="0.8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="0.8" stroke="#e5484d" stroke-width="0.14" />
         </pattern>
       </defs>
       <g transform="scale(1,-1)">
         <rect class="board" x={-W / 2} y={-H / 2} width={W} height={H} rx="0.6" />
+        {#if showGrid}
+          <rect x={vb.x} y={-(vb.y + vb.h)} width={vb.w} height={vb.h} fill="url(#grid-minor)" pointer-events="none" />
+          <rect x={vb.x} y={-(vb.y + vb.h)} width={vb.w} height={vb.h} fill="url(#grid-major)" pointer-events="none" />
+        {/if}
         {#each copper.holes as h, i (i)}<circle class="hole" cx={h.x} cy={h.y} r={h.d / 2} />{/each}
         {#each [back, front] as l (l)}
           <g class:inactive={l !== front}>
@@ -699,6 +814,8 @@
             style={rect.tool === 'pour' ? `stroke: ${COLOR[layer]}` : ''} />
         {/if}
         {#if meas}<line class="meas" x1={meas.a[0]} y1={meas.a[1]} x2={meas.b[0]} y2={meas.b[1]} />{/if}
+        {#if guides.x !== undefined}<line class="guide" x1={guides.x} y1={-(vb.y + vb.h)} x2={guides.x} y2={-vb.y} style="stroke-width: {mmPerPx}; stroke-dasharray: {4 * mmPerPx} {3 * mmPerPx}" />{/if}
+        {#if guides.y !== undefined}<line class="guide" x1={vb.x} y1={guides.y} x2={vb.x + vb.w} y2={guides.y} style="stroke-width: {mmPerPx}; stroke-dasharray: {4 * mmPerPx} {3 * mmPerPx}" />{/if}
       </g>
       {#each partsNow as p (p.id)}
         <text class="lbl" x={p.x} y={-p.y} font-size={Math.max(0.8, Math.min(1.6, Math.min(p.w, p.h) * 0.4))}>{p.id}</text>
@@ -735,6 +852,12 @@
       {:else if tool === 'select' && !readonly}
         <button class="tb" onclick={lockAll} title={dt('route_lock_all_d')}><i class="ti ti-lock" aria-hidden="true"></i> {dt('route_lock_all')}</button>
       {/if}
+      <span class="vsep"></span>
+      <button class="tb ic" class:on={showGrid} onclick={() => (showGrid = !showGrid)} title="{dt('ed_grid')} (G)" aria-label={dt('ed_grid')} aria-pressed={showGrid}><i class="ti ti-grid-dots" aria-hidden="true"></i></button>
+      <select class="gsel" bind:value={gridMm} title="{dt('ed_grid_step')} (N)" aria-label={dt('ed_grid_step')}>
+        {#each GRIDS as g (g)}<option value={g}>{g} {dt('mm')}</option>{/each}
+      </select>
+      <button class="tb" class:on={magnet} onclick={() => (magnet = !magnet)} title={dt('ed_magnet_d')} aria-pressed={magnet}><i class="ti ti-magnet" aria-hidden="true"></i> {dt('ed_magnet')}</button>
     </div>
 
     {#if info}
@@ -785,6 +908,7 @@
     <div class="legend">
       {#if ratsnest.length}<span><i class="sw rat"></i>{dt('route_left')}: {ratsnest.length}</span>{/if}
       <span class="muted">{draft ? dt('route_hint_draw') : dt(`ed_hint_${tool}`)}</span>
+      {#if pointer}<span class="xy">X {pointer[0].toFixed(2)} · Y {pointer[1].toFixed(2)}</span>{/if}
     </div>
   {/if}
 </div>
@@ -897,6 +1021,10 @@
     stroke-width: 0.12;
     stroke-dasharray: 0.4 0.25;
   }
+  .guide {
+    stroke: #3fd0ff;
+    pointer-events: none;
+  }
   .meas {
     stroke: #f2eda1;
     stroke-width: 0.1;
@@ -994,6 +1122,37 @@
   .tb:hover,
   .seg button:hover {
     background: rgba(255, 255, 255, 0.16);
+  }
+  .tb.on {
+    background: color-mix(in srgb, var(--primary) 30%, transparent);
+    color: #fff;
+  }
+  .tb.ic {
+    width: 26px;
+    padding: 0;
+    justify-content: center;
+    font-size: 15px;
+  }
+  .vsep {
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .gsel {
+    height: 24px;
+    padding: 0 24px 0 7px;
+    background-position: right 6px center;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background-color: #1b1b1b;
+    color: #eee;
+    font: inherit;
+    font-size: 12px;
+  }
+  .xy {
+    font-family: var(--font-mono);
+    color: #bbb;
+    font-variant-numeric: tabular-nums;
   }
   .tb:disabled {
     opacity: 0.4;

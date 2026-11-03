@@ -148,6 +148,7 @@
     {nodeTypes}
     connectionMode={ConnectionMode.Loose}
     connectionRadius={28}
+    snapGrid={[11, 11]}
     fitView
     fitViewOptions={{ padding: 0.18 }}
     minZoom={0.15}

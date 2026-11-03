@@ -362,7 +362,7 @@ const en: Dict = {
   ed_tool_pour: 'Copper pour',
   ed_tool_keepout: 'Keepout (no copper)',
   ed_tool_measure: 'Measure',
-  ed_hint_select: 'Drag a part to move · R turns · X over a pad routes · right button: menu, drag: pan · wheel zoom · F fit',
+  ed_hint_select: 'Drag a part to move · R turns · X over a pad routes · Shift no snap · G grid, N its step · right button: menu, drag: pan · F fit',
   ed_hint_route: 'Click a pad to start · right button or Esc cancels',
   ed_hint_pour: 'Drag a rectangle to pour the net on the active layer, or pour the whole board',
   ed_hint_keepout: 'Drag a rectangle: no copper there, the autorouter keeps out too',
@@ -382,6 +382,10 @@ const en: Dict = {
   ed_zones: 'Zones',
   ed_clear_zones: 'Delete all zones',
   route_rest_d: 'Build the board again: your placement, traces and zones stay, the autorouter joins the rest',
+  ed_grid: 'Grid',
+  ed_grid_step: 'Grid step',
+  ed_magnet: 'Magnet',
+  ed_magnet_d: 'Snap to the grid, pad centres, vias, trace corners and the board edges; parts line up with their neighbours. Hold Shift to move freely',
 };
 
 const ru: Dict = {
@@ -736,7 +740,7 @@ const ru: Dict = {
   ed_tool_pour: 'Заливка медью',
   ed_tool_keepout: 'Запрет меди',
   ed_tool_measure: 'Линейка',
-  ed_hint_select: 'Тяните деталь — переместить · R — повернуть · X над площадкой — трасса · ПКМ — меню, протяжка ПКМ — сдвиг · колесо — масштаб · F — вписать',
+  ed_hint_select: 'Тяните деталь — переместить · R — повернуть · X над площадкой — трасса · Shift — без привязки · G — сетка, N — шаг · ПКМ — меню, протяжка — сдвиг · F — вписать',
   ed_hint_route: 'Клик по площадке — начать · ПКМ или Esc — отмена',
   ed_hint_pour: 'Растяните прямоугольник — залить цепь на активном слое, или залейте всю плату',
   ed_hint_keepout: 'Растяните прямоугольник: там не будет меди, автотрассировщик тоже обойдёт',
@@ -756,6 +760,10 @@ const ru: Dict = {
   ed_zones: 'Зоны',
   ed_clear_zones: 'Удалить все зоны',
   route_rest_d: 'Собрать плату заново: расстановка, трассы и зоны останутся, остальное разведёт автотрассировщик',
+  ed_grid: 'Сетка',
+  ed_grid_step: 'Шаг сетки',
+  ed_magnet: 'Магнит',
+  ed_magnet_d: 'Привязка к сетке, центрам площадок, переходам, изломам трасс и краям платы; детали выравниваются по соседям. Shift — без привязки',
 };
 
 export function dt(key: string, vars?: Record<string, string | number>): string {
