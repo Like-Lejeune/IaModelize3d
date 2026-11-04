@@ -1,5 +1,22 @@
 # Formwright
 
+[![Live app](https://img.shields.io/badge/live_app-formwright.axo.kz-a6c84b?style=flat-square)](https://formwright.axo.kz)
+[![Real runs](https://img.shields.io/badge/watch-real_runs-a6c84b?style=flat-square)](https://formwright.axo.kz/replays)
+[![Meta models](https://img.shields.io/badge/Meta_models-Muse_Spark_%C2%B7_Wonder_%C2%B7_SAM_3.1-0866FF?style=flat-square)](#meta-models)
+[![Hackathon](https://img.shields.io/badge/hackathon-Meta_Global_AI_Developer-555?style=flat-square)](#built-during-the-hackathon)
+[![Track](https://img.shields.io/badge/track-Startups-555?style=flat-square)](#built-during-the-hackathon)
+[![License](https://img.shields.io/badge/license-PolyForm_NC_1.0.0-555?style=flat-square)](LICENSE)
+<br>
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
+![SvelteKit](https://img.shields.io/badge/SvelteKit-FF3E00?style=flat-square&logo=svelte&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![three.js](https://img.shields.io/badge/three.js-000000?style=flat-square&logo=threedotjs&logoColor=white)
+![tscircuit](https://img.shields.io/badge/tscircuit-PCB-2d6a4f?style=flat-square)
+![Arduino](https://img.shields.io/badge/Arduino-ESP32-00878F?style=flat-square&logo=arduino&logoColor=white)
+
+![Formwright: describe a device, get the board, case and firmware. Printed devices next to an exploded case with its board](web/static/og.png)
+
 **Formwright by Axo is hardware R&D from a sentence to a box on your desk: describe a device and get it finished —
 real parts from the LCSC catalogue wired in a node editor, a placed and routed board, its 3D-printed case and its
 firmware — then order it built. The same agent prints the spare part nobody stocks.**
@@ -14,7 +31,25 @@ runs against its own circuit on a virtual board; the model's "done" is not accep
 **[Live app](https://formwright.axo.kz)** · **[Watch real runs](https://formwright.axo.kz/replays)** · Startups track ·
 Push the Frontier · Built 27 Oct – 4 Nov 2026 for the Meta Global AI Developer Hackathon
 
-![The XIAO ESP32-C3 carrier example in the studio: the routed board inside a translucent case, green rays through each port, labels with the clearances](docs/img/xiao-case-rays.jpg)
+## One real run
+
+A desk weather station from a sentence, 4 min 1 s on Muse Spark 1.3. **[Watch this run](https://formwright.axo.kz/w/p_e5e1c9de167c48fd)**
+in the browser, from the request to the result.
+
+![The studio on the schematic stage: the agent's chat and its result on the left, LCSC parts as nodes with their pins and prices in the middle, the requirements and checks on the right](docs/img/schematic.jpg)
+
+**Schematic.** Real LCSC parts with price and stock, wired in a node editor, next to the agent's chat.
+
+| | |
+|---|---|
+| ![The board editor: the placed and routed two-layer board](docs/img/board.jpg) | ![The case in X-ray: the board, display and button inside a tilted printed case](docs/img/case.jpg) |
+| **Board.** Placed and routed on two layers, editable by hand. | **Case.** Made from that board, with an opening for each part. |
+| ![The firmware stage: the Arduino sketch for this board](docs/img/firmware.jpg) | ![The price stage: $155.23 for five devices, split into parts, fabrication, assembly, case and delivery](docs/img/price.jpg) |
+| **Firmware.** A sketch for the exact pins, run on a virtual board. | **Price.** A batch of five with every cost, dates and the fab's files. |
+
+![The replay gallery: cards of real agent runs with their time and model](docs/img/replays.jpg)
+
+**[Replays](https://formwright.axo.kz/replays).** More real runs, free to watch.
 
 ## Features
 
@@ -35,18 +70,22 @@ Push the Frontier · Built 27 Oct – 4 Nov 2026 for the Meta Global AI Develope
   of the device's own circuit, on a virtual clock. Each requirement can carry a scenario (what the person does, what
   must happen). A test that passes without its steps is refused, one changed after failing is named in the result, and
   a call the board does not model stops the run as "not simulated", never as a pass.
+- **Node editor.** The device is a graph you can see and change: parts as nodes with their pins, signal nets as wires,
+  supplies as labels; drag a wire between two pins, add any LCSC part by number or function, change values, edges and
+  nets in the inspector, then rebuild the board without the agent. The agent and the editor edit the same document
+  (`fw.device/1`), so the next request keeps the person's changes.
+- **Replays.** A finished run plays back in the browser with nothing spent: pause, speed up, seek, link to a moment,
+  with the chat, schematic, board and case as they were then. Owners choose private, link or gallery.
+
+<details>
+<summary><b>All other features</b>: electrical rules, cases, hand routing, spare parts, Snap &amp; collect, measurement from photos</summary>
+
 - **Electrical rules.** Current on each net sets trace widths (IPC-2221) and is checked against connector and part
   ratings; unwired measuring inputs, modules on the wrong supply and mains on the board are errors. About 25 ready-made
   modules (e-paper, TFT, I2S speaker, RTC, RFID, GPS, LoRa, stepper driver and more), MX and Choc key switches with
   printed keycaps, screw terminals and panel connectors.
 - **Cases that stand somewhere.** Tilted stands, wall ears, straps, lanyards, stakes and magnets from the same engine;
   every port and button is checked against the real board.
-- **Replays.** A finished run plays back in the browser with nothing spent: pause, speed up, seek, link to a moment,
-  with the chat, schematic, board and case as they were then. Owners choose private, link or gallery.
-- **Node editor.** The device is a graph you can see and change: parts as nodes with their pins, signal nets as wires,
-  supplies as labels; drag a wire between two pins, add any LCSC part by number or function, change values, edges and
-  nets in the inspector, then rebuild the board without the agent. The agent and the editor edit the same document
-  (`fw.device/1`), so the next request keeps the person's changes.
 - **Placement and routing by hand.** On the board, drag and turn parts (they stay pinned), draw traces pad to pad with
   45/90 degree corners, vias and widths on both layers, delete autorouted traces or keep the good ones. "Route the
   rest" builds again: hand traces go in as fixed `pcbPath` traces, the autorouter joins only what is left around them,
@@ -70,6 +109,8 @@ Push the Frontier · Built 27 Oct – 4 Nov 2026 for the Meta Global AI Develope
   grid in real millimetres and collages of what it made.
 - **Output.** STL and 3MF with print settings, Gerber, BOM and pick-and-place files, one archive for a whole device,
   orders through Formwright Parts and the Axo cart, and a Telegram bot.
+
+</details>
 
 ## What it does not do yet
 
