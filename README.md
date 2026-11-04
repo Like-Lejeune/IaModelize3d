@@ -175,8 +175,19 @@ published drawings (each board links its source).
 
 ## Running locally
 
-Requirements: Node 24, Python 3.12+, a Meta Model API key; g++ (the firmware check), OrcaSlicer (quotes and slicing) and
-ffmpeg (audio and video) are optional. Copy `.env.example` to `.env` and set `META_API_KEY`; the other settings are listed there.
+Required:
+
+- Node 24
+- Python 3.12+
+- a Meta Model API key
+
+Optional, for these features only:
+
+- g++: the compile step of the firmware check
+- OrcaSlicer 2.4.2: slicing and binding quotes for spare parts
+- ffmpeg: audio and video uploads
+
+Copy `.env.example` to `.env` and set `META_API_KEY`; the other settings are listed there.
 
 Windows, API on port 8400 and the web app on http://localhost:5400:
 
