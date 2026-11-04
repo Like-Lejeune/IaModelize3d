@@ -33,6 +33,15 @@ export function bomOf(s: DeviceState | null, accessories: Record<string, Accesso
     const v = s.view.nodes[n.id];
     const p = v?.part ?? {};
     const acc = n.kind === 'accessory' ? accessories[n.accessory ?? ''] : undefined;
+    // a module on a connector: the connector on the carrier is a line of its own, as in the quote
+    const conn = p.connector;
+    if (n.kind === 'accessory' && conn) {
+      rows.set(`${conn.lcsc}:${n.id}`, {
+        key: `${conn.lcsc}:${n.id}`, refs: [n.id], kind: 'header', part: conn.mpn ?? '', role: `${n.id}: ${n.label ?? ''}`.replace(/: $/, ''),
+        pkg: conn.package ?? '', lcsc: conn.lcsc ?? null, url: conn.url ?? null, basic: conn.basic ?? null, stock: conn.stock ?? null,
+        unit: conn.price_usd ?? null, qty: 1, sum: conn.price_usd ?? null, hand: true,
+      });
+    }
     const key = n.kind === 'accessory' ? `accessory:${n.accessory}`
       : p.lcsc ?? (n.kind === 'module' ? `module:${n.module}` : `${n.kind}:${n.value ?? ''}:${n.package ?? ''}:${n.color ?? ''}`);
     const row = rows.get(key) ?? {
@@ -42,7 +51,7 @@ export function bomOf(s: DeviceState | null, accessories: Record<string, Accesso
       pkg: p.package ?? n.package ?? '',
       lcsc: n.kind === 'accessory' ? null : p.lcsc ?? null, url: (n.kind === 'accessory' ? acc?.url : null) ?? p.url ?? null,
       basic: n.kind === 'accessory' ? null : p.basic ?? null, stock: n.kind === 'accessory' ? null : p.stock ?? null,
-      unit: v?.price_usd ?? acc?.price_usd ?? null, qty: 0, sum: null, hand: HAND.has(n.kind), ...(n.kind === 'accessory' ? { fitted: true } : {}),
+      unit: v?.price_usd ?? acc?.price_usd ?? null, qty: 0, sum: null, hand: HAND.has(n.kind) || !!p.tht, ...(n.kind === 'accessory' ? { fitted: true } : {}),
     };
     row.refs.push(n.id);
     row.qty = row.refs.length;
@@ -55,6 +64,16 @@ export function bomOf(s: DeviceState | null, accessories: Record<string, Accesso
   return [...rows.values()]
     .map((r) => ({ ...r, refs: r.refs.sort(natural) }))
     .sort((a, b) => rank(a.kind) - rank(b.kind) || natural(a.refs[0], b.refs[0]));
+}
+
+/** A catalogue's package as a person reads it: "Plugin,D=9mm" -> "THT ⌀9 mm". */
+export function pkgText(pkg: string): string {
+  return pkg.replace(/^Plugin,?\s*/i, 'THT ').replace(/\bD=([\d.]+)\s*mm/i, '⌀$1 mm').replace(/,\s*/g, ' ').trim();
+}
+
+/** A catalogue's part number without what it adds in brackets: "S8050 J3Y(RANGE:200-350)" -> "S8050 J3Y". */
+export function partText(part: string): string {
+  return part.replace(/\s*\([A-Z]+:[^)]*\)\s*$/, '').trim() || part;
 }
 
 /** The same lines as a CSV in JLCPCB's assembly columns (Comment, Designator, Footprint, LCSC); a module fitted by hand

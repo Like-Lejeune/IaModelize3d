@@ -25,8 +25,10 @@ import hashlib
 import json
 import logging
 import math
+import os
 import re
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +40,8 @@ log = logging.getLogger(__name__)
 
 JLC_SEARCH = "https://jlcpcb.com/api/overseas-pcb-order/v1/shoppingCart/smtGood/selectSmtComponentList"
 EASYEDA = "https://easyeda.com/api/products/{code}/components?version=6.4.19.5"
+EASYEDA_MODEL = "https://modules.easyeda.com/3dmodel/{uuid}"
+MODEL_MAX_BYTES = 3_000_000  # a model past this (an overdrawn connector) would weigh more in board.glb than the rest of the board
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Formwright/1.0"
 SEARCH_TTL = 12 * 3600
 SEARCH_GAP = 1.5     # s between the starts of two JLCPCB calls: back-to-back calls get 403 for several seconds after
@@ -140,7 +144,7 @@ async def _query(kw: str, *, size: int, basic: bool, retry: bool = True) -> list
     items = ((data.get("data") or {}).get("componentPageInfo") or {}).get("list") or []
     # "C99..." numbers out of stock are JLCPCB's placeholder listings, not parts anyone can assemble
     cards = [_card(it) for it in items if it.get("componentCode") and not (str(it["componentCode"]).startswith("C99") and not it.get("stockCount"))]
-    path.write_text(json.dumps(cards, ensure_ascii=False), encoding="utf-8")
+    _cache(path, json.dumps(cards, ensure_ascii=False).encode())
     return cards
 
 
@@ -156,6 +160,14 @@ CONCEPTS: tuple[tuple[str, tuple[str, ...], str], ...] = (
     (r"ambient light|light sensors?|lux|illuminance|photoresistors?|ldr|photocells?", ("BH1750FVI", "GL5528"), r"light|photo"),
     (r"humidity|hygrometer|thermometer|temperature sensors?", ("AHT20",), r"humidity|temperature"),
     (r"accelerometers?|shake|imu|gyro\w*", ("LIS3DH",), r"accelerometer|gyro|imu|attitude"),
+    (r"encoders?|rotary|knobs?", ("EC11",), r"encoder|rotary"),
+    (r"(?:audio|headphone|3\.5 ?mm|tr[sr]) ?jacks?|jack ?3\.5", ("PJ-320", "PJ-307"), r"audio"),
+    (r"6\.35 ?mm|guitar ?jacks?|1/4 ?inch", ("PJ-612", "PJ-601"), r"audio"),
+    (r"midi|din-?5", ("DIN-504", "DIN-5"), r"din"),
+    (r"(?:dc|barrel|power) ?jacks?", ("DC-005",), r"dc power"),
+    (r"rj-?45|ethernet", ("RJ45",), r"ethernet|modular"),
+    (r"xt-?30|xt-?60", ("XT30PW",), r"power connector"),
+    (r"sma|antenna connectors?", ("SMA-KWE",), r"coaxial"),
     (r"npn|pnp|bjt|transistors?", ("S8050", "MMBT3904"), r"bipolar|bjt|transistor"),
     (r"mosfets?|n-?channel|nmos", ("AO3400",), r"mosfet|transistor"),
     (r"p-?channel|pmos", ("AO3401",), r"mosfet|transistor"),
@@ -279,6 +291,34 @@ async def search(q: str, *, limit: int = 8, basic: bool = False, fallback: bool 
     return _rank(q, kept)[:limit]
 
 
+# ------------------------------------------------------------------ the cache on disk
+MISS = object()
+
+
+def _cache(path: Path, data: bytes) -> None:
+    """One answer on disk, whole: a crash mid-write must not leave a file that fails every later read."""
+    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex[:8]}.tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    except OSError as e:  # a read-only or full disk costs the cache, not the answer
+        log.warning("catalogue cache %s: %s", path.name, e)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _cached(path: Path) -> Any:
+    """The JSON kept in this file, or MISS: no file, or a damaged one, which goes."""
+    if not path.is_file():
+        return MISS
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.warning("catalogue cache %s is damaged, dropped: %s", path.name, e)
+        path.unlink(missing_ok=True)
+        return MISS
+
+
 # ------------------------------------------------------------------ EasyEDA component (pins + footprint)
 async def easyeda(code: str) -> dict[str, Any] | None:
     """The EasyEDA library entry of an LCSC part (symbol + packageDetail), or None when EasyEDA has none."""
@@ -286,15 +326,12 @@ async def easyeda(code: str) -> dict[str, Any] | None:
     if not c:
         return None
     path = _dir("easyeda") / f"{c}.json"
-    if path.is_file():
-        try:
-            return json.loads(path.read_text(encoding="utf-8")) or None
-        except (OSError, json.JSONDecodeError):
-            pass
+    if (known := _cached(path)) is not MISS:
+        return known or None
     lock = _locks.setdefault(c, asyncio.Lock())
     async with lock:
-        if path.is_file():
-            return json.loads(path.read_text(encoding="utf-8")) or None
+        if (known := _cached(path)) is not MISS:
+            return known or None
         try:
             async with httpx.AsyncClient(timeout=25, headers={"user-agent": UA}) as h:
                 r = await h.get(EASYEDA.format(code=c))
@@ -304,8 +341,137 @@ async def easyeda(code: str) -> dict[str, Any] | None:
             raise CatalogError(f"EasyEDA did not answer for {c} ({type(e).__name__}); try again") from e
         result = data.get("result") if data.get("success") else None
         ok = isinstance(result, dict) and isinstance(result.get("packageDetail"), dict) and result.get("dataStr")
-        path.write_text(json.dumps(result if ok else {}, ensure_ascii=False), encoding="utf-8")
+        _cache(path, json.dumps(result if ok else {}, ensure_ascii=False).encode())
         return result if ok else None
+
+
+def model_uuid(raw: dict[str, Any] | None) -> str | None:
+    """The uuid of the footprint's 3D model in EasyEDA's library, or None when it has none."""
+    u = str(_svgnode(raw or {}).get("uuid") or "")
+    return u if re.fullmatch(r"[0-9a-zA-Z]{16,64}", u) else None
+
+
+def model_outline(raw: dict[str, Any]) -> tuple[float, float, float, float] | None:
+    """The footprint's 3D model outline (x0, y0, x1, y1) in the frame of pads_of, or None: what the converter takes for the
+    courtyard (its SVGNODE's polygon points, EasyEDA units of 10 mil)."""
+    d = (raw.get("packageDetail") or {}).get("dataStr") or {}
+    head = d.get("head") or {}
+    pts: list[tuple[float, float]] = []
+    try:
+        ox, oy = float(head["x"]), float(head["y"])
+        for s in d.get("shape") or []:
+            if isinstance(s, str) and s.startswith("SVGNODE~"):
+                for ch in (json.loads(s.split("~", 1)[1]).get("childNodes") or []):
+                    v = [float(t) for t in str(((ch or {}).get("attrs") or {}).get("points") or "").split()]
+                    pts += [((v[i] - ox) * EE_UNIT, (oy - v[i + 1]) * EE_UNIT) for i in range(0, len(v) - 1, 2)]
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+    if not pts:
+        return None
+    return (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts))
+
+
+def model_place(raw: dict[str, Any], obj: str) -> dict[str, Any]:
+    """Where a footprint puts its 3D model: {at: [dx, dy, dz] mm from the package's anchor (the frame of pads_of), rot: [x, y, z]
+    degrees}. In plan the model's middle goes to the middle of the outline EasyEDA drew for it (c_origin is often left over from
+    another drawing, a metre off), or of the pads when that outline lies off them too. In height its lowest point goes to
+    SVGNODE z (a through-hole part's leads reach below the board)."""
+    node = _svgnode(raw)
+    num = lambda v: float(v) if re.fullmatch(r"-?\d+(?:\.\d+)?", str(v or "").strip()) else 0.0  # noqa: E731
+    rot = [num(r) for r in (str(node.get("c_rotation") or "").split(",") + ["0", "0", "0"])[:3]]
+    xs: list[float] = []
+    ys: list[float] = []
+    zs: list[float] = []
+    for line in obj.splitlines():
+        if line.startswith("v "):
+            v = line.split()
+            try:
+                xs.append(float(v[1]))
+                ys.append(float(v[2]))
+                zs.append(float(v[3]))
+            except (IndexError, ValueError):
+                continue
+    if not xs:
+        return {"at": [0.0, 0.0, 0.0], "rot": rot}
+    pads = list(pads_of(raw).values())
+    pad_mid = ((min(p[0] for p in pads) + max(p[0] for p in pads)) / 2, (min(p[1] for p in pads) + max(p[1] for p in pads)) / 2) if pads else (0.0, 0.0)
+    reach = max([max(abs(p[0] - pad_mid[0]) + p[2] / 2, abs(p[1] - pad_mid[1]) + p[3] / 2) for p in pads] or [0.0]) + max(max(xs) - min(xs), max(ys) - min(ys))
+    box = model_outline(raw)
+    mid = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2) if box else pad_mid
+    if math.hypot(mid[0] - pad_mid[0], mid[1] - pad_mid[1]) > reach:
+        mid = pad_mid
+    ox, oy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    c, s = math.cos(math.radians(rot[2])), math.sin(math.radians(rot[2]))
+    return {"at": [round(mid[0] - (ox * c - oy * s), 3) + 0.0, round(mid[1] - (ox * s + oy * c), 3) + 0.0, round(num(node.get("z")) * EE_UNIT - min(zs), 3) + 0.0], "rot": rot}
+
+
+def mouth_of(raw: dict[str, Any], obj: str | None = None) -> dict[str, Any] | None:
+    """Which way a connector opens, read off its drawing: the side where its body (the 3D model where there is one, else the package's
+    outline) stands furthest past its pads, since a plug needs the body's front clear of the solder. {dir: '+x'|'-x'|'+y'|'-y' at rotation
+    0, reach: mm from the origin to that face, across: its middle along the face from the origin, w: its width there, z0, z1: its height
+    over the board}, or None when the drawing does not say: pads as wide as the body all round, or nothing to read."""
+    pads = list(pads_of(raw).values())
+    if not pads:
+        return None
+    px0, px1 = min(p[0] - p[2] / 2 for p in pads), max(p[0] + p[2] / 2 for p in pads)
+    py0, py1 = min(p[1] - p[3] / 2 for p in pads), max(p[1] + p[3] / 2 for p in pads)
+    z0, z1 = 0.0, height_of(raw) or 5.0
+    box: tuple[float, float, float, float] | None = None
+    if obj:
+        place = model_place(raw, obj)
+        pts = [[float(v) for v in ln.split()[1:4]] for ln in obj.splitlines() if ln.startswith("v ")]
+        if pts:
+            a = math.radians(place["rot"][2])
+            c, s_ = math.cos(a), math.sin(a)
+            xs = [x * c - y * s_ + place["at"][0] for x, y, _ in pts]
+            ys = [x * s_ + y * c + place["at"][1] for x, y, _ in pts]
+            zs = [z + place["at"][2] for _, _, z in pts]
+            box = (min(xs), min(ys), max(xs), max(ys))
+            z0, z1 = max(0.0, min(zs)), max(zs)
+    box = box or box_of(raw)
+    if not box:
+        return None
+    over = {"+x": box[2] - px1, "-x": px0 - box[0], "+y": box[3] - py1, "-y": py0 - box[1]}
+    side = max(over, key=lambda k: over[k])
+    ranked = sorted(over.values(), reverse=True)
+    if over[side] < 0.5 or ranked[0] - ranked[1] < 0.3:
+        return None
+    onx = side[1] == "x"
+    reach = {"+x": box[2], "-x": -box[0], "+y": box[3], "-y": -box[1]}[side]
+    across = (box[1] + box[3]) / 2 if onx else (box[0] + box[2]) / 2
+    # its copper keeps off the rim however short its nose is
+    pad = {"+x": px1, "-x": -px0, "+y": py1, "-y": -py0}[side]
+    return {"dir": side, "reach": round(reach, 2), "pad": round(pad, 2), "across": round(across, 2), "w": round((box[3] - box[1]) if onx else (box[2] - box[0]), 2),
+            "d": round((box[2] - box[0]) if onx else (box[3] - box[1]), 2), "z0": round(z0, 2), "z1": round(z1, 2)}
+
+
+async def model_obj(raw: dict[str, Any] | None) -> tuple[str, str] | None:
+    """(uuid, OBJ text) of a part's real 3D model, cached for good (an absent or oversized one as an empty file, so it is
+    asked once); None without one. A model the catalogue cannot serve costs the part its look, never a build."""
+    uuid = model_uuid(raw)
+    if not uuid:
+        return None
+    path = _dir("models") / f"{uuid}.obj"
+    if not path.is_file():
+        lock = _locks.setdefault(f"model:{uuid}", asyncio.Lock())
+        async with lock:
+            if not path.is_file():
+                try:
+                    async with httpx.AsyncClient(timeout=25, headers={"user-agent": UA}, follow_redirects=True) as h:
+                        r = await h.get(EASYEDA_MODEL.format(uuid=uuid))
+                except httpx.HTTPError as e:
+                    log.warning("3D model %s: %s", uuid, e)
+                    return None
+                # a refusal or a passing failure says nothing about the model: asked again next time
+                if r.status_code >= 500 or r.status_code in (403, 408, 425, 429):
+                    return None
+                ok = r.status_code == 200 and len(r.content) <= MODEL_MAX_BYTES and b"\nf " in r.content
+                _cache(path, r.content if ok else b"")
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return (uuid, text) if text else None
 
 
 def pins_of(raw: dict[str, Any]) -> list[dict[str, str]]:

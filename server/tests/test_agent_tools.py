@@ -185,7 +185,7 @@ async def test_finish_without_a_reviewer_still_ships_and_says_so(monkeypatch):
     ctx, state = FakeCtx(), built_state("household")
     assert (await _finish(ctx, state, ""))["accepted"] is True
     ev = critic_events(ctx)[0]
-    assert ev["verdict"] == "pass" and ev["note"] == "reviewer unavailable" and ev["reviewer"] == "unavailable" and ev["version"] == 3
+    assert ev["verdict"] == "unavailable" and ev["note"] == "reviewer unavailable" and ev["reviewer"] == "unavailable" and ev["version"] == 3
 
 
 async def test_the_case_gate_runs_after_printability_and_before_the_review(monkeypatch):

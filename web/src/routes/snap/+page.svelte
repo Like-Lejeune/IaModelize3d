@@ -141,14 +141,14 @@
     keeping = false;
   }
 
-  // over the viewfinder an error shows for a few seconds, then the camera is clear again
+  // over the viewfinder an error shows for a few seconds, then the camera is clear again;
+  // a shot that can be sent again stays on offer until the next shot replaces it
   function toast(msg: string) {
     error = msg;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
-      if (error !== msg) return;
+      if (error !== msg || failed) return;
       error = null;
-      failed = null;
     }, 5000);
   }
 
@@ -513,7 +513,7 @@
           </button>
         </div>
         <button class="figure" onclick={make} disabled={!sel || !label.trim() || busy || sending || keeping}>
-          {#if sending}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="sparkles" size={15} />{/if}
+          {#if sending}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="cube" size={15} />{/if}
           {ct('figure')}
         </button>
       {:else if kept}
@@ -650,15 +650,13 @@
     gap: var(--space-4);
     padding: 96px var(--space-5) 140px;
     text-align: center;
-    background:
-      radial-gradient(60% 50% at 50% 40%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 70%),
-      #0b0c08;
+    background: #0b0c08;
   }
   .nocam p {
     margin: 0;
     max-width: 320px;
     color: rgb(255 255 255 / 0.8);
-    font-size: var(--text-product-lead);
+    font-size: var(--text-lg);
   }
   .nocam-ic {
     width: 72px;
@@ -666,9 +664,8 @@
     border-radius: 50%;
     display: grid;
     place-items: center;
-    color: var(--primary);
-    border: 1.5px solid color-mix(in srgb, var(--primary) 60%, transparent);
-    box-shadow: 0 0 30px color-mix(in srgb, var(--primary) 30%, transparent);
+    color: rgb(255 255 255 / 0.8);
+    border: 1px solid rgb(255 255 255 / 0.3);
   }
   .nocam-row {
     display: flex;
@@ -722,7 +719,7 @@
   .ttl {
     flex: 1;
     min-width: 0;
-    font-size: var(--text-product-lead);
+    font-size: var(--text-lg);
     font-weight: var(--font-weight-bold);
     text-shadow: 0 1px 6px rgb(0 0 0 / 0.5);
     white-space: nowrap;
@@ -735,7 +732,7 @@
   .seg {
     display: flex;
     padding: 3px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     gap: 2px;
   }
   .seg button {
@@ -746,9 +743,9 @@
     background: transparent;
     color: rgb(255 255 255 / 0.85);
     font-weight: var(--font-weight-semibold);
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     padding: 7px 12px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     min-height: 36px;
     transition: background-color var(--dur-fast) var(--ease-standard);
   }
@@ -772,7 +769,7 @@
     border-radius: var(--radius-btn);
     background: color-mix(in srgb, var(--error) 88%, black);
     color: #fff;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     font-weight: var(--font-weight-semibold);
     display: flex;
     flex-wrap: wrap;
@@ -811,11 +808,11 @@
   .hint {
     margin: 0;
     padding: 7px 14px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: rgb(20 20 18 / 0.5);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     font-weight: var(--font-weight-semibold);
     text-align: center;
     display: inline-flex;
@@ -824,7 +821,7 @@
   }
   .hint.working {
     color: var(--primary);
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     padding: 10px 18px;
   }
   .ctl-row {
@@ -876,10 +873,10 @@
     min-width: 20px;
     height: 20px;
     padding: 0 5px;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     background: var(--primary);
     color: var(--on-primary);
-    font-size: 11px;
+    font-size: var(--text-xs);
     font-weight: var(--font-weight-bold);
     display: grid;
     place-items: center;
@@ -889,7 +886,7 @@
     align-items: center;
     gap: 6px;
     padding: 10px 16px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     font-weight: var(--font-weight-semibold);
   }
 
@@ -927,8 +924,8 @@
     position: relative;
     height: clamp(140px, 24dvh, 200px);
     margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-2)) 0;
-    border-radius: 14px;
-    background: radial-gradient(70% 80% at 50% 45%, color-mix(in srgb, var(--primary) 10%, var(--surface-high)), var(--surface-container));
+    border-radius: var(--radius-lg);
+    background: var(--surface-high);
     overflow: hidden;
   }
   .cut {
@@ -957,8 +954,8 @@
   }
   .mchip {
     padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 11px;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
     font-weight: var(--font-weight-semibold);
     background: color-mix(in srgb, var(--surface-container) 85%, transparent);
     color: var(--on-surface-var);
@@ -971,7 +968,6 @@
   .dims {
     font-weight: var(--font-weight-regular);
     text-transform: none;
-    letter-spacing: 0;
     color: var(--on-surface-var);
   }
   .icon-btn {
@@ -989,7 +985,7 @@
     color: var(--primary);
     font: inherit;
     font-weight: var(--font-weight-semibold);
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     padding: 4px 10px;
     margin-top: calc(-1 * var(--space-1));
     cursor: pointer;
@@ -1006,7 +1002,7 @@
   .name {
     flex: 1;
     min-width: 0;
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
     font-weight: var(--font-weight-bold);
     padding: 8px 10px;
     border-radius: var(--radius-field);
@@ -1020,7 +1016,7 @@
   }
   .busy {
     color: var(--primary);
-    font-size: 20px;
+    font-size: var(--text-2xl);
   }
   .err {
     color: var(--error);
@@ -1063,7 +1059,7 @@
     align-items: flex-start;
   }
   .done strong {
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
   }
   .tick {
     flex: none;
@@ -1093,7 +1089,7 @@
   @media (min-width: 720px) {
     .panel {
       bottom: var(--space-4);
-      border-radius: 18px;
+      border-radius: var(--radius-xl);
       border-bottom: var(--border-width) solid var(--outline-variant);
     }
   }

@@ -3,7 +3,7 @@ import that archive into another data dir (the live server's volume) under the f
 
 A project travels with everything its studio page and its replay read: the project row (title, cover, brief, public
 and featured flags), its programs, messages, events, jobs (the featured card's time and models), assets and
-selections, its PCB versions, and its files (data/files/<project>/ plus files it points to elsewhere, such as an
+selections, its PCB versions and device documents, and its files (data/files/<project>/ plus files it points to elsewhere, such as an
 example cover). People do not travel: the owner and the jobs' user become --user, and no users, sessions, spend or
 shop rows are written. Export opens the source database read-only and writes only the archive.
 Import is a dry run by default (the target is opened read-only); --apply writes. It is idempotent: a project that
@@ -44,9 +44,9 @@ from judge_link import connect, default_db, has_table  # noqa: E402
 
 FORMAT = "fw.runs/1"
 # the rows of a project, in the order they are written; each table's rows are keyed by project_id
-TABLES = ("programs", "messages", "assets", "selections", "jobs", "events", "pcb_boards")
+TABLES = ("programs", "messages", "assets", "selections", "jobs", "events", "pcb_boards", "device_docs")
 ORDER = {"programs": "version", "messages": "created_at, id", "assets": "created_at, id", "selections": "created_at, id",
-         "jobs": "created_at, id", "events": "seq", "pcb_boards": "version"}
+         "jobs": "created_at, id", "events": "seq", "pcb_boards": "version", "device_docs": "version"}
 # columns the target numbers itself: event seq is the target's own order
 SKIP_COLUMNS = {"events": {"seq"}}
 SAFE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
@@ -226,6 +226,14 @@ def _ensure_pcb_table(conn: sqlite3.Connection) -> None:
         conn.execute(SCHEMA)
 
 
+def _ensure_device_tables(conn: sqlite3.Connection) -> None:
+    """device_docs as the server creates it on first use (formwright.device_store.SCHEMA)."""
+    if not has_table(conn, "device_docs"):
+        from formwright.device_store import SCHEMA
+
+        conn.executescript(SCHEMA)
+
+
 def import_archive(conn: sqlite3.Connection, files: Path, archive: Archive, user: str, *, apply: bool, replace: bool = False) -> dict[str, list[str]]:
     """Add the archive's projects to this database and files dir as `user`'s. Returns {added, replaced, skipped}."""
     if not conn.execute("SELECT 1 FROM users WHERE id = ?", (user,)).fetchone():
@@ -254,6 +262,8 @@ def import_archive(conn: sqlite3.Connection, files: Path, archive: Archive, user
         with conn:
             if rows.get("pcb_boards"):
                 _ensure_pcb_table(conn)
+            if rows.get("device_docs"):
+                _ensure_device_tables(conn)
             if have:
                 for t in TABLES:
                     if has_table(conn, t):

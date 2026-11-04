@@ -1,6 +1,6 @@
 // Project state for the studio and recipe pages: server detail + event log grouped by
 // job + the live local build of the current program.
-import { api, ApiError, errorInfo, errorText } from './api';
+import { api, ApiError, errorInfo, errorText, isTransient } from './api';
 import { GeomClient } from './geom/client';
 import { i18n, t } from './i18n.svelte';
 import { pcbApi } from './pcb/api';
@@ -36,7 +36,8 @@ export type TimelineItem =
   | (Base & { kind: 'probe'; data: any })
   | (Base & { kind: 'memory'; items: { kind: string; name: string }[] })
   // code and projectId come from the API error: 'job_running' names the project that holds the slot
-  | (Base & { kind: 'error'; text: string; code?: string; projectId?: string });
+  // retry: what the Retry button (or the connection coming back, for code 'offline') does
+  | (Base & { kind: 'error'; text: string; code?: string; projectId?: string; retry?: () => void });
 
 export interface JobInfo {
   id: string;
@@ -51,7 +52,7 @@ export interface JobInfo {
   result?: ResultCard | null;
   model?: string;
   /** The model is still answering: seconds so far ('job.heartbeat'), cleared by the job's next event. */
-  wait?: { seconds: number; stage?: string | null } | null;
+  wait?: { seconds: number; stage?: string | null; outage?: boolean } | null;
   /** The latest reasoning summary the model shared. */
   thought?: string | null;
 }
@@ -115,6 +116,9 @@ export class PcbState {
   frames = $state.raw<RouteFrames | null>(null);
   /** glb_map of versions whose board.glb sits in a case (version -> GLB-to-board-frame matrix, null when it has none). */
   glbMaps = $state.raw<Record<number, number[][] | null>>({});
+  /** A replay: versions after this one are not out yet (0: none is); null follows the project. */
+  cap: number | null = null;
+  private all: PcbVersion[] | null = null;
   private filesFor = 0;
   private token = 0;
   private glbAsked = new Set<number>();
@@ -127,12 +131,29 @@ export class PcbState {
 
   async refresh() {
     try {
-      this.versions = await pcbApi.versions(this.projectId);
+      if (this.cap == null) this.versions = await pcbApi.versions(this.projectId);
+      else if (this.cap > 0) {
+        this.all ??= await pcbApi.versions(this.projectId);
+        const cap = this.cap;
+        this.versions = this.all.filter((v) => v.version <= cap);
+      } else this.versions = [];
     } catch {
       /* no PCB API here, or no access: the tab stays hidden */
     }
     this.loaded = true;
     await this.files();
+  }
+
+  /** A replay going back to the start: no board yet (the versions it has fetched stay for later). */
+  resetReplay() {
+    this.cap = 0;
+    this.token++;
+    this.filesFor = 0;
+    this.versions = [];
+    this.picked = null;
+    this.live = null;
+    this.drc = null;
+    this.frames = null;
   }
 
   pick(version: number | null) {
@@ -207,6 +228,10 @@ export class ProjectStore {
   id: string;
   detail = $state<ProjectDetail | null>(null);
   loadError = $state<string | null>(null);
+  /** loadError is a passing one: load() keeps trying and the page comes up by itself. */
+  loadRetrying = $state(false);
+  /** Why the studio's last edit is not on the server yet; save() keeps trying a passing failure. */
+  saveError = $state<string | null>(null);
   timeline = $state<TimelineItem[]>([]);
   jobs = $state<Record<string, JobInfo>>({});
   // program
@@ -276,6 +301,11 @@ export class ProjectStore {
   readonly clientId = Math.random().toString(36).slice(2);
   private stream: EventStream | null = null;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  // the edit on its way to the server, and how long to wait before trying it again
+  private unsaved: { values: Record<string, any>; checks: CheckReport; source: string | null } | null = null;
+  private saveWait = 2000;
+  private loadWake: (() => void) | null = null;
+  private jobWatch: ReturnType<typeof setInterval> | null = null;
   // every change of source or values gets a revision; results older than the shown one are dropped
   private rev = 0;
   private shown = 0;
@@ -306,17 +336,72 @@ export class ProjectStore {
   private readonly recipe: boolean;
   /** Someone else's project (the detail's can_edit is false): it opens read-only, with the whole run and a Remix offer. */
   visitor = $state(false);
+  /** The replay player feeds this store the run's log (replay.svelte.ts) instead of the project's latest state and stream. */
+  readonly replayMode: boolean;
+  // what a jump passed over and the moment still shows, for settleReplay
+  private caught: { program: any; enclosure: any; route: any[] } = { program: null, enclosure: null, route: [] };
 
-  constructor(id: string, recipe = false) {
+  constructor(id: string, recipe = false, replayMode = false) {
     this.id = id;
     this.recipe = recipe;
+    this.replayMode = replayMode;
+    this.replaying = replayMode;
     this.pcb = new PcbState(id);
     this.device = new DeviceStore(id, () => !this.readonly);
   }
 
   /** Nothing here is saved or sent: sliders and handles still move the model in this browser. */
   get readonly(): boolean {
-    return this.recipe || this.visitor;
+    return this.recipe || this.visitor || this.replayMode;
+  }
+
+  /** Back to before the run's first event; the assets stay, its messages show them whenever they come up. */
+  resetReplay() {
+    this.seen.clear();
+    this.caught = { program: null, enclosure: null, route: [] };
+    this.timeline = [];
+    this.jobs = {};
+    this.jobId = this.jobKind = this.status = null;
+    this.cost = null;
+    this.source = this.serverSource = this.committedSource = null;
+    this.version = 0;
+    this.setInputs({});
+    this.values = {};
+    this.agentValues = {};
+    this.build = this.fullChecks = this.buildError = this.enclosure = this.known = this.pendingEnc = null;
+    this.building = this.checking = this.enclosureChecking = this.assembled = this.shownView = this.shownFinal = false;
+    this.concepts = [];
+    this.variants = [];
+    this.slice = this.probe = this.lastRender = null;
+    this.scenes = {};
+    this.undoStack = [];
+    // whatever is still being fetched or built belongs to the moment left behind
+    this.programToken++;
+    this.shown = ++this.rev;
+    if (this.detail) {
+      this.detail.selections = [];
+      this.detail.version = 0;
+    }
+    this.pcb.resetReplay();
+    this.device.resetReplay();
+  }
+
+  /** One event of the log. fast: its state only, as history is read; settleReplay then builds what the moment shows. */
+  replayEvent(e: EventRow, fast: boolean) {
+    this.historySeq = fast ? Infinity : -Infinity;
+    this.onEvent(e);
+  }
+
+  /** The end of a jump: the program, case check, board and device document of the moment it landed on. */
+  settleReplay() {
+    this.historySeq = -Infinity;
+    const { program, enclosure, route } = this.caught;
+    this.caught = { program: null, enclosure: null, route: [] };
+    if (program && (program.version !== this.version || !this.source)) this.onProgram(program);
+    if (enclosure) this.onEnclosure(enclosure);
+    this.pcb.refresh();
+    for (const frame of route) this.pcb.route(frame);
+    this.device.settleReplay();
   }
 
   get assets(): AssetOut[] {
@@ -388,56 +473,131 @@ export class ProjectStore {
     return done[0]?.result ?? null;
   }
 
+  /** Resolves once the project is in, or the server has refused it: a passing failure is tried again until it is over. */
   async load() {
-    try {
-      const d = await api.project(this.id);
-      if (this.disposed) return;
-      this.detail = d;
-      // the same rule as the server's 403 on a send; older servers do not say, and the studio stays as it was
-      this.visitor = d.can_edit === false;
-      this.historySeq = d.last_seq;
-      for (const m of d.messages) {
-        if (m.role === 'user') this.timeline.push({ kind: 'user', key: `m${m.id}`, ts: m.created_at, text: m.text, assets: m.data?.asset_ids });
+    let wait = 2000;
+    while (!this.disposed) {
+      try {
+        return await this.loadOnce();
+      } catch (e) {
+        this.loadError = errorText(e);
+        this.loadRetrying = isTransient(e);
+        if (!this.loadRetrying) return;
       }
-      if (d.program) {
-        this.source = d.program.source;
-        this.serverSource = this.committedSource = d.program.source;
-        this.version = d.program.version;
-        this.setInputs(d.program.inputs ?? {});
-        this.values = { ...(d.program.params ?? {}) };
-        this.agentValues = { ...this.values };
-        this.takeView();
-        if (d.program.checks) this.fullChecks = d.program.checks;
-        this.known = { version: d.program.version, params: { ...(d.program.params ?? {}) }, source: d.program.source };
-        const enc = ofVersion(d.program.checks?.enclosure, d.program.version);
-        if (enc) this.useEnclosure(enc, this.known);
-        this.refresh();
-        // a slider edit since keeps no case check: the newest earlier one still has the rays
-        if (!enc && !this.recipe && isCase(d.program.source)) this.findEnclosure();
-      }
-      if (d.job && (d.job.status === 'running' || d.job.status === 'waiting')) {
-        this.jobId = d.job.id;
-        this.jobKind = d.job.kind;
-      }
-      this.pcb.refresh();
-      if (d.pack === 'device') this.device.refresh();
-      // a visitor's studio follows the run too: the stream only reads
-      if (!this.recipe) this.connect();
-    } catch (e) {
-      this.loadError = errorText(e);
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, wait);
+        this.loadWake = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+      });
+      this.loadWake = null;
+      wait = Math.min(wait * 2, 15000);
     }
+  }
+
+  /** "Retry" on a page that could not load: now instead of at the next try. */
+  retryLoad() {
+    this.loadWake?.();
+  }
+
+  private async loadOnce() {
+    const d = await api.project(this.id);
+    if (this.disposed) return;
+    this.loadError = null;
+    this.loadRetrying = false;
+    this.detail = d;
+    // the same rule as the server's 403 on a send; older servers do not say, and the studio stays as it was
+    this.visitor = d.can_edit === false;
+    if (this.replayMode) {
+      this.resetReplay();
+      return;
+    }
+    this.historySeq = d.last_seq;
+    for (const m of d.messages) {
+      if (m.role === 'user') this.timeline.push({ kind: 'user', key: `m${m.id}`, ts: m.created_at, text: m.text, assets: m.data?.asset_ids });
+    }
+    if (d.program) {
+      this.source = d.program.source;
+      this.serverSource = this.committedSource = d.program.source;
+      this.version = d.program.version;
+      this.setInputs(d.program.inputs ?? {});
+      this.values = { ...(d.program.params ?? {}) };
+      this.agentValues = { ...this.values };
+      this.takeView();
+      if (d.program.checks) this.fullChecks = d.program.checks;
+      this.known = { version: d.program.version, params: { ...(d.program.params ?? {}) }, source: d.program.source };
+      const enc = ofVersion(d.program.checks?.enclosure, d.program.version);
+      if (enc) this.useEnclosure(enc, this.known);
+      this.refresh();
+      // a slider edit since keeps no case check: the newest earlier one still has the rays
+      if (!enc && !this.recipe && isCase(d.program.source)) this.findEnclosure();
+    }
+    if (d.job && (d.job.status === 'running' || d.job.status === 'waiting')) {
+      this.jobId = d.job.id;
+      this.jobKind = d.job.kind;
+    }
+    this.pcb.refresh();
+    if (d.pack === 'device') this.device.refresh();
+    // a visitor's studio follows the run too: the stream only reads
+    if (!this.recipe) this.connect();
   }
 
   connect() {
     if (this.disposed) return;
     this.stream?.close();
-    this.stream = streamEvents(this.id, 0, (e) => this.onEvent(e), (s) => (this.connection = s));
+    this.stream = streamEvents(this.id, 0, (e) => this.onEvent(e), (s) => {
+      const back = s === 'open' && this.connection === 'retry';
+      this.connection = s;
+      if (back) this.reconnected();
+    });
+    if (!this.jobWatch) {
+      this.jobWatch = setInterval(() => this.checkJob(), 30000);
+      window.addEventListener('beforeunload', this.warnUnsaved);
+    }
+  }
+
+  private warnUnsaved = (e: BeforeUnloadEvent) => {
+    if (this.hasUnsaved) e.preventDefault();
+  };
+
+  /** The connection is back: what failed for lack of it goes again by itself, and its errors are over. */
+  private reconnected() {
+    const offline = this.timeline.filter((x): x is Extract<TimelineItem, { kind: 'error' }> => x.kind === 'error' && x.code === 'offline');
+    this.timeline = this.timeline.filter((x) => !offline.includes(x as any));
+    for (const e of offline) e.retry?.();
+    this.retrySave();
+    if (this.detail?.pack === 'device') {
+      this.device.retrySave();
+      this.device.refresh();
+    }
+    this.pcb.refresh();
+  }
+
+  /** A job.finished that never came (the job's bookkeeping failed, or the stream missed it) must not leave a run going on screen. */
+  private async checkJob() {
+    const id = this.jobId;
+    if (!id || this.connection !== 'open' || this.stopping || this.replayMode) return;
+    let job: ProjectDetail['job'] | undefined;
+    try {
+      job = (await api.project(this.id)).job;
+    } catch {
+      return;
+    }
+    if (this.disposed || this.jobId !== id) return;
+    if (!job) this.release(id, 'failed');
+    else if (job.id === id && job.status !== 'running' && job.status !== 'waiting') this.release(id, job.status);
   }
 
   /** Close the stream and the workers; work still in flight finds the store disposed and stops. */
   dispose() {
     if (this.disposed) return;
+    // leaving the page within the save's short delay must not lose the edit
+    if (this.saveTimer && this.unsaved) void this.flushSave();
     this.disposed = true;
+    this.loadWake?.();
+    if (this.jobWatch) clearInterval(this.jobWatch);
+    window.removeEventListener('beforeunload', this.warnUnsaved);
     this.stream?.close();
     this.stream = null;
     this.geom.dispose();
@@ -510,8 +670,10 @@ export class ProjectStore {
     const ts = e.ts;
     const jid = e.job_id ?? d.job_id ?? null;
     const live = e.seq > this.historySeq;
+    // what the project's newest state would bring, which a replay's moment must not get
+    const latest = live && !this.replayMode;
     // the history of a finished replay copy is not a playback
-    if (d.replay && (live || this.detail?.status === 'working')) this.markReplay();
+    if (d.replay && !this.replayMode && (live || this.detail?.status === 'working')) this.markReplay();
     // anything the job does ends the wait for the model
     if (jid && e.type !== 'job.heartbeat' && e.type !== 'cost' && this.jobs[jid]?.wait) this.jobs[jid].wait = null;
     switch (e.type) {
@@ -532,7 +694,7 @@ export class ProjectStore {
         break;
       case 'job.heartbeat': {
         const j = this.job(jid, ts);
-        if (j && !j.finished) j.wait = { seconds: Number(d.seconds) || 0, stage: d.stage ?? null };
+        if (j && !j.finished) j.wait = { seconds: Number(d.seconds) || 0, stage: d.stage ?? null, outage: !!d.outage };
         break;
       }
       case 'job.finished': {
@@ -545,7 +707,8 @@ export class ProjectStore {
           if (j.status === 'done') this.setStage(j, 'done');
         }
         // history: the header and load() already have what these would fetch
-        if (live) refreshMe();
+        if (latest) refreshMe();
+        if (this.replayMode) this.caught.route = [];
         if (!jid || jid === this.jobId) {
           this.jobId = null;
           this.jobKind = null;
@@ -553,8 +716,9 @@ export class ProjectStore {
         }
         if (this.stopping && (!jid || jid === this.stoppingJob)) this.endStop();
         for (const it of this.timeline) if (it.kind === 'ask' && it.job_id === jid && !it.answered) it.answered = '—';
-        if (live) this.refreshMeta();
+        if (latest) this.refreshMeta();
         this.pcb.endRoute();
+        this.device.endAgentBuild();
         break;
       }
       case 'user.message':
@@ -591,32 +755,36 @@ export class ProjectStore {
           this.push({ kind: 'tool', key, ts, job: jid, id: d.id ?? key, name: d.name ?? 'tool', tkind: kindOf(d.name ?? '', d.kind), title: d.title, args: null, model: d.model, models: d.models, result: res });
         if (d.image) this.lastRender = d.image;
         // a saved board announced itself before this; a failed build leaves its frames behind
-        if (d.name === 'write_circuit') this.pcb.endRoute();
+        if (d.name === 'write_circuit' || d.name === 'build_device') this.pcb.endRoute();
+        if (d.name === 'build_device') this.device.endAgentBuild();
         break;
       }
-      case 'enclosure.checked': {
-        const enc = d.enclosure as EnclosureChecks | undefined;
-        if (!enc || typeof d.version !== 'number') break;
+      case 'enclosure.checked':
         // history: load() took the latest version's check from the server
-        if (!live) break;
-        if (this.known?.version === d.version) {
-          if (this.useEnclosure(enc, this.known)) this.refresh();
-        } else this.pendingEnc = enc; // its program.updated is still being fetched
+        if (live) this.onEnclosure(d);
+        else if (this.replayMode) this.caught.enclosure = d;
         break;
-      }
       case 'pcb.route':
         if (live) this.pcb.route(d);
+        else if (this.replayMode) this.caught.route = d.frame === 0 ? [d] : [...this.caught.route, d];
         break;
       case 'pcb.version':
+        if (this.replayMode) {
+          this.pcb.cap = d.version;
+          this.device.atBoard(d.version);
+          this.caught.route = [];
+          if (live) this.device.refresh();
+        }
         if (live) this.pcb.added();
         break;
       case 'device.version':
       case 'device.build':
-        if (live) this.device.onEvent(e.type, d);
+        if (live || this.replayMode) this.device.onEvent(e.type, d, jid, !live);
         break;
       case 'program.updated':
         // history: load() already applied the program it ended with
         if (live) this.onProgram(d);
+        else if (this.replayMode) this.caught.program = d;
         this.push({ kind: 'program', key, ts, job: jid, version: d.version, summary: d.summary, render: d.render, author: d.author });
         if (d.render) this.lastRender = d.render;
         break;
@@ -657,11 +825,11 @@ export class ProjectStore {
         break;
       case 'asset.added':
         if (this.detail && !this.detail.assets.some((a) => a.id === d.id)) this.detail.assets.push(d as AssetOut);
-        if (live && d.meta?.via === 'phone') this.fromPhone(d as AssetOut);
+        if (latest && d.meta?.via === 'phone') this.fromPhone(d as AssetOut);
         break;
       case 'selection.added':
         if (this.detail && !this.detail.selections.some((s) => s.id === d.id)) this.detail.selections.push(d as SelectionOut);
-        if (live) this.refreshMeta();
+        if (latest) this.refreshMeta();
         break;
       case 'selection.removed':
         if (this.detail) this.detail.selections = this.detail.selections.filter((s) => s.id !== d.id);
@@ -695,6 +863,14 @@ export class ProjectStore {
       default:
         break;
     }
+  }
+
+  private onEnclosure(d: any) {
+    const enc = d.enclosure as EnclosureChecks | undefined;
+    if (!enc || typeof d.version !== 'number') return;
+    if (this.known && this.known.version === d.version) {
+      if (this.useEnclosure(enc, this.known)) this.refresh();
+    } else this.pendingEnc = enc; // its program.updated is still being fetched
   }
 
   private async onProgram(d: any) {
@@ -934,25 +1110,52 @@ export class ProjectStore {
 
   private save(values: Record<string, any>, checks: CheckReport) {
     if (this.saveTimer) clearTimeout(this.saveTimer);
-    const source = this.source;
-    this.saveTimer = setTimeout(async () => {
-      try {
-        const edited = source !== null && source !== this.serverSource;
-        const r = edited
-          ? await api.saveProgram(this.id, { source: source!, params: values, checks, summary: 'edited in the studio', client: this.clientId })
-          : await api.saveParams(this.id, values, checks, this.clientId);
-        if (edited) this.serverSource = source;
-        if (r.version > this.version) {
-          this.version = r.version;
-          if (this.detail) this.detail.version = r.version;
-        }
-        // the studio's case check went with this save: it is the check of that version now
-        const e = this.enclosure;
-        if (checks.enclosure && e?.check === checks.enclosure && e.check.version !== r.version) this.enclosure = { ...e, check: { ...e.check, version: r.version } };
-      } catch (e) {
-        this.fail(e);
+    this.unsaved = { values, checks, source: this.source };
+    this.saveWait = 2000;
+    this.saveTimer = setTimeout(() => this.flushSave(), 600);
+  }
+
+  /** Sends the latest edit. Only a save that answered ends it: a passing failure is tried again, the newest edit taking its place. */
+  private async flushSave() {
+    const job = this.unsaved;
+    this.saveTimer = null;
+    if (!job) return;
+    const { values, checks, source } = job;
+    try {
+      const edited = source !== null && source !== this.serverSource;
+      const r = edited
+        ? await api.saveProgram(this.id, { source: source!, params: values, checks, summary: 'edited in the studio', client: this.clientId })
+        : await api.saveParams(this.id, values, checks, this.clientId);
+      if (edited) this.serverSource = source;
+      if (r.version > this.version) {
+        this.version = r.version;
+        if (this.detail) this.detail.version = r.version;
       }
-    }, 600);
+      // the studio's case check went with this save: it is the check of that version now
+      const e = this.enclosure;
+      if (checks.enclosure && e?.check === checks.enclosure && e.check.version !== r.version) this.enclosure = { ...e, check: { ...e.check, version: r.version } };
+      if (this.unsaved === job) this.unsaved = null;
+      this.saveError = null;
+    } catch (e) {
+      if (this.disposed) return;
+      this.saveError = errorText(e);
+      if (this.unsaved !== job || !isTransient(e) || this.saveTimer) return;
+      this.saveTimer = setTimeout(() => this.flushSave(), this.saveWait);
+      this.saveWait = Math.min(this.saveWait * 2, 30000);
+    }
+  }
+
+  /** The connection came back, or the person asked: the edit that is still waiting goes now. */
+  retrySave() {
+    if (!this.unsaved) return;
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveWait = 2000;
+    void this.flushSave();
+  }
+
+  /** Edits that closing the page now would lose. */
+  get hasUnsaved(): boolean {
+    return !!this.unsaved || this.device.hasUnsaved;
   }
 
   /** STL/3MF of the current values, built locally. */
@@ -960,14 +1163,15 @@ export class ProjectStore {
     return this.geom.exportFile({ source: this.source!, params: this.params(false), format, title: this.detail?.title });
   }
 
-  async upload(file: Blob, kind: string, filename?: string): Promise<AssetOut | null> {
+  /** `retry`: what Retry on the error does, with the file still in hand. */
+  async upload(file: Blob, kind: string, filename?: string, retry?: () => void): Promise<AssetOut | null> {
     if (this.refused()) return null; // someone else's project: the server takes no files into it
     try {
       const a = await api.upload(this.id, file, kind, filename);
       if (this.detail && !this.detail.assets.some((x) => x.id === a.id)) this.detail.assets.push(a);
       return a;
     } catch (e) {
-      this.fail(e);
+      this.fail(e, retry);
       return null;
     }
   }
@@ -1012,26 +1216,28 @@ export class ProjectStore {
     await this.startJob(text, assetIds, ts);
   }
 
-  /** First message from the home page: shown at once with local previews, the job starts once the files are in. */
-  async sendFiles(text: string, files: File[]) {
-    const ts = Date.now() / 1000;
-    const key = `local${ts}`;
-    const previews = files.filter((f) => f.type.startsWith('image/')).map((f) => URL.createObjectURL(f));
-    this.push({ kind: 'user', key, ts, job: null, text, assets: [], previews });
-    const ids: string[] = [];
+  /**
+   * First message from the home page: shown at once with local previews, the job starts once the files are in. A file
+   * that did not get there stops it: a job without its photo spends money on the wrong thing. Retry goes on from there.
+   */
+  async sendFiles(text: string, files: File[], ids: string[] = [], key = `local${Date.now() / 1000}`) {
+    const ts = Number(key.slice(5));
+    if (!this.timeline.some((x) => x.key === key)) {
+      const previews = files.filter((f) => f.type.startsWith('image/')).map((f) => URL.createObjectURL(f));
+      this.push({ kind: 'user', key, ts, job: null, text, assets: [], previews });
+    }
+    ids = [...ids];
     try {
       for (const [i, f] of files.entries()) {
         this.starting = files.length > 1 ? t('uploading_n', { i: i + 1, n: files.length }) : t('uploading_one');
         const kind = f.type.startsWith('video/') ? 'video' : f.type.startsWith('audio/') ? 'audio' : 'photo';
-        const a = await this.upload(f, kind);
-        if (a) {
-          ids.push(a.id);
-          this.spot(a, text);
-        }
+        const a = await this.upload(f, kind, undefined, () => this.sendFiles(text, files.slice(i), ids, key));
+        if (!a) return;
+        ids.push(a.id);
+        this.spot(a, text);
       }
       const item = this.timeline.find((x) => x.key === key);
       if (item?.kind === 'user') item.assets = ids;
-      this.starting = t('agent_starting');
       await this.startJob(text, ids, ts);
     } finally {
       this.starting = null;
@@ -1042,13 +1248,17 @@ export class ProjectStore {
     // a job that is still stopping holds the slot: starting now would be refused
     await this.stopped();
     if (this.disposed) return;
+    // nothing else says the message is on its way, and a second one must wait for the answer
+    this.starting = t('agent_starting');
     try {
       const r = await api.send(this.id, text, assetIds, { model: chosenModel(), reasoning: prefs.reasoning });
       this.jobId = r.job_id;
       this.jobKind = 'design';
       this.job(r.job_id, ts + 0.001, 'design');
     } catch (e) {
-      this.fail(e);
+      this.fail(e, () => void this.startJob(text, assetIds, ts));
+    } finally {
+      this.starting = null;
     }
   }
 
@@ -1138,7 +1348,7 @@ export class ProjectStore {
       const r = await fn();
       this.jobId = r.job_id;
     } catch (e) {
-      this.fail(e);
+      this.fail(e, () => void this.startSide(fn));
     }
   }
 
@@ -1152,12 +1362,22 @@ export class ProjectStore {
     this.toastTimer = setTimeout(() => (this.phoneToast = null), 5000);
   }
 
-  addError(text: string, info: { code?: string; projectId?: string } = {}) {
-    this.push({ kind: 'error', key: `err${Date.now()}${Math.random()}`, ts: Date.now() / 1000, job: null, text, code: info.code, projectId: info.projectId });
+  addError(text: string, info: { code?: string; projectId?: string; retry?: () => void } = {}) {
+    this.push({ kind: 'error', key: `err${Date.now()}${Math.random()}`, ts: Date.now() / 1000, job: null, text, code: info.code, projectId: info.projectId, retry: info.retry });
   }
 
-  private fail(e: unknown) {
+  /** `retry` stays with a failure that may pass or that a moment's wait can cure (another run still holding the slot). */
+  private fail(e: unknown, retry?: () => void) {
     const info = errorInfo(e);
-    this.addError(info.text, info);
+    const again = isTransient(e) || info.code === 'job_running' || info.code === 'project_busy';
+    this.addError(info.text, { ...info, retry: again ? retry : undefined });
+  }
+
+  /** The Retry button of an error: the error goes, its action runs again. */
+  retryError(key: string) {
+    const item = this.timeline.find((x) => x.key === key);
+    if (item?.kind !== 'error') return;
+    this.timeline = this.timeline.filter((x) => x.key !== key);
+    item.retry?.();
   }
 }

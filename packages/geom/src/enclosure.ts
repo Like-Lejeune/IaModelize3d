@@ -16,7 +16,7 @@ type V3 = [number, number, number];
 export type FindingCode =
   | 'port_clear' | 'port_blocked' | 'component_clear' | 'board_collision' | 'pcb_seated' | 'board_retained' | 'button_reach'
   | 'button_unreachable' | 'light_window' | 'lid_fit' | 'snap_strain' | 'metal_in_keepout' | 'keepout_ok'
-  | 'display_window' | 'sound_grille' | 'sensor_window' | 'cable_exit' | 'battery_space' | 'mounting';
+  | 'display_window' | 'sound_grille' | 'sensor_window' | 'cable_exit' | 'battery_space' | 'mounting' | 'key_plate';
 
 export interface Finding {
   code: FindingCode;
@@ -105,8 +105,8 @@ export function checkEnclosure(wasm: Wasm, parts: Part[], spec: BoardSpec, pose?
       push('pcb_seated', 'error', 'cannot check: the assembled layout has no board ghost; return lib.elec.parts(enc, { layout: p.layout, ghost: p.show_board }) and expose the layout and show_board params', 'pcb', null);
       return done();
     }
-    // the case itself: a stand beside it holds the case in use and is no part of what the board and the plugs meet
-    const cased = models.filter((p) => p.name !== 'stand');
+    // the case itself: a stand beside it holds the case in use, keycaps ride on the switches: neither is what the board and the plugs meet
+    const cased = models.filter((p) => p.name !== 'stand' && p.name !== 'keycaps');
     const shell = cased.length === 1 ? cased[0].solid : M.union(cased.map((p) => p.solid));
     const sb = shell.boundingBox();
     size = [0, 1, 2].map((i) => +(sb.max[i] - sb.min[i]).toFixed(2)) as V3;
@@ -222,7 +222,7 @@ export function checkEnclosure(wasm: Wasm, parts: Part[], spec: BoardSpec, pose?
       const inside = vol(box.intersect(shell));
       const gap = box.minGap(shell, 3);
       if (inside > 0.01) push('board_collision', 'error', `${c.id}: ${inside.toFixed(2)} mm3 of it is inside the case`, c.id, r3(inside), 'mm3');
-      else push('component_clear', gap < 0.15 ? 'warn' : 'info', `${c.id}: nearest wall ${gap.toFixed(2)} mm`, c.id, r3(gap), 'mm');
+      else push('component_clear', gap < 0.15 && (c as BoardPart).access !== 'key' ? 'warn' : 'info', `${c.id}: nearest wall ${gap.toFixed(2)} mm`, c.id, r3(gap), 'mm');
     }
     // a module on its header must clear the parts under and beside it (a tall buzzer under an OLED)
     for (const a of b.accs.filter((a) => a.box))
@@ -346,6 +346,28 @@ export function checkEnclosure(wasm: Wasm, parts: Part[], spec: BoardSpec, pose?
       const tongue = f ? `, tongue ${f.len} mm ${blocked ? `NOT free (${blocked} slot rays blocked)` : 'free'}, bending strain ${(strain! * 100).toFixed(2)} % (PLA limit ~2 %)` : '';
       push(ok ? 'button_reach' : 'button_unreachable', ok ? 'info' : 'error',
         `${c.id}: plunger ${gap === null ? 'missing' : gap.toFixed(2) + ' mm above the button'}${tongue}`, c.id, gap === null ? null : r3(gap), 'mm');
+    }
+
+    // --- key switches: a plate at the height the switch clips at, its cut-out open, nothing in the way, the cap free to travel
+    for (const c of b.comps.filter((c) => c.access === 'key')) {
+      const over = coveredBy(b, c);
+      const f = features.find((f) => f.type === 'key_plate' && f.for === c.id);
+      if (over || !f) {
+        push('key_plate', 'error', `${c.id}: ${over ? `under ${over.id}: the module covers the key switch` : 'no plate in the lid'}; move the key or the module`, c.id, null);
+        continue;
+      }
+      const [cx, cy] = centre(c);
+      const z0 = (report?.zTop ?? 0) + dz;
+      const blocked = shell.rayCast([cx + P[0], cy + P[1], f.plate_z + dz - f.plate_t - 0.2], [cx + P[0], cy + P[1], z0 + (report?.lidT ?? 2) + 30]).length > 0;
+      const why = [...(blocked ? ['the cut-out is blocked'] : []), ...(f.under.length ? [`${f.under.join(', ')} under its plate`] : []), ...f.posts,
+        ...(f.outside ? ['its well runs into the case wall: give the board more room around the keys'] : [])];
+      if (why.length) push('key_plate', 'error', `${c.id}: ${why.join('; ')}: move the key or the part in the way`, c.id, null);
+      else if (f.stem === 'panel') push('key_plate', 'info', `${c.id}: a ${f.cut} mm hole in the lid holds it, ${r3(c.box.max[2] - c.box.min[2])} mm of body under it`, c.id, null);
+      else if (f.stem === 'shaft') {
+        if (f.rise < 3) push('key_plate', 'warn', `${c.id}: its shaft stands only ${f.rise} mm above the lid: a knob barely grips it; a taller shaft or a lower case`, c.id, f.rise, 'mm');
+        else push('key_plate', 'info', `${c.id}: it comes ${f.rise} mm through a ${f.cut} mm hole in the lid`, c.id, f.rise, 'mm');
+      } else if (f.rise < f.travel * 0.5) push('key_plate', 'warn', `${c.id}: the keycap stands only ${f.rise} mm above the lid (travel ${f.travel} mm): it sinks into its well when pressed; a lower case (shorter module or display stack) shows more of it`, c.id, f.rise, 'mm');
+      else push('key_plate', 'info', `${c.id}: plate ${f.plate_t} mm at z ${f.plate_z}, cut-out ${f.cut} mm open, keycap ${f.rise} mm above the lid, ${f.travel} mm travel`, c.id, f.rise, 'mm');
     }
 
     // --- lights: open window, or a skin thin enough to glow through

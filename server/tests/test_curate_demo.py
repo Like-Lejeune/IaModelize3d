@@ -65,6 +65,9 @@ RUNS: dict[str, tuple[str, list, dict, str | None]] = {
     "p_case": ("enclosure", _finish("c1", {**PASS, "version": 1}, {"accepted": True}),
                {**CLEAN, "enclosure": {"ok": False, "findings": [{"code": "port_blocked", "severity": "error"}, {"code": "lid_fit", "severity": "info"}]}},
                None),
+    # a device has no reviewer: its finish's self-check speaks instead
+    "p_device_checked": ("device", [("device.self_check", {"passed": True, "kinds": ["mcu"], "checked": []})] + _finish("c1", None, {"accepted": True}), CLEAN, None),
+    "p_device_unchecked": ("device", _finish("c1", None, {"accepted": True}), CLEAN, None),
     "p_pcb_clean": ("pcb", _finish("c1", {**PASS, "version": 1}, {"accepted": True}), CLEAN, XIAO),
     "p_pcb_short": ("pcb", _finish("c1", {**PASS, "version": 1}, {"accepted": True}), CLEAN, SHORT),
     "p_pcb_none": ("pcb", _finish("c1", None, {"accepted": True}), CLEAN, None),
@@ -249,3 +252,32 @@ def test_a_board_todays_engine_cannot_build_is_refused_even_with_force(conn, cur
     curate.rebuild_board = slow  # the worker, not the circuit: --force may still lift it
     curate.feature(conn, ["p_pcb_clean"], apply=True, force=True)
     assert "forced  p_pcb_clean  its PCB v1 could not be rebuilt here (PcbError: timeout" in capsys.readouterr().out
+
+
+def test_a_device_passes_on_its_self_check_alone(tmp_path):
+    curate = _curate()
+    conn = sqlite3.connect(tmp_path / "d.db")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE projects (id TEXT, pack TEXT)")
+    conn.execute("CREATE TABLE programs (project_id TEXT, version INTEGER)")
+    conn.execute("CREATE TABLE events (seq INTEGER PRIMARY KEY, project_id TEXT, type TEXT, data TEXT)")
+    for pid in ("p_device_checked", "p_device_unchecked"):
+        conn.execute("INSERT INTO projects VALUES (?, 'device')", (pid,))
+        for typ, data in RUNS[pid][1]:
+            conn.execute("INSERT INTO events (project_id, type, data) VALUES (?, ?, ?)", (pid, typ, json.dumps(data)))
+    assert curate.last_finish(conn, "p_device_checked")[0] == "approved"
+    assert curate.last_finish(conn, "p_device_unchecked")[0] == "none"
+
+
+def test_a_run_is_taken_down_from_the_server_and_put_back(tmp_path):
+    curate = _curate()
+    conn = sqlite3.connect(tmp_path / "d.db")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE projects (id TEXT, title TEXT, public INT, listed INT, featured INT, hidden INT)")
+    conn.execute("INSERT INTO projects VALUES ('p1', 't', 1, 1, 2, 0)")
+    curate.take_down(conn, ["p1"], apply=False)
+    assert conn.execute("SELECT hidden FROM projects").fetchone()[0] == 0
+    curate.take_down(conn, ["p1"], apply=True)
+    assert tuple(conn.execute("SELECT public, listed, featured, hidden FROM projects").fetchone()) == (0, 0, 0, 1)
+    curate.take_down(conn, ["p1"], apply=True, hidden=False)
+    assert tuple(conn.execute("SELECT public, hidden FROM projects").fetchone()) == (0, 0)

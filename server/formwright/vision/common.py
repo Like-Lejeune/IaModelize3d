@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 
 from ..config import settings
+from ..storage import write_atomic
 
 
 def files_dir() -> Path:
@@ -55,7 +56,7 @@ def encode_png(img: np.ndarray) -> bytes:
 def write_bytes(rel: str, data: bytes) -> str:
     p = abs_path(rel)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_bytes(data)
+    write_atomic(p, data)
     return rel
 
 

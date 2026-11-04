@@ -13,7 +13,7 @@
     }
   }
 
-  function axoDesign(projectId: string): string | null {
+  export function axoDesign(projectId: string): string | null {
     try {
       const d = sessionStorage.getItem(axoKey(projectId));
       return d && AXO_DESIGN.test(d) ? d : null;
@@ -33,7 +33,7 @@
   import { moneyRange, st } from '$lib/shop/i18n';
   import type { Quote } from '$lib/shop/types';
 
-  let { store, readonly = false, onPublish }: { store: ProjectStore; readonly?: boolean; onPublish?: () => void } = $props();
+  let { store, readonly = false }: { store: ProjectStore; readonly?: boolean } = $props();
 
   // what the Axo farm prints (server/formwright/shop/quote.py)
   const MATERIALS = ['PLA', 'PETG', 'ASA', 'TPU'];
@@ -46,7 +46,6 @@
     const m = store.detail?.material?.toUpperCase();
     if (!picked && m && MATERIALS.includes(m)) material = m;
   });
-  let copied = $state(false);
   let instant = $state<Quote | null>(null);
 
   // Formwright Parts: the kernel's instant range for this version; the binding price comes from OrcaSlicer on /parts/new
@@ -86,29 +85,29 @@
   }
 
   const recipeUrl = $derived(`${location.origin}/r/${store.id}`);
+  const replayUrl = $derived(`${location.origin}/w/${store.id}`);
   const xUrl = $derived(
     `https://x.com/intent/post?text=${encodeURIComponent(t('share_x_text', { title: projectTitle(store.detail?.title) }))}&url=${encodeURIComponent(recipeUrl)}`,
   );
 
-  // a link only works for others once the recipe is public
-  async function ensurePublic() {
-    if (!store.detail || store.detail.public) return;
-    const p = await api.patchProject(store.id, { public: true });
-    store.detail.public = p.public;
-  }
+  // Who can see this: the owner, whoever has the link, or everyone on the replay gallery. Each step wider says first what
+  // it shows (the whole run, photos included); going narrower takes effect at once.
+  type Level = 'private' | 'link' | 'gallery';
+  const LEVELS: Level[] = ['private', 'link', 'gallery'];
+  const level = $derived<Level>(store.detail?.listed ? 'gallery' : store.detail?.public ? 'link' : 'private');
+  let asking = $state<Level | null>(null);
+  const photos = $derived(store.assets.filter((a) => a.kind === 'photo').length);
+  const hasRun = $derived(Object.keys(store.jobs).length > 0);
 
-  // one step: publish if needed, then copy the link
-  async function share() {
-    busy = 'share';
+  async function setLevel(to: Level) {
+    busy = 'publish';
     error = null;
+    asking = null;
     try {
-      await ensurePublic();
-      try {
-        await navigator.clipboard.writeText(recipeUrl);
-        copied = true;
-        setTimeout(() => (copied = false), 1800);
-      } catch {
-        prompt('URL', recipeUrl);
+      const p = await api.patchProject(store.id, { public: to !== 'private', listed: to === 'gallery' });
+      if (store.detail) {
+        store.detail.public = p.public;
+        store.detail.listed = p.listed;
       }
     } catch (e) {
       error = errorText(e);
@@ -117,9 +116,21 @@
     }
   }
 
-  // the X tab opens right away (a popup must come from the click itself); publishing finishes meanwhile
-  function postX() {
-    ensurePublic().catch((e) => (error = errorText(e)));
+  function pickLevel(to: Level) {
+    if (to === level) asking = null;
+    else if (LEVELS.indexOf(to) > LEVELS.indexOf(level)) asking = to;
+    else setLevel(to);
+  }
+
+  let copiedWhat = $state<string | null>(null);
+  async function copyLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      copiedWhat = url;
+      setTimeout(() => (copiedWhat = null), 1800);
+    } catch {
+      prompt('URL', url);
+    }
   }
 
   // The Axo shop (axo.kz) when the server has it connected (/api/me): the version goes into its cart as a design. Not for
@@ -190,21 +201,48 @@
     </section>
 
     <section class="stack">
-      <h4 class="section-title">{t('share')}</h4>
-      <p class="muted small">{t('share_hint')}</p>
-      <div class="row">
-        <button class="btn small primary" onclick={share} disabled={!store.source || busy === 'share'}>
-          {#if busy === 'share'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name={copied ? 'check' : 'copy'} size={14} />{/if}
-          {copied ? t('link_copied') : t('share')}
-        </button>
-        <a class="btn small" class:disabled={!store.source} href={xUrl} target="_blank" rel="noopener noreferrer" onclick={postX}>
-          <span class="x" aria-hidden="true">𝕏</span> {t('share_x')}
-        </a>
-        {#if store.detail?.public}
-          <a class="btn small ghost" href="/r/{store.id}" target="_blank" rel="noopener">{t('recipe')} ↗</a>
-          <button class="btn small ghost" onclick={onPublish}><Icon name="lock" size={14} /> {t('unpublish')}</button>
-        {/if}
+      <h4 class="section-title">{t('publish_title')}</h4>
+      <div class="levels" role="radiogroup" aria-label={t('publish_title')}>
+        {#each LEVELS as l (l)}
+          <label class="level" class:on={(asking ?? level) === l}>
+            <input type="radio" name="publish" checked={(asking ?? level) === l} disabled={busy === 'publish'} onchange={() => pickLevel(l)} />
+            <span>
+              <strong class="small">{t(`publish_${l}`)}</strong>
+              <span class="muted xs">{t(`publish_${l}_d`)}</span>
+            </span>
+          </label>
+        {/each}
       </div>
+      {#if asking}
+        <div class="asking" role="alert">
+          <p class="small">
+            <Icon name="alert" size={14} /> {t('publish_warn')}
+            {#if photos}<strong>{t('publish_photos', { n: photos })}</strong>{/if}
+          </p>
+          <div class="row">
+            <button class="btn small primary" onclick={() => asking && setLevel(asking)}>{t('publish_confirm')}</button>
+            <button class="btn small ghost" onclick={() => (asking = null)}>{t('publish_cancel')}</button>
+          </div>
+        </div>
+      {/if}
+      {#if store.detail?.public}
+        <div class="row">
+          {#if store.source}
+            <button class="btn small" onclick={() => copyLink(recipeUrl)}>
+              <Icon name={copiedWhat === recipeUrl ? 'check' : 'copy'} size={14} /> {copiedWhat === recipeUrl ? t('link_copied') : t('copy_link')}
+            </button>
+          {/if}
+          {#if hasRun}
+            <button class="btn small" onclick={() => copyLink(replayUrl)}>
+              <Icon name={copiedWhat === replayUrl ? 'check' : 'play'} size={14} /> {copiedWhat === replayUrl ? t('link_copied') : t('copy_replay_link')}
+            </button>
+          {/if}
+          <a class="btn small" href={xUrl} target="_blank" rel="noopener noreferrer">
+            <span class="x" aria-hidden="true">𝕏</span> {t('share_x')}
+          </a>
+          {#if store.source}<a class="btn small ghost" href="/r/{store.id}" target="_blank" rel="noopener">{t('recipe')} ↗</a>{/if}
+        </div>
+      {/if}
     </section>
   {/if}
   {#if error}<p class="err small" role="alert">{error}</p>{/if}
@@ -221,6 +259,40 @@
     gap: 8px;
     align-items: center;
     flex-wrap: wrap;
+  }
+  .levels {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .level {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+    padding: 8px 10px;
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-btn);
+    cursor: pointer;
+  }
+  .level.on {
+    border-color: var(--primary);
+  }
+  .level > span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .asking {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: 10px;
+    border-radius: var(--radius-btn);
+    background: var(--surface-high);
+  }
+  .asking p {
+    margin: 0;
   }
   .quote select {
     width: auto;

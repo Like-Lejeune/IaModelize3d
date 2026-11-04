@@ -1,0 +1,359 @@
+{
+ "schema": "fw.device/1",
+ "title": "Датчик влажности почвы",
+ "summary": "Датчик влажности почвы: щуп в горшке, экран с процентами, светодиод и пищалка когда сухо",
+ "board": {
+  "holes": true,
+  "w": 52.0,
+  "h": 50.0
+ },
+ "nodes": [
+  {
+   "id": "U1",
+   "kind": "module",
+   "label": "MCU",
+   "module": "113991054",
+   "edge": "-x"
+  },
+  {
+   "id": "DS1",
+   "kind": "accessory",
+   "label": "экран",
+   "accessory": "oled_096_i2c",
+   "place": {
+    "x": 11.0,
+    "y": 10.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "PR1",
+   "kind": "accessory",
+   "label": "щуп влажности",
+   "accessory": "soil_capacitive_v12",
+   "edge": "-y"
+  },
+  {
+   "id": "LED1",
+   "kind": "led",
+   "label": "сухо",
+   "color": "green",
+   "place": {
+    "x": 10.0,
+    "y": -17.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "R3",
+   "kind": "resistor",
+   "label": "LED resistor",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "SW1",
+   "kind": "button",
+   "label": "глушить",
+   "place": {
+    "x": 17.0,
+    "y": -14.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "BZ1",
+   "kind": "chip",
+   "label": "пищалка 3В активная",
+   "lcsc": "C781847",
+   "place": {
+    "x": 0.0,
+    "y": -13.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "Q1",
+   "kind": "chip",
+   "label": "ключ пищалки",
+   "lcsc": "C2146"
+  },
+  {
+   "id": "RB",
+   "kind": "resistor",
+   "label": "база ключа",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "D1",
+   "kind": "diode",
+   "label": "диод пищалки"
+  },
+  {
+   "id": "R1",
+   "kind": "resistor",
+   "label": "SDA pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  },
+  {
+   "id": "R2",
+   "kind": "resistor",
+   "label": "SCL pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  }
+ ],
+ "nets": [
+  {
+   "pins": [
+    "U1.GND",
+    "DS1.GND",
+    "PR1.GND",
+    "LED1.K",
+    "SW1.B",
+    "Q1.E"
+   ],
+   "name": "GND"
+  },
+  {
+   "pins": [
+    "U1.V3V3",
+    "DS1.VCC",
+    "PR1.VCC",
+    "R1.1",
+    "R2.1",
+    "BZ1.POS",
+    "D1.K"
+   ],
+   "name": "V3V3"
+  },
+  {
+   "pins": [
+    "U1.SDA",
+    "DS1.SDA",
+    "R1.2"
+   ],
+   "name": "SDA"
+  },
+  {
+   "pins": [
+    "U1.SCL",
+    "DS1.SCL",
+    "R2.2"
+   ],
+   "name": "SCL"
+  },
+  {
+   "pins": [
+    "U1.D1",
+    "PR1.AOUT"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D2",
+    "R3.1"
+   ]
+  },
+  {
+   "pins": [
+    "R3.2",
+    "LED1.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D3",
+    "SW1.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.MOSI",
+    "RB.1"
+   ]
+  },
+  {
+   "pins": [
+    "RB.2",
+    "Q1.B"
+   ]
+  },
+  {
+   "pins": [
+    "Q1.C",
+    "BZ1.NEG",
+    "D1.A"
+   ]
+  }
+ ],
+ "requirements": [
+  {
+   "id": "R1",
+   "text": "мерить влажность почвы щупом",
+   "parts": [
+    "PR1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "at_s": 5,
+      "screen": "60"
+     }
+    ],
+    "given": {
+     "PR1": 2000
+    },
+    "steps": []
+   }
+  },
+  {
+   "id": "R2",
+   "text": "показывать влажность процентами на экране",
+   "parts": [
+    "DS1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "at_s": 5,
+      "screen": "%"
+     }
+    ],
+    "given": {
+     "PR1": 2000
+    },
+    "steps": []
+   }
+  },
+  {
+   "id": "R3",
+   "text": "светодиод горит когда земля сухая",
+   "parts": [
+    "LED1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 40,
+      "on": true,
+      "output": "LED1",
+      "to_s": 45
+     }
+    ],
+    "given": {
+     "PR1": 2700
+    },
+    "steps": []
+   }
+  },
+  {
+   "id": "R4",
+   "text": "пищать когда сухо дольше 30 с, кнопка глушит на 12 ч",
+   "parts": [
+    "BZ1",
+    "SW1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 40,
+      "on": true,
+      "output": "BZ1",
+      "to_s": 45
+     },
+     {
+      "from_s": 60,
+      "on": false,
+      "output": "BZ1",
+      "to_s": 90
+     }
+    ],
+    "given": {
+     "PR1": 2700
+    },
+    "steps": [
+     {
+      "at_s": 50,
+      "press": "SW1"
+     }
+    ]
+   }
+  }
+ ],
+ "concept": {
+  "uses": [
+   "на подоконнике рядом с комнатным цветком, питание от USB-зарядника: взгляд на экран и светодиод",
+   "вечером пищит когда земля сухая, одно нажатие глушит звук",
+   "щуп в земле горшка, провод идёт вниз к горшку"
+  ],
+  "options": [
+   {
+    "name": "Горшок-сторож",
+    "look": "мягкий блок рядом с горшком, экран к человеку",
+    "panel": "OLED справа, светодиод и кнопка под ним, пищалка слева, щуп кабелем вниз",
+    "form": "soft",
+    "stance": "desk",
+    "mounting": "none",
+    "module_edge": "-x",
+    "board": {
+     "shape": "rect",
+     "w": 52.0,
+     "h": 50.0
+    }
+   },
+   {
+    "name": "Грядка на стене",
+    "look": "узкая плашка с ушками на стенку у цветка",
+    "panel": "экран сверху, светодиод и кнопка под ним, щуп вниз",
+    "form": "box",
+    "stance": "wall",
+    "mounting": "ears",
+    "module_edge": "-x",
+    "board": {
+     "shape": "rect",
+     "w": 34.0,
+     "h": 55.0
+    }
+   },
+   {
+    "name": "Шайба на горшок",
+    "look": "круглая шайба со шнурком на горшок",
+    "panel": "экран в центре круга, светодиод и кнопка по бокам",
+    "form": "round",
+    "stance": "hand",
+    "mounting": "lanyard",
+    "module_edge": "-x",
+    "board": {
+     "shape": "round",
+     "w": 42.0,
+     "h": 42.0
+    }
+   }
+  ],
+  "chosen": "Горшок-сторож",
+  "why": "Стоит рядом с горшком там, где есть зарядник, экран и кнопка в доступе."
+ },
+ "firmware": {
+  "lang": "arduino",
+  "files": {
+   "flower.ino": "#include <Wire.h>\n#include <Adafruit_GFX.h>\n#include <Adafruit_SSD1306.h>\n\n// Пины по схеме\n#define PIN_SOIL D1   // AOUT щупа -> ADC1 (выше при сухо). Делителя нет: щуп сам выдаёт 0..3.3В, сухо=высоко.\n#define PIN_LED D2\n#define PIN_BTN D3\n#define PIN_BUZ D10\n\n#define SCREEN_W 128\n#define SCREEN_H 64\nAdafruit_SSD1306 display(SCREEN_W, SCREEN_H, &Wire, -1);\n\n// Калибровка емкостного щупа v1.2: сухо ~2900 мВ, влажно ~1400 мВ\nconst int DRY_MV = 2900;\nconst int WET_MV = 1400;\nconst int DRY_THRESH_MV = 2200; // выше = сухо\nconst unsigned long DRY_BUZZ_DELAY = 30UL * 1000UL;\nconst unsigned long MUTE_MS = 12UL * 3600UL * 1000UL;\n\nunsigned long drySince = 0;\nunsigned long muteUntil = 0;\nbool lastBtn = HIGH;\nunsigned long lastDeb = 0;\n\nint soilMv() { return analogReadMilliVolts(PIN_SOIL); }\nint soilPct(int mv) {\n  int p = (DRY_MV - mv) * 100 / (DRY_MV - WET_MV);\n  if (p < 0) p = 0; if (p > 100) p = 100;\n  return p;\n}\n\nvoid setup() {\n  pinMode(PIN_LED, OUTPUT);\n  digitalWrite(PIN_LED, LOW);\n  pinMode(PIN_BUZ, OUTPUT);\n  digitalWrite(PIN_BUZ, LOW); // ключ NPN: HIGH = пищать\n  pinMode(PIN_BTN, INPUT_PULLUP);\n  Wire.begin();\n  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);\n  display.clearDisplay();\n  display.setTextSize(2);\n  display.setTextColor(SSD1306_WHITE);\n}\n\nvoid loop() {\n  // Кнопка с антидребезгом: по нажатию глушим на 12 ч\n  bool b = digitalRead(PIN_BTN);\n  if (b != lastBtn) { lastDeb = millis(); lastBtn = b; }\n  static bool stableHigh = true;\n  if (millis() - lastDeb > 40) {\n    if (!b && stableHigh) { muteUntil = millis() + MUTE_MS; stableHigh = false; }\n    if (b) stableHigh = true;\n  }\n  int mv = soilMv();\n  int pct = soilPct(mv);\n  bool dry = (mv > DRY_THRESH_MV);\n  if (dry) { if (drySince == 0) drySince = millis(); }\n  else drySince = 0;\n  digitalWrite(PIN_LED, dry ? HIGH : LOW);\n  bool muted = (long)(millis() - muteUntil) < 0;\n  bool beep = dry && drySince && (millis() - drySince > DRY_BUZZ_DELAY) && !muted;\n  digitalWrite(PIN_BUZ, beep ? HIGH : LOW);\n  display.clearDisplay();\n  display.setCursor(0, 0);\n  display.print(pct);\n  display.print(\" %\");\n  display.setTextSize(1);\n  display.setCursor(0, 30);\n  if (muted) display.print(\"muted\");\n  else display.print(dry ? \"poliv!\" : \"ok\");\n  display.setCursor(0, 45);\n  display.print(mv); display.print(\" mV\");\n  display.setTextSize(2);\n  display.display();\n  delay(200);\n}\n"
+  },
+  "notes": "XIAO ESP32-C3, библиотеки Adafruit GFX и Adafruit SSD1306, адрес 0x3C",
+  "check": {
+   "ok": true,
+   "tool": "g++ 13.2.0 compile, no link (arduino-esp32 3.x stubs, Seeed ",
+   "errors": [],
+   "warnings": [],
+   "wiring": "ea5e4b2def379ee9",
+   "asks": "3588a97a5d3e"
+  }
+ },
+ "_version": 9
+}

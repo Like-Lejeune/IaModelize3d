@@ -83,7 +83,7 @@
     padding: var(--space-4) var(--space-4) 0 var(--space-5);
   }
   .title {
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
     font-weight: var(--font-weight-semibold);
     margin: 0;
   }
@@ -91,6 +91,6 @@
     padding: var(--space-3) var(--space-5) var(--space-5);
     overflow: auto;
     color: var(--on-surface-var);
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
   }
 </style>

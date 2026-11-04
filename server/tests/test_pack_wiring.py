@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from formwright.agent import device_inspect, device_tools, elec_tools, examples, loop, pcb_tools, prompts, tools
+from formwright.agent import device_inspect, device_tools, elec_tools, examples, loop, pcb_tools, pictures, prompts, tools
 from formwright.config import REPO_DIR
 from formwright.llm.english import is_english
 
@@ -29,19 +29,19 @@ def test_every_pack_gets_a_stable_well_formed_tool_list(pack):
             assert t["type"] == "function" and t["parameters"]["type"] == "object" and set(t["parameters"]["required"]) <= set(t["parameters"]["properties"])
             assert is_english(json.dumps(t)), t["name"]
         # run_tool knows every one of them
-        assert set(names) <= HUB | elec_tools.NAMES | pcb_tools.NAMES | device_tools.NAMES | device_inspect.NAMES, set(names) - HUB
+        assert set(names) <= HUB | pictures.NAMES | elec_tools.NAMES | pcb_tools.NAMES | device_tools.NAMES | device_inspect.NAMES, set(names) - HUB
 
 
 def test_the_electronics_packs_and_the_others_keep_their_lists():
     names = lambda pack, **kw: [t["name"] for t in tools.tools_for(pack, **{"photos": False, "prints": False, **kw})]  # noqa: E731
-    assert names("household") == ["write_program", "edit_program", "set_params", "inspect_model", "look", "dimensions", "ask_user",
+    assert names("household") == ["write_program", "edit_program", "set_params", "inspect_model", "look", "grid", "collage", "dimensions", "ask_user",
                                    "remember_interface", "propose_probe", "finish"]
-    assert names("enclosure") == ["write_program", "edit_program", "set_params", "inspect_model", "look", "dimensions", "ask_user",
+    assert names("enclosure") == ["write_program", "edit_program", "set_params", "inspect_model", "look", "grid", "collage", "dimensions", "ask_user",
                                   "use_board", "check_enclosure", "remember_interface", "propose_probe", "finish"]
-    assert names("enclosure", photos=True) == ["write_program", "edit_program", "set_params", "inspect_model", "look", "dimensions", "ask_user",
+    assert names("enclosure", photos=True) == ["write_program", "edit_program", "set_params", "inspect_model", "look", "grid", "collage", "dimensions", "ask_user",
                                                "measure", "fit_to_photo", "use_board", "scan_board", "check_enclosure", "remember_interface",
                                                "propose_probe", "finish"]
-    pcb = ["write_circuit", "check_pcb", "export_fab", "make_enclosure", "look", "dimensions", "ask_user", "finish"]
+    pcb = ["write_circuit", "check_pcb", "export_fab", "make_enclosure", "look", "grid", "collage", "dimensions", "ask_user", "finish"]
     assert names("pcb") == pcb and names("pcb", photos=True, prints=True) == pcb
     # the PCB pack's look knows the board's own views
     look = next(t for t in tools.tools_for("pcb", photos=False, prints=False) if t["name"] == "look")

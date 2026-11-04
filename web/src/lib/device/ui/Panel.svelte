@@ -59,13 +59,13 @@
     background: none;
     color: var(--on-surface);
     font: inherit;
-    font-size: 13px;
+    font-size: var(--text-md);
     font-weight: var(--font-weight-semibold);
     text-align: left;
     cursor: pointer;
   }
   .ar {
-    font-size: 12px;
+    font-size: var(--text-sm);
     color: var(--on-surface-var);
     transition: transform var(--dur-fast) var(--ease-standard);
   }
@@ -76,7 +76,7 @@
     display: flex;
     gap: 4px;
     align-items: center;
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: var(--on-surface-var);
   }
   .body {

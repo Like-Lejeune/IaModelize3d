@@ -244,7 +244,7 @@
     width: 56px;
     height: 56px;
     border-radius: var(--radius-btn);
-    background: #f6f6f3;
+    background: var(--render-bg);
     display: grid;
     place-items: center;
     color: var(--outline);
@@ -269,7 +269,7 @@
     font-weight: var(--font-weight-bold);
   }
   .title {
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     line-height: 1.3;
     overflow: hidden;
     display: -webkit-box;
@@ -313,7 +313,7 @@
     min-width: 0;
     padding-top: 7px;
     padding-bottom: 7px;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
   }
   .set {
     display: grid;
@@ -324,7 +324,7 @@
   .set select {
     width: 100%;
     padding: 7px 10px;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
   }
   .ship {
     display: grid;
@@ -334,7 +334,7 @@
   .ship input,
   .acts > input {
     padding: 7px 10px;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
   }
   .foot {
     gap: 4px;

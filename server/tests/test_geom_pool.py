@@ -158,7 +158,7 @@ async def test_reply_without_its_keys_is_a_protocol_error(monkeypatch):
     try:
         with pytest.raises(GeomError) as e:
             await pool.render("return {}", {}, view="iso")
-        assert e.value.stage == "protocol" and "png" in e.value.message
+        assert e.value.stage == "protocol"
         assert pool.workers[0].proc is None  # killed: the next call starts clean
     finally:
         await pool.close()

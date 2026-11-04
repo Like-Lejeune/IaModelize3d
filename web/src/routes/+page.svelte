@@ -3,8 +3,10 @@
   import { onMount } from 'svelte';
   import Header from '$lib/components/Header.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import Logo from '$lib/components/Logo.svelte';
   import Picker from '$lib/components/Picker.svelte';
   import FeaturedRuns from '$lib/components/FeaturedRuns.svelte';
+  import DevicePattern from '$lib/pattern/DevicePattern.svelte';
   import { api, errorText } from '$lib/api';
   import { stashFirst } from '$lib/pending';
   import { ago, i18n, projectTitle, t } from '$lib/i18n.svelte';
@@ -13,7 +15,7 @@
   import type { ExampleOut, ProjectOut } from '$lib/types';
   import { dt } from '$lib/device/i18n';
 
-  const ROW = 4; // one row of tiles on a wide screen, two on a phone
+  const ROW = 12; // two rows of small tiles on a wide screen
   // examples that are a replacement part, marked on their card: the server says so (kind 'part', from showcase.py's
   // fit check); this set covers a server that does not yet
   const SPARE_PARTS = new Set(['rack-wheel']);
@@ -37,8 +39,12 @@
   const metaModels = $derived(['SAM 3.1', 'Muse Spark', 'Muse Image', 'Muse Voice Transcribe', ...(session.me?.models?.some((m) => isOpenWeights(m.id)) ? ['Muse Spark Open'] : [])]);
 
   let examples = $state<ExampleOut[] | null>(null);
-  // the examples of what the prompt above makes: finished devices, or printed parts
-  const shownExamples = $derived(examples?.filter((ex) => (ex.pack === 'device') === (mode === 'device')) ?? null);
+  // every example, the ones of what the prompt makes first: finished devices, or printed parts
+  const shownExamples = $derived.by(() => {
+    if (!examples) return null;
+    const ofMode = (ex: ExampleOut) => (ex.pack === 'device') === (mode === 'device');
+    return [...examples.filter(ofMode), ...examples.filter((ex) => !ofMode(ex))];
+  });
   let opening = $state<string | null>(null);
   let exampleError = $state<string | null>(null);
   let mine = $state<ProjectOut[] | null>(null);
@@ -49,20 +55,39 @@
   const shownRecent = $derived(showAll ? recent : recent.slice(0, ROW));
   const working = $derived(recent.some((p) => p.status === 'working'));
 
+  // what failed to load says so and comes back by itself (or with the button): never an empty list that was not empty
+  let listError = $state<string | null>(null);
+
   async function loadMine() {
     try {
       mine = await api.projects();
-    } catch {
+      listError = null;
+    } catch (e) {
       mine ??= [];
+      listError = errorText(e);
     }
+  }
+
+  async function loadExamples() {
+    try {
+      examples = await api.examples();
+    } catch (e) {
+      examples ??= [];
+      listError = errorText(e);
+    }
+  }
+
+  async function reloadLists() {
+    await loadMine();
+    if (!examples?.length) await loadExamples();
   }
 
   onMount(() => {
     if (matchMedia('(hover: hover)').matches) input?.focus();
-    api.examples().then((e) => (examples = e)).catch(() => (examples = []));
+    loadExamples();
     loadMine();
     // a model in progress gets its cover when it is done
-    const poll = setInterval(() => working && document.visibilityState === 'visible' && loadMine(), 5000);
+    const poll = setInterval(() => (working || listError) && document.visibilityState === 'visible' && reloadLists(), 5000);
     return () => {
       clearInterval(poll);
       files.forEach((f) => f.url && URL.revokeObjectURL(f.url));
@@ -82,6 +107,13 @@
     }
   }
 
+  /** The hint at the bottom of the first screen: glides down, and the address stays clean. */
+  function toExamples(e: MouseEvent) {
+    e.preventDefault();
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById('examples')?.scrollIntoView({ behavior: still ? 'auto' : 'smooth' });
+  }
+
   function addFiles(list: FileList | File[] | null | undefined) {
     if (!list) return;
     const add = Array.from(list).map((file) => ({ file, url: file.type.startsWith('image/') ? URL.createObjectURL(file) : null }));
@@ -90,8 +122,8 @@
 
   function fit() {
     input.style.height = 'auto';
-    input.style.height = `${Math.min(input.scrollHeight, 220)}px`;
-    input.style.overflowY = input.scrollHeight > 220 ? 'auto' : 'hidden';
+    input.style.height = `${Math.min(input.scrollHeight, 320)}px`;
+    input.style.overflowY = input.scrollHeight > 320 ? 'auto' : 'hidden';
   }
 
   async function start() {
@@ -128,19 +160,15 @@
 <svelte:head><title>Formwright</title></svelte:head>
 
 <div class="page">
-  <Header />
+  <DevicePattern />
+  <Header bare />
   <main class="home">
     <section class="hero" aria-labelledby="home-title">
-      <div class="modes seg" role="tablist" aria-label={dt('home_mode')}>
-        <button role="tab" aria-selected={mode === 'device'} onclick={() => (mode = 'device')}><Icon name="topology" size={15} /> {dt('home_device')}</button>
-        <button role="tab" aria-selected={mode === 'part'} onclick={() => (mode = 'part')}><Icon name="cube" size={15} /> {dt('home_part')}</button>
+      <h1 id="home-title" class="sr-only">{mode === 'device' ? dt('home_title') : t('tagline')}</h1>
+      <div class="brand">
+        <Logo size={36} />
+        <span>Formwright</span>
       </div>
-      <h1 id="home-title">{mode === 'device' ? dt('home_title') : t('tagline')}</h1>
-      <p class="sub">{mode === 'device' ? dt('home_sub') : t('tagline_sub')}</p>
-      <p class="powered xs">
-        <span class="muted">{t('powered_by')}</span>
-        {#each metaModels as m, i (m)}{#if i}<span class="muted" aria-hidden="true">·</span>{/if}<span class="mname">{m}</span>{/each}
-      </p>
       <div
         class="create"
         class:dragging
@@ -167,106 +195,108 @@
             {/each}
           </div>
         {/if}
-
-        <div class="row">
-          <label class="round add pressable" title={t('attach_photos')}>
+        <textarea
+          bind:this={input}
+          bind:value={text}
+          rows="4"
+          placeholder={mode === 'device' ? dt('home_placeholder') : t('prompt_placeholder')}
+          aria-label={mode === 'device' ? dt('home_placeholder') : t('prompt_placeholder')}
+          oninput={fit}
+          onpaste={(e) => {
+            const imgs = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'));
+            if (imgs.length) addFiles(imgs);
+          }}
+          onkeydown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+              e.preventDefault();
+              start();
+            }
+          }}
+        ></textarea>
+        <div class="bar">
+          <label class="square add pressable" title={t('attach_photos')}>
             <Icon name="plus" size={20} />
             <input class="sr-only" type="file" accept="image/*,video/*,audio/*" multiple aria-label={t('attach_photos')} onchange={(e) => addFiles((e.currentTarget as HTMLInputElement).files)} />
           </label>
-          <textarea
-            bind:this={input}
-            bind:value={text}
-            rows="1"
-            placeholder={mode === 'device' ? dt('home_placeholder') : t('prompt_placeholder')}
-            aria-label={mode === 'device' ? dt('home_placeholder') : t('prompt_placeholder')}
-            oninput={fit}
-            onpaste={(e) => {
-              const imgs = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'));
-              if (imgs.length) addFiles(imgs);
-            }}
-            onkeydown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-                e.preventDefault();
-                start();
-              }
-            }}
-          ></textarea>
-          <button class="round send pressable" onclick={start} disabled={!ready} aria-label={t('send')} title={t('send')}>
-            {#if busy}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="arrow-up" size={18} />{/if}
+          <button class="square send pressable" onclick={start} disabled={!ready} aria-label={t('send')} title={t('send')}>
+            {#if busy}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="arrow-up" size={20} />{/if}
           </button>
         </div>
       </div>
 
-      {#if mode === 'device'}
-        <div class="ideas-row">
-          {#each DEVICE_IDEAS as k (k)}
-            <button class="chip pressable" onclick={() => ((text = dt(k)), input?.focus(), fit())}>{dt(`${k}_short`)}</button>
-          {/each}
+      <div class="under">
+        <div class="modes" role="tablist" aria-label={dt('home_mode')}>
+          <button role="tab" aria-selected={mode === 'device'} onclick={() => (mode = 'device')}>{dt('home_device')}</button>
+          <button role="tab" aria-selected={mode === 'part'} onclick={() => (mode = 'part')}>{dt('home_part')}</button>
         </div>
-      {/if}
-      <div class="strip">
-{#if mode === 'part'}
-                  <button class="ideas pressable" onclick={ideasFirst} disabled={busy || !text.trim() || !!files.length} title={t('ideas_first_d')}>
-          <Icon name="sparkles" size={14} /> {t('ideas_first')}
-        </button>
-        {/if}
-        <Picker label={t('model')} value={prefs.model} options={modelOptions} onpick={(v) => setPref('model', v)} />
-        <Picker label={t('reasoning')} value={prefs.reasoning} options={reasoningOptions} quiet onpick={(v) => setPref('reasoning', v)} />
+        <div class="pickers">
+          <Picker label={t('model')} value={prefs.model} options={modelOptions} onpick={(v) => setPref('model', v)} />
+          <Picker label={t('reasoning')} value={prefs.reasoning} options={reasoningOptions} onpick={(v) => setPref('reasoning', v)} />
+        </div>
       </div>
       {#if error}<p class="err small" role="alert">{error}</p>{/if}
-      <div class="collect">
-        <a class="snapcta pressable" href="/parts/new">
-          <span class="snapic"><Icon name="package" size={20} /></span>
-          <span class="snaptx"><strong>{t('parts_cta')}</strong><span class="muted xs">{t('parts_cta_hint')}</span></span>
+
+      <p class="ideas">
+        {#if mode === 'device'}
+          {#each DEVICE_IDEAS as k, i (k)}
+            <button class="idea" onclick={() => ((text = dt(k)), input?.focus(), fit())}>{dt(`${k}_short`)}</button>{#if i < DEVICE_IDEAS.length - 1}<span aria-hidden="true">·</span>{/if}
+          {/each}
+        {:else}
+          <button class="idea" onclick={ideasFirst} disabled={busy || !text.trim() || !!files.length} title={t('ideas_first_d')}>{t('ideas_first')}</button>
+        {/if}
+      </p>
+
+      <nav class="starts" aria-label={dt('home_mode')}>
+        <a class="start main" href="/snap">
+          <Icon name="camera" size={24} />
+          <span><strong>{t('snap_title')}</strong><small>{t('snap_cta_hint')}</small></span>
         </a>
-        <a class="snapcta pressable" href="/snap">
-          <span class="snapic"><Icon name="camera" size={20} /></span>
-          <span class="snaptx"><strong>{t('snap_title')}</strong><span class="muted xs">{t('snap_cta_hint')}</span></span>
+        <a class="start" href="/collection">
+          <Icon name="grid" size={24} />
+          <span><strong>{t('collection')}</strong><small>{dt('home_collection_d')}</small></span>
         </a>
-        <a class="btn ghost small" href="/collection"><Icon name="grid" size={15} /> {t('collection')}</a>
-      </div>
+        <a class="start" href="/parts/new">
+          <Icon name="package" size={24} />
+          <span><strong>{t('parts_cta')}</strong><small>{t('parts_cta_hint')}</small></span>
+        </a>
+      </nav>
+
+      <a class="more" href="#examples" onclick={toExamples}>
+        {t('examples')}
+        <Icon name="chevron-down" size={13} />
+      </a>
     </section>
 
     <FeaturedRuns />
 
-    {#if shownExamples === null || shownExamples.length}
-      <section class="block" aria-labelledby="examples-title">
-        <div class="bhead">
-          <div>
-            <h2 id="examples-title">{t('examples')}</h2>
-            <p class="muted small">{mode === 'device' ? dt('examples_hint') : t('examples_hint')}</p>
-          </div>
-        </div>
-        <div class="grid three">
-          {#if shownExamples === null}
-            {#each [0, 1, 2, 3, 4, 5] as i (i)}
-              <div class="card tile sk" aria-hidden="true">
-                <span class="pic skeleton"></span>
-                <span class="meta"><span class="line skeleton"></span><span class="line short skeleton"></span></span>
-              </div>
-            {/each}
-          {:else}
-            {#each shownExamples as ex (ex.key)}
-              <button class="card tile" onclick={() => openExample(ex)} disabled={!!opening && opening !== ex.key} aria-busy={opening === ex.key}>
-                <span class="pic">
-                  <img src={ex.cover} alt="" loading="lazy" />
-                  {#if ex.pack === 'pcb' || ex.pack === 'device'}<span class="kind" aria-hidden="true"><Icon name="cpu" size={15} /></span>
-                  {:else if ex.kind === 'part' || SPARE_PARTS.has(ex.key)}<span class="kind spare"><Icon name="package" size={14} />{t('example_spare')}</span>{/if}
-                  <span class="go" aria-hidden="true">
-                    {#if opening === ex.key}<i class="ti ti-loader-2 spin"></i>{:else}<Icon name="arrow-right" size={16} />{/if}
-                  </span>
-                </span>
-                <span class="meta">
-                  <strong class="wraps">{ex.title[i18n.lang] ?? ex.title.en}</strong>
-                  <span class="muted xs cap">{ex.caption[i18n.lang] ?? ex.caption.en}</span>
-                </span>
-              </button>
-            {/each}
-          {/if}
-        </div>
-        {#if exampleError}<p class="err small" role="alert">{exampleError}</p>{/if}
-      </section>
-    {/if}
+    <section class="block" id="examples" aria-labelledby="examples-title">
+      <h2 id="examples-title">{t('examples')}</h2>
+      <div class="grid">
+        {#if shownExamples === null}
+          {#each [0, 1, 2, 3, 4, 5] as i (i)}
+            <div class="card tile sk" aria-hidden="true">
+              <span class="pic skeleton"></span>
+              <span class="meta"><span class="line skeleton"></span></span>
+            </div>
+          {/each}
+        {:else}
+          {#each shownExamples as ex (ex.key)}
+            <button class="card tile" onclick={() => openExample(ex)} disabled={!!opening && opening !== ex.key} aria-busy={opening === ex.key}>
+              <span class="pic">
+                <img src={ex.cover} alt="" loading="lazy" />
+                {#if opening === ex.key}<span class="state chip"><i class="ti ti-loader-2 spin" aria-hidden="true"></i></span>{/if}
+              </span>
+              <span class="meta">
+                <strong>{ex.title[i18n.lang] ?? ex.title.en}{#if ex.kind === 'part' || SPARE_PARTS.has(ex.key)}<span class="kind">{` · ${t('example_spare')}`}</span>{/if}</strong>
+                <span class="cap">{ex.caption[i18n.lang] ?? ex.caption.en}</span>
+              </span>
+            </button>
+          {/each}
+        {/if}
+      </div>
+      {#if exampleError}<p class="err small" role="alert">{exampleError}</p>{/if}
+      {#if listError}<p class="muted small" role="status">{listError} <button class="btn ghost small" onclick={reloadLists}>{t('retry')}</button></p>{/if}
+    </section>
 
     {#if recent.length}
       <section class="block" aria-labelledby="recent-title">
@@ -282,20 +312,22 @@
           {#each shownRecent as p (p.id)}
             <a class="card tile" href="/{p.pack === 'device' ? 'd' : 'p'}/{p.id}">
               <span class="pic">
-                {#if p.cover}<img src={p.cover} alt="" loading="lazy" />{:else}<span class="ph skeleton"><Icon name="cube" size={28} /></span>{/if}
+                {#if p.cover}<img src={p.cover} alt="" loading="lazy" />{:else}<span class="ph skeleton"><Icon name="cube" size={22} /></span>{/if}
                 {#if p.status === 'working'}
                   <span class="chip accent state"><i class="ti ti-loader-2 spin" aria-hidden="true"></i>{t('recent_working')}</span>
                 {/if}
               </span>
               <span class="meta">
                 <strong>{projectTitle(p.title)}</strong>
-                <span class="muted xs">{ago(p.updated_at)}</span>
+                <span class="cap">{ago(p.updated_at)}</span>
               </span>
             </a>
           {/each}
         </div>
       </section>
     {/if}
+
+    <footer class="foot">{t('powered_by')}: {metaModels.join(', ')}</footer>
   </main>
 </div>
 
@@ -304,114 +336,82 @@
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
+    position: relative;
+    isolation: isolate; /* the pattern lies under the content, over the body's background */
   }
   .home {
     width: 100%;
-    max-width: calc(880px + 2 * var(--space-4));
+    max-width: calc(var(--container-wide) + 2 * var(--space-5));
     margin: 0 auto;
-    padding: clamp(var(--space-6), 9vh, 88px) var(--space-4) var(--space-8);
+    padding: 0 var(--space-5) var(--space-8);
     display: flex;
     flex-direction: column;
     gap: var(--space-8);
   }
-  .modes {
-    display: inline-flex;
-    gap: 2px;
-    padding: 3px;
-    margin: 0 auto var(--space-3);
-    border-radius: 10px;
-    border: 1px solid var(--outline-variant);
-    background: var(--surface-container-low);
-  }
-  .modes button {
-    display: inline-flex;
-    gap: 6px;
-    align-items: center;
-    font: inherit;
-    font-size: 13px;
-    padding: 6px 14px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--on-surface-var);
-    cursor: pointer;
-  }
-  .modes button[aria-selected='true'] {
-    background: var(--primary-container);
-    color: var(--on-primary-container);
-  }
-  .ideas-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-    margin-top: var(--space-2);
-  }
-  .ideas-row .chip {
-    font: inherit;
-    font-size: 12.5px;
-    padding: 5px 11px;
-    border-radius: 999px;
-    border: 1px solid var(--outline-variant);
-    background: var(--surface-container-low);
-    color: var(--on-surface);
-    cursor: pointer;
-  }
-  .ideas-row .chip:hover {
-    border-color: var(--primary);
-  }
+
+  /* ---------- the prompt, in the middle of the first screen ---------- */
   .hero {
+    position: relative;
     width: 100%;
+    max-width: 880px;
+    margin: 0 auto;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    justify-content: center;
+    gap: var(--space-3);
+    /* room for the hint below, on both sides so the prompt stays in the middle */
+    padding: 72px 0;
   }
-  h1 {
-    text-align: center;
-    font-size: var(--text-product-h1);
-    font-weight: var(--font-weight-bold);
-    text-wrap: balance;
+  .brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+    font-size: var(--text-3xl);
+    font-weight: var(--font-weight-semibold);
   }
-  /* what happens to the part after the tagline: checked, then printed by the farm */
-  .sub {
-    margin: 0 0 var(--space-4);
-    text-align: center;
-    text-wrap: balance;
-    font-size: var(--text-product-lead);
+  .more {
+    position: absolute;
+    left: 50%;
+    bottom: var(--space-3);
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    white-space: nowrap;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-regular);
+    color: var(--outline);
+    text-decoration: none;
+    transition: color var(--dur-fast) var(--ease-standard);
+  }
+  .more:hover {
     color: var(--on-surface-var);
+    text-decoration: none;
   }
   .create {
     background: var(--surface-container);
-    border: var(--border-width) solid var(--outline-variant);
-    border-radius: var(--radius-card);
-    transition:
-      border-color var(--dur-fast) var(--ease-standard),
-      box-shadow var(--dur-fast) var(--ease-standard);
+    border-radius: var(--radius-xl);
+    transition: background-color var(--dur-fast) var(--ease-standard);
   }
-  .create:hover {
-    border-color: var(--outline);
-  }
-  .create:focus-within {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
-  }
+  .create:focus-within,
   .create.dragging {
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 9%, var(--surface-container));
+    background: var(--surface-high);
   }
   .files {
     display: flex;
     gap: var(--space-2);
     flex-wrap: wrap;
-    padding: var(--space-3) var(--space-3) 0;
+    padding: var(--space-4) var(--space-5) 0;
   }
   .file {
     position: relative;
     width: 56px;
     height: 56px;
     border-radius: var(--radius-btn);
-    border: var(--border-width) solid var(--outline-variant);
-    background: var(--surface-high);
+    background: var(--surface-container-highest);
   }
   .file img {
     width: 100%;
@@ -442,47 +442,41 @@
   }
   .x:hover {
     color: var(--on-surface);
-    border-color: var(--outline);
-  }
-  .row {
-    display: flex;
-    align-items: flex-end;
-    gap: var(--space-2);
-    padding: var(--space-2);
   }
   textarea,
   textarea:hover,
   textarea:focus {
-    flex: 1;
-    min-width: 0;
+    display: block;
+    width: 100%;
     border: none;
     background: transparent;
     box-shadow: none;
     resize: none;
-    font-size: 16px;
-    line-height: 24px;
-    padding: 9px 6px;
-    max-height: 220px;
+    font-size: var(--text-xl);
+    line-height: 28px;
+    padding: var(--space-5) var(--space-5) var(--space-2);
+    max-height: 320px;
     overflow-y: hidden;
-  }
-  textarea::placeholder {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   textarea:focus-visible {
     outline: none;
   }
-  .round {
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+  .square {
     flex: none;
-    width: 42px;
-    height: 42px;
-    border-radius: var(--radius-btn);
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-card);
     display: grid;
     place-items: center;
     padding: 0;
     background: transparent;
-    border: var(--border-width) solid var(--outline-variant);
+    border: none;
     color: var(--on-surface-var);
     cursor: pointer;
     transition:
@@ -491,246 +485,203 @@
   }
   .add:hover,
   .add:focus-within {
-    background: var(--surface-high);
+    background: var(--surface-container-highest);
     color: var(--on-surface);
   }
   .send {
     background: var(--primary);
-    border-color: transparent;
     color: var(--on-primary);
   }
   .send:not(:disabled):hover {
-    background: color-mix(in srgb, var(--primary) 92%, white);
+    background: color-mix(in srgb, var(--primary) 90%, white);
   }
+  /* nothing to send yet: the colour waits for the words */
   .send:disabled {
     cursor: not-allowed;
-    opacity: 0.5;
+    background: var(--surface-container-highest);
+    color: var(--outline);
   }
-  .powered {
+  .under {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .modes {
+    display: inline-flex;
+    gap: 2px;
+  }
+  .modes button {
+    font: inherit;
+    font-size: var(--text-md);
+    padding: 5px 12px;
+    border: none;
+    border-radius: var(--radius-btn);
+    background: transparent;
+    color: var(--on-surface-var);
+    cursor: pointer;
+  }
+  .modes button:hover {
+    color: var(--on-surface);
+  }
+  .modes button[aria-selected='true'] {
+    background: var(--surface-container);
+    color: var(--on-surface);
+    font-weight: var(--font-weight-medium);
+  }
+  .pickers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    min-width: 0;
+  }
+  .ideas {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 2px 6px;
-    margin: calc(-1 * var(--space-2)) 0 var(--space-3);
-    text-align: center;
+    align-items: baseline;
+    gap: 2px 8px;
+    margin: 0;
+    font-size: var(--text-md);
+    color: var(--outline);
   }
-  .mname {
-    font-weight: var(--font-weight-semibold);
-    color: var(--on-surface-var);
-    white-space: nowrap;
-  }
-  .strip {
-    display: flex;
-    justify-content: flex-end;
-    gap: 2px;
-    padding: 0 10px;
-  }
-  /* the same quiet text button as the pickers next to it, with a mark for what it starts */
-  .ideas {
-    margin-right: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
+  .idea {
+    font: inherit;
+    padding: 0;
     border: none;
     background: none;
-    padding: 4px 8px;
-    border-radius: var(--radius-btn);
-    font-family: inherit;
-    font-size: var(--text-card-from);
-    font-weight: var(--font-weight-semibold);
-    color: var(--primary);
-    white-space: nowrap;
+    color: var(--on-surface-var);
     cursor: pointer;
   }
-  .ideas:not(:disabled):hover {
-    background: var(--surface-high);
+  .idea:hover:not(:disabled) {
+    color: var(--on-surface);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
-  .ideas:disabled {
+  .idea:disabled {
     color: var(--outline);
     cursor: default;
   }
   .err {
     color: var(--error);
     margin: 0;
-    padding: 0 var(--space-3);
   }
-  .collect {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
+  .starts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
     margin-top: var(--space-4);
   }
-  .snapcta {
-    flex: 0 1 auto;
+  .start {
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    min-width: 0;
-    padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
+    min-height: 76px;
+    padding: var(--space-3) var(--space-4);
     border-radius: var(--radius-card);
-    border: var(--border-width) solid var(--outline-variant);
     background: var(--surface-container);
     color: var(--on-surface);
+    font-weight: var(--font-weight-regular);
     text-decoration: none;
-    transition: border-color var(--dur-fast) var(--ease-standard);
+    transition: background-color var(--dur-fast) var(--ease-standard);
   }
-  .snapcta:hover {
+  .start:hover {
+    background: var(--surface-high);
     text-decoration: none;
-    border-color: var(--primary);
   }
-  .snapic {
-    flex: none;
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius-btn);
-    display: grid;
-    place-items: center;
+  .start :global(.icon) {
+    color: var(--primary);
+  }
+  .start strong {
+    display: block;
+    font-size: var(--text-lg);
+    line-height: 1.25;
+  }
+  .start small {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--text-sm);
+    line-height: 1.3;
+    color: var(--on-surface-var);
+  }
+  .start.main {
     background: var(--primary);
     color: var(--on-primary);
   }
-  .snaptx {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
+  .start.main:hover {
+    background: color-mix(in srgb, var(--primary) 90%, white);
   }
-  .snaptx strong {
-    font-size: var(--text-product-spec);
-  }
-  .snaptx .xs,
-  .cap {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+  .start.main :global(.icon),
+  .start.main small {
+    color: var(--on-primary);
   }
 
-  /* ---------- examples and recent projects ---------- */
+  /* ---------- examples and recent projects: many small tiles ---------- */
   .block {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: var(--space-3);
+    scroll-margin-top: var(--space-4);
   }
   .bhead {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    min-height: 34px;
   }
   h2 {
-    font-size: var(--text-product-section-title);
-  }
-  .bhead p {
-    margin: 2px 0 0;
+    font-size: var(--text-lg);
   }
   .grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--space-4);
-  }
-  /* the examples: two full rows of three, with bigger covers */
-  .grid.three {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--space-3);
   }
   .tile {
     display: flex;
     flex-direction: column;
     overflow: hidden;
     padding: 0;
+    width: 100%;
+    border: none;
     font: inherit;
     text-align: left;
     color: var(--on-surface);
     text-decoration: none;
-    transition:
-      border-color var(--dur-fast) var(--ease-standard),
-      opacity var(--dur-fast) var(--ease-standard),
-      transform var(--dur-base) var(--ease-settle);
+    transition: background-color var(--dur-fast) var(--ease-standard);
   }
   .tile:hover:not(:disabled) {
     text-decoration: none;
-    border-color: var(--outline);
-    transform: translateY(-2px);
+    background: var(--surface-high);
   }
   .tile:disabled {
     cursor: default;
     opacity: 0.55;
   }
-  /* renders come on this light backdrop; the tile continues it to the edges */
+  /* covers have no backdrop of their own: the tile's surface shows through, in either theme */
   .pic {
     position: relative;
     display: block;
     aspect-ratio: 1;
-    background: #f6f6f3;
+    background: var(--render-bg);
     overflow: hidden;
   }
   .pic img {
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
-    transform: scale(1.1);
-    transition: transform var(--dur-slow) var(--ease-settle);
+    object-fit: contain;
   }
-  .tile:hover:not(:disabled) .pic img {
-    transform: scale(1.16);
-  }
-  .go {
-    position: absolute;
-    right: var(--space-2);
-    bottom: var(--space-2);
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-btn);
-    display: grid;
-    place-items: center;
-    background: var(--primary);
-    color: var(--on-primary);
-    font-size: 16px;
-    opacity: 0;
-    transform: translateY(4px);
-    transition:
-      opacity var(--dur-fast) var(--ease-standard),
-      transform var(--dur-base) var(--ease-settle);
-  }
-  .tile:hover:not(:disabled) .go,
-  .tile:focus-visible .go,
-  .tile[aria-busy='true'] .go {
-    opacity: 1;
-    transform: none;
-  }
-  /* the electronics example: a board, not just a print */
   .kind {
-    position: absolute;
-    left: var(--space-2);
-    top: var(--space-2);
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-btn);
-    display: grid;
-    place-items: center;
-    background: var(--surface-container);
-    color: var(--primary);
-    box-shadow: 0 1px 6px rgb(0 0 0 / 0.2);
-  }
-  /* the replacement part: named, not just marked */
-  .kind.spare {
-    width: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 0 9px 0 7px;
-    font-size: var(--text-card-meta);
-    font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-regular);
+    color: var(--on-surface-var);
   }
   .state {
     position: absolute;
     left: var(--space-2);
     top: var(--space-2);
     background: var(--surface-container);
-    color: var(--primary);
-    box-shadow: 0 1px 6px rgb(0 0 0 / 0.25);
   }
   .ph {
     display: grid;
@@ -744,20 +695,23 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: var(--space-3);
+    padding: var(--space-2) var(--space-3) var(--space-3);
     min-width: 0;
   }
   .meta strong {
-    font-size: var(--text-product-spec);
+    font-size: var(--text-md);
     font-weight: var(--font-weight-semibold);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.3;
   }
-  /* example names are short phrases: better on two lines than cut on a phone */
-  .meta strong.wraps {
-    white-space: normal;
-    text-wrap: balance;
+  .cap {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: var(--text-xs);
+    line-height: 1.35;
+    color: var(--on-surface-var);
   }
   .sk .pic {
     background: var(--surface-high);
@@ -768,51 +722,30 @@
     height: 12px;
     width: 70%;
     margin: 3px 0;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
   }
-  .line.short {
-    width: 45%;
+  .foot {
+    padding-top: var(--space-4);
+    border-top: var(--border-width) solid var(--divider);
+    font-size: var(--text-sm);
+    color: var(--outline);
   }
   @media (max-width: 720px) {
     .home {
+      padding: 0 var(--space-4) var(--space-7);
       gap: var(--space-7);
     }
-    .grid,
-    .grid.three {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--space-3);
+    .hero {
+      padding-top: 64px; /* clear of the buttons in the corner */
     }
-  }
-  /* phones and tablets: a photo is the main way in, so its two starts (a spare part, Snap & collect) come first and wide */
-  @media (hover: none) {
-    h1,
-    .sub,
-    .powered {
-      order: -2;
+    .starts {
+      grid-template-columns: minmax(0, 1fr);
     }
-    .collect {
-      order: -1;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      margin: 0 0 var(--space-3);
+    .grid {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     }
-    .snapcta {
-      flex: 1 1 100%;
-      padding: var(--space-3) var(--space-4) var(--space-3) var(--space-3);
-      border-color: var(--primary);
-    }
-    .snapic {
-      width: 48px;
-      height: 48px;
-    }
-  }
-  @media (hover: none) and (max-width: 720px) {
-    textarea::placeholder {
-      white-space: normal;
-    }
-    /* the example request reads in full instead of ending in an ellipsis (four lines at 390 px) */
-    textarea:placeholder-shown {
-      min-height: calc(4 * 24px + 18px);
+    .modes button {
+      min-height: 40px;
     }
   }
 </style>

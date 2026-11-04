@@ -1,5 +1,5 @@
 <script lang="ts" generics="T extends string">
-  // Quiet text button that opens a list of options, each with an optional one-line hint.
+  // A text button with its arrow that opens a list of options, each with an optional one-line hint.
   import Icon from './Icon.svelte';
 
   type Option = { value: T; title: string; short?: string; hint?: string; disabled?: boolean };
@@ -8,9 +8,8 @@
     value,
     options,
     onpick,
-    quiet = false,
     up = false,
-  }: { label: string; value: T; options: Option[]; onpick: (v: T) => void; quiet?: boolean; up?: boolean } = $props();
+  }: { label: string; value: T; options: Option[]; onpick: (v: T) => void; up?: boolean } = $props();
 
   let open = $state(false);
   let wrap: HTMLDivElement;
@@ -45,8 +44,9 @@
 />
 
 <div class="wrap" bind:this={wrap}>
-  <button bind:this={btn} class="cur" class:quiet onclick={() => (open = !open)} aria-haspopup="listbox" aria-expanded={open} aria-label="{label}: {current?.title}" title={label}>
-    {current?.short ?? current?.title}
+  <button bind:this={btn} class="cur" onclick={() => (open = !open)} aria-haspopup="listbox" aria-expanded={open} aria-label="{label}: {current?.title}" title={label}>
+    <span class="val">{current?.short ?? current?.title}</span>
+    <Icon name="chevron-down" size={13} />
   </button>
   {#if open}
     <div bind:this={menu} class="menu" style={pos} role="listbox" aria-label={label}>
@@ -69,24 +69,26 @@
     min-width: 0;
   }
   .cur {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     border: none;
     background: none;
     padding: 4px 8px;
     border-radius: var(--radius-btn);
     font-family: inherit;
-    font-size: var(--text-card-from);
-    font-weight: var(--font-weight-semibold);
+    font-size: var(--text-md);
     color: var(--on-surface-var);
     white-space: nowrap;
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
     transition:
       background-color var(--dur-fast) var(--ease-standard),
       color var(--dur-fast) var(--ease-standard);
   }
-  .cur.quiet {
-    color: var(--outline);
+  .val {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .cur:hover,
   .cur[aria-expanded='true'] {
@@ -140,7 +142,7 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     line-height: 18px;
   }
   .txt strong {
@@ -153,7 +155,7 @@
     white-space: nowrap;
   }
   .hint {
-    font-size: var(--text-card-meta);
+    font-size: var(--text-sm);
     line-height: 1.35;
     color: var(--outline);
   }

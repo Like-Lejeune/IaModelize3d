@@ -40,13 +40,13 @@
     flex-direction: column;
     width: 360px;
     max-height: min(70vh, 540px);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--outline-variant);
     background: var(--bw-panel);
     box-shadow: var(--shadow-pop);
   }
-  .caret {
-    font-size: 11px;
+  .hb .caret {
+    font-size: var(--text-xs);
     opacity: 0.7;
   }
 </style>

@@ -1,7 +1,7 @@
 // Typed client for the FastAPI backend (same origin; the httpOnly cookie `fw_session` holds an opaque session token,
 // see server/formwright/sessions.py).
 import { t } from './i18n.svelte';
-import type { AssetOut, ExampleOut, FeaturedRun, ProjectDetail, ProjectOut, SelectionOut, Usage, Printer, ProgramOut, SnapResult, SnapObject, SpotResult, CollectionItem } from './types';
+import type { AssetOut, EventRow, ExampleOut, FeaturedRun, ProjectDetail, ProjectOut, SelectionOut, Usage, Printer, ProgramOut, SnapResult, SnapObject, SpotResult, CollectionItem } from './types';
 
 export type { FeaturedRun };
 
@@ -19,7 +19,45 @@ export class ApiError extends Error {
   }
 }
 
-export async function req<T>(method: string, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
+// A server that took the connection and says nothing would otherwise leave a page with no answer and no error.
+// Reads are quick; other requests may hold a model call, a face check or an export.
+const READ_TIMEOUT_MS = 60_000;
+const WRITE_TIMEOUT_MS = 300_000;
+/** For requests that only record something: a send, an answer, a save. */
+const QUICK_TIMEOUT_MS = 60_000;
+
+/** A signal that fires after `ms`, or with `signal` if that comes first. */
+export function deadline(ms: number, signal?: AbortSignal | null): AbortSignal | undefined {
+  if (typeof AbortSignal.timeout !== 'function') return signal ?? undefined;
+  const limit = AbortSignal.timeout(ms);
+  return signal && typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, limit]) : limit;
+}
+
+/** The error a failed response stands for: every client of the API reads its body this way. */
+export async function apiError(res: Response): Promise<ApiError> {
+  const text = await res.text().catch(() => '');
+  let msg = res.statusText;
+  let code: string | undefined;
+  let info: Record<string, any> = {};
+  try {
+    // {detail, code, ...info}; an HTTPException may nest the same object under detail
+    let j = JSON.parse(text);
+    if (j?.detail && typeof j.detail === 'object' && !Array.isArray(j.detail)) j = { ...j.detail, detail: j.detail.detail ?? j.detail.message };
+    const { detail, code: c, ...rest } = j ?? {};
+    if (typeof detail === 'string') msg = detail;
+    // pydantic 422: a list of {loc, msg, type}; the first message says enough
+    else if (Array.isArray(detail)) msg = detail[0]?.msg ?? msg;
+    else if (detail != null) msg = JSON.stringify(detail);
+    if (typeof c === 'string') code = c;
+    info = rest;
+  } catch {
+    // not json: an empty 5xx comes from the dev proxy while the API restarts, a gateway's own page from a proxy in production
+    if ((res.status >= 500 && !text.trim()) || res.status === 502 || res.status === 503 || res.status === 504) code = 'offline';
+  }
+  return new ApiError(res.status, msg || `HTTP ${res.status}`, code, info);
+}
+
+export async function req<T>(method: string, path: string, body?: unknown, { timeout, ...init }: RequestInit & { timeout?: number } = {}): Promise<T> {
   const headers: Record<string, string> = {};
   let payload: BodyInit | undefined;
   if (body instanceof FormData) payload = body;
@@ -27,29 +65,9 @@ export async function req<T>(method: string, path: string, body?: unknown, init:
     headers['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
-  const res = await fetch(path, { method, body: payload, headers, credentials: 'same-origin', ...init });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    let msg = res.statusText;
-    let code: string | undefined;
-    let info: Record<string, any> = {};
-    try {
-      // {detail, code, ...info}; an HTTPException may nest the same object under detail
-      let j = JSON.parse(text);
-      if (j?.detail && typeof j.detail === 'object' && !Array.isArray(j.detail)) j = { ...j.detail, detail: j.detail.detail ?? j.detail.message };
-      const { detail, code: c, ...rest } = j ?? {};
-      if (typeof detail === 'string') msg = detail;
-      // pydantic 422: a list of {loc, msg, type}; the first message says enough
-      else if (Array.isArray(detail)) msg = detail[0]?.msg ?? msg;
-      else if (detail != null) msg = JSON.stringify(detail);
-      if (typeof c === 'string') code = c;
-      info = rest;
-    } catch {
-      // not json: an empty 5xx comes from the dev proxy while the API restarts
-      if (res.status >= 500 && !text.trim()) code = 'offline';
-    }
-    throw new ApiError(res.status, msg || `HTTP ${res.status}`, code, info);
-  }
+  const signal = deadline(timeout ?? (method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS), init.signal);
+  const res = await fetch(path, { method, body: payload, headers, credentials: 'same-origin', ...init, signal });
+  if (!res.ok) throw await apiError(res);
   const ct = res.headers.get('content-type') ?? '';
   if (ct.includes('application/json')) return (await res.json()) as T;
   return (await res.blob()) as unknown as T;
@@ -57,7 +75,6 @@ export async function req<T>(method: string, path: string, body?: unknown, init:
 
 export const api = {
   me: () => req<Usage>('GET', '/api/me'),
-  consent: (contributor: boolean) => req<{ ok: boolean }>('POST', '/api/me/consent', { contributor }),
 
   projects: () => req<ProjectOut[]>('GET', '/api/projects'),
   gallery: () => req<ProjectOut[]>('GET', '/api/gallery'),
@@ -68,9 +85,16 @@ export const api = {
   openExample: (key: string, lang: string) => req<ProjectOut>('POST', `/api/examples/${encodeURIComponent(key)}`, { lang }),
   createProject: (title?: string, pack?: string) => req<ProjectOut>('POST', '/api/projects', { title, pack }),
   project: (id: string) => req<ProjectDetail>('GET', `/api/projects/${id}`),
-  patchProject: (id: string, body: { title?: string; pack?: string; public?: boolean }) => req<ProjectOut>('PATCH', `/api/projects/${id}`, body),
+  patchProject: (id: string, body: { title?: string; pack?: string; public?: boolean; listed?: boolean }) => req<ProjectOut>('PATCH', `/api/projects/${id}`, body),
   fork: (id: string) => req<ProjectOut>('POST', `/api/projects/${id}/fork`),
   replay: (id: string, speed = 4) => req<ProjectOut>('POST', `/api/projects/${id}/replay?speed=${speed}`),
+  /** The public replay gallery, picked runs first. */
+  replays: (q: { kind?: string; sort?: string; offset?: number } = {}) =>
+    req<FeaturedRun[]>('GET', `/api/replays?kind=${q.kind ?? ''}&sort=${q.sort ?? 'new'}&offset=${q.offset ?? 0}`),
+  /** The project's whole event log, for the player in the browser. */
+  replayLog: (id: string) => req<{ events: EventRow[] }>('GET', `/api/projects/${id}/log`),
+  replayView: (id: string) => req<{ views: number }>('POST', `/api/replays/${id}/view`),
+  replayHide: (id: string, hidden = true) => req<{ hidden: boolean }>('POST', `/api/replays/${id}/hide`, { hidden }),
 
   upload: (id: string, file: Blob, kind: string, filename?: string) => {
     const fd = new FormData();
@@ -85,18 +109,18 @@ export const api = {
   deleteSelection: (id: string, selId: string) => req<{ ok: boolean }>('DELETE', `/api/projects/${id}/selections/${selId}`),
 
   send: (id: string, text: string, asset_ids: string[] = [], opts: { model?: string; reasoning?: string } = {}) =>
-    req<{ job_id: string }>('POST', `/api/projects/${id}/messages`, { text, asset_ids, ...opts }),
+    req<{ job_id: string }>('POST', `/api/projects/${id}/messages`, { text, asset_ids, ...opts }, { timeout: QUICK_TIMEOUT_MS }),
   fingerprint: (printerId: string, assetId: string) =>
     req<Record<string, any>>('POST', `/api/printers/${encodeURIComponent(printerId)}/fingerprint`, { asset_id: assetId }),
-  answer: (jobId: string, answer: string) => req<{ ok: boolean }>('POST', `/api/jobs/${jobId}/answer`, { answer }),
-  cancel: (jobId: string) => req<{ ok: boolean }>('POST', `/api/jobs/${jobId}/cancel`),
+  answer: (jobId: string, answer: string) => req<{ ok: boolean }>('POST', `/api/jobs/${jobId}/answer`, { answer }, { timeout: QUICK_TIMEOUT_MS }),
+  cancel: (jobId: string) => req<{ ok: boolean }>('POST', `/api/jobs/${jobId}/cancel`, undefined, { timeout: QUICK_TIMEOUT_MS }),
 
   program: (id: string, version: number) => req<ProgramOut>('GET', `/api/projects/${id}/program/${version}`),
   versions: (id: string) => req<{ version: number; summary: string | null; author: string; created_at: number }[]>('GET', `/api/projects/${id}/versions`),
   saveParams: (id: string, params: Record<string, any>, checks?: unknown, client?: string) =>
-    req<{ version: number; params: Record<string, any> }>('PUT', `/api/projects/${id}/params`, { params, checks, client }),
+    req<{ version: number; params: Record<string, any> }>('PUT', `/api/projects/${id}/params`, { params, checks, client }, { timeout: QUICK_TIMEOUT_MS }),
   saveProgram: (id: string, body: { source: string; params: Record<string, any>; checks?: unknown; summary?: string; client?: string }) =>
-    req<{ version: number; params: Record<string, any> }>('PUT', `/api/projects/${id}/program`, body),
+    req<{ version: number; params: Record<string, any> }>('PUT', `/api/projects/${id}/program`, body, { timeout: QUICK_TIMEOUT_MS }),
   exportFile: (id: string, format: 'stl' | '3mf', params?: Record<string, any>) => req<Blob>('POST', `/api/projects/${id}/export`, { format, params }),
   render: (id: string, body: { view?: string; heat?: boolean; params?: Record<string, any> }) => req<Blob>('POST', `/api/projects/${id}/render`, body),
 
@@ -164,6 +188,8 @@ const CODE_TEXT: Record<string, string> = {
   upload_quota: 'err_upload_quota',
   model_busy: 'err_model_busy',
   offline: 'err_offline',
+  timeout: 'err_timeout',
+  catalog_unavailable: 'err_catalog',
   internal: 'err_internal',
 };
 
@@ -175,6 +201,14 @@ export function codeText(code: string | null | undefined): string | null {
 
 /** fetch() itself failed: the network is down or the server is restarting. */
 const isNetworkError = (e: unknown) => e instanceof TypeError && /fetch|network|load failed/i.test(e.message);
+/** The request's own deadline passed (deadline() above). */
+const isTimeout = (e: unknown) => (e as { name?: string } | null)?.name === 'TimeoutError';
+
+/** A failure that may be gone in a moment (the network, a restart, a busy model), so trying again makes sense; a refusal will not change. */
+export function isTransient(e: unknown): boolean {
+  if (e instanceof ApiError) return e.status >= 500 || e.code === 'offline' || e.code === 'model_busy';
+  return isNetworkError(e) || isTimeout(e);
+}
 
 export function errorText(e: unknown): string {
   if (e instanceof ApiError) {
@@ -189,6 +223,9 @@ export function errorText(e: unknown): string {
     return t('err_bad_input', { d: e.message });
   }
   if (isNetworkError(e)) return t('err_offline');
+  if (isTimeout(e)) return t('err_timeout');
+  // a reply that is not what it should be, or a slip of our own: nothing a person can read in the parser's words
+  if (e instanceof SyntaxError || e instanceof TypeError) return t('err_internal');
   if (e instanceof Error) return e.message;
   return String(e);
 }
@@ -197,7 +234,7 @@ export function errorText(e: unknown): string {
 export function errorInfo(e: unknown): { text: string; code?: string; projectId?: string; jobId?: string } {
   const text = errorText(e);
   if (e instanceof ApiError) return { text, code: e.code, projectId: e.info.project_id, jobId: e.info.job_id };
-  return { text, code: isNetworkError(e) ? 'offline' : undefined };
+  return { text, code: isNetworkError(e) ? 'offline' : isTimeout(e) ? 'timeout' : undefined };
 }
 
 export async function download(blob: Blob, filename: string) {

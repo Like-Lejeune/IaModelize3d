@@ -12,6 +12,10 @@ export type DevNode = {
   value?: string;
   package?: string;
   color?: string;
+  /** a button that is a mechanical key switch: 'mx' | 'choc' */
+  switch?: string;
+  /** a header that is a screw terminal: 'terminal_5' | 'terminal_3' */
+  connector?: string;
   lcsc?: string;
   module?: string;
   /** kind 'accessory': the key of a ready-made module in the library (an OLED, a soil probe, a LiPo), fitted by hand. */
@@ -68,7 +72,9 @@ export type DeviceDoc = {
 export type PartBits = {
   lcsc?: string; mpn?: string; brand?: string; package?: string; category?: string; description?: string; stock?: number; basic?: boolean;
   datasheet?: string; image?: string; url?: string; size_mm?: [number, number]; height_mm?: number; error?: string; mcu?: string; wireless?: string[];
-  kind_hint?: string; current_ma?: number;
+  kind_hint?: string; current_ma?: number; tht?: boolean;
+  /** A module on a connector: the connector the carrier gets, priced for one module. */
+  connector?: { lcsc?: string; mpn?: string; package?: string; basic?: boolean; stock?: number; url?: string; price_usd?: number | null };
 };
 export type PinView = { name: string; net: string | null; count?: number };
 /** face: what the case does over the part as the server resolved it (the node's own, or its kind's default). */
@@ -124,6 +130,8 @@ export type Quote = {
   qty: number; pcb_version: number; program_version: number | null; board_mm: [number, number]; usd_kzt: number;
   groups: QuoteGroup[]; bom: BomLine[]; total_usd: number; total_kzt: number; per_device_usd: number;
   timeline: { key: string; days: number; by: string }[]; eta: string; drc_ok: boolean; unverified: string[];
+  /** What the Axo shop sells the batch for: every group but delivery, which the shop adds. */
+  cart?: { price_kzt: number; lines: { key: string; kzt: number }[] };
 };
 export type DeviceOrder = {
   id: string; ref: string; project_id: string; pcb_version: number | null; program_version: number | null; quantity: number; status: string;
@@ -133,13 +141,19 @@ export type DeviceOrder = {
 const P = (id: string) => `/api/projects/${encodeURIComponent(id)}/device`;
 
 export const deviceApi = {
-  get: (id: string) => req<DeviceState>('GET', P(id)),
+  /** The latest state, or a replay's moment: that document version with that board. */
+  get: (id: string, at?: { version: number; pcb: number }) => req<DeviceState>('GET', at ? `${P(id)}?version=${at.version}&pcb=${at.pcb}` : P(id)),
   put: (id: string, doc: DeviceDoc, summary = '') => req<DeviceState>('PUT', P(id), { doc, summary }),
   build: (id: string) => req<{ started: boolean; building?: boolean }>('POST', `${P(id)}/build`),
   quote: (id: string, qty: number) => req<Quote>('GET', `${P(id)}/quote?qty=${qty}`),
-  order: (id: string, body: { qty: number; name?: string; contact?: string; city?: string; note?: string }) =>
-    req<DeviceOrder>('POST', `${P(id)}/order`, body),
+  order: (id: string, body: { qty: number; name?: string; contact?: string; city?: string; note?: string }, key?: string) =>
+    req<DeviceOrder>('POST', `${P(id)}/order`, body, key ? { headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key } } : {}),
   orders: (id: string) => req<DeviceOrder[]>('GET', `${P(id)}/orders`),
+  /** The whole device for the workshop, one ZIP. */
+  packageUrl: (id: string, qty: number) => `${P(id)}/package?qty=${qty}`,
+  /** The whole device as a batch in the Axo shop: `url` takes the buyer to their cart. */
+  axoCart: (id: string, body: { qty: number; replace?: string }) =>
+    req<{ url: string; design_id?: string; price_kzt: number; qty: number }>('POST', `${P(id)}/axo-cart`, body),
   firmwareUrl: (id: string, name: string) => `${P(id)}/firmware/${encodeURIComponent(name)}`,
   library: () => req<Library>('GET', '/api/device/library'),
   search: (q: string, basic = false) => req<PartCard[]>('GET', `/api/catalog/search?q=${encodeURIComponent(q)}&basic=${basic}&limit=12`),

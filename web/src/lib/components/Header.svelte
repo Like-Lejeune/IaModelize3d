@@ -1,15 +1,18 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import Logo from './Logo.svelte';
   import ThemePicker from './ThemePicker.svelte';
   import { t, toggleLang } from '$lib/i18n.svelte';
-  import { session, refreshMe, setConsent } from '$lib/session.svelte';
+  import { usd } from '$lib/device/i18n';
+  import { session, refreshMe } from '$lib/session.svelte';
   import { theme } from '$lib/theme/theme.svelte';
   import { page } from '$app/state';
   import { shop } from '$lib/shop/api';
   import { st } from '$lib/shop/i18n';
   import { onMount, type Snippet } from 'svelte';
 
-  let { children }: { children?: Snippet } = $props();
+  // bare: no bar at all, only the settings and the language in the page's corner (the home page); the links stay in the settings
+  let { children, bare = false }: { children?: Snippet; bare?: boolean } = $props();
   let open = $state(false);
   let wrap = $state<HTMLElement>();
 
@@ -28,7 +31,7 @@
   // pages size themselves against the header (sticky tabs, full-height studio)
   let headerEl = $state<HTMLElement>();
   $effect(() => {
-    if (!headerEl || typeof ResizeObserver === 'undefined') return;
+    if (bare || !headerEl || typeof ResizeObserver === 'undefined') return;
     const el = headerEl;
     const root = document.documentElement;
     const publish = () => root.style.setProperty('--header-h', `${el.offsetHeight}px`);
@@ -42,39 +45,42 @@
   });
 
   const pct = $derived(session.me ? Math.min(100, (session.me.today_usd / Math.max(0.01, session.me.limit_usd)) * 100) : 0);
-  const money = (v: number) => `$${v.toFixed(2)}`;
+  const money = (v: number) => usd(v);
+  // the day's spend belongs to the settings; it comes up here only when it is about to matter
+  const nearLimit = $derived(pct >= 80);
 </script>
 
 <!-- composedPath, not contains: the theme toggle swaps its icon on click, detaching the target -->
 <svelte:window onclick={(e) => open && wrap && !e.composedPath().includes(wrap) && (open = false)} onkeydown={(e) => e.key === 'Escape' && (open = false)} />
 
-<header class="hd" bind:this={headerEl}>
+<header class="hd" class:bare bind:this={headerEl}>
   <div class="hd-inner">
-    <a class="brand" href="/" aria-label="Formwright">
-      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--on-surface)" /><path d="M9 24V8h14v4h-9.5v3.5H21v4h-7.5V24z" fill="var(--primary)" /></svg>
-      <span class="name">Formwright</span>
-    </a>
-    <nav class="nav" aria-label={st('nav.menu')}>
-      <a href="/parts" class:on={at('/parts') && !path.startsWith('/parts/new')}><Icon name="package" size={16} /><span>{st('nav.parts')}</span></a>
-      <a href="/parts#orders" class:on={at('/orders')}><Icon name="history" size={16} /><span>{st('nav.orders')}</span></a>
-      {#if operator}<a href="/ops" class:on={at('/ops')}><Icon name="printer" size={16} /><span>{st('nav.ops')}</span></a>{/if}
-    </nav>
-    <div class="mid">{@render children?.()}</div>
-    <div class="actions" bind:this={wrap}>
-      <a class="btn icon parts" class:here={at('/parts') || at('/orders') || at('/ops')} href={operator ? '/ops' : '/parts'} aria-label={st(operator ? 'nav.ops' : 'nav.parts')} title={st(operator ? 'nav.ops' : 'nav.parts')}>
-        <Icon name={operator ? 'printer' : 'package'} size={18} />
+    {#if !bare}
+      <a class="brand" href="/" aria-label="Formwright">
+        <Logo size={26} />
+        <span class="name">Formwright</span>
       </a>
-      <a class="btn icon snap" href="/snap" aria-label={t('snap_title')} title={t('snap_title')}><Icon name="camera" size={18} /></a>
-      {#if session.me}
-        <button class="usage pressable" onclick={() => (open = !open)} aria-expanded={open} aria-haspopup="dialog" title={t('usage_hint')}>
-          <span class="lbl">{t('usage')}</span>
-          <span class="bar" aria-hidden="true"><span style:width="{pct}%"></span></span>
-          <span class="mono">{t('usage_of', { a: money(session.me.today_usd), b: money(session.me.limit_usd) })}</span>
-          <span class="mono short">{money(session.me.today_usd)}</span>
+      <nav class="nav" aria-label={st('nav.menu')}>
+        <a href="/replays" class:on={at('/replays')}><Icon name="play" size={16} /><span>{t('replays')}</span></a>
+        <a href="/parts" class:on={at('/parts') && !path.startsWith('/parts/new')}><Icon name="package" size={16} /><span>{st('nav.parts')}</span></a>
+        <a href="/parts#orders" class:on={at('/orders')}><Icon name="history" size={16} /><span>{st('nav.orders')}</span></a>
+        {#if operator}<a href="/ops" class:on={at('/ops')}><Icon name="printer" size={16} /><span>{st('nav.ops')}</span></a>{/if}
+      </nav>
+      <div class="mid">{@render children?.()}</div>
+    {/if}
+    <div class="actions" bind:this={wrap}>
+      {#if !bare}
+        <a class="btn icon parts" class:here={at('/parts') || at('/orders') || at('/ops')} href={operator ? '/ops' : '/parts'} aria-label={st(operator ? 'nav.ops' : 'nav.parts')} title={st(operator ? 'nav.ops' : 'nav.parts')}>
+          <Icon name={operator ? 'printer' : 'package'} size={18} />
+        </a>
+      {/if}
+      {#if session.me && nearLimit}
+        <button class="usage" onclick={() => (open = !open)} aria-expanded={open} aria-haspopup="dialog" title={t('usage_hint')}>
+          {t('usage')}: {t('usage_of', { a: money(session.me.today_usd), b: money(session.me.limit_usd) })}
         </button>
       {/if}
       <button class="btn icon" onclick={() => (open = !open)} onpointerenter={() => theme.preload()} aria-expanded={open} aria-haspopup="dialog" aria-label={t('settings')} title={t('settings')}>
-        <Icon name="palette" size={18} />
+        <Icon name="gear" size={18} />
       </button>
       <button class="btn icon lang" onclick={toggleLang} aria-label={t('language')}>{t('lang')}</button>
       {#if open}
@@ -82,6 +88,7 @@
           <section class="links">
             <h3 class="section-title">{st('nav.menu')}</h3>
             <div class="row">
+              <a class="btn small" href="/replays" onclick={() => (open = false)}><Icon name="play" size={14} /> {t('replays')}</a>
               <a class="btn small" href="/parts" onclick={() => (open = false)}><Icon name="package" size={14} /> {st('nav.parts')}</a>
               <a class="btn small" href="/parts#orders" onclick={() => (open = false)}><Icon name="history" size={14} /> {st('nav.orders')}</a>
               {#if operator}<a class="btn small" href="/ops" onclick={() => (open = false)}><Icon name="printer" size={14} /> {st('nav.ops')}</a>{/if}
@@ -95,18 +102,10 @@
             <section>
               <div class="prow">
                 <h3 class="section-title">{t('usage')}</h3>
-                <span class="chip">{session.me.tier}</span>
               </div>
               <div class="meter"><span style:width="{pct}%"></span></div>
-              <div class="mono small">{t('usage_of', { a: money(session.me.today_usd), b: money(session.me.limit_usd) })} · {session.me.jobs_today}</div>
+              <div class="small">{t('usage_of', { a: money(session.me.today_usd), b: money(session.me.limit_usd) })}</div>
               <p class="small muted">{t('usage_hint')}</p>
-              <label class="consent">
-                <input type="checkbox" checked={session.me.contributor_consent} onchange={(e) => setConsent((e.currentTarget as HTMLInputElement).checked)} />
-                <span>
-                  <strong class="small">{t('contributor')}</strong>
-                  <span class="muted xs">{t('contributor_hint')}</span>
-                </span>
-              </label>
             </section>
           {/if}
         </div>
@@ -125,6 +124,19 @@
     z-index: 100;
     width: 100%;
   }
+  .hd.bare {
+    position: absolute;
+    right: 0;
+    width: auto;
+    background: none;
+    border-bottom: none;
+  }
+  .bare .actions {
+    background: none;
+  }
+  .bare .btn.icon {
+    border-color: transparent;
+  }
   .hd-inner {
     display: flex;
     align-items: center;
@@ -135,19 +147,13 @@
   .brand {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     color: var(--on-surface);
     text-decoration: none;
     flex-shrink: 0;
-    margin-right: var(--space-2);
-    font-size: var(--text-card-name);
-    font-weight: var(--font-weight-bold);
-    letter-spacing: -0.3px;
-  }
-  .mark {
-    width: 34px;
-    height: 34px;
-    display: block;
+    margin-right: var(--space-3);
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-semibold);
   }
   .mid {
     flex: 1;
@@ -167,7 +173,7 @@
     padding: 0 12px;
     border-radius: var(--radius-btn);
     color: var(--on-surface-var);
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     font-weight: var(--font-weight-semibold);
     text-decoration: none;
     transition:
@@ -179,15 +185,15 @@
     color: var(--on-surface);
   }
   .nav a.on {
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--on-surface);
+    background: var(--surface-high);
   }
   /* the links fold into one icon (and the settings menu) where the room runs out */
   .btn.icon.parts {
     display: none;
   }
   .btn.icon.parts.here {
-    color: var(--primary);
+    color: var(--on-surface);
   }
   .hd-inner:has(.mid > :global(*)) .nav span {
     display: none;
@@ -203,53 +209,33 @@
     margin-left: auto;
     flex-shrink: 0;
   }
+  /* a plain line of text, only near the day's limit */
   .usage {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    height: 42px;
-    padding: 0 14px;
-    background: transparent;
-    border: var(--border-width) solid var(--outline-variant);
-    border-radius: var(--radius-btn);
-    color: var(--on-surface);
-    font-family: inherit;
-    font-size: var(--text-card-from);
-    font-weight: var(--font-weight-semibold);
-    transition: background-color var(--dur-fast) var(--ease-standard);
+    border: none;
+    background: none;
+    padding: 0 var(--space-2);
+    color: var(--warn-text);
+    font: inherit;
+    font-size: var(--text-md);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
   }
-  .usage:hover {
-    background: var(--surface-high);
-  }
-  .usage .lbl {
-    color: var(--outline);
-  }
-  .bar,
   .meter {
     background: var(--surface-high);
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     overflow: hidden;
-  }
-  .bar {
-    width: 36px;
-    height: 5px;
-    display: inline-block;
   }
   .meter {
     height: 6px;
   }
-  .bar span,
   .meter span {
     display: block;
     height: 100%;
     background: var(--primary);
   }
   .lang {
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     font-weight: var(--font-weight-bold);
-  }
-  .btn.icon.snap {
-    color: var(--primary);
   }
   .pop {
     position: absolute;
@@ -282,29 +268,6 @@
     justify-content: space-between;
     align-items: center;
   }
-  .consent {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-    cursor: pointer;
-  }
-  .consent span {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .usage .short {
-    display: none;
-  }
-  /* tablets with a page's own bar here (the studio title): the spend meter keeps just the amount */
-  @media (max-width: 960px) {
-    .hd-inner:has(.mid > :global(*)) .usage :is(.lbl, .mono) {
-      display: none;
-    }
-    .hd-inner:has(.mid > :global(*)) .usage .mono.short {
-      display: inline;
-    }
-  }
   @media (max-width: 1100px) {
     .hd-inner:has(.mid > :global(*)) .nav {
       display: none;
@@ -322,13 +285,8 @@
     }
   }
   @media (max-width: 640px) {
-    .name,
-    .usage .lbl,
-    .usage .mono {
+    .name {
       display: none;
-    }
-    .usage .mono.short {
-      display: inline;
     }
   }
   /* phones in the studio: the title, the snap button and settings need the room more than the spend meter */

@@ -51,7 +51,7 @@
 
   onMount(() => {
     load();
-    const id = setInterval(() => pending && load(), 5000);
+    const id = setInterval(() => (pending || error) && load(), 5000);
     return () => clearInterval(id);
   });
 
@@ -146,19 +146,21 @@
             <button class="btn" onclick={startSelect}><Icon name="printer" size={18} /> <span class="lbl">{ct('select')}</span></button>
           {/if}
         {/if}
-        <a class="btn primary" href="/snap"><Icon name="camera" size={18} /> {t('snap')}</a>
+        <!-- with nothing collected yet the empty state below has this button -->
+        {#if shown.length}<a class="btn primary" href="/snap"><Icon name="camera" size={18} /> {t('snap')}</a>{/if}
       </div>
     </div>
 
-    {#if error}<p class="err small" role="alert">{error}</p>{/if}
+    {#if error}<p class="err small" role="alert">{error} <button class="btn small" onclick={load}>{t('retry')}</button></p>{/if}
 
-    {#if items === null && !error}
-      <div class="grid">
-        {#each [0, 1, 2, 3] as i (i)}<div class="card sk"></div>{/each}
-      </div>
+    {#if items === null}
+      {#if !error}
+        <div class="grid">
+          {#each [0, 1, 2, 3] as i (i)}<div class="card sk"></div>{/each}
+        </div>
+      {/if}
     {:else if !shown.length}
       <div class="empty">
-        <span class="empty-ic"><Icon name="scan" size={36} /></span>
         <p>{t('collection_empty')}</p>
         <a class="btn primary large" href="/snap"><Icon name="camera" size={18} /> {t('snap_title')}</a>
       </div>
@@ -248,8 +250,8 @@
     flex: none;
   }
   h1 {
-    font-size: var(--text-cart-h1);
-    font-weight: var(--font-weight-bold);
+    font-size: var(--text-3xl);
+    font-weight: var(--font-weight-semibold);
   }
   .head p {
     margin: 4px 0 0;
@@ -272,7 +274,7 @@
   }
   .walk-head h2 {
     margin: 0;
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     font-weight: var(--font-weight-bold);
   }
   .walk-head h2 .muted {
@@ -289,14 +291,11 @@
     overflow: hidden;
     color: var(--on-surface);
     text-decoration: none;
-    transition:
-      border-color var(--dur-fast) var(--ease-standard),
-      transform var(--dur-base) var(--ease-settle);
+    transition: border-color var(--dur-fast) var(--ease-standard);
   }
   .item:hover {
     text-decoration: none;
     border-color: var(--outline);
-    transform: translateY(-2px);
   }
   button.item {
     padding: 0;
@@ -338,7 +337,7 @@
     overflow: hidden;
   }
   .pic.model {
-    background: #f6f6f3;
+    background: var(--render-bg);
   }
   .pic img {
     width: 100%;
@@ -384,7 +383,7 @@
     min-width: 0;
   }
   .meta strong {
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -405,16 +404,7 @@
     margin: 0;
     max-width: 420px;
     color: var(--on-surface-var);
-    font-size: var(--text-product-lead);
-  }
-  .empty-ic {
-    width: 76px;
-    height: 76px;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    font-size: var(--text-lg);
   }
 
   /* the print dock: what goes on the plate, then the plate itself */
@@ -425,7 +415,7 @@
     transform: translateX(-50%);
     width: min(560px, calc(100vw - 32px));
     padding: var(--space-3) var(--space-4);
-    border-radius: 18px;
+    border-radius: var(--radius-xl);
     background: var(--surface-container);
     border: var(--border-width) solid var(--outline-variant);
     box-shadow: 0 10px 40px rgb(0 0 0 / 0.35);
@@ -462,8 +452,8 @@
     width: 96px;
     height: 96px;
     object-fit: contain;
-    border-radius: 10px;
-    background: #f6f6f3;
+    border-radius: var(--radius-md);
+    background: var(--render-bg);
   }
   .res-text {
     display: flex;

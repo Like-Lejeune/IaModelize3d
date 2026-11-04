@@ -95,14 +95,16 @@ FW_FASTLED_CHIPSET(UCS1903)
 FW_FASTLED_CHIPSET(GS1903)
 template <uint8_t DATA_PIN> class NEOPIXEL {};
 
+CLEDController &fw_fastled_add(CRGB *data, int n, int pin);
+
 class CFastLED {
 public:
   template <template <uint8_t DATA_PIN, EOrder RGB_ORDER> class CHIPSET, uint8_t DATA_PIN, EOrder RGB_ORDER>
-  static CLEDController &addLeds(CRGB *data, int nLedsOrOffset, int nLedsIfOffset = 0);
+  static CLEDController &addLeds(CRGB *data, int nLedsOrOffset, int nLedsIfOffset = 0) { return fw_fastled_add(data, nLedsIfOffset ? nLedsIfOffset : nLedsOrOffset, DATA_PIN); }
   template <template <uint8_t DATA_PIN, EOrder RGB_ORDER> class CHIPSET, uint8_t DATA_PIN>
-  static CLEDController &addLeds(CRGB *data, int nLedsOrOffset, int nLedsIfOffset = 0);
+  static CLEDController &addLeds(CRGB *data, int nLedsOrOffset, int nLedsIfOffset = 0) { return fw_fastled_add(data, nLedsIfOffset ? nLedsIfOffset : nLedsOrOffset, DATA_PIN); }
   template <template <uint8_t DATA_PIN> class CHIPSET, uint8_t DATA_PIN>
-  static CLEDController &addLeds(CRGB *data, int nLedsOrOffset, int nLedsIfOffset = 0);
+  static CLEDController &addLeds(CRGB *data, int nLedsOrOffset, int nLedsIfOffset = 0) { return fw_fastled_add(data, nLedsIfOffset ? nLedsIfOffset : nLedsOrOffset, DATA_PIN); }
   void setBrightness(uint8_t scale);
   uint8_t getBrightness();
   void setMaxPowerInVoltsAndMilliamps(uint8_t volts, uint32_t milliamps);

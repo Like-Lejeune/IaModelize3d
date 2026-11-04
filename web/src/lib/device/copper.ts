@@ -11,7 +11,7 @@ export type Route = { from: string; to: string; layer: Layer; width: number; poi
 export type Pad = { key: string; comp: string; x: number; y: number; dx: number; dy: number; w: number; h: number; round: boolean; tht: boolean; net: string };
 export type Seg = { x1: number; y1: number; x2: number; y2: number; layer: Layer; w: number };
 export type Trace = { id: string; hand: boolean; from: string | null; to: string | null; net: string; segs: Seg[]; vias: [number, number][]; route: any[] };
-export type Part = { id: string; x: number; y: number; rot: number; w: number; h: number };
+export type Part = { id: string; x: number; y: number; rot: number; w: number; h: number; silk?: [number, number][][] };
 export type Pose = { x: number; y: number; rot: number };
 /** A pour as built: its outline and the holes the solver cut round other nets' copper. */
 export type Pour = { layer: Layer; net: string; rings: [number, number][][] };
@@ -101,7 +101,9 @@ export function readCopper(cj: any[]): Copper | null {
   for (const n of cj.filter((e) => e.type === 'source_net')) if (n.name) netName[find(`net:${n.source_net_id}`)] = n.name;
   const keyOf = (pcbPort?: string) => (pcbPort ? srcKey.get(pcbSrc.get(pcbPort) ?? '') ?? null : null);
   const compName = new Map<string, string>(cj.filter((e) => e.type === 'pcb_component').map((c) => [c.pcb_component_id, name.get(c.source_component_id) ?? '']));
-  const compAt = new Map<string, [number, number]>(cj.filter((e) => e.type === 'pcb_component').map((c) => [c.pcb_component_id, [c.center.x, c.center.y]]));
+  // a part stands at its footprint's origin (what place and pcb say), which is not always the middle of its pads
+  const originOf = (c: any): { x: number; y: number } => c.footprint_origin ?? c.center;
+  const compAt = new Map<string, [number, number]>(cj.filter((e) => e.type === 'pcb_component').map((c) => [c.pcb_component_id, [originOf(c).x, originOf(c).y]]));
   const netOf = (pcbPort?: string) => find(pcbSrc.get(pcbPort ?? '') ?? `lone:${pcbPort}`);
 
   const pads: Pad[] = [];
@@ -133,7 +135,26 @@ export function readCopper(cj: any[]): Copper | null {
   }
   const parts: Part[] = cj
     .filter((e) => e.type === 'pcb_component' && name.get(e.source_component_id))
-    .map((c) => ({ id: name.get(c.source_component_id)!, x: r3(c.center.x - cx), y: r3(c.center.y - cy), rot: (((c.rotation ?? 0) % 360) + 360) % 360, w: c.width ?? 1, h: c.height ?? 1 }));
+    .map((c) => {
+      const o = originOf(c), rot = (((c.rotation ?? 0) % 360) + 360) % 360;
+      // the box round the origin: as far as the pads reach from it, or the courtyard a part such as a key switch states
+      const court = cj.find((e) => e.type === 'pcb_courtyard_rect' && e.pcb_component_id === c.pcb_component_id);
+      const off = [Math.abs(c.center.x - o.x), Math.abs(c.center.y - o.y)];
+      const w = court && rot % 180 === 0 ? court.width : court ? court.height : (c.width ?? 1) + 2 * off[0];
+      const h = court && rot % 180 === 0 ? court.height : court ? court.width : (c.height ?? 1) + 2 * off[1];
+      // the silkscreen in the part's own frame, turned with it: a module's real outline and its USB connector
+      const a = (-rot * Math.PI) / 180, local = (x: number, y: number): [number, number] => [r3((x - o.x) * Math.cos(a) - (y - o.y) * Math.sin(a)), r3((x - o.x) * Math.sin(a) + (y - o.y) * Math.cos(a))];
+      const silk: [number, number][][] = [];
+      for (const e of cj) {
+        if (e.pcb_component_id !== c.pcb_component_id || e.layer === 'bottom') continue;
+        if (e.type === 'pcb_silkscreen_path') silk.push(e.route.map((q: any) => local(q.x, q.y)));
+        else if (e.type === 'pcb_silkscreen_rect') {
+          const [x, y, hw, hh] = [e.center.x, e.center.y, e.width / 2, e.height / 2];
+          silk.push([[x - hw, y - hh], [x + hw, y - hh], [x + hw, y + hh], [x - hw, y + hh], [x - hw, y - hh]].map(([u, v]) => local(u, v)));
+        }
+      }
+      return { id: name.get(c.source_component_id)!, x: r3(o.x - cx), y: r3(o.y - cy), rot, w, h, silk };
+    });
   const holes = cj.filter((e) => e.type === 'pcb_hole').map((e) => ({ x: e.x - cx, y: e.y - cy, d: e.hole_diameter ?? 3.2 }));
   const portAt = new Map<string, [number, number]>();
   const portOf = new Map<string, { comp: string; dx: number; dy: number }>();

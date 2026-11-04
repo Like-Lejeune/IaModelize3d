@@ -44,7 +44,7 @@ async def test_anonymous_spend_is_capped_per_ip(fresh_db, monkeypatch):
     await quotas.settle("u1", 0.18)
     user = await db.one("SELECT * FROM users WHERE id = 'u2'")
     with pytest.raises(quotas.QuotaExceeded) as e:
-        await quotas.reserve(user, 0.6)
+        await quotas.headroom(user)
     assert e.value.code == "ip_daily_cap"
 
 

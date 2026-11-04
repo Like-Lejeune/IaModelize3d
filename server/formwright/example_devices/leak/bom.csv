@@ -1,0 +1,10 @@
+Comment,Designator,Footprint,LCSC,lcsc_verified
+113991054,U1,,,false
+C2337,PR1,pinrow2_p2.54_nopinlabels,C2337,false
+YX-YT9042 3v,BZ1,C781847,C781847,false
+S8050 J3Y(RANGE:200-350),Q1,C2146,C2146,false
+B5819W,D1,sod123,C8598,false
+1k,"RB,R2,RL",res0603,C21190,false
+100k,R1,res0603,C25803,false
+C2286,LED1,0603_color(red),C2286,false
+C110153,SW1,pushbutton,C110153,false

@@ -83,10 +83,10 @@
     padding: 5px 4px;
     border-bottom: 1px solid var(--divider);
     vertical-align: top;
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
   th {
-    font-size: 11px;
+    font-size: var(--text-xs);
     font-weight: var(--font-weight-medium);
     color: var(--on-surface-var);
   }
@@ -94,9 +94,9 @@
     opacity: 0.75;
   }
   .tag {
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     padding: 0 5px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     color: var(--c);
     border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
     background: color-mix(in srgb, var(--c) 12%, transparent);
@@ -106,7 +106,7 @@
   }
   .gp {
     display: block;
-    font-size: 10px;
+    font-size: var(--text-2xs);
     color: var(--on-surface-var);
   }
   .gp.strap {

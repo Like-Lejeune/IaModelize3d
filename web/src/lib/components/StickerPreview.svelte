@@ -254,8 +254,8 @@
     gap: 6px;
     white-space: nowrap;
     padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 11px;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
     font-weight: var(--font-weight-semibold);
     background: color-mix(in srgb, var(--surface-container) 82%, transparent);
     color: var(--on-surface-var);

@@ -6,6 +6,7 @@ import base64
 import io
 import json
 import logging
+import sqlite3
 from typing import Any
 
 from PIL import Image
@@ -180,16 +181,25 @@ async def breed_job(ctx: JobContext, payload: dict[str, Any]) -> str:
     # programs that read lib.inputs (photo outlines, heightmaps, uploaded meshes) need their parent's inputs to build
     inputs = parents[0]["inputs"] or {}
     for child in children:
+        if not isinstance(child, dict) or not isinstance(child.get("source"), str):
+            log.info("child without a program: %r", str(child)[:200])
+            continue
+        child = {**child, "summary": str(child.get("summary") or "")}
         try:
             built = await geom().build(child["source"], {}, analyze="fast", inputs=inputs)
             png = await geom().render(child["source"], {}, view="iso", tile=384, inputs=inputs)
         except GeomError as e:
             log.info("child failed: %s", e)
             continue
-        version += 1
+        # the next free number at the last moment: a slider edit or the agent may have taken one meanwhile
+        version = max(version, (await _latest(ctx))["version"]) + 1  # type: ignore[index]
+        try:
+            await db.insert("programs", {"project_id": ctx.project_id, "version": version, "source": child["source"], "params": built["params"], "inputs": parents[0]["inputs"],
+                                         "summary": "variant: " + child["summary"][:200], "checks": built.get("checks"), "author": "breed", "created_at": now()})
+        except sqlite3.IntegrityError as e:
+            log.info("child lost its version number: %s", e)
+            continue
         rel = storage.save_bytes(ctx.project_id, "renders", f"v{version}_iso.png", base64.b64decode(png["png"]))
-        await db.insert("programs", {"project_id": ctx.project_id, "version": version, "source": child["source"], "params": built["params"], "inputs": parents[0]["inputs"],
-                                     "summary": "variant: " + child["summary"][:200], "checks": built.get("checks"), "author": "breed", "created_at": now()})
         items.append({"version": version, "render": storage.url(rel), "summary": child["summary"][:200], "ok": built.get("checks", {}).get("ok", True)})
     if items:
         await db.update("projects", "id", ctx.project_id, {"version": version, "updated_at": now()})

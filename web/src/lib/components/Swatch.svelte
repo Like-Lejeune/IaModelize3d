@@ -89,7 +89,7 @@
     border: var(--border-width) solid var(--outline-variant);
     border-radius: var(--radius-field);
     padding: 5px 9px;
-    font-size: var(--text-card-meta);
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-medium);
     white-space: nowrap;
     pointer-events: none;

@@ -39,7 +39,7 @@ const usb = (edge: '+x' | '-x' | '+y' | '-y', at: number): BoardComponent =>
 const OLED: BoardAccessory = { id: 'OLED1', key: 'oled_ssd1306_096', kind: 'display', mount: 'board', x: 25, y: 20, w: 27.3, d: 27.8, h: 3.7, z0: 8.5, window: [23, 12], window_dy: 1 };
 
 test('fw.board/1 schema: the new access kinds, window/shape and accessories', () => {
-  assert.deepEqual(schema.$defs.component.properties.access.enum, ['port', 'press', 'light', 'sensor', 'display', 'sound', 'cable', 'none']);
+  assert.deepEqual(schema.$defs.component.properties.access.enum, ['port', 'press', 'light', 'sensor', 'display', 'sound', 'key', 'cable', 'none']);
   assert.ok(schema.$defs.component.properties.window && schema.$defs.component.properties.shape);
   assert.deepEqual(schema.$defs.accessory.properties.mount.enum, ['board', 'cable', 'inside']);
   assert.equal(schema.properties.accessories.items.$ref, '#/$defs/accessory');

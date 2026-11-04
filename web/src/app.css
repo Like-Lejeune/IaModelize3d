@@ -30,12 +30,22 @@
 
   --error: #d98b7e;
 
+  /* what a render without a backdrop sits on */
+  --render-bg: var(--surface-container-low);
+
   /* status colours for checks and sources; "ok" is the theme colour */
   --ok: var(--primary);
   --warn: #e6b045;
   --warn-text: var(--warn);
   --info: #7fb7ff;
   --info-text: #a9cbff;
+
+  /* the schematic's nets: supplies by kind, the lightness of the signal hues */
+  --net-gnd: var(--on-surface-var);
+  --net-3v3: #c79bf0;
+  --net-5v: #e0a35a;
+  --net-bat: #6fc3df;
+  --net-l: 68%;
 
   --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.35);
   --shadow-modal: 0 12px 40px rgba(0, 0, 0, 0.4);
@@ -47,6 +57,12 @@
   --radius-field: 8px;
   --radius-swatch: 6px;
   --radius-tag: 6px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 18px;
+  --radius-full: 999px;
 
   --border-width: 1px;
 
@@ -78,28 +94,24 @@
   --t-bump: 260ms;
   --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
 
-  --font-sans: 'Archivo', system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, 'Cascadia Code', Menlo, Consolas, monospace;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
-  --font-weight-extrabold: 800;
 
-  --text-card-name: 18px;
-  --text-card-price: 26px;
-  --text-card-from: 13px;
-  --text-card-meta: 12px;
-  --text-card-section-label: 11px;
-  --text-product-h1: 25px;
-  --text-product-rating: 14px;
-  --text-product-price: 33px;
-  --text-product-lead: 15px;
-  --text-product-spec: 14px;
-  --text-product-section-title: 18px;
-  --text-cart-h1: 24px;
-
-  --tracking-section-label: 1px;
+  /* the type scale: one size per role, shrunk one step inside the device workspace */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+  --text-4xl: 36px;
 
   --scheme: dark;
   color-scheme: var(--scheme);
@@ -241,11 +253,19 @@
 /* status text needs more contrast on light surfaces; a chosen theme sets data-theme */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
+    --net-3v3: #6d3fd1;
+    --net-5v: #8a5a00;
+    --net-bat: #0f6f8f;
+    --net-l: 36%;
     --info-text: #1b5599;
     --warn-text: #7a4f00;
   }
 }
 :root[data-theme='light'] {
+  --net-3v3: #6d3fd1;
+  --net-5v: #8a5a00;
+  --net-bat: #0f6f8f;
+  --net-l: 36%;
   --info-text: #1b5599;
   --warn-text: #7a4f00;
 }
@@ -264,7 +284,7 @@ body {
   background: var(--surface);
   color: var(--on-surface);
   font-weight: var(--font-weight-regular);
-  font-size: var(--text-product-spec);
+  font-size: var(--text-base);
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
   text-rendering: optimizeLegibility;
@@ -274,6 +294,16 @@ body {
 *::before,
 *::after {
   box-sizing: border-box;
+}
+/* one quiet scrollbar everywhere; panels stack several of them */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--outline-variant) transparent;
+}
+/* an explicit weight: `bolder` inside a semibold link would otherwise reach 900 */
+strong,
+b {
+  font-weight: var(--font-weight-semibold);
 }
 a {
   color: var(--primary);
@@ -352,7 +382,7 @@ html[data-theme-shift] *::after {
   justify-content: center;
   gap: 8px;
   font-family: inherit;
-  font-size: var(--text-product-spec);
+  font-size: var(--text-base);
   font-weight: var(--font-weight-semibold);
   line-height: 1.25;
   border-radius: var(--radius-btn);
@@ -409,12 +439,12 @@ html[data-theme-shift] *::after {
   border-color: var(--error);
 }
 .btn.small {
-  font-size: var(--text-card-from);
+  font-size: var(--text-md);
   padding: 7px 12px;
   gap: 6px;
 }
 .btn.large {
-  font-size: var(--text-product-lead);
+  font-size: var(--text-lg);
   padding: 14px 22px;
 }
 .btn.block {
@@ -425,7 +455,7 @@ html[data-theme-shift] *::after {
   width: 42px;
   height: 42px;
   padding: 0;
-  font-size: var(--text-product-section-title);
+  font-size: var(--text-xl);
   background: transparent;
   color: var(--on-surface-var);
 }
@@ -436,7 +466,7 @@ html[data-theme-shift] *::after {
 .btn.icon.small {
   width: 34px;
   height: 34px;
-  font-size: var(--text-product-spec);
+  font-size: var(--text-base);
 }
 .btn.icon.ghost {
   border-color: transparent;
@@ -483,7 +513,7 @@ select {
   min-width: 0;
   color: var(--on-surface);
   font-family: inherit;
-  font-size: var(--text-product-spec);
+  font-size: var(--text-base);
   font-weight: var(--font-weight-regular);
   outline: none;
   transition:
@@ -553,7 +583,7 @@ textarea:disabled {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: var(--text-card-meta);
+  font-size: var(--text-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--outline);
   min-width: 0;
@@ -570,10 +600,10 @@ textarea:disabled {
   color: var(--outline);
 }
 .small {
-  font-size: var(--text-card-from);
+  font-size: var(--text-md);
 }
 .xs {
-  font-size: var(--text-card-meta);
+  font-size: var(--text-sm);
 }
 .mono {
   font-family: var(--font-mono);
@@ -589,7 +619,7 @@ textarea:disabled {
   min-height: 22px;
   padding: 0 var(--space-2);
   border-radius: var(--radius-tag);
-  font-size: var(--text-card-meta);
+  font-size: var(--text-sm);
   font-weight: var(--font-weight-semibold);
   line-height: 1.25;
   white-space: nowrap;
@@ -620,7 +650,7 @@ textarea:disabled {
 /* filter / choice chip */
 button.chip {
   font-family: inherit;
-  font-size: var(--text-card-from);
+  font-size: var(--text-md);
   padding: 8px 15px;
   border-radius: var(--radius-chip);
   border-color: var(--outline-variant);
@@ -679,19 +709,17 @@ button.chip:disabled {
   border: 0;
 }
 .section-title {
-  font-size: var(--text-card-section-label);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: var(--tracking-section-label);
-  text-transform: uppercase;
-  color: var(--outline);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--on-surface-var);
   margin: 0;
 }
 .kbd {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   border: var(--border-width) solid var(--outline-variant);
   border-bottom-width: 2px;
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   padding: 0 5px;
   color: var(--outline);
 }
@@ -712,7 +740,7 @@ button.chip:disabled {
   justify-content: center;
   gap: 6px;
   font-family: inherit;
-  font-size: var(--text-card-from);
+  font-size: var(--text-md);
   font-weight: var(--font-weight-semibold);
   padding: 9px 16px;
   color: var(--on-surface-var);
@@ -782,7 +810,7 @@ button.chip:disabled {
   font-family: var(--font-mono);
   background: var(--surface-high);
   padding: 0 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 0.9em;
 }
 .md pre {
@@ -790,13 +818,13 @@ button.chip:disabled {
   padding: 8px;
   border-radius: var(--radius-btn);
   overflow-x: auto;
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .md h3,
 .md h4,
 .md h5 {
   margin: 8px 0 4px;
-  font-size: var(--text-product-lead);
+  font-size: var(--text-lg);
 }
 .md strong {
   font-weight: var(--font-weight-semibold);

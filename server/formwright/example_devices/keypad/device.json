@@ -1,0 +1,172 @@
+{
+ "schema": "fw.device/1",
+ "title": "Клавиатура на 4 кнопки",
+ "summary": "Проводной USB макропад 2x2 на механических свитчах",
+ "board": {
+  "holes": true,
+  "w": 54.0,
+  "h": 68.0
+ },
+ "nodes": [
+  {
+   "id": "U1",
+   "kind": "module",
+   "label": "MCU",
+   "module": "113991114",
+   "edge": "+y"
+  },
+  {
+   "id": "SW1",
+   "kind": "button",
+   "label": "key 1",
+   "switch": "mx"
+  },
+  {
+   "id": "SW2",
+   "kind": "button",
+   "label": "key 2",
+   "switch": "mx"
+  },
+  {
+   "id": "SW3",
+   "kind": "button",
+   "label": "key 3",
+   "switch": "mx"
+  },
+  {
+   "id": "SW4",
+   "kind": "button",
+   "label": "key 4",
+   "switch": "mx"
+  }
+ ],
+ "nets": [
+  {
+   "pins": [
+    "U1.GND",
+    "SW1.B",
+    "SW2.B",
+    "SW3.B",
+    "SW4.B"
+   ],
+   "name": "GND"
+  },
+  {
+   "pins": [
+    "U1.D0",
+    "SW1.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D1",
+    "SW2.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D3",
+    "SW3.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.MOSI",
+    "SW4.A"
+   ]
+  }
+ ],
+ "layouts": [
+  {
+   "pattern": "grid",
+   "nodes": [
+    "SW1",
+    "SW2",
+    "SW3",
+    "SW4"
+   ],
+   "center": [
+    0.0,
+    -13.0
+   ],
+   "pitch": 19.05,
+   "cols": 2,
+   "rot": 0.0
+  }
+ ],
+ "requirements": [
+  {
+   "id": "R1",
+   "text": "4 механические клавиши отправляют USB HID клавиши",
+   "parts": [
+    "SW1",
+    "SW2",
+    "SW3",
+    "SW4"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R2",
+   "text": "работает по USB-C модуля как проводная HID-клавиатура",
+   "parts": [
+    "U1"
+   ],
+   "firmware": true
+  }
+ ],
+ "concept": {
+  "uses": [
+   "на столе рядом с клавиатурой: запуск макросов одной рукой",
+   "для презентаций и стримов: переключение сцен",
+   "как пульт для умного дома через USB HID"
+  ],
+  "options": [
+   {
+    "name": "Desk pad 2x2",
+    "look": "плоский пультик 2x2 клавиши сверху, USB сзади",
+    "panel": "4 клавиши сеткой 2x2 в центре крышки, USB-C модуля сзади",
+    "form": "soft",
+    "stance": "desk",
+    "mounting": "none",
+    "module_edge": "+y",
+    "board": {
+     "shape": "rect",
+     "w": 54.0,
+     "h": 60.0
+    }
+   },
+   {
+    "name": "Strip tilt",
+    "look": "полоска из 4 клавиш в ряд, наклонная подставка",
+    "panel": "4 клавиши в ряд на наклонной крышке, USB сбоку",
+    "form": "soft",
+    "stance": "tilt",
+    "mounting": "none",
+    "module_edge": "-y",
+    "board": {
+     "shape": "rect",
+     "w": 90.0,
+     "h": 70.0
+    }
+   },
+   {
+    "name": "Puck",
+    "look": "круглая шайба, клавиши ромбом",
+    "panel": "4 клавиши ромбом на круглой крышке",
+    "form": "round",
+    "stance": "hand",
+    "mounting": "lanyard",
+    "module_edge": "-y",
+    "board": {
+     "shape": "round",
+     "w": 60.0,
+     "h": 60.0
+    }
+   }
+  ],
+  "chosen": "Desk pad 2x2",
+  "why": "2x2 — самый компактный, клавиши под рукой, USB сзади не мешает."
+ },
+ "_version": 4
+}

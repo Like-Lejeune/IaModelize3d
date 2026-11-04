@@ -48,7 +48,12 @@ async def test_example_builds_without_errors(fresh_db, key):
     assert ready, "the example must build"
     # examples open green ('Ready to print'): no errors and no warnings, only notes
     assert ready["checks"]["ok"]
-    assert [i["message"] for i in ready["checks"]["issues"] if i["severity"] != "info"] == []
+    warned = [i["message"] for i in ready["checks"]["issues"] if i["severity"] != "info"]
+    intro = showcase.BY_KEY[key].get("intro")
+    if intro and warned:  # a device example is a run as it ended: its opening message says what the print check still warns about
+        assert "print check" in intro["en"] and "Проверка печати" in intro["ru"]
+    else:
+        assert warned == []
     stats = ready["checks"]["stats"]
     assert stats["volume"] > 500
     assert stats["layers"] == math.ceil(stats["size"][2] / 0.2 - 1e-6)
@@ -59,7 +64,7 @@ async def test_example_builds_without_errors(fresh_db, key):
 async def test_a_device_example_opens_as_the_finished_run_with_its_numbers(client):
     # the cards under the device mode: a kept run opens in the device studio with its document, board and case, nothing spent
     devices = [e for e in showcase.EXAMPLES if e["pack"] == "device"]
-    assert [e["key"] for e in devices] == ["device-weather", "device-plant", "device-timer"]
+    assert [e["key"] for e in devices] == ["device-weather", "device-timer", "device-soil", "device-night", "device-leak", "device-dice", "device-keypad"]
     for ex in devices:
         run = showcase._device_run(ex["device"])
         p = (await client.post(f"/api/examples/{ex['key']}", json={"lang": "en"})).json()

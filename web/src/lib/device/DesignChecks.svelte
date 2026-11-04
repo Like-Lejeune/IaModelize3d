@@ -60,7 +60,7 @@
     {/if}
   {/if}
 
-  {#if review?.verdict}
+  {#if review?.verdict && review.verdict !== 'unavailable'}
     <div class="review">
       <h5 class="cap">
         {dt('review_title')}
@@ -100,10 +100,8 @@
   }
   .cap {
     margin: 4px 0 0;
-    font-size: 11px;
+    font-size: var(--text-xs);
     font-weight: var(--font-weight-semibold);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     color: var(--on-surface-var);
     display: flex;
     gap: 8px;
@@ -129,7 +127,7 @@
     align-items: baseline;
   }
   .sev {
-    font-size: 13px;
+    font-size: var(--text-md);
     color: var(--warn-text);
   }
   ul.error .sev,
@@ -145,11 +143,11 @@
     color: var(--on-surface-var);
   }
   .ref {
-    font-size: 11px;
+    font-size: var(--text-xs);
     border: 1px solid var(--outline-variant);
     background: var(--surface-container);
     color: var(--on-surface);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 0 5px;
     margin-right: 4px;
     cursor: pointer;
@@ -162,10 +160,9 @@
   }
   .verdict {
     text-transform: none;
-    letter-spacing: 0;
     font-weight: var(--font-weight-medium);
     padding: 0 6px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
   }
   .verdict.pass {
     color: var(--ok);

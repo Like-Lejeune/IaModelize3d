@@ -1,0 +1,751 @@
+{
+ "schema": "fw.board/1",
+ "id": "pcb",
+ "name": "Клавиатура на 4 кнопки",
+ "aliases": [],
+ "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side; x right, y up, z up from the PCB bottom face. Component z values are heights above the face they sit on. Generated from the routed circuit.",
+ "source": {
+  "kind": "pcb",
+  "pcb_job": "pcb:v2"
+ },
+ "sources": {
+  "circuit": "circuit.json",
+  "typical": "packages/geom/src/boards.json#typical",
+  "modules": "packages/pcb/src/modules.json"
+ },
+ "uncertainty_mm": 0,
+ "pcb": {
+  "outline": {
+   "kind": "rect",
+   "w": 54,
+   "h": 68,
+   "r": 0,
+   "src": "circuit"
+  },
+  "thickness": 1.6,
+  "layers": 2,
+  "holes": [
+   {
+    "x": 19.38,
+    "y": 65.12,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 19.38,
+    "y": 62.58,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 19.38,
+    "y": 60.04,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 19.38,
+    "y": 57.5,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 19.38,
+    "y": 54.96,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 19.38,
+    "y": 52.42,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 19.38,
+    "y": 49.88,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 34.62,
+    "y": 49.88,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 34.62,
+    "y": 52.42,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 34.62,
+    "y": 54.96,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 34.62,
+    "y": 57.5,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 34.62,
+    "y": 60.04,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 34.62,
+    "y": 62.58,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 34.62,
+    "y": 65.12,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 13.66,
+    "y": 33.07,
+    "d": 1.5,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW1"
+   },
+   {
+    "x": 20.01,
+    "y": 35.61,
+    "d": 1.5,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW1"
+   },
+   {
+    "x": 17.47,
+    "y": 30.53,
+    "d": 4,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW1 locating peg"
+   },
+   {
+    "x": 12.39,
+    "y": 30.53,
+    "d": 1.75,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW1 locating peg"
+   },
+   {
+    "x": 22.55,
+    "y": 30.53,
+    "d": 1.75,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW1 locating peg"
+   },
+   {
+    "x": 32.72,
+    "y": 33.07,
+    "d": 1.5,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW2"
+   },
+   {
+    "x": 39.07,
+    "y": 35.61,
+    "d": 1.5,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW2"
+   },
+   {
+    "x": 36.53,
+    "y": 30.53,
+    "d": 4,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW2 locating peg"
+   },
+   {
+    "x": 31.45,
+    "y": 30.53,
+    "d": 1.75,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW2 locating peg"
+   },
+   {
+    "x": 41.61,
+    "y": 30.53,
+    "d": 1.75,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW2 locating peg"
+   },
+   {
+    "x": 13.66,
+    "y": 14.02,
+    "d": 1.5,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW3"
+   },
+   {
+    "x": 20.01,
+    "y": 16.56,
+    "d": 1.5,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW3"
+   },
+   {
+    "x": 17.47,
+    "y": 11.48,
+    "d": 4,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW3 locating peg"
+   },
+   {
+    "x": 12.39,
+    "y": 11.48,
+    "d": 1.75,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW3 locating peg"
+   },
+   {
+    "x": 22.55,
+    "y": 11.48,
+    "d": 1.75,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW3 locating peg"
+   },
+   {
+    "x": 32.72,
+    "y": 14.02,
+    "d": 1.5,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW4"
+   },
+   {
+    "x": 39.07,
+    "y": 16.56,
+    "d": 1.5,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW4"
+   },
+   {
+    "x": 36.53,
+    "y": 11.48,
+    "d": 4,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW4 locating peg"
+   },
+   {
+    "x": 31.45,
+    "y": 11.48,
+    "d": 1.75,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW4 locating peg"
+   },
+   {
+    "x": 41.61,
+    "y": 11.48,
+    "d": 1.75,
+    "plated": false,
+    "use": "tooling",
+    "src": "circuit",
+    "note": "SW4 locating peg"
+   },
+   {
+    "x": 3.5,
+    "y": 64.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 50.5,
+    "y": 64.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 3.5,
+    "y": 3.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 50.5,
+    "y": 3.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   }
+  ]
+ },
+ "components": [
+  {
+   "id": "U1",
+   "type": "xiao_esp32s3",
+   "side": "top",
+   "access": "none",
+   "x": 27,
+   "y": 57.5,
+   "w": 17.8,
+   "d": 21,
+   "z0": 2.5,
+   "h": 1.2,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-S3"
+   },
+   "note": "Seeed XIAO ESP32-S3: module PCB 1.2 mm on 2.5 mm header spacers"
+  },
+  {
+   "id": "U1_hdr_1",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 19.4,
+   "y": 57.5,
+   "w": 2.5,
+   "d": 17.78,
+   "h": 2.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-S3"
+   }
+  },
+  {
+   "id": "U1_hdr_2",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 34.6,
+   "y": 57.5,
+   "w": 2.5,
+   "d": 17.78,
+   "h": 2.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-S3"
+   }
+  },
+  {
+   "id": "U1_usb",
+   "type": "usb_c",
+   "side": "top",
+   "access": "port",
+   "edge": "+y",
+   "at": 27,
+   "w": 8.94,
+   "h": 3.2,
+   "d": 7.3,
+   "z0": 3.7,
+   "protrude": 1,
+   "plug": [
+    12.4,
+    6.5
+   ],
+   "src": "modules",
+   "verify": [
+    "h",
+    "d",
+    "protrude",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-S3"
+   },
+   "note": "Seeed XIAO ESP32-S3 usb, z 3.7-6.9 over the carrier"
+  },
+  {
+   "id": "U1_btn_boot",
+   "type": "tact_3x4_smd",
+   "side": "top",
+   "access": "press",
+   "x": 21.3,
+   "y": 64.8,
+   "w": 2.5,
+   "d": 3,
+   "z0": 3.7,
+   "h": 1.4,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-S3"
+   },
+   "note": "BOOT button beside the USB connector (pinout image)"
+  },
+  {
+   "id": "U1_btn_reset",
+   "type": "tact_3x4_smd",
+   "side": "top",
+   "access": "press",
+   "x": 32.7,
+   "y": 64.8,
+   "w": 2.5,
+   "d": 3,
+   "z0": 3.7,
+   "h": 1.4,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-S3"
+   },
+   "note": "RESET button"
+  },
+  {
+   "id": "U1_can",
+   "type": "shield",
+   "side": "top",
+   "access": "none",
+   "x": 27,
+   "y": 55.5,
+   "w": 13,
+   "d": 12,
+   "z0": 3.7,
+   "h": 1.8,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-S3"
+   }
+  },
+  {
+   "id": "U1_ufl",
+   "type": "ufl",
+   "side": "top",
+   "access": "cable",
+   "x": 20.6,
+   "y": 49.5,
+   "w": 3,
+   "d": 3,
+   "z0": 3.7,
+   "h": 1.25,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-S3"
+   },
+   "note": "U.FL antenna connector (bottom-left of the front); the flat antenna cable must exit the case"
+  },
+  {
+   "id": "SW1",
+   "type": "key_mx",
+   "side": "top",
+   "access": "key",
+   "x": 17.47,
+   "y": 30.53,
+   "w": 14.0,
+   "d": 14.0,
+   "h": 3.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "SW1",
+    "footprint": ""
+   },
+   "key": {
+    "plate_top": 5.0,
+    "plate_t": 1.5,
+    "cut": 14.0,
+    "travel": 4.0,
+    "stem_top": 11.6,
+    "stem": "mx",
+    "cap": [
+     18.0,
+     18.0
+    ]
+   }
+  },
+  {
+   "id": "SW2",
+   "type": "key_mx",
+   "side": "top",
+   "access": "key",
+   "x": 36.53,
+   "y": 30.53,
+   "w": 14.0,
+   "d": 14.0,
+   "h": 3.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "SW2",
+    "footprint": ""
+   },
+   "key": {
+    "plate_top": 5.0,
+    "plate_t": 1.5,
+    "cut": 14.0,
+    "travel": 4.0,
+    "stem_top": 11.6,
+    "stem": "mx",
+    "cap": [
+     18.0,
+     18.0
+    ]
+   }
+  },
+  {
+   "id": "SW3",
+   "type": "key_mx",
+   "side": "top",
+   "access": "key",
+   "x": 17.47,
+   "y": 11.48,
+   "w": 14.0,
+   "d": 14.0,
+   "h": 3.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "SW3",
+    "footprint": ""
+   },
+   "key": {
+    "plate_top": 5.0,
+    "plate_t": 1.5,
+    "cut": 14.0,
+    "travel": 4.0,
+    "stem_top": 11.6,
+    "stem": "mx",
+    "cap": [
+     18.0,
+     18.0
+    ]
+   }
+  },
+  {
+   "id": "SW4",
+   "type": "key_mx",
+   "side": "top",
+   "access": "key",
+   "x": 36.53,
+   "y": 11.48,
+   "w": 14.0,
+   "d": 14.0,
+   "h": 3.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "SW4",
+    "footprint": ""
+   },
+   "key": {
+    "plate_top": 5.0,
+    "plate_t": 1.5,
+    "cut": 14.0,
+    "travel": 4.0,
+    "stem_top": 11.6,
+    "stem": "mx",
+    "cap": [
+     18.0,
+     18.0
+    ]
+   }
+  }
+ ],
+ "keepouts": [],
+ "heights": {
+  "top_max": 6.9,
+  "bottom_max": 2,
+  "verify": [
+   "top_max",
+   "bottom_max"
+  ]
+ },
+ "mount": {
+  "preferred": "screw",
+  "screw": "M3",
+  "holes": 4
+ }
+}

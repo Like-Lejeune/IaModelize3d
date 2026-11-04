@@ -30,6 +30,7 @@ log = logging.getLogger(__name__)
 
 HARD_STOP_S = 300.0  # past its deadline a job gets this long to hand over: a designer turn in flight may take 240 s
 CANCEL_WAIT_S = 5.0  # Stop returns once the job has finished, or after this long
+INTERRUPTED_KEEP = 12000  # characters of an interrupted request kept for the run that continues it
 TOO_LONG = "took too long; the latest version is kept"
 # kinds that run the designer model and get a design job's deadline; the rest get side_deadline_s
 DESIGNER_KINDS = ("design", "visual_edit", "breed")
@@ -61,6 +62,8 @@ class JobContext:
     # set by the work to end as 'budget' or 'failed' while still returning its summary
     final_status: str | None = None
     hard_stop: asyncio.Timeout | None = field(default=None, repr=False)
+    # the model service is down and the run is waiting it out: the heartbeat says so
+    outage: bool = False
 
     @property
     def project_id(self) -> str:
@@ -117,7 +120,7 @@ def live_jobs() -> set[str]:
     return {jid for jid, c in _jobs.items() if not c.cancelled.is_set()}
 
 
-async def _create(user: dict[str, Any], project: dict[str, Any], kind: str, payload: dict[str, Any], budget: float, effort: str = "auto",
+async def _create(user: dict[str, Any], project: dict[str, Any], kind: str, payload: dict[str, Any], effort: str = "auto",
                   model: str | None = None, *, models: quotas.ModelChoice | None = None, concurrency: bool = True) -> JobContext:
     s = settings()
     db = await get_db()
@@ -128,17 +131,40 @@ async def _create(user: dict[str, Any], project: dict[str, Any], kind: str, payl
                           and not c.cancelled.is_set()), None)
             if other:
                 raise quotas.QuotaExceeded("this project is already being worked on", code="project_busy", project_id=project["id"], job_id=other.job_id)
-        budget = await quotas.reserve(user, budget, live=live_jobs(), concurrency=concurrency)
+        left = await quotas.headroom(user, live=live_jobs(), concurrency=concurrency)
         models = models or await quotas.choose_models(user, effort, model)
         job_id = new_id("j_")
         await db.insert("jobs", {"id": job_id, "project_id": project["id"], "user_id": user["id"], "kind": kind, "status": "running",
-                                 "input": payload, "reserved_usd": budget, "created_at": now()})
-        ctx = JobContext(job_id=job_id, kind=kind, project=project, user=user, meter=CostMeter(budget_usd=budget), models=models)
+                                 "input": payload, "created_at": now()})
+        ctx = JobContext(job_id=job_id, kind=kind, project=project, user=user, meter=CostMeter(budget_usd=left), models=models)
         ctx.deadline = ctx.started + (s.design_deadline_s if kind in DESIGNER_KINDS else s.side_deadline_s)
         _jobs[job_id] = ctx
-    await db.update("projects", "id", project["id"], {"status": "working", "updated_at": now()})
-    await ctx.emit("job.started", {"job_id": job_id, "kind": kind, "model": models.designer, "contributor": models.contributor})
+    try:
+        await db.update("projects", "id", project["id"], {"status": "working", "updated_at": now()})
+        await ctx.emit("job.started", {"job_id": job_id, "kind": kind, "model": models.designer, "contributor": models.contributor})
+    except Exception:
+        await _abandon(ctx)
+        raise
     return ctx
+
+
+async def _abandon(ctx: JobContext) -> None:
+    """A job that failed before its task started: nothing would ever free its slot or close its row."""
+    _jobs.pop(ctx.job_id, None)
+    db = await get_db()
+    with contextlib.suppress(Exception):
+        await db.update("jobs", "id", ctx.job_id, {"status": "failed", "finished_at": now()})
+        await db.update("projects", "id", ctx.project_id, {"status": "idle", "updated_at": now()})
+
+
+def kept_request(brief: dict[str, Any], req: dict[str, Any], status: str) -> dict[str, Any]:
+    """The brief with an interrupted design request kept: a short line among the turns, and its full words for the run
+    that continues it (a later interruption adds to them, so the first request is never lost to "Continue")."""
+    text = str(req.get("text") or "")
+    turns = (brief.get("turns") or []) + [f"{text[:200]} (interrupted: {status})"]
+    earlier = str(brief.get("interrupted") or "")
+    whole = earlier if text in earlier else f"{earlier}\n\n{text}" if earlier else text
+    return {**brief, "turns": turns[-10:], "interrupted": whole[:INTERRUPTED_KEEP]}
 
 
 async def _keep_request(project_id: str, job_id: str, status: str) -> None:
@@ -147,8 +173,7 @@ async def _keep_request(project_id: str, job_id: str, status: str) -> None:
     p = await db.one("SELECT brief FROM projects WHERE id = ?", project_id)
     brief = (p or {}).get("brief") or {}
     req = (await db.one("SELECT input FROM jobs WHERE id = ?", job_id) or {}).get("input") or {}
-    turns = (brief.get("turns") or []) + [f"{str(req.get('text', ''))[:200]} (interrupted: {status})"]
-    await db.update("projects", "id", project_id, {"brief": {**brief, "turns": turns[-10:]}})
+    await db.update("projects", "id", project_id, {"brief": kept_request(brief, req, status)})
 
 
 async def _language(ctx: JobContext) -> str | None:
@@ -261,16 +286,16 @@ def model_text(message: dict[str, Any]) -> str:
 async def start_design_job(user: dict[str, Any], project: dict[str, Any], body: SendMessage) -> str:
     from .loop import design
 
-    s = settings()
     models = await quotas.choose_models(user, body.effort, body.model)
-    # the bigger budget only when the strongest designer really runs (it may be off the plan, or the demo budget near its cap)
-    strongest = models.designer == s.model_designer_hard and (body.model == "wonder" or (body.model is None and body.effort == "hard"))
-    budget = s.job_budget_usd * (2.5 if strongest else 1.0) * {"high": 1.5, "xhigh": 2.0, "max": 3.0}.get(body.reasoning, 1.0)
-    ctx = await _create(user, project, "design", body.model_dump(), budget, models=models)
+    ctx = await _create(user, project, "design", body.model_dump(), models=models)
     # a shop order's run opens with the customer's own words; the model's brief stays in the message for the reviewer
     shown = shown_text(body)
-    await add_message(project["id"], "user", shown or body.text, {"asset_ids": body.asset_ids, **({"brief": body.text} if shown else {})})
-    await ctx.emit("user.message", {"text": shown or body.text, "asset_ids": body.asset_ids})
+    try:
+        await add_message(project["id"], "user", shown or body.text, {"asset_ids": body.asset_ids, **({"brief": body.text} if shown else {})})
+        await ctx.emit("user.message", {"text": shown or body.text, "asset_ids": body.asset_ids})
+    except Exception:
+        await _abandon(ctx)
+        raise
     _spawn(ctx, lambda c: design(c, body))
     return ctx.job_id
 
@@ -285,8 +310,7 @@ async def start_side_job(user: dict[str, Any], project: dict[str, Any], kind: st
         "breed": side.breed_job,
         "visual_edit": side.visual_edit_job,
     }[kind]
-    budget = {"slice": 0.08, "probe": 0.05, "concepts": 0.12, "breed": 0.5, "visual_edit": settings().job_budget_usd}[kind]
-    ctx = await _create(user, project, kind, payload, budget, concurrency=kind not in quotas.LIGHT_KINDS)
+    ctx = await _create(user, project, kind, payload, concurrency=kind not in quotas.LIGHT_KINDS)
     _spawn(ctx, lambda c: work(c, payload))
     return ctx.job_id
 

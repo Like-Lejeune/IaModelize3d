@@ -6,10 +6,10 @@
   import { deviceApi, priceAt, type Accessory, type Edge, type Face, type PartCard } from './api';
   import { errorText } from '$lib/api';
   import { EDGE_KINDS, type DeviceStore } from './store.svelte';
-  import { dt, patternName, usd } from './i18n';
+  import { dt, patternName, usd, sizeIn } from './i18n';
   import { netColor } from './PartNode.svelte';
   import { loadLibrary } from './PartLibrary.svelte';
-  import { FACES, FACE_KINDS, accessoriesOf, autoFace, layoutOf, requirementsOf, sizeText } from './facets';
+  import { FACES, FACE_KINDS, accessoriesOf, autoFace, layoutOf, requirementsOf } from './facets';
   import Panel from './ui/Panel.svelte';
 
   let { device, readonly = false }: { device: DeviceStore; readonly?: boolean } = $props();
@@ -119,6 +119,26 @@
         </select>
       </label>
     {/if}
+    {#if node.kind === 'button'}
+      <label class="pr"><span>{dt('switch_type')}</span>
+        <select value={node.switch ?? ''} disabled={readonly} onchange={(e) => device.setNode(node.id, { switch: e.currentTarget.value || undefined })}>
+          <option value="">{dt('k_button')}</option>
+          <option value="mx">{dt('k_key_mx')}</option>
+          <option value="choc">{dt('k_key_choc')}</option>
+          <option value="arcade">{dt('k_key_arcade')}</option>
+          <option value="stomp">{dt('k_key_stomp')}</option>
+        </select>
+      </label>
+    {/if}
+    {#if node.kind === 'header'}
+      <label class="pr"><span>{dt('connector_type')}</span>
+        <select value={node.connector ?? ''} disabled={readonly} onchange={(e) => device.setNode(node.id, { connector: e.currentTarget.value || undefined })}>
+          <option value="">{dt('k_header')}</option>
+          <option value="terminal_5">{dt('k_terminal_5')}</option>
+          <option value="terminal_3">{dt('k_terminal_3')}</option>
+        </select>
+      </label>
+    {/if}
     {#if node.kind === 'header'}
       <label class="pr"><span>{dt('pins')}</span>
         <input value={(node.pins ?? []).join(', ')} disabled={readonly} title={dt('pin_labels')}
@@ -186,8 +206,8 @@
         {#if acc?.price_usd != null || view?.price_usd != null}<dt>{dt('f_price_each')}</dt><dd>{usd(view?.price_usd ?? acc?.price_usd)}</dd>{/if}
         {#if acc?.connect}<dt>{dt('acc_connect')}</dt><dd>{dt(`connect_${acc.connect}`)}</dd>{/if}
         {#if acc?.mount}<dt>{dt('acc_mount')}</dt><dd>{dt(`mount_${acc.mount}`)}</dd>{/if}
-        {#if acc?.body}<dt>{dt('acc_body')}</dt><dd>{sizeText(acc.body)} {dt('mm')}</dd>{/if}
-        {#if acc?.window}<dt>{dt('acc_window')}</dt><dd>{sizeText(acc.window)} {dt('mm')}</dd>{/if}
+        {#if acc?.body}<dt>{dt('acc_body')}</dt><dd>{sizeIn(acc.body)} {dt('mm')}</dd>{/if}
+        {#if acc?.window}<dt>{dt('acc_window')}</dt><dd>{sizeIn(acc.window)} {dt('mm')}</dd>{/if}
         {#if acc?.supply}<dt>{dt('acc_supply')}</dt><dd>{acc.supply}</dd>{/if}
         {#if acc?.current_ma}<dt>{dt('acc_current')}</dt><dd>{acc.current_ma} mA</dd>{/if}
         {#if acc?.pins?.length}<dt>{dt('pins')}</dt><dd>{acc.pins.join(' · ')}</dd>{/if}
@@ -280,7 +300,7 @@
     grid-template-columns: 38% 1fr;
     align-items: center;
     gap: 10px;
-    font-size: 13px;
+    font-size: var(--text-md);
     min-height: var(--bw-row, 26px);
   }
   .pr > span {
@@ -293,26 +313,26 @@
   .pr input,
   .pr select {
     font: inherit;
-    font-size: 13px;
+    font-size: var(--text-md);
     height: var(--bw-row, 26px);
     padding: 0 8px;
     min-width: 0;
     color: var(--on-surface);
     background: var(--bw-field);
     border: 1px solid var(--bw-field-border);
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
   }
   .pr select.on {
     color: var(--c);
   }
   .pr sub {
-    font-size: 9px;
+    font-size: var(--text-2xs);
   }
   .seg5 {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     border: 1px solid var(--bw-field-border);
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     overflow: hidden;
   }
   .seg5 button {
@@ -322,7 +342,7 @@
     background: var(--bw-field);
     color: var(--on-surface);
     font: inherit;
-    font-size: 12px;
+    font-size: var(--text-sm);
     cursor: pointer;
   }
   .seg5 button:first-child {
@@ -350,7 +370,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 4px 8px;
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
   .fitc {
     color: #2bb3a3;
@@ -366,29 +386,29 @@
     text-align: left;
     padding: 3px 4px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: none;
     color: var(--on-surface);
     font: inherit;
-    font-size: 12.5px;
+    font-size: var(--text-md);
     cursor: pointer;
   }
   .req:hover {
     background: color-mix(in srgb, var(--on-surface) 7%, transparent);
   }
   .rid {
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: var(--on-surface-var);
   }
   .mini {
     height: 22px;
     padding: 0 8px;
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     border: 1px solid var(--bw-field-border);
     background: var(--bw-field);
     color: var(--on-surface);
     font: inherit;
-    font-size: 12px;
+    font-size: var(--text-sm);
     cursor: pointer;
   }
   .rs {
@@ -398,13 +418,13 @@
   }
   .rs input {
     font: inherit;
-    font-size: 13px;
+    font-size: var(--text-md);
     height: var(--bw-row, 26px);
     padding: 0 8px;
     color: var(--on-surface);
     background: var(--bw-field);
     border: 1px solid var(--bw-field-border);
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
   }
   .rs .mini {
     height: var(--bw-row, 26px);
@@ -419,7 +439,7 @@
     display: grid;
     text-align: left;
     padding: 5px 8px;
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     border: none;
     background: none;
     color: var(--on-surface);
@@ -430,23 +450,23 @@
     background: color-mix(in srgb, var(--on-surface) 7%, transparent);
   }
   .hm {
-    font-size: 13px;
+    font-size: var(--text-md);
     font-weight: var(--font-weight-medium);
   }
   .hd {
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     color: var(--on-surface-var);
   }
   .note {
     margin: 0;
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     color: var(--on-surface-var);
   }
   .ib {
     width: 20px;
     height: 20px;
     border: none;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     background: none;
     color: var(--on-surface-var);
     cursor: pointer;
@@ -465,22 +485,22 @@
     height: 44px;
     object-fit: contain;
     background: #fff;
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
   }
   .pmeta {
     display: grid;
-    font-size: 12px;
+    font-size: var(--text-sm);
     min-width: 0;
   }
   .pmeta .muted {
-    font-size: 11px;
+    font-size: var(--text-xs);
   }
   .kv {
     display: grid;
     grid-template-columns: 38% 1fr;
     gap: 5px 10px;
     margin: 0;
-    font-size: 13px;
+    font-size: var(--text-md);
   }
   .kv dt {
     color: var(--on-surface-var);
@@ -489,7 +509,7 @@
   .kv dd {
     margin: 0;
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
   .okc {
     color: var(--ok);
@@ -502,7 +522,7 @@
   }
   .desc {
     margin: 0;
-    font-size: 11px;
+    font-size: var(--text-xs);
     display: -webkit-box;
     -webkit-line-clamp: 3;
     line-clamp: 3;
@@ -512,7 +532,7 @@
   .links {
     display: flex;
     gap: 12px;
-    font-size: 11.5px;
+    font-size: var(--text-sm);
   }
   .links a {
     color: var(--primary);

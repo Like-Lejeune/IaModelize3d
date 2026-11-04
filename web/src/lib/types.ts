@@ -45,6 +45,8 @@ export interface ProjectOut {
   status: string;
   version: number;
   public: boolean;
+  /** On the replay gallery too (public is the link). */
+  listed?: boolean;
   cover?: string | null;
   forked_from?: string | null;
   created_at: number;
@@ -63,7 +65,7 @@ export interface ExampleOut {
   kind?: 'part' | 'model';
 }
 
-/** A finished public agent run picked for the home page (GET /api/featured); it plays back as a replay. */
+/** A finished public agent run on the home page (GET /api/featured) or the gallery (GET /api/replays); it plays back as a replay. */
 export interface FeaturedRun {
   id: string;
   title: string;
@@ -77,6 +79,8 @@ export interface FeaturedRun {
   duration_s?: number | null;
   /** model id -> calls (USD on runs recorded before calls were counted) */
   models: Record<string, number>;
+  views?: number;
+  featured?: boolean;
 }
 
 /** What a job's meter spent ('cost' and 'job.finished' events, server/formwright/llm/client.py CostMeter). */
@@ -150,7 +154,6 @@ export interface Usage {
   today_usd: number;
   limit_usd: number;
   jobs_today: number;
-  contributor_consent: boolean;
   models: ModelOption[];
   /** The Axo shop is connected on this server: the studio offers "Add to Axo cart". */
   axo_cart?: boolean;

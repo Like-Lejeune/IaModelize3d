@@ -9,6 +9,8 @@ that re-armed itself at once, an 8-day battery called months, ...). So this runs
   - scenarios are made from the graph alone: every input pressed in every condition, a wet probe that stays wet, a day left alone.
   - invariants judge the runs: no hang, sleep that really sleeps, every input changes something, every output can turn on, nothing
     read from a floating pin, what the battery really gives.
+  - a requirement's own test (doc.requirements[].test) is played as written, for what only a sequence shows. The designer writes it
+    and the run judges it; a test that also passes with its steps removed proves nothing and is reported as such.
 
 simulate(doc, parts, files, lang) -> {ran, ok, why?, findings: [{code, severity, ref, msg, hint?, trace?}], effects, power, coverage,
 scenarios, ms}; never raises. ran False says nothing about the device (MicroPython, a Pico, no compiler here): the caller says 'not
@@ -96,6 +98,8 @@ class Circuit:
         self.i2c_any = False
         self.stimuli: list[dict[str, Any]] = []
         self.unmodelled: dict[int, str] = {}
+        self.buses: set[str] = set()
+        self.keeps_image = False
         self._cache: dict[Any, Any] = {}
         for nid, node in g.nodes.items():
             if nid != self.module:
@@ -114,7 +118,7 @@ class Circuit:
             if nid == self.module:
                 continue
             if self.g.nodes[nid].get("kind") in known or nid in self.outputs or nid in self.sources \
-                    or nid in self.contacts or nid in self.ldr or nid in self.ntc or nid in self.buttons:
+                    or nid in self.contacts or nid in self.ldr or nid in self.ntc or nid in self.buttons or nid in self.buses:
                 return True
             if self.g.kind[nid] in dr.SWITCHES or self.g.addressable(nid):
                 return True
@@ -195,6 +199,7 @@ class Circuit:
             self.outputs[nid] = "display"
             addr = int(str(acc.get("i2c_addr") or "0x3C"), 16)
             self.displays[addr] = nid
+            self.keeps_image = self.keeps_image or bool(acc.get("keeps_image"))
             self.i2c.add(addr)
             return
         if sim.get("type") == "contact":
@@ -204,6 +209,14 @@ class Circuit:
                 self.stimuli.append({"id": nid, "kind": "contact", "event": True, "rest": 0, "active": 1, "hold": 20.0, "sustained": True})
             return
         self._load(nid, ma)
+        if sim.get("type") == "bus":
+            # a library's value, not a voltage: the runtime reads the channel (firmware_sim/libs.inc)
+            self.buses.add(nid)
+            if acc.get("i2c_addr"):
+                self.i2c.add(int(str(acc["i2c_addr"]), 16))
+            if sim.get("channel") is not None:
+                self.stimuli.append({"id": nid, "kind": "bus_event", "event": True, "rest": 0, "active": 1, "hold": float(sim.get("hold", 2.0)), "sustained": False, "channel": sim["channel"]}
+                                    if sim.get("event") else {"id": nid, "kind": "bus_value", "event": False, "rest": float(sim["rest"]), "values": list(sim["values"]), "channel": sim["channel"]})
         if sim.get("type") in ("analog", "digital"):
             out = g.net(nid, device.ident(sim["pin"]))
             load = self.loads.get(nid)
@@ -312,7 +325,8 @@ class Circuit:
                     stamp(ld["a"], ld["b"], 3.3 / (ma / 1000.0))
             for nid, s in self.sources.items():
                 if src_on[nid]:
-                    mv = s["active"] if env.get(nid) else s["rest"]
+                    val = float(env.get(nid) or 0)
+                    mv = val if val > 1 else s["active"] if val else s["rest"]    # 0 / 1 are its two states, more is millivolts
                     stamp(s["net"], s["gnd"], s["r"])
                     I[s["net"]] += mv / 1000.0 / s["r"]
                     if s["gnd"] is not None:
@@ -577,7 +591,7 @@ class Machine:
 
         def env(ch: int, t: int) -> int:
             stim = next((s for s in c.stimuli if s.get("channel") == ch), None)
-            defaults = {0: 200.0, 1: 25.0, 2: 45.0, 3: 101325.0}
+            defaults = {0: 200.0, 1: 25.0, 2: 45.0, 3: 101325.0, 4: 0.0, 5: 0.0, 6: 0.0, 7: 1.0, 8: 0.0}
             val = self.env_at(t).get(stim["id"], stim["rest"]) if stim else defaults.get(ch, 0.0)
             return int(val * 100) if ch != 3 else int(val)
 
@@ -609,6 +623,16 @@ class Machine:
         d("sim", "rtc_load", ft([i32, i32], []), rtc_load, access_caller=True)
         d("sim", "rtc_save", ft([i32, i32], []), rtc_save, access_caller=True)
         d("sim", "slept", ft([i64, i32, i64], []), slept)
+
+        def nvs_load(caller: Any, p: int) -> None:
+            caller["memory"].write(caller, self.cur.get("nvs") or b"", p)
+
+        def nvs_save(caller: Any, p: int, n: int) -> None:
+            self.cur["nvs"] = bytes(caller["memory"].read(caller, p, p + n))
+
+        d("sim", "nvs_size", ft([], [i32]), lambda: len(self.cur.get("nvs") or b""))
+        d("sim", "nvs_load", ft([i32], []), nvs_load, access_caller=True)
+        d("sim", "nvs_save", ft([i32, i32], []), nvs_save, access_caller=True)
         for imp in self.module.imports:
             if imp.module == "env":
                 name = _demangle(imp.name)
@@ -757,6 +781,7 @@ def timeline(c: Circuit, run: dict[str, Any]) -> dict[str, Any]:
     rgb = [k for k, v in c.outputs.items() if v == "rgb_led"]
     radio = False
     warned: list[tuple[float, str, str]] = []
+    screen_power: list[tuple[float, bool]] = []
     driven: dict[int, set[int]] = {}
     sound: dict[str, float] = {}
 
@@ -861,6 +886,9 @@ def timeline(c: Circuit, run: dict[str, Any]) -> dict[str, Any]:
         elif kind == "L":
             q = rest.split()
             (lit.add if q[1] == "1" else lit.discard)(int(q[0]))
+            # e-paper keeps its picture with its power off: asleep it draws nothing and still shows what it last drew
+            if not c.keeps_image:
+                screen_power.append((when / 1e6, q[1] == "1"))
         elif kind == "F":
             q = rest.split(" ", 1)
             frames.append((when / 1e6, int(q[0]), q[1] if len(q) > 1 else ""))
@@ -886,7 +914,7 @@ def timeline(c: Circuit, run: dict[str, Any]) -> dict[str, Any]:
     advance_to(end)
     span = max(end / 1e6, 1e-6)
     return {"on": on, "spans": spans, "charge": charge, "by_mode": by_mode, "mode_s": mode_s, "deep_loads": deep_loads, "gpio_peak": gpio_peak,
-            "frames": frames, "serial": serial, "warned": warned, "driven": driven, "avg_ma": sum(by_mode.values()) / span, "span": span}
+            "frames": frames, "screen_power": screen_power, "serial": serial, "warned": warned, "driven": driven, "avg_ma": sum(by_mode.values()) / span, "span": span}
 
 
 def _is_on(c: Circuit, nid: str, ma: float, tones: dict[int, int], states: dict[int, int]) -> bool:
@@ -941,6 +969,178 @@ def _f(sev: str, code: str, ref: str, msg: str, hint: str = "", trace: str = "")
     return out
 
 
+# ------------------------------------------------------------------ a requirement's test
+TEST_HOLD_S = 0.3
+TEST_MAX = 12
+TEST_RUN_S = 3600.0
+
+
+def test_steps(steps: Any, known: dict[str, dict[str, Any]]) -> tuple[list[tuple[float, str, Any]], str | None]:
+    """A test's steps as a scenario's changes: {at_s, press: 'SW1', hold_s?} presses and lets go, {at_s, input, value} sets a value."""
+    out: list[tuple[float, str, Any]] = []
+    for x in steps if isinstance(steps, list) else []:
+        if not isinstance(x, dict) or not isinstance(x.get("at_s"), (int, float)):
+            return [], f"a step needs at_s: {str(x)[:80]}"
+        at = float(x["at_s"])
+        sid = x.get("press") or x.get("input")
+        stim = known.get(str(sid))
+        if not stim:
+            return [], f"no input {sid}: the inputs are " + (", ".join(f"{k} ({v['kind']})" for k, v in known.items()) or "none")
+        if x.get("press"):
+            if not stim["event"]:
+                return [], f"{sid} ({stim['kind']}) is no button: give it a value with input"
+            hold = float(x["hold_s"]) if isinstance(x.get("hold_s"), (int, float)) else TEST_HOLD_S
+            out += [(at, stim["id"], stim["active"]), (at + hold, stim["id"], stim["rest"])]
+        else:
+            if "value" not in x and not stim["event"]:
+                return [], f"{sid} ({stim['kind']}) needs a value"
+            out.append((at, stim["id"], x.get("value", stim.get("active", 1))))
+    return sorted(out, key=lambda c: c[0]), None
+
+
+def _test_invalid(c: Circuit, test: dict[str, Any], known: dict[str, dict[str, Any]]) -> str | None:
+    expect = test.get("expect")
+    if not isinstance(expect, list) or not expect:
+        return "a test needs expect: what must follow"
+    for k in (test.get("given") or {}):
+        if k not in known:
+            return f"given names {k}: the inputs are " + (", ".join(known) or "none")
+    for e in expect:
+        if not isinstance(e, dict):
+            return f"an expect is an object: {str(e)[:80]}"
+        if not isinstance(e.get("at_s"), (int, float)) and not (isinstance(e.get("from_s"), (int, float)) and isinstance(e.get("to_s"), (int, float))):
+            return f"an expect needs at_s or from_s and to_s: {str(e)[:80]}"
+        if "output" in e and e["output"] not in c.outputs:
+            return f"no output {e['output']}: the outputs are " + (", ".join(c.outputs) or "none")
+        if not any(k in e for k in ("output", "screen", "not_screen", "asleep")):
+            return f"an expect says output, screen, not_screen or asleep: {str(e)[:80]}"
+    return None
+
+
+def test_targets(test: Any) -> set[str]:
+    """What a test checks, whatever the moment: which output on or off, the screen, the chip asleep."""
+    out: set[str] = set()
+    for e in (test.get("expect") if isinstance(test, dict) else None) or []:
+        if not isinstance(e, dict):
+            continue
+        if "output" in e:
+            out.add(f"{e['output']} {'on' if e.get('on', True) else 'off'}")
+        if "screen" in e:
+            out.add("the screen")
+        if "not_screen" in e:
+            out.add("what the screen must not show")
+        if "asleep" in e:
+            out.add("the chip asleep" if e["asleep"] else "the chip awake")
+    return out
+
+
+def _screen_at(tl: dict[str, Any], t: float) -> str | None:
+    """What the display shows at t: its last frame, None while it is off."""
+    off = False
+    for at, on in tl["screen_power"]:
+        if at <= t:
+            off = not on
+    if off:
+        return None
+    last = None
+    for at, _, text in tl["frames"]:
+        if at <= t + 0.03:
+            last = text
+    return last
+
+
+def _screens_in(tl: dict[str, Any], a: float, b: float) -> list[str]:
+    seen = [x for x in [_screen_at(tl, a)] if x is not None]
+    seen += [text for at, _, text in tl["frames"] if a <= at <= b]
+    return seen
+
+
+def _asleep_at(run: dict[str, Any], t: float) -> bool:
+    return any(s["at"] / 1e6 <= t and (s["wake"] < 0 or t < s["wake"] / 1e6) for s in run["sleeps"])
+
+
+def _expect_fail(run: dict[str, Any], tl: dict[str, Any], e: dict[str, Any]) -> str | None:
+    """Why this expectation failed in this run, or None. A window with on true wants it on at some moment (a beep counts), with
+    on false off throughout; at_s is that very moment."""
+    a = float(e["at_s"] if "at_s" in e else e["from_s"])
+    b = float(e["at_s"] if "at_s" in e else e["to_s"])
+    when = f"at t={a:g} s" if a == b else f"between {a:g} and {b:g} s"
+    if a > tl["span"]:
+        return f"the run ended at {_fmt_t(tl['span'])}, before {when}"
+    if "output" in e:
+        nid, want = e["output"], e.get("on", True)
+        spans = tl["spans"].get(nid) or []
+        lit = any(s0 <= b + 0.02 and s1 >= a - 0.02 for s0, s1 in spans)
+        if bool(want) != lit:
+            return f"{nid} should be {'on' if want else 'off'} {when}, and it is {'on' if lit else 'off'}"
+    if "screen" in e:
+        want = str(e["screen"]).lower()
+        seen = _screens_in(tl, a, b)
+        if not any(want in x.lower() for x in seen):
+            return f"the screen should show '{e['screen']}' {when}, and it shows: " + (" / ".join(dict.fromkeys(seen[:4])) or "nothing")
+    if "not_screen" in e:
+        want = str(e["not_screen"]).lower()
+        seen = _screens_in(tl, a, b)
+        if any(want in x.lower() for x in seen):
+            return f"the screen should not show '{e['not_screen']}' {when}, and it does"
+    if "asleep" in e and bool(e["asleep"]) != _asleep_at(run, a):
+        return f"the chip should be {'asleep' if e['asleep'] else 'awake'} at t={a:g} s, and it is not"
+    return None
+
+
+def _test_scenario(test: dict[str, Any], changes: list[tuple[float, str, Any]], rid: str) -> dict[str, Any]:
+    last = max([float(e.get("to_s", e.get("at_s", 0))) for e in test["expect"]] + [t for t, _, _ in changes])
+    return {"name": f"{rid} test", "ctx": dict(test.get("given") or {}), "changes": changes, "horizon": min(last + 5.0, TEST_RUN_S), "kind": "test", "fuel": 3 * SCENARIO_FUEL}
+
+
+def run_tests(machine: Machine, c: Circuit, doc: dict[str, Any], t0: float) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Each requirement's test, played: (findings, one result per requirement with firmware work). A passing test with a positive
+    expectation is played again without its steps: if it still passes, nothing the person did caused what it checks."""
+    found: list[dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
+    known = {s["id"]: s for s in c.stimuli}
+    played = 0
+    for r in doc.get("requirements") or []:
+        if not isinstance(r, dict):
+            continue
+        rid, test = str(r.get("id")), r.get("test")
+        if not isinstance(test, dict):
+            if r.get("firmware"):
+                results.append({"id": rid, "status": "no_test"})
+            continue
+        changes, bad = test_steps(test.get("steps"), known)
+        bad = bad or _test_invalid(c, test, known)
+        if bad:
+            found.append(_f("error", "sim_test_invalid", rid, f"the test of {rid} cannot be played: {bad}"))
+            results.append({"id": rid, "status": "invalid"})
+            continue
+        if played >= TEST_MAX or time.monotonic() - t0 > WALL_S:
+            results.append({"id": rid, "status": "skipped"})
+            continue
+        played += 1
+        sc = _test_scenario(test, changes, rid)
+        run, tl = _run(machine, c, sc)
+        if str(run["stop"] or "").startswith("call:"):
+            results.append({"id": rid, "status": "not_modelled"})
+            continue
+        fails = [x for x in (_expect_fail(run, tl, e) for e in test["expect"]) if x]
+        if fails:
+            found.append(_f("error", "sim_requirement_failed", rid, f"{rid} ('{str(r.get('text'))[:90]}') fails its test: " + "; ".join(fails[:3]),
+                            "fix the firmware or the board so the device does this; the requirement is the person's", trace_text(c, run, tl, 24)))
+            results.append({"id": rid, "status": "failed", "why": fails[:3]})
+            continue
+        positive = [e for e in test["expect"] if ("output" in e and e.get("on", True)) or "screen" in e or e.get("asleep")]
+        if changes and positive:
+            idle, idle_tl = _run(machine, c, {**sc, "changes": [], "name": f"{rid} test without its steps"})
+            if not any(_expect_fail(idle, idle_tl, e) for e in test["expect"]):
+                found.append(_f("error", "sim_test_vacuous", rid, f"the test of {rid} also passes with its steps removed: what it checks happens whatever the person does, "
+                                "so it proves nothing", "expect what the steps cause, at a moment it would not be true without them"))
+                results.append({"id": rid, "status": "vacuous"})
+                continue
+        results.append({"id": rid, "status": "passed"})
+    return found, results
+
+
 # ------------------------------------------------------------------ the invariants
 def judge(c: Circuit, runs: list[tuple[dict[str, Any], dict[str, Any]]], doc: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     found: list[dict[str, Any]] = []
@@ -988,8 +1188,10 @@ def judge(c: Circuit, runs: list[tuple[dict[str, Any], dict[str, Any]]], doc: di
     floats: dict[int, tuple[float, str]] = {}
     mids: dict[int, tuple[int, str]] = {}
     absent: set[str] = set()
+    raw_i2c = False
     for r, tl in runs:
         for t, code, detail in tl["warned"]:
+            raw_i2c = raw_i2c or code == "i2c_raw_read"
             q = detail.split()
             if code == "float_read" and q:
                 floats.setdefault(int(q[0]), (t, r["sc"]["name"]))
@@ -1007,7 +1209,9 @@ def judge(c: Circuit, runs: list[tuple[dict[str, Any], dict[str, Any]]], doc: di
                             f"(in '{name}' at t={_fmt_t(t)}): no pull-up in pinMode and none on the board, so it reads noise",
                             "INPUT_PULLUP in pinMode, or a resistor to the rail"))
     for g, (mv, name) in mids.items():
-        found.append(_f("warning", "sim_mid_level", _pin_name(c, g), f"in '{name}' {_pin_name(c, g)} sits at {mv} mV, between a logic low and a logic high "
+        net = c.gpio_net.get(g)
+        contact = next((nid for nid, (a, b, _) in c.contacts.items() if net in (a, b)), None)
+        found.append(_f("error" if contact else "warning", "sim_mid_level", contact or _pin_name(c, g), f"in '{name}' {_pin_name(c, g)} sits at {mv} mV, between a logic low and a logic high "
                         "(below 825 mV and above 2475 mV are safe): the reading is undefined",
                         "a weaker pull-up widens what reads as active (one pull only, not INPUT_PULLUP over a resistor), or read it with analogRead"))
     for a in absent:
@@ -1039,7 +1243,10 @@ def judge(c: Circuit, runs: list[tuple[dict[str, Any], dict[str, Any]]], doc: di
     for s in c.stimuli:
         changed = _effect_of(c, s, runs)
         effects[s["id"]] = sorted(changed)
-        if not changed and not blocked:
+        if not changed and s.get("channel") is not None and raw_i2c:
+            found.append(_f("warning", "sim_input_not_modelled", s["id"], f"the firmware reads {s['id']} with raw Wire calls, and the simulator models that part only through "
+                            "its library: its reaction to this input was not exercised", "the part's library makes this checkable"))
+        elif not changed and not blocked:
             sev = "error" if s["id"] in fw_parts else "warning"
             found.append(_f(sev, "sim_input_no_effect", s["id"], f"{s['id']} ({s['kind']}) changes nothing: in every condition tried, the outputs, the screen "
                             "and the serial log are the same with it as without it", "check the pin it is wired to against the firmware, and the condition the firmware waits for"))
@@ -1165,6 +1372,8 @@ def _zig(args: list[str], cwd: str, timeout: float) -> subprocess.CompletedProce
 
 def _runtime_object(board: fc.Board) -> str:
     h = hashlib.sha1(RUNTIME.read_bytes())
+    for name in ("libs.inc", "libs_auto.inc"):
+        h.update((RUNTIME.parent / name).read_bytes())
     for f in sorted(STUBS.rglob("*.h")):
         h.update(f.read_bytes())
     cache = os.path.join(tempfile.gettempdir(), "formwright-zig")
@@ -1270,8 +1479,12 @@ def _simulate(doc: dict[str, Any], parts: dict[str, dict[str, Any]], files: dict
                 skipped += 1
                 continue
             runs.append(_run(machine, circuit, sc))
+        test_found, tests = run_tests(machine, circuit, doc, t0)
     found, facts, cover = judge(circuit, runs, doc)
     cover["skipped"] = skipped
+    cover["tests"] = {st: sum(1 for x in tests if x["status"] == st) for st in {x["status"] for x in tests}}
+    found = sorted(test_found + found, key=lambda f: f["severity"] != "error")
+    facts["requirements"] = tests
     errors = [f for f in found if f["severity"] == "error"]
     return {"ran": True, "ok": not errors, "findings": found[:14], **facts, "coverage": cover,
             "scenarios": [{"name": r["sc"]["name"], "kind": r["sc"]["kind"], "end_s": round(tl["span"], 1), "boots": r["boots"],
@@ -1299,10 +1512,10 @@ def _try(doc: dict[str, Any], parts: dict[str, dict[str, Any]], files: dict[str,
         return {"ran": False, "why": why}
     c = Circuit(doc, parts)
     known = {s["id"]: s for s in c.stimuli}
-    bad = [str(x.get("input")) for x in steps if x.get("input") not in known] + [str(k) for k in condition if k not in known]
-    if bad:
-        return {"ran": False, "why": f"no input {', '.join(bad[:4])}: the inputs are " + (", ".join(f"{k} ({v['kind']})" for k, v in known.items()) or "none")}
-    changes = [(float(x.get("at_s") or 0.0), x["input"], x.get("value", known[x["input"]].get("active", 1))) for x in steps]
+    changes, why = test_steps(steps, known)
+    bad = [str(k) for k in condition if k not in known]
+    if why or bad:
+        return {"ran": False, "why": why or f"no input {', '.join(bad[:4])}: the inputs are " + (", ".join(f"{k} ({v['kind']})" for k, v in known.items()) or "none")}
     end = min(max(float(horizon or 0.0), max((t for t, _, _ in changes), default=0.0) + 30.0), IDLE_S)
     sc = {"name": "your scenario", "ctx": dict(condition), "changes": changes, "horizon": end, "kind": "custom", "fuel": IDLE_FUEL}
     with tempfile.TemporaryDirectory(prefix="fwsimrun-", ignore_cleanup_errors=True) as tmp:
@@ -1351,9 +1564,9 @@ def life_text(hours: float) -> str:
 
 async def simulate(doc: dict[str, Any], parts: dict[str, dict[str, Any]], files: dict[str, str], lang: str = "arduino") -> dict[str, Any]:
     """The firmware on its circuit; never raises (a broken simulator is 'not simulated', never a verdict on the device)."""
-    if "python" in str(lang).lower() or not any(str(n).endswith(fc.CPP_EXT) for n in files or {}):
-        return {"ran": False, "ok": True, "why": "the simulator runs Arduino C++ only"}
     try:
+        if "python" in str(lang).lower() or not any(str(n).endswith(fc.CPP_EXT) for n in files or {}):
+            return {"ran": False, "ok": True, "why": "the simulator runs Arduino C++ only"}
         async with _LOCK:
             return await asyncio.to_thread(_simulate, doc, parts, {str(k): str(v) for k, v in files.items()})
     except Exception as e:  # noqa: BLE001

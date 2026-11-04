@@ -127,6 +127,6 @@ test('choices', () => {
   assert.equal(paramOption('assembled', 'ru'), 'в сборе');
   assert.equal(paramOption('false', 'ru'), 'нет');
   assert.equal(paramOption('false', 'en'), 'false');
-  assert.equal(paramOption('round', 'ru'), 'round');
+  assert.equal(paramOption('zigzag', 'ru'), 'zigzag');
   assert.equal(paramOption('#f2a6ad', 'ru'), '#f2a6ad');
 });

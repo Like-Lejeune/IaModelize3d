@@ -382,49 +382,107 @@ EXAMPLES: list[dict[str, Any]] = [e for e in [
     },
     _device_example(
         "weather",
-        title={"en": "Home weather station", "ru": "Домашняя метеостанция"},
-        caption={"en": "BME280 and an OLED, readings over Wi-Fi: board, case and firmware", "ru": "BME280 и OLED, показания по Wi-Fi: плата, корпус и прошивка"},
-        prompt={"en": "Make a device: a home weather station with an OLED display and Wi-Fi.", "ru": "Сделай устройство: домашняя метеостанция с OLED-дисплеем и Wi-Fi."},
-        intro={"en": "This is a ready example, a finished run of the agent. A BME280 on a 46x50 mm board with a XIAO ESP32-C3, a 0.96 inch OLED, a status LED and a "
-                     "page button; the readings show on the display (two pages) and on a Wi-Fi web page. A soft desk case, 56x56x15.5 mm, with a display window, a "
-                     "button tab and the USB-C port. It runs from a USB charger, and you add your Wi-Fi name and password to the firmware. The firmware ran on a "
-                     "virtual board (8 scenarios), not on real hardware. Open the Schematic, Board, Case and Firmware tabs, or tell me what to change.",
-               "ru": "Это готовый пример, завершённый запуск агента. BME280 на плате 46x50 мм с XIAO ESP32-C3, OLED 0,96 дюйма, светодиод статуса и кнопка страниц; "
-                     "показания видны на экране (две страницы) и на веб-странице по Wi-Fi. Мягкий настольный корпус 56x56x15,5 мм с окном экрана, толкателем кнопки "
-                     "и разъёмом USB-C. Питание от USB-зарядки, имя и пароль Wi-Fi вы добавляете в прошивку. Прошивка прошла на виртуальной плате (8 сценариев), на "
-                     "реальном железе не проверялась. Откройте вкладки «Схема», «Плата», «Корпус» и «Прошивка» или напишите, что поменять."},
-    ),
-    _device_example(
-        "plant",
-        title={"en": "Houseplant soil moisture stake", "ru": "Датчик влажности для цветка"},
-        caption={"en": "A stake in the pot, an OLED hint, weeks on a LiPo with deep sleep", "ru": "Колышек в горшок, подсказка на OLED, недели на LiPo с глубоким сном"},
-        prompt={"en": "Make a device: a soil moisture sensor for a potted houseplant.", "ru": "Сделай устройство: датчик влажности почвы для комнатного цветка."},
-        intro={"en": "This is a ready example, a finished run of the agent. A capacitive probe in the soil, a 0.96 inch OLED with the percentage and a hint (WATER ME, ok, "
-                     "too wet) and a button on a XIAO ESP32-C3, with a 500 mAh LiPo charged over USB-C. The board is 46x58 mm, the soft case 126x68x23 mm with its soil "
-                     "stake, a display window and a cable exit for the probe. It wakes on the button or every 10 minutes; on the virtual board (8 scenarios) it draws "
-                     "0.064 mA asleep and, left alone, the cell lasts about 16 days. Not tried on real hardware, and you calibrate the dry and wet values in your own "
-                     "soil. Open the Schematic, Board, Case and Firmware tabs, or tell me what to change.",
-               "ru": "Это готовый пример, завершённый запуск агента. Ёмкостный щуп в земле, OLED 0,96 дюйма с процентами и подсказкой (WATER ME, ok, too wet) и кнопка на "
-                     "XIAO ESP32-C3, питание от LiPo 500 мА·ч с зарядкой по USB-C. Плата 46x58 мм, мягкий корпус 126x68x23 мм с колышком, окном экрана и выходом кабеля "
-                     "щупа. Просыпается по кнопке или раз в 10 минут; на виртуальной плате (8 сценариев) потребляет 0,064 мА во сне, и без действий аккумулятора хватает "
-                     "примерно на 16 дней. На реальном железе не проверялся, значения «сухо» и «влажно» нужно откалибровать в своей почве. Откройте вкладки «Схема», "
-                     "«Плата», «Корпус» и «Прошивка» или напишите, что поменять."},
+        title={"en": "Desk weather station", "ru": "Настольная метеостанция"},
+        caption={"en": "BME280 and an OLED in the lid, a wedge on a 25° stand, USB-C power", "ru": "BME280 и OLED в крышке, клин с подставкой 25°, питание от USB-C"},
+        prompt={"en": "A desk weather station, a finished device: temperature, humidity and pressure on an OLED in the lid, a button flips the screens. Everything inside the case, no "
+                      "wires or outboard modules. USB-C on the back wall (the +y edge), the front wall -y stays free: it stands on it on a tilted stand, so the screen reads straight.",
+                "ru": "Настольная метеостанция, законченное устройство: температура, влажность и давление на экране OLED в крышке, кнопка листает экраны. Всё внутри корпуса, никаких "
+                      "проводов и выносных модулей. Разъём USB-C на задней стенке (край +y), передняя стенка -y свободна: на ней оно стоит на наклонной подставке, чтобы текст на "
+                      "экране читался прямо."},
+        intro={"en": "A ready example, a finished run of the agent: a BME280 measures temperature, humidity and pressure, a 0.96\" OLED in the lid shows them and a button flips the "
+                     "screens. All of it sits inside a soft 56 × 61 × 15.5 mm wedge on a 25° stand, powered from a USB charger through the USB-C at the back.\n\n**Not tested:** the "
+                     "firmware ran on a virtual board (8 scenarios, 3 of 3 requirement tests passed; the button's test was changed after it first failed), not on real hardware. "
+                     "Compare the readings with a room thermometer over the first day: the module next to the sensor is warm.\n\nOpen the tabs above, or tell me what to change.",
+               "ru": "Готовый пример, завершённый запуск агента: BME280 меряет температуру, влажность и давление, OLED 0,96\" в крышке их показывает, кнопка листает экраны. Всё внутри "
+                     "мягкого клина 56 × 61 × 15,5 мм с подставкой 25°, питание от USB-зарядки через USB-C сзади.\n\n**Не проверено:** прошивка прошла на виртуальной плате "
+                     "(8 сценариев, 3 из 3 тестов требований; тест кнопки менялся после провала), на реальном железе не запускалась. Сверьте показания с комнатным термометром в "
+                     "первые сутки: модуль рядом с датчиком греется.\n\nОткройте вкладки сверху или напишите, что поменять."},
     ),
     _device_example(
         "timer",
         title={"en": "Kitchen timer", "ru": "Кухонный таймер"},
-        caption={"en": "Big digits, three buttons, a loud buzzer, months on a LiPo", "ru": "Крупные цифры, три кнопки, громкая пищалка, месяцы на LiPo"},
+        caption={"en": "A countdown on an OLED, three buttons, a buzzer, a LiPo charged over USB-C", "ru": "Отсчёт на OLED, три кнопки, пищалка, LiPo с зарядкой от USB-C"},
         prompt={"en": "Make a device: a kitchen timer.", "ru": "Сделай устройство: кухонный таймер."},
-        intro={"en": "This is a ready example, a finished run of the agent. A XIAO ESP32-C3 with a 0.96 inch OLED showing big MM:SS, three buttons (start/stop, +, -), an "
-                     "active 3 V buzzer behind a transistor with a flyback diode, a flashing LED and a 500 mAh LiPo charged over USB-C. The board is 76x72 mm, the snap-fit "
-                     "case 104x81x15.5 mm with a tilt stand, a display window, a buzzer grille and three press tabs. It sleeps after 60 s and wakes on any button; on the "
-                     "virtual board (11 scenarios) it draws 0.064 mA asleep and, left alone, the cell lasts about 4 months. Not tried on real hardware. Open the "
-                     "Schematic, Board, Case and Firmware tabs, or tell me what to change.",
-               "ru": "Это готовый пример, завершённый запуск агента. XIAO ESP32-C3 с OLED 0,96 дюйма и крупными цифрами ММ:СС, три кнопки (старт/стоп, +, -), активная "
-                     "пищалка 3 В через транзистор с защитным диодом, мигающий светодиод и LiPo 500 мА·ч с зарядкой по USB-C. Плата 76x72 мм, корпус на защёлках "
-                     "104x81x15,5 мм с подставкой, окном экрана, решёткой пищалки и тремя толкателями. Засыпает через 60 с и просыпается от любой кнопки; на виртуальной "
-                     "плате (11 сценариев) потребляет 0,064 мА во сне, и без действий аккумулятора хватает примерно на 4 месяца. На реальном железе не проверялся. "
-                     "Откройте вкладки «Схема», «Плата», «Корпус» и «Прошивка» или напишите, что поменять."},
+        intro={"en": "A ready example, a finished run of the agent: minutes and seconds on a 0.96\" OLED, + and − step by a minute (hold to go fast), start pauses and a long hold "
+                     "resets, and the signal beeps for 60 s until any button stops it. A 98 × 60 × 15 mm wedge on a 25° stand, with a 500 mAh LiPo charged over USB-C.\n\n**Not "
+                     "tested:** the firmware ran on a virtual board (11 scenarios, 4 of 4 requirement tests passed; the tests of R2 and R3 were changed after they first failed), "
+                     "not on real hardware. On the virtual board the cell lasts about 11 hours left alone.\n\nOpen the tabs above, or tell me what to change.",
+               "ru": "Готовый пример, завершённый запуск агента: минуты и секунды на OLED 0,96\", кнопки + и − шагают по минуте (удержание быстрее), старт ставит на паузу, долгое "
+                     "удержание сбрасывает, сигнал пищит 60 с, пока любая кнопка его не остановит. Клин 98 × 60 × 15 мм с подставкой 25°, LiPo 500 мА·ч с зарядкой от USB-C.\n\n"
+                     "**Не проверено:** прошивка прошла на виртуальной плате (11 сценариев, 4 из 4 тестов требований; тесты R2 и R3 менялись после провала), на реальном железе не "
+                     "запускалась. На виртуальной плате аккумулятора без действий хватает примерно на 11 часов.\n\nОткройте вкладки сверху или напишите, что поменять."},
+    ),
+    _device_example(
+        "soil",
+        title={"en": "Soil moisture sensor", "ru": "Датчик влажности почвы"},
+        caption={"en": "A probe in the pot, percent on an OLED, an LED and a buzzer when it is dry", "ru": "Щуп в горшке, проценты на OLED, светодиод и пищалка, когда сухо"},
+        prompt={"en": "Make a device: a soil moisture sensor for a houseplant.", "ru": "Сделай устройство: датчик влажности почвы для комнатного цветка."},
+        intro={"en": "A ready example, a finished run of the agent: a probe in the pot's soil, moisture in percent on a 0.96\" OLED, a green LED when it is dry and a buzzer after 30 s "
+                     "of dryness, which the button mutes for 12 hours. A 67 × 62 × 17 mm case powered from a USB charger.\n\n**Not tested:** the firmware ran on a virtual board "
+                     "(8 scenarios, 4 of 4 requirement tests passed), not on real hardware, and the probe's dry 2900 mV, wet 1400 mV and threshold 2200 mV need calibrating in your "
+                     "own soil.\n\nOpen the tabs above, or tell me what to change.",
+               "ru": "Готовый пример, завершённый запуск агента: щуп в земле горшка, влажность в процентах на OLED 0,96\", зелёный светодиод, когда сухо, и пищалка после 30 с сухости, "
+                     "которую кнопка глушит на 12 часов. Корпус 67 × 62 × 17 мм, питание от USB-зарядки.\n\n**Не проверено:** прошивка прошла на виртуальной плате (8 сценариев, "
+                     "4 из 4 тестов требований), на реальном железе не запускалась, а значения щупа (сухо 2900 мВ, влажно 1400 мВ, порог 2200 мВ) нужно подобрать под свой грунт.\n\n"
+                     "Откройте вкладки сверху или напишите, что поменять."},
+    ),
+    _device_example(
+        "night",
+        title={"en": "Motion night light", "ru": "Ночник с датчиком движения"},
+        caption={"en": "In the dark, motion fades on a warm light for 30 s; by day it stays off", "ru": "В темноте движение плавно включает тёплый свет на 30 с, днём он не горит"},
+        prompt={"en": "Make a device: a night light with a motion sensor.", "ru": "Сделай устройство: ночник с датчиком движения."},
+        intro={"en": "A ready example, a finished run of the agent: a soft 52 × 56 × 16 mm puck for a shelf with a PIR motion sensor, a BH1750 light sensor and four warm 3000 K LEDs. In "
+                     "the dark, motion fades the light on for 30 s and off again, by day it stays off, and the button gives a constant dim light. It runs from a USB charger.\n\n**Not "
+                     "tested:** the firmware ran on a virtual board (14 scenarios, 4 of 4 requirement tests passed; the tests of R1 and R3 were changed after they first failed), not "
+                     "on real hardware, and the PIR's range through its round window is unmeasured.\n\nOpen the tabs above, or tell me what to change.",
+               "ru": "Готовый пример, завершённый запуск агента: мягкая шайба 52 × 56 × 16 мм на полку с PIR-датчиком движения, датчиком света BH1750 и четырьмя тёплыми светодиодами "
+                     "3000 К. В темноте движение плавно включает свет на 30 с, днём он не горит, кнопка даёт постоянный слабый свет. Питание от USB-зарядки.\n\n**Не проверено:** "
+                     "прошивка прошла на виртуальной плате (14 сценариев, 4 из 4 тестов требований; тесты R1 и R3 менялись после провала), на реальном железе не запускалась, дальность "
+                     "PIR через круглое окно не измерена.\n\nОткройте вкладки сверху или напишите, что поменять."},
+    ),
+    _device_example(
+        "leak",
+        title={"en": "Water leak alarm", "ru": "Датчик протечки воды"},
+        caption={"en": "A probe on a cable, a buzzer and a red LED, months of sleep on a LiPo", "ru": "Щуп на кабеле, пищалка и красный светодиод, месяцы сна на LiPo"},
+        prompt={"en": "Make a device: a water leak sensor.", "ru": "Сделай устройство: датчик протечки воды."},
+        intro={"en": "A ready example, a finished run of the agent: the probe lies at the low point on its cable while the 51.7 × 48.7 × 22.9 mm unit stays dry. Water sets off a buzzer and "
+                     "a blinking red LED, the button tests the alarm and mutes it for 5 minutes. It sleeps at 0.044 mA and wakes on water or the button; on the virtual board a 500 mAh "
+                     "LiPo lasts about 9 months left alone.\n\n**Not tested:** the firmware ran on a virtual board (11 scenarios, 5 of 5 requirement tests passed), not on real hardware. "
+                     "One simulator warning stays open: with the probe wet its input sits at 1325 mV, between a logic low and a high, so very clean water may need a weaker pull-up. Try "
+                     "a drop of water, and the loudness inside a closed cupboard.\n\nOpen the tabs above, or tell me what to change.",
+               "ru": "Готовый пример, завершённый запуск агента: щуп на кабеле лежит в низкой точке, а блок 51,7 × 48,7 × 22,9 мм остаётся сухим. Вода включает пищалку и мигающий красный "
+                     "светодиод, кнопка проверяет сирену и глушит её на 5 минут. Спит при 0,044 мА, просыпается от воды или кнопки; на виртуальной плате LiPo 500 мА·ч без действий хватает "
+                     "примерно на 9 месяцев.\n\n**Не проверено:** прошивка прошла на виртуальной плате (11 сценариев, 5 из 5 тестов требований), на реальном железе не запускалась. Одно "
+                     "замечание симулятора остаётся открытым: при мокром щупе вход на 1325 мВ, между логическими нулём и единицей, при чистой воде может понадобиться ослабить подтяжку. "
+                     "Проверьте каплей воды, а громкость в закрытом шкафу отдельно.\n\nОткройте вкладки сверху или напишите, что поменять."},
+    ),
+    _device_example(
+        "dice",
+        title={"en": "Electronic dice", "ru": "Электронный игральный кубик"},
+        caption={"en": "Seven red LED pips, a button rolls them, deep sleep on a LiPo", "ru": "Семь красных точек, кнопка бросает, глубокий сон на LiPo"},
+        prompt={"en": "Make a device: an electronic dice.", "ru": "Сделай устройство: электронный игральный кубик."},
+        intro={"en": "A ready example, a finished run of the agent: seven red LEDs in the pattern of a die, a button rolls them for about 1.2 s and they stop on 1 to 6. It sleeps after "
+                     "30 s and the button wakes it. A 39.9 × 59 × 21.3 mm box with a 500 mAh LiPo charged over USB-C; on the virtual board the cell lasts about 9 months left alone.\n\n"
+                     "**Not tested:** the firmware ran on a virtual board (5 scenarios, 3 of 3 requirement tests passed), not on real hardware. The print check keeps one warning: a "
+                     "2.8 mm² spot of wall is thinner than two lines.\n\nOpen the tabs above, or tell me what to change.",
+               "ru": "Готовый пример, завершённый запуск агента: семь красных светодиодов в рисунке кубика, кнопка перебирает их около 1,2 с, и они останавливаются на 1–6. Через 30 с "
+                     "засыпает, кнопка будит. Коробка 39,9 × 59 × 21,3 мм, LiPo 500 мА·ч с зарядкой от USB-C; на виртуальной плате аккумулятора без действий хватает примерно на "
+                     "9 месяцев.\n\n**Не проверено:** прошивка прошла на виртуальной плате (5 сценариев, 3 из 3 тестов требований), на реальном железе не запускалась. Проверка печати оставила "
+                     "одно предупреждение: участок стенки 2,8 мм² тоньше двух линий.\n\nОткройте вкладки сверху или напишите, что поменять."},
+    ),
+    _device_example(
+        "keypad",
+        title={"en": "4-key macro keypad", "ru": "Клавиатура на 4 кнопки"},
+        caption={"en": "2×2 MX switches, printed keycaps, a USB keyboard on a XIAO ESP32-S3", "ru": "2×2 на свитчах MX, печатные колпачки, USB-клавиатура на XIAO ESP32-S3"},
+        prompt={"en": "Make a keypad with 4 keys", "ru": "Сделай клавиатуру на 4 кнопки"},
+        intro={"en": "A ready example, a finished run of the agent: four MX switches at 19.05 mm pitch on a XIAO ESP32-S3, USB-C at the back, sending the digits 1 to 4 as a wired USB "
+                     "keyboard. A 64 × 74 × 15.5 mm case with printed keycaps and 4 mm of travel. You add 4 MX switches and a USB-C cable.\n\n**Not tested:** the firmware only compiled. "
+                     "The virtual board does not model the USB keyboard library, so it has not run even there, and not on real hardware: check the keys in a text editor once it is "
+                     "built. The print check keeps warnings: a 610 mm² overhang that needs support and four thin walls of 71 mm² each.\n\nOpen the tabs above, or tell me what to change.",
+               "ru": "Готовый пример, завершённый запуск агента: четыре свитча MX с шагом 19,05 мм на XIAO ESP32-S3, USB-C сзади, шлёт цифры 1–4 как проводная USB-клавиатура. Корпус "
+                     "64 × 74 × 15,5 мм с печатными колпачками и ходом 4 мм. Докупить: 4 свитча MX и кабель USB-C.\n\n**Не проверено:** прошивка только скомпилирована. Виртуальная плата "
+                     "не моделирует библиотеку USB-клавиатуры, поэтому она не запускалась даже там, и на реальном железе тоже: проверьте клавиши в текстовом редакторе после сборки. Проверка "
+                     "печати оставила предупреждения: нависание 610 мм², которому нужны поддержки, и четыре тонкие стенки по 71 мм².\n\nОткройте вкладки сверху или напишите, что поменять."},
     ),
 ] if e["source"]]
 BY_KEY = {e["key"]: e for e in EXAMPLES}
@@ -484,8 +542,8 @@ HOLE_SHRINK = 0.15
 
 _lock = asyncio.Lock()
 # Bump when the checks or the cover renderer change, so every cached cover and report is rebuilt.
-REVISION = 5  # 3: lib.elec edge clips and the finer port cutter (USB 0.29 mm); 4: the XIAO carrier without engine warnings;
-#               5: the spare-part wheel and its fit check
+REVISION = 6  # 3: lib.elec edge clips and the finer port cutter (USB 0.29 mm); 4: the XIAO carrier without engine warnings;
+#               5: the spare-part wheel and its fit check; 6: covers without a backdrop, device covers taken apart
 # A PCB example that did not route (no bundle, a failed build) is tried again after this long, not on every home page visit.
 RETRY_S = 600.0
 _failed: dict[str, float] = {}
@@ -587,7 +645,7 @@ async def prepared(ex: dict[str, Any]) -> dict[str, Any] | None:
         extra = {"inputs": ex["inputs"]} if ex.get("inputs") else {}
         try:
             built = await geom().build(ex["source"], {}, analyze="full", **extra)
-            png = await geom().render(ex["source"], built["params"], view="iso", tile=512, **extra)
+            png = await geom().render(ex["source"], built["params"], view="iso", tile=512, transparent=True, **extra)
             case = await _case_check(ex, built["params"])
             fit = await _axle_fit(ex, built["params"]) if ex.get("fit") else None
         except GeomError as e:
@@ -636,7 +694,7 @@ async def _prepared_pcb(ex: dict[str, Any]) -> dict[str, Any] | None:
         inputs = {"boards": {"board": json.loads(packed["files"]["board.json"])}}
         try:
             built = await geom().build(ex["source"], {}, analyze="full", inputs=inputs)
-            png = await geom().render(ex["cover"], {}, view="iso", tile=512, inputs=inputs)
+            png = await geom().render(ex["cover"], {}, view="iso", tile=512, transparent=True, inputs=inputs)
             case = await _case_check({**ex, "inputs": inputs}, built["params"])
         except GeomError as e:
             log.warning("example %s does not build: %s", ex["key"], e)

@@ -432,6 +432,7 @@ HINTS = {
     "component_clear": "more clear around that part",
     "pcb_seated": "the board must rest on standoffs or ledges: build with lib.elec (E.parts) so the board ghost is there, check mount and the holes",
     "button_reach": "change pressGap (plunger gap) or tabLen",
+    "key_plate": "move the key switch or the part in the way (place, layouts), or give the board more room around the keys",
     "button_unreachable": "a side or bottom button gets no actuator yet: say it is reachable with the lid off",
     "light_window": "lights 'hole', or a thinner skin",
     "lid_fit": "the lid and the base overlap: change fit or the hook options",
@@ -482,6 +483,7 @@ async def finish_gate(ctx: Any, state: Any) -> list[str]:
         except GeomError as e:
             if e.stage in INFRA_STAGES:
                 log.warning("case check skipped at finish: %s %s", e.stage, e.message[:200])
+                state.unchecked.append("case_check")  # no block, and no silent pass either: the finish says so
                 return []
             return [f"the assembled case does not build ({e.stage}): {e.message[:300]}"]
     return [f"{f['code']} ({f.get('part')}): {f.get('msg')}" + (f" -> {h}" if (h := hint(f)) else "")

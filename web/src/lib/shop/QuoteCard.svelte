@@ -238,19 +238,18 @@
     justify-content: space-between;
   }
   .big {
-    font-size: var(--text-card-price);
+    font-size: var(--text-3xl);
     font-weight: var(--font-weight-bold);
-    letter-spacing: -0.4px;
     line-height: 1.15;
     font-variant-numeric: tabular-nums;
     animation: land var(--dur-slow) var(--ease-settle);
   }
   .big.approx {
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
     color: var(--on-surface-var);
   }
   .usd {
-    font-size: var(--text-product-lead);
+    font-size: var(--text-lg);
     color: var(--outline);
     font-weight: var(--font-weight-semibold);
   }

@@ -101,8 +101,8 @@
     align-items: center;
     gap: 5px;
     padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 12px;
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-semibold);
     color: #fff;
     background: rgb(20 20 18 / 0.55);

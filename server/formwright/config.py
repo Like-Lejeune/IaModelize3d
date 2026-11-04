@@ -70,7 +70,6 @@ class Settings(BaseSettings):
     device_reviewer: bool = False
 
     # budgets (USD)
-    job_budget_usd: float = 0.60
     daily_budget_usd: float = 25.0
     # what anonymous visitors may spend of it together: the rest stays for people with a sign-in link (judges, Telegram)
     # however many addresses the anonymous traffic comes from
@@ -78,6 +77,7 @@ class Settings(BaseSettings):
     max_iterations: int = 8
     # wall-clock deadlines (s): past it a job wraps up, a minute later it is stopped
     design_deadline_s: float = 600
+    device_deadline_s: float = 1200  # a whole device: board, case, firmware and its tests; 4 of 13 harder ones ran out at 600 on 2026-11-04
     side_deadline_s: float = 180
     # how long a question waits for an answer; the wait does not count toward the deadline
     ask_timeout_s: float = 180

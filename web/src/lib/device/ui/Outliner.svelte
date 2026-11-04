@@ -1,19 +1,16 @@
 <script lang="ts">
-  // The device as a tree (Blender's Outliner). Every row does one thing on click: the device row shows the device's
-  // properties, a stage row opens that workspace, a group folds, a part or a net is selected (and lit on the schematic).
+  // The device as a tree (Blender's Outliner): the workspaces are the tabs above it. Every row does one thing on click:
+  // a group folds, a part or a net is selected (and lit on the schematic).
   import type { ProjectStore } from '$lib/project.svelte';
   import type { DevNode } from '../api';
   import { POWER_NET } from '../store.svelte';
   import { netColor } from '../PartNode.svelte';
   import { dt } from '../i18n';
 
-  type Stage = 'board' | 'case' | 'firmware' | 'bom';
-  let { store, stage, onStage }: { store: ProjectStore; stage: string; onStage: (s: Stage | 'schematic') => void } = $props();
+  let { store, stage, onStage }: { store: ProjectStore; stage: string; onStage: (s: 'schematic') => void } = $props();
 
   const dev = $derived(store.device);
   const ds = $derived(dev.state);
-  const pcb = $derived(store.pcb.versions.at(-1) ?? null);
-  const fw = $derived(ds?.doc.firmware ?? null);
   const GROUPS: { key: string; kinds: string[] }[] = [
     { key: 'g_mcu', kinds: ['module'] },
     { key: 'lib_accessories', kinds: ['accessory'] },
@@ -30,15 +27,10 @@
   const groups = $derived(GROUPS.map((g) => ({ ...g, nodes: (ds?.doc.nodes ?? []).filter((n) => g.kinds.includes(n.kind)) })).filter((g) => g.nodes.length));
   const name = (n: DevNode) => n.label || ds?.view.nodes[n.id]?.part.mpn || (n.value ? `${n.value} ${n.package ?? ''}` : dt(`k_${n.kind}`));
   const issues = $derived(new Set([...(ds?.issues ?? []), ...(ds?.lint ?? []), ...(ds?.rules ?? [])].filter((i) => i.severity !== 'info').map((i) => String(i.ref).split('.')[0])));
-  const stages = $derived<{ id: Stage; icon: string; meta: string; state: string }[]>([
-    { id: 'board', icon: 'ti-cpu', meta: pcb ? `v${pcb.version}` : '—', state: !pcb ? '' : pcb.drc.errors ? 'err' : dev.stale ? 'warn' : 'ok' },
-    { id: 'case', icon: 'ti-box', meta: store.casePcbVersion != null ? `v${store.version}` : '—', state: store.casePcbVersion != null ? 'ok' : '' },
-    { id: 'firmware', icon: 'ti-code', meta: fw ? Object.keys(fw.files)[0] : '—', state: fw ? (fw.check?.ok === false ? 'err' : 'ok') : '' },
-    { id: 'bom', icon: 'ti-list-details', meta: ds ? `${ds.doc.nodes.filter((n) => n.kind !== 'hole').length}` : '—', state: '' },
-  ]);
 
   function pickNode(id: string) {
-    dev.pickNode(id);
+    // a second click lets go: the panel below is back to the whole device
+    dev.pickNode(dev.selected === id ? null : id);
     if (stage !== 'schematic' && stage !== 'board') onStage('schematic');
   }
   function pickNet(key: string) {
@@ -48,17 +40,6 @@
 </script>
 
 <div class="ol" role="tree">
-  <button class="row" class:sel={!dev.selected && !dev.selectedNet} onclick={() => (dev.pickNode(null), dev.pickNet(null))}>
-    <span class="tw"></span><i class="ti ti-topology-star-3" aria-hidden="true"></i><span class="nm strong">{store.detail?.title ?? dt('workspace')}</span>
-  </button>
-  {#each stages as st (st.id)}
-    <button class="row l1" class:cur={stage === st.id} onclick={() => onStage(st.id)}>
-      <span class="tw"></span><i class="ti {st.icon}" aria-hidden="true"></i><span class="nm">{dt(`stage_${st.id}`)}</span>
-      <span class="meta">{st.meta}</span>
-      <span class="dot d-{st.state}"></span>
-    </button>
-  {/each}
-
   {#each groups as g (g.key)}
     <button class="row l1 grp" onclick={() => (folded[g.key] = !folded[g.key])} aria-expanded={!folded[g.key]}>
       <span class="tw"><i class="ti ti-chevron-right ar" class:down={!folded[g.key]} aria-hidden="true"></i></span>
@@ -109,7 +90,7 @@
     background: none;
     color: var(--on-surface);
     font: inherit;
-    font-size: 13px;
+    font-size: var(--text-md);
     text-align: left;
     cursor: pointer;
     min-width: 0;
@@ -120,14 +101,11 @@
   .row.sel {
     background: color-mix(in srgb, var(--primary) 26%, transparent);
   }
-  .row.cur .nm {
-    color: var(--primary);
-  }
   .l1 {
-    padding-left: 20px;
+    padding-left: 6px;
   }
   .l2 {
-    padding-left: 38px;
+    padding-left: 18px;
   }
   /* the twisty column: every row has one, so icons and names line up at each level */
   .tw {
@@ -137,7 +115,7 @@
     place-items: center;
   }
   .row i {
-    font-size: 14px;
+    font-size: var(--text-base);
     color: var(--on-surface-var);
     flex: none;
   }
@@ -155,13 +133,13 @@
     color: var(--on-surface-var);
   }
   .ref {
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     color: var(--on-surface-var);
     flex: none;
     min-width: 36px;
   }
   .meta {
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     color: var(--on-surface-var);
     flex: none;
     max-width: 110px;
@@ -170,7 +148,7 @@
     white-space: nowrap;
   }
   .ar {
-    font-size: 12px !important;
+    font-size: var(--text-sm) !important;
     transition: transform var(--dur-fast) var(--ease-standard);
   }
   .ar.down {
@@ -195,7 +173,7 @@
   .swatch {
     width: 10px;
     height: 10px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     background: var(--c);
     flex: none;
     margin: 0 2px;

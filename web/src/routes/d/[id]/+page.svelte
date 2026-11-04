@@ -7,6 +7,7 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { onDestroy, setContext, untrack } from 'svelte';
+  import Logo from '$lib/components/Logo.svelte';
   import Viewer from '$lib/components/Viewer.svelte';
   import Conversation from '$lib/components/Conversation.svelte';
   import Composer from '$lib/components/Composer.svelte';
@@ -15,7 +16,12 @@
   import PcbPanel from '$lib/components/PcbPanel.svelte';
   import GetItPanel from '$lib/components/GetItPanel.svelte';
   import Modal from '$lib/components/Modal.svelte';
+  import ReplayBar from '$lib/components/ReplayBar.svelte';
+  import Sash from '$lib/components/Sash.svelte';
+  import RowSash from '$lib/components/RowSash.svelte';
+  import { SideDock } from '$lib/dock.svelte';
   import { ProjectStore } from '$lib/project.svelte';
+  import { ReplayPlayer } from '$lib/replay.svelte';
   import { takeFirst } from '$lib/pending';
   import { api, download, errorText } from '$lib/api';
   import { i18n, t, isText, projectTitle } from '$lib/i18n.svelte';
@@ -40,8 +46,9 @@
   import { QuoteState } from '$lib/device/quote.svelte';
   import type { Accessory, DevNode, Review } from '$lib/device/api';
   import { loadLibrary } from '$lib/device/PartLibrary.svelte';
-  import { accessoriesOf, placedBy, sizeText, sortChecks } from '$lib/device/facets';
-  import { dt, patternName, usd } from '$lib/device/i18n';
+  import { accessoriesOf, placedBy, sortChecks } from '$lib/device/facets';
+  import { dt, patternName, sizeIn, usd } from '$lib/device/i18n';
+  import '$lib/device/ui/workspace.css';
 
   type Stage = 'schematic' | 'board' | 'case' | 'firmware' | 'bom' | 'make';
   type Status = 'empty' | 'run' | 'ok' | 'warn' | 'stale' | 'err' | 'locked';
@@ -55,14 +62,60 @@
   ];
 
   let store = $state<ProjectStore | null>(null);
+  /** ?replay: the recorded run plays back here (/w/<id> opens it), the project itself stays as it is. */
+  const replayMode = $derived(page.url.searchParams.has('replay'));
+  let player = $state<ReplayPlayer | null>(null);
+  let barH = $state(0);
   let quote = $state<QuoteState | null>(null);
   let stage = $state<Stage>('schematic');
-  let chatOpen = $state(true);
+  const dock = new SideDock('device', { left: (w) => (w > 1280 ? 320 : 290), right: (w) => (w > 1280 ? 320 : 300) });
   let wide = $state(true);
   let sheet = $state(false);
   let share = $state(false);
   let addOpen = $state(false);
   let powerWires = $state(false);
+  // the schematic's grid and magnet, as in the board editor, remembered for this viewer
+  const GRIDS = [10, 20, 40];
+  const savedGrid = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('fw_schematic_grid') ?? 'null');
+    } catch {
+      return null;
+    }
+  })();
+  let gridStep = $state<number>(GRIDS.includes(savedGrid?.g) ? savedGrid.g : 20);
+  let showGrid = $state<boolean>(savedGrid?.show ?? true);
+  let magnet = $state<boolean>(savedGrid?.magnet ?? true);
+  $effect(() => {
+    const v = JSON.stringify({ g: gridStep, show: showGrid, magnet });
+    try {
+      localStorage.setItem('fw_schematic_grid', v);
+    } catch {
+      /* not kept */
+    }
+  });
+  // the seam between the outliner and the properties: the outliner's height, kept with the dock
+  const OUTL_KEY = 'fw.dock.device.outliner';
+  let outlH = $state<number | null>((() => {
+    try {
+      const v = Number(localStorage.getItem(OUTL_KEY));
+      return v > 0 ? v : null;
+    } catch {
+      return null;
+    }
+  })());
+  let rcolH = $state(0);
+  const OUTL_MIN = 70;
+  const outlMax = $derived(Math.max(OUTL_MIN, rcolH - OUTL_MIN - 4));
+  const outlShown = $derived(outlH == null ? null : Math.min(outlH, outlMax));
+  function saveOutl() {
+    try {
+      if (outlH == null) localStorage.removeItem(OUTL_KEY);
+      else localStorage.setItem(OUTL_KEY, String(outlH));
+    } catch {
+      /* not kept */
+    }
+  }
   /** The board workspace: the editor (placement, routing, zones in one view), or the built board as rendered. */
   let boardMode = $state<'edit' | 'view'>('edit');
   let editor = $state<DeviceEditor>();
@@ -78,21 +131,28 @@
 
   $effect(() => {
     const id = page.params.id!;
-    const s = new ProjectStore(id);
+    const replay = replayMode;
+    const s = new ProjectStore(id, false, replay);
+    const p = replay ? new ReplayPlayer(s, Number(untrack(() => page.url.searchParams.get('at'))) || null) : null;
     store = s;
+    player = p;
     quote = new QuoteState(id);
     stage = 'schematic';
     const first = takeFirst(id);
     s.load().then(() => {
-      if (s.detail && s.detail.pack !== 'device' && s.device.empty) {
-        goto(`/p/${id}`, { replaceState: true });
+      if (s.detail && s.detail.pack !== 'device' && (replay || s.device.empty)) {
+        goto(`/p/${id}${replay ? location.search : ''}`, { replaceState: true });
         return;
       }
       s.device.refresh();
-      if (first) s.sendFiles(first.text, first.files);
+      if (first && s.detail) s.sendFiles(first.text, first.files);
       quote?.loadOrders();
+      p?.start();
     });
-    return () => s.dispose();
+    return () => {
+      p?.dispose();
+      s.dispose();
+    };
   });
   onDestroy(() => store?.dispose());
 
@@ -191,7 +251,8 @@
     const v = pcbV?.version;
     const ok = pcbV && !pcbV.drc.errors;
     const qty = quote?.qty;
-    if (quote && v && ok && qty) quote.load(v);
+    // a replay passes many versions: its quote only when the order is being looked at
+    if (quote && v && ok && qty && (!store?.replayMode || stage === 'make')) quote.load(v);
   });
 
   // ---- the case, as the parts studio shows it
@@ -215,7 +276,7 @@
   function send(text: string) {
     store?.send(text);
     if (!wide) sheet = true;
-    else chatOpen = true;
+    else dock.show('left');
   }
   function addNode(node: Omit<DevNode, 'id'>) {
     store?.device.addNode(node, editor?.centre());
@@ -264,15 +325,6 @@
       store.addError(errorText(err));
     }
   }
-  async function togglePublic() {
-    if (!store?.detail) return;
-    try {
-      const p = await api.patchProject(store.id, { public: !store.detail.public });
-      store.detail.public = p.public;
-    } catch (err) {
-      store.addError(errorText(err));
-    }
-  }
   function onKey(e: KeyboardEvent) {
     const el = e.target as HTMLElement | null;
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
@@ -280,6 +332,8 @@
       e.preventDefault();
       addOpen = true;
     } else if (stage === 'schematic' && e.key === 'Home') editor?.fit();
+    else if (stage === 'schematic' && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'g') showGrid = !showGrid;
+    else if (stage === 'schematic' && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'n') gridStep = GRIDS[(GRIDS.indexOf(gridStep) + (e.shiftKey ? GRIDS.length - 1 : 1)) % GRIDS.length];
     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault();
       if (e.shiftKey) dev?.redo();
@@ -295,22 +349,23 @@
 </script>
 
 <svelte:head><title>{store?.detail ? projectTitle(store.detail.title) : dt('workspace')} · Formwright</title></svelte:head>
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} bind:innerWidth={dock.viewport} />
 
 {#snippet chatArea()}
   {#if store}
     <header class="ah">
-      <i class="ti ti-sparkles hi" aria-hidden="true"></i>
       <span class="at">{dt('ai_engineer')}</span>
       {#if store.running}<span class="busy"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {activity}</span>{/if}
       <span class="spacer"></span>
-      {#if wide}<button class="hb icon" onclick={() => (chatOpen = false)} title={dt('collapse')} aria-label={dt('collapse')}><i class="ti ti-layout-sidebar-left-collapse" aria-hidden="true"></i></button>
+      {#if wide}<button class="hb icon" onclick={() => dock.hide('left')} title={dt('collapse')} aria-label={dt('collapse')}><i class="ti ti-layout-sidebar-left-collapse" aria-hidden="true"></i></button>
       {:else}<button class="hb icon" onclick={() => (sheet = false)} aria-label={dt('close')}><i class="ti ti-x" aria-hidden="true"></i></button>{/if}
     </header>
     <div class="ab chatbody">
       <Conversation {store} {onAction} bare />
-      {#if store.readonly}
-        <div class="remix"><span><i class="ti ti-lock" aria-hidden="true"></i> {t('forbidden')}</span><button class="hb primary" onclick={fork}><i class="ti ti-git-fork" aria-hidden="true"></i> {t('fork')}</button></div>
+      {#if player}
+        <!-- the player's bar says what to do with the run -->
+      {:else if store.readonly}
+        <div class="remix"><span><i class="ti ti-lock" aria-hidden="true"></i> {t('forbidden')}</span><a class="hb" href="/w/{store.id}"><i class="ti ti-player-play" aria-hidden="true"></i> {t('replay')}</a><button class="hb primary" onclick={fork}><i class="ti ti-git-fork" aria-hidden="true"></i> {t('fork')}</button></div>
       {:else}<Composer {store} placeholder={ds?.doc.nodes.length ? dt('composer_change') : dt('composer_new')} />{/if}
     </div>
   {/if}
@@ -318,9 +373,6 @@
 
 {#snippet editorHeader()}
   {#if store && dev}
-    <i class="ti {STAGES.find((s) => s.id === stage)?.icon} hi" aria-hidden="true"></i>
-    <span class="at">{dt(`stage_${stage}`)}</span>
-    <span class="sep"></span>
     {#if stage === 'schematic'}
       {#if !readonly}
         <button class="hb icon" onclick={() => dev.undo()} disabled={!dev.canUndo} title="{dt('undo')} (Ctrl+Z)" aria-label={dt('undo')}><i class="ti ti-arrow-back-up" aria-hidden="true"></i></button>
@@ -331,10 +383,16 @@
       <button class="hb" onclick={() => editor?.tidy()} disabled={readonly || dev.empty}><i class="ti ti-layout-grid" aria-hidden="true"></i> {dt('layout')}</button>
       <button class="hb" onclick={() => editor?.fit()} title="{dt('fit')} (Home)"><i class="ti ti-focus-centered" aria-hidden="true"></i> {dt('fit')}</button>
       <label class="hb chk" title={dt('power_wires_d')}><input type="checkbox" bind:checked={powerWires} /> {dt('power_short')}</label>
+      <span class="sep"></span>
+      <button class="hb icon" class:lit={showGrid} onclick={() => (showGrid = !showGrid)} title="{dt('ed_grid')} (G)" aria-label={dt('ed_grid')} aria-pressed={showGrid}><i class="ti ti-grid-dots" aria-hidden="true"></i></button>
+      <select class="gsel" bind:value={gridStep} title="{dt('ed_grid_step')} (N)" aria-label={dt('ed_grid_step')}>
+        {#each GRIDS as g (g)}<option value={g}>{g}</option>{/each}
+      </select>
+      <button class="hb" class:lit={magnet} onclick={() => (magnet = !magnet)} title={dt('sch_magnet_d')} aria-pressed={magnet}><i class="ti ti-magnet" aria-hidden="true"></i> {dt('ed_magnet')}</button>
     {:else if stage === 'board' && pcbV}
       <span class="meta">v{pcbV.version} · {pcbV.counts.components ?? '—'} {dt('pcs')} · {pcbV.counts.traces ?? 0} {dt('traces')} · {pcbV.counts.vias ?? 0} {dt('vias')}</span>
     {:else if stage === 'case' && store.source}
-      <span class="meta">v{store.version}{caseMm ? ` · ${sizeText(caseMm)} ${dt('mm')}` : ''}{store.checks?.stats?.estGrams ? ` · ${Math.round(store.checks.stats.estGrams)} ${dt('g')}` : ''}</span>
+      <span class="meta">v{store.version}{caseMm ? ` · ${sizeIn(caseMm)} ${dt('mm')}` : ''}{store.checks?.stats?.estGrams ? ` · ${Math.round(store.checks.stats.estGrams)} ${dt('g')}` : ''}</span>
     {:else if stage === 'firmware' && fw}
       <span class="meta">{fw.lang}</span>
     {:else if stage === 'bom' && bom.length}
@@ -354,8 +412,8 @@
       <span class="busy"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {dev.build.size && dev.build.attempt ? dt('building_n', { w: dev.build.size[0], h: dev.build.size[1], n: dev.build.attempt }) : dt('building')}</span>
     {:else if (stage === 'schematic' || stage === 'board') && !readonly && !dev.empty}
       {#if pcbV && !dev.stale}
-        <!-- the board is up to date: rebuilding is still there, quietly -->
-        <button class="hb icon" onclick={() => dev.startBuild()} title={dt('rebuild')} aria-label={dt('rebuild')}><i class="ti ti-refresh" aria-hidden="true"></i></button>
+        <!-- the board is up to date: rebuilding is still there, named but without the accent -->
+        <button class="hb" onclick={() => dev.startBuild()}><i class="ti ti-cpu" aria-hidden="true"></i> {dt('rebuild')}</button>
       {:else}
         <button class="hb primary" onclick={() => dev.startBuild()}><i class="ti ti-cpu" aria-hidden="true"></i> {pcbV ? dt('rebuild') : dt('build')}</button>
       {/if}
@@ -369,9 +427,9 @@
   {/if}
 {/snippet}
 
-<div class="bw">
+<div class="bw" class:replay={!!player} style:--replay-h="{player ? barH : 0}px">
   <header class="top">
-    <a class="logo" href="/" title="Formwright"><img src="/favicon.svg" alt="" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')} /><span>F</span></a>
+    <a class="logo" href="/" title="Formwright" aria-label="Formwright"><Logo size={20} /></a>
     {#if store?.detail}
       {#if store.readonly}<strong class="pname">{projectTitle(store.detail.title)}</strong>
       {:else}<input class="pname" value={projectTitle(store.detail.title)} onchange={rename} aria-label={t('name')} />{/if}
@@ -379,42 +437,53 @@
     <nav class="wtabs" role="tablist" aria-label={dt('stages')}>
       {#each STAGES as st, i (st.id)}
         <button role="tab" class="wt" aria-selected={stage === st.id} class:locked={status[st.id] === 'locked'} onclick={() => pick(st.id)} title="{dt(`stage_${st.id}`)} (Ctrl+{i + 1})">
-          {#if status[st.id] === 'run'}<i class="ti ti-loader-2 spin sd" aria-hidden="true"></i>{:else}<span class="sd d-{status[st.id]}"></span>{/if}
+          <!-- a mark only where there is something to say: not made yet, out of date, or wrong -->
+          {#if status[st.id] === 'run'}<i class="ti ti-loader-2 spin sd" aria-hidden="true"></i>{:else if status[st.id] !== 'ok' && status[st.id] !== 'locked'}<span class="sd d-{status[st.id]}"></span>{/if}
           {dt(`stage_${st.id}`)}
         </button>
       {/each}
     </nav>
     <span class="spacer"></span>
-    {#if dev?.saving}<span class="saving"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {dt('saving')}</span>{/if}
+    {#if dev?.saving}<span class="saving"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {dt('saving')}</span>
+    {:else if dev?.state && dev.error && dev.hasUnsaved}<button class="saving warnc retrysave" onclick={() => dev?.retrySave()} title="{dev.error} {t('not_saved_d')}">{t('not_saved')}</button>{/if}
     {#if store?.connection === 'retry'}<span class="saving warnc">{t('reconnecting')}</span>{/if}
-    {#if !wide}<button class="hb primary" onclick={() => (sheet = true)}><i class="ti ti-sparkles" aria-hidden="true"></i>{#if store?.running}<span class="pulse"></span>{/if}</button>{/if}
+    {#if !wide}<button class="hb primary" onclick={() => (sheet = true)} aria-label={dt('ai_engineer')}><i class="ti ti-message" aria-hidden="true"></i>{#if store?.running}<span class="pulse"></span>{/if}</button>{/if}
     {#if store?.detail}
       {#if store.readonly}<button class="hb primary" onclick={fork}><i class="ti ti-git-fork" aria-hidden="true"></i> {t('fork')}</button>
       {:else}
+        {#if Object.keys(store.jobs).length && !store.running}
+          <a class="hb icon" href="/w/{store.id}" title={t('watch_your_replay')} aria-label={t('watch_your_replay')}><i class="ti ti-player-play" aria-hidden="true"></i></a>
+        {/if}
         <button class="hb icon" onclick={() => (share = true)} title={t('share')} aria-label={t('share')}><i class="ti ti-share" aria-hidden="true"></i></button>
-        <button class="hb icon" onclick={fork} title={t('fork')} aria-label={t('fork')}><i class="ti ti-git-fork" aria-hidden="true"></i></button>
+        <button class="hb icon spare" onclick={fork} title={t('fork')} aria-label={t('fork')}><i class="ti ti-git-fork" aria-hidden="true"></i></button>
       {/if}
     {/if}
-    <button class="hb icon" onclick={() => (i18n.lang = i18n.lang === 'ru' ? 'en' : 'ru')} title="Language" aria-label="Language"><span class="lang">{i18n.lang.toUpperCase()}</span></button>
+    <button class="hb icon spare" onclick={() => (i18n.lang = i18n.lang === 'ru' ? 'en' : 'ru')} title="Language" aria-label="Language"><span class="lang">{i18n.lang.toUpperCase()}</span></button>
   </header>
 
   {#if store?.loadError}
-    <div class="center"><p class="err">{isText(store.loadError, 'forbidden') ? t('private_project') : store.loadError}</p><a class="hb" href="/">{t('back')}</a></div>
+    <div class="center" role="alert">
+      <p class="err">{isText(store.loadError, 'forbidden') ? t('private_project') : store.loadError}</p>
+      {#if store.loadRetrying}<p class="xs muted">{t('load_retrying')}</p><button class="hb primary" onclick={() => store?.retryLoad()}>{t('retry')}</button>{/if}
+      <a class="hb" href="/">{t('back')}</a>
+    </div>
   {:else if !store?.detail || !dev}
     <div class="center"><i class="ti ti-loader-2 spin" aria-hidden="true"></i></div>
   {:else}
-    <div class="screen" class:nochat={!wide || !chatOpen}>
+    <div
+      class="screen"
+      class:wide
+      class:no-left={dock.left.hidden}
+      class:no-right={dock.right.hidden}
+      style:--dock-l="{dock.width('left')}px"
+      style:--dock-r="{dock.width('right')}px"
+    >
       {#if wide}
-        {#if chatOpen}
-          <section class="area chat">{@render chatArea()}</section>
-        {:else}
-          <button class="strip" onclick={() => (chatOpen = true)} title={dt('ai_engineer')}>
-            <i class="ti ti-sparkles" aria-hidden="true"></i><span>{dt('ai_engineer')}</span>{#if store.running}<span class="pulse"></span>{/if}
-          </button>
-        {/if}
+        <section class="area chat" class:gone={dock.left.hidden}>{@render chatArea()}</section>
+        <Sash {dock} side="left" label={dt('ai_engineer')} pulse={store.running} />
       {/if}
 
-      <section class="area editor">
+      <section class="area editor" class:tight={wide && dock.viewport - dock.width('left') - dock.width('right') < 960}>
         <header class="ah">{@render editorHeader()}</header>
         {#if locked}
           <div class="lockbar">
@@ -426,8 +495,8 @@
         {/if}
         <div class="ab canvas">
           {#if stage === 'schematic'}
-            <DeviceEditor bind:this={editor} bind:powerWires device={dev} {readonly} buildBar={false} toolbar={false} busy={store.running}
-              onAddPart={() => (addOpen = true)} onDescribe={() => (wide ? (chatOpen = true) : (sheet = true))} />
+            <DeviceEditor bind:this={editor} bind:powerWires device={dev} {readonly} buildBar={false} toolbar={false} busy={store.running} grid={showGrid} {gridStep} {magnet}
+              onAddPart={() => (addOpen = true)} onDescribe={() => (wide ? dock.show('left') : (sheet = true))} />
           {:else if stage === 'board'}
             {#if boardMode === 'edit' && pcbV && !store.pcb.live}
               <BoardEditor {store} {readonly} />
@@ -443,8 +512,9 @@
             {/if}
           {:else if stage === 'case'}
             {#if store.source}
+              {#if store.buildError}<p class="err small builderr" role="alert">{t('model_error')} {store.buildError}</p>{/if}
               <Viewer
-                loading={!!store.source && !store.build}
+                loading={!!store.source && !store.build && !store.buildError}
                 build={store.build}
                 issues={shownIssues}
                 highlight={selectedIssue}
@@ -478,13 +548,16 @@
         </div>
       </section>
 
-      <div class="rcol">
+      {#if wide}<Sash {dock} side="right" label={dt('properties')} />{/if}
+
+      <div class="rcol" class:gone={wide && dock.right.hidden} bind:clientHeight={rcolH} style:--outl-h={wide && outlShown != null ? `${outlShown}px` : undefined}>
         <section class="area outl">
-          <header class="ah"><i class="ti ti-list-tree hi" aria-hidden="true"></i><span class="at">{dt('outliner')}</span></header>
+          <header class="ah"><span class="at">{dt('outliner')}</span></header>
           <div class="ab scroll"><Outliner {store} {stage} onStage={(s) => pick(s)} /></div>
         </section>
+        {#if wide}<RowSash bind:height={outlH} min={OUTL_MIN} max={outlMax} label={dt('outliner_resize')} onsave={saveOutl} />{/if}
         <section class="area props">
-          <header class="ah"><i class="ti ti-adjustments-horizontal hi" aria-hidden="true"></i><span class="at">{dt('properties')}</span><span class="meta">{dt(`stage_${stage}`)}</span></header>
+          <header class="ah"><span class="at">{dt('properties')}</span></header>
           <div class="ab scroll panels">
             {#if dev.selected && (stage === 'schematic' || stage === 'board')}
               <PartInspector device={dev} {readonly} />
@@ -498,8 +571,8 @@
                   <dl class="kv">
                     <dt>{dt('kv_parts')}</dt><dd>{ds?.doc.nodes.length ?? 0}</dd>
                     <dt>{dt('kv_nets')}</dt><dd>{ds?.doc.nets.length ?? 0}</dd>
-                    <dt>{dt('stage_board')}</dt><dd class:warnc={dev.stale} class:okc={!!pcbV && !dev.stale}>{pcbV ? (dev.stale ? dt('kv_stale') : `v${pcbV.version}`) : '—'}</dd>
-                    <dt>{dt('version')}</dt><dd>{ds?.version ?? '—'}{dev.saving ? ` · ${dt('saving')}` : ''}</dd>
+                    <dt>{dt('kv_board_version')}</dt><dd class:warnc={dev.stale}>{pcbV ? (dev.stale ? dt('kv_stale') : `v${pcbV.version}`) : '—'}</dd>
+                    <dt>{dt('kv_revision')}</dt><dd>{ds?.version ?? '—'}{dev.saving ? ` · ${dt('saving')}` : ''}</dd>
                     {#each ds?.doc.layouts ?? [] as l, i (i)}
                       <dt>{patternName(l.pattern)}</dt><dd><button class="lk" onclick={() => dev.light(`layout:${i}`, l.nodes ?? [])}>{(l.nodes ?? []).join(' ')}</button></dd>
                     {/each}
@@ -508,7 +581,7 @@
                 </Panel>
                 {#if concept?.options?.length || concept?.uses?.length}
                   <!-- how it is used and what it looks like, brainstormed before the parts: the chosen option marked -->
-                  <Panel name="concept" title={dt('concept')}>
+                  <Panel name="concept_v2" title={dt('concept')} open={false}>
                     {#snippet right()}{(concept?.chosen ?? '').slice(0, 28)}{/snippet}
                     <ConceptPanel concept={concept!} />
                   </Panel>
@@ -543,7 +616,6 @@
             {:else if stage === 'board'}
               {#if boardMode === 'edit'}
                 <Panel name="editor" title={dt('ed_title')}>
-                  <p class="note">{dt('ed_d')}</p>
                   <dl class="kv">
                     <dt>{dt('place_pinned')}</dt><dd>{ds?.doc.nodes.filter((n) => n.pcb).length ?? 0}</dd>
                     {#if ds?.doc.nodes.some((n) => placedBy(ds.doc, n) === 'designer')}<dt>{dt('kv_designer')}</dt><dd>{ds.doc.nodes.filter((n) => placedBy(ds.doc, n) === 'designer').length}</dd>{/if}
@@ -571,7 +643,7 @@
             {:else if stage === 'case'}
               {#if store.source}
                 <Panel name="caseparams" title={dt('case_params')}>
-                  <ParamsPanel specs={sliderSpecs} values={store.values} agentValues={store.agentValues} building={store.building || !store.build} onChange={(n, v, c) => store!.setParam(n, v, c)} />
+                  <ParamsPanel panel={dt('case_params')} specs={sliderSpecs} values={store.values} agentValues={store.agentValues} building={store.building || !store.build} onChange={(n, v, c) => store!.setParam(n, v, c)} />
                 </Panel>
                 <Panel name="casechecks" title={dt('case_checks')}>
                   <ChecksPanel
@@ -603,8 +675,8 @@
                   <dt>{dt('kv_smt')}</dt><dd>{bom.filter((r) => !r.hand).length}</dd>
                   <dt>{dt('kv_hand')}</dt><dd>{bom.filter((r) => r.hand && !r.fitted).length}</dd>
                   {#if bom.some((r) => r.fitted)}<dt>{dt('fitted_title')}</dt><dd>{bom.filter((r) => r.fitted).length}</dd>{/if}
-                  <dt>basic</dt><dd class="okc">{bom.filter((r) => r.basic === true && !r.hand).length}</dd>
-                  <dt>extended</dt><dd class="warnc">{bom.filter((r) => r.basic === false && !r.hand).length}</dd>
+                  <dt>{dt('basic')}</dt><dd>{bom.filter((r) => r.basic === true && !r.hand).length}</dd>
+                  <dt>{dt('extended')}</dt><dd>{bom.filter((r) => r.basic === false && !r.hand).length}</dd>
                   <dt>{dt('kv_cost')}</dt><dd>{usd(bom.reduce((n, r) => n + (r.sum ?? 0), 0))}</dd>
                 </dl>
                 <p class="note">{dt('bom_note')}</p>
@@ -635,8 +707,8 @@
                 </Panel>
               {/if}
             {:else if quote}
-              <Panel name="order" title={dt('order')}>
-                <OrderSide q={quote} built={!!pcbV && !pcbV.drc.errors} stale={dev.stale} {readonly} files={fabFiles} />
+              <Panel name="order" title={dt('order_panel')}>
+                <OrderSide q={quote} built={!!pcbV && !pcbV.drc.errors} stale={dev.stale} {readonly} files={fabFiles} projectId={store.id} />
               </Panel>
             {/if}
           </div>
@@ -649,245 +721,36 @@
     {#if !wide && sheet}
       <div class="sheet" role="dialog" aria-label={dt('ai_engineer')}>{@render chatArea()}</div>
     {/if}
+    {#if player}<div class="replaybar" bind:clientHeight={barH}><ReplayBar {player} onFork={fork} exit="/d/{store.id}" /></div>{/if}
   {/if}
 </div>
 
 {#if share && store}
   <Modal title={t('share')} onClose={() => (share = false)}>
-    <GetItPanel {store} readonly={store.readonly} onPublish={togglePublic} />
+    <GetItPanel {store} readonly={store.readonly} />
   </Modal>
 {/if}
 
 <style>
-  /* the workspace's own density: small type, tight rows, thin seams between areas (a tool, not a page) */
-  .bw {
-    /* one set of measures for every area, panel and row, so edges line up */
-    --bw-row: 26px;
-    --bw-head-h: 34px;
-    --bw-pad: 10px;
-    --bw-gap: 8px;
-    --bw-r: 6px;
-    --bw-seam: var(--surface-container-lowest);
-    --bw-area: var(--surface-container-low);
-    --bw-head: var(--surface-container);
-    --bw-panel: var(--surface-container);
-    --bw-field: var(--surface);
-    --bw-field-border: var(--outline-variant);
-    --text-product-spec: 13px;
-    --text-product-lead: 14px;
-    --text-product-section-title: 15px;
-    --text-card-name: 15px;
-    --text-card-from: 12px;
-    --text-card-meta: 11.5px;
-    --text-card-section-label: 11px;
-    --space-1: 3px;
-    --space-2: 6px;
-    --space-3: 8px;
-    --space-4: 12px;
-    --space-5: 14px;
-    --space-6: 18px;
-    --space-7: 24px;
-    --space-8: 32px;
-    --radius-card: 6px;
-    --radius-btn: 5px;
-    --radius-chip: 5px;
-    --radius-field: 5px;
-    --radius-segment: 5px;
-    --radius-tag: 4px;
-    height: 100dvh;
-    display: grid;
-    grid-template-rows: 38px minmax(0, 1fr);
-    background: var(--bw-seam);
-    color: var(--on-surface);
-    font-size: 13px;
-    overflow: hidden;
-  }
-  .bw :global(.btn) {
-    padding: 5px 12px;
-    gap: 6px;
-    font-weight: var(--font-weight-medium);
-  }
-  .bw :global(.btn.small) {
-    padding: 4px 10px;
-  }
-  .bw :global(.btn.icon) {
-    width: 28px;
-    height: 28px;
-  }
-  .bw :global(.btn.icon.small) {
-    width: 26px;
-    height: 26px;
-  }
-  .bw :global(.chip),
-  .bw :global(.pill) {
-    font-size: 11px;
-    padding: 1px 6px;
-  }
-
-  /* ---- top bar: the workspaces */
-  .top {
-    display: flex;
-    align-items: center;
-    gap: var(--bw-gap);
-    padding: 0 var(--bw-pad);
-    background: var(--bw-head);
-    border-bottom: 1px solid var(--bw-seam);
-    min-width: 0;
-  }
-  .logo {
-    display: grid;
-    place-items: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-    background: var(--primary);
-    color: var(--on-primary);
-    font-weight: var(--font-weight-extrabold);
-    text-decoration: none;
-    flex: none;
-    overflow: hidden;
-  }
-  .logo img {
-    display: none;
-  }
-  .pname {
-    font: inherit;
-    font-size: 13px;
-    font-weight: var(--font-weight-semibold);
-    color: var(--on-surface);
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--bw-r);
-    padding: 3px 8px;
-    width: 220px;
-    min-width: 80px;
-    flex: none;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  input.pname:hover,
-  input.pname:focus {
-    background: var(--bw-field);
-    border-color: var(--bw-field-border);
-    outline: none;
-  }
-  .wtabs {
-    display: flex;
-    align-items: stretch;
-    gap: 1px;
-    height: 100%;
-    min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin-left: 6px;
-  }
-  .wt {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 0 16px;
-    margin-top: 6px;
-    border: none;
-    border-radius: var(--bw-r) var(--bw-r) 0 0;
-    background: transparent;
-    color: var(--on-surface-var);
-    font: inherit;
-    font-size: 13px;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .wt:hover {
-    color: var(--on-surface);
-    background: color-mix(in srgb, var(--on-surface) 6%, transparent);
-  }
-  .wt[aria-selected='true'] {
-    background: var(--bw-area);
-    color: var(--on-surface);
-    font-weight: var(--font-weight-semibold);
-  }
-  .wt.locked {
-    opacity: 0.5;
-  }
-  .sd {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    border: 1.5px solid var(--outline);
-    flex: none;
-  }
-  i.sd {
-    width: auto;
-    height: auto;
-    border: none;
-    font-size: 11px;
-    color: var(--primary);
-  }
-  .d-ok {
-    background: var(--ok);
-    border-color: var(--ok);
-  }
-  .d-warn,
-  .d-stale {
-    background: var(--warn);
-    border-color: var(--warn);
-  }
-  .d-err {
-    background: var(--error);
-    border-color: var(--error);
-  }
-  .lang {
-    font-size: 10.5px;
-    font-weight: var(--font-weight-semibold);
-  }
-
-  /* ---- header buttons, Blender-sized */
-  .hb {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 26px;
-    padding: 0 10px;
-    border-radius: var(--bw-r);
-    border: 1px solid var(--bw-field-border);
-    background: var(--surface-high);
-    color: var(--on-surface);
-    font: inherit;
-    font-size: 12.5px;
-    white-space: nowrap;
-    cursor: pointer;
-    text-decoration: none;
-    position: relative;
-  }
-  .hb:hover:not(:disabled) {
-    background: var(--surface-container-highest);
-  }
-  .hb:disabled {
-    opacity: 0.45;
-    cursor: default;
-  }
-  .hb.primary {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: var(--on-primary);
-  }
-  .hb.icon {
-    width: 28px;
-    padding: 0;
-    justify-content: center;
-    background: transparent;
-    border-color: transparent;
-    color: var(--on-surface-var);
-  }
-  .hb.icon:hover {
-    background: var(--surface-high);
-    color: var(--on-surface);
-  }
-  .hb i {
-    font-size: 14px;
+  /* an editor narrowed by its side panels: the header's buttons down to their icons, so the last of them stays on screen */
+  .editor.tight .ah .hb:not(.primary, .icon),
+  .editor.tight .ah :global(.am .hb) {
+    font-size: 0;
+    gap: 2px;
+    padding: 0 7px;
   }
   :global(.bw .am .hb.on) {
     background: var(--surface-container-highest);
+  }
+  .gsel {
+    height: 26px;
+    padding: 0 22px 0 8px;
+    background-position: right 7px center;
+    background-size: 9px;
+    background-color: var(--surface-high);
+    border-radius: var(--bw-r);
+    font-size: var(--text-md);
+    flex: none;
   }
   .hb.chk {
     background: transparent;
@@ -901,43 +764,9 @@
     flex: 1;
   }
 
-  /* ---- the screen: areas with seams */
-  .screen {
-    display: grid;
-    grid-template-columns: 320px minmax(0, 1fr) 320px;
-    gap: 4px;
-    padding: 4px;
-    min-height: 0;
-  }
-  .screen.nochat {
-    grid-template-columns: 32px minmax(0, 1fr) 320px;
-  }
-  .area {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    min-width: 0;
-    background: var(--bw-area);
-    border-radius: var(--bw-r);
-    overflow: hidden;
-  }
-  .ah {
-    display: flex;
-    align-items: center;
-    gap: var(--bw-gap);
-    height: var(--bw-head-h);
-    padding: 0 var(--bw-pad);
-    background: var(--bw-head);
-    flex: none;
-    min-width: 0;
-  }
   .ah .hi {
-    font-size: 15px;
+    font-size: var(--text-lg);
     color: var(--on-surface-var);
-  }
-  .at {
-    font-weight: var(--font-weight-semibold);
-    white-space: nowrap;
   }
   .sep {
     width: 1px;
@@ -947,7 +776,7 @@
   }
   .meta {
     color: var(--on-surface-var);
-    font-size: 12px;
+    font-size: var(--text-sm);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -957,125 +786,48 @@
     gap: 5px;
     align-items: center;
     color: var(--primary);
-    font-size: 12px;
+    font-size: var(--text-sm);
     white-space: nowrap;
-  }
-  .ab {
-    flex: 1;
-    min-height: 0;
-    position: relative;
-  }
-  .scroll {
-    overflow: auto;
-  }
-  .canvas {
-    background: var(--surface);
-  }
-  .chatbody {
-    display: flex;
-    flex-direction: column;
-  }
-  /* the chat's own spacing is a page's: tighter here */
-  .chatbody :global(.feed) {
-    padding: 12px;
-    gap: 10px;
-  }
-  .chatbody :global(.composer textarea) {
-    line-height: 20px;
-    padding: 9px 12px 2px;
-    min-height: 48px;
-  }
-  /* the message field and its buttons without outlines, a little rounder than the workspace's 5px */
-  .chatbody :global(.composer .box),
-  .chatbody :global(.composer .box:hover),
-  .chatbody :global(.composer .box:focus-within) {
-    border: none;
-    border-radius: 9px;
-    box-shadow: none;
-  }
-  .chatbody :global(.composer .round) {
-    border: none;
-    border-radius: 8px;
-  }
-  .remix {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px;
-    border-top: 1px solid var(--bw-seam);
-  }
-  .strip {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 0;
-    border: none;
-    border-radius: var(--bw-r);
-    background: var(--bw-head);
-    color: var(--on-surface-var);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-    position: relative;
-  }
-  .strip span:not(.pulse) {
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-  }
-  .strip:hover {
-    color: var(--on-surface);
-  }
-  .strip i {
-    color: var(--primary);
   }
   .rcol {
     display: grid;
-    grid-template-rows: minmax(140px, 36%) minmax(0, 1fr);
-    gap: 4px;
+    grid-template-rows: var(--outl-h, minmax(140px, 36%)) 4px minmax(0, 1fr);
     min-height: 0;
-  }
-  .panels {
-    padding: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
   }
   /* where a case value came from matters for a measured part; for a generated case it is always the design: no badge */
   .panels :global(.chip.src) {
     display: none;
   }
+  /* a label on the left edge, its value on the right one */
   .kv {
     display: grid;
-    grid-template-columns: 40% 1fr;
-    gap: 6px 10px;
+    grid-template-columns: 1fr auto;
+    gap: 5px 12px;
     margin: 0;
-    font-size: 13px;
+    font-size: var(--text-md);
   }
   .kv dt {
     color: var(--on-surface-var);
-    text-align: right;
   }
   .kv dd {
     margin: 0;
-    font-family: var(--font-mono);
-    font-size: 12px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
   }
   .keys dt {
     font-family: inherit;
   }
   kbd {
     font-family: var(--font-mono);
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     padding: 0 4px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     border: 1px solid var(--bw-field-border);
     background: var(--bw-field);
   }
   .note {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--text-sm);
     line-height: 1.45;
     color: var(--on-surface-var);
   }
@@ -1088,10 +840,10 @@
     gap: 6px;
   }
   .badge {
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     min-width: 16px;
     padding: 0 4px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     background: color-mix(in srgb, var(--warn) 28%, transparent);
     color: var(--warn-text);
     text-align: center;
@@ -1124,11 +876,11 @@
     width: 100%;
     padding: 4px 5px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: none;
     color: var(--on-surface);
     font: inherit;
-    font-size: 12.5px;
+    font-size: var(--text-md);
     line-height: 1.35;
     text-align: left;
     cursor: pointer;
@@ -1140,21 +892,21 @@
     background: color-mix(in srgb, var(--primary) 22%, transparent);
   }
   .rq i {
-    font-size: 12px;
+    font-size: var(--text-sm);
     color: var(--on-surface-var);
   }
   .rid {
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: var(--on-surface-var);
   }
   .rp {
     display: block;
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: var(--on-surface-var);
   }
   .okc {
     color: var(--ok);
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     display: inline-flex;
     gap: 4px;
     align-items: center;
@@ -1178,14 +930,14 @@
   }
   .empty strong {
     color: var(--on-surface);
-    font-size: 13px;
+    font-size: var(--text-md);
   }
   .empty p {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
   .big {
-    font-size: 30px;
+    font-size: var(--text-3xl);
     color: var(--on-surface-var);
   }
   .banner {
@@ -1195,11 +947,11 @@
     transform: translateX(-50%);
     z-index: 5;
     padding: 3px 10px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     background: var(--bw-head);
     border: 1px solid var(--warn);
     color: var(--warn-text);
-    font-size: 11.5px;
+    font-size: var(--text-sm);
   }
 
   .row-btns {
@@ -1213,13 +965,10 @@
     align-items: center;
     gap: 8px;
     padding: 6px var(--bw-pad);
-    background: color-mix(in srgb, var(--primary) 12%, var(--bw-head));
+    background: var(--bw-head);
     border-bottom: 1px solid var(--bw-seam);
-    font-size: 12.5px;
+    font-size: var(--text-md);
     flex: none;
-  }
-  .lockbar i {
-    color: var(--primary);
   }
   .seg2 {
     display: inline-flex;
@@ -1233,22 +982,33 @@
     height: 22px;
     padding: 0 10px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: transparent;
     color: var(--on-surface-var);
     font: inherit;
-    font-size: 12.5px;
+    font-size: var(--text-md);
     cursor: pointer;
   }
   .seg2 button[aria-selected='true'] {
     background: var(--surface-container-highest);
     color: var(--on-surface);
   }
+  .retrysave {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--warn-text);
+  }
+  .builderr {
+    margin: 0;
+    padding: 8px 12px;
+  }
   .saving {
     display: inline-flex;
     gap: 5px;
     align-items: center;
-    font-size: 12px;
+    font-size: var(--text-sm);
     color: var(--on-surface-var);
   }
   .pulse {
@@ -1276,60 +1036,26 @@
     gap: 10px;
   }
 
-  @media (max-width: 1280px) {
-    .screen {
-      grid-template-columns: 290px minmax(0, 1fr) 300px;
-    }
-    .screen.nochat {
-      grid-template-columns: 32px minmax(0, 1fr) 300px;
-    }
-    .pname {
-      width: 150px;
-    }
-  }
   /* a phone or a small tablet: one column, the editor over its properties, the AI engineer as a sheet */
   @media (max-width: 979px) {
-    .bw {
-      height: auto;
-      min-height: 100dvh;
-      overflow: visible;
-      grid-template-rows: 38px auto;
+    .bw.replay .sheet {
+      bottom: var(--replay-h);
     }
-    .top {
-      position: sticky;
-      top: 0;
-      z-index: 20;
-    }
-    .pname {
-      display: none;
-    }
-    .wtabs {
-      margin-left: 2px;
-    }
-    .wt {
-      padding: 0 8px;
-    }
-    .screen,
-    .screen.nochat {
-      grid-template-columns: 1fr;
-    }
-    .editor {
-      height: 58dvh;
-    }
-    .editor .ah {
-      overflow-x: auto;
-      scrollbar-width: none;
+    .seg2 button {
+      height: 34px;
     }
     .rcol {
       grid-template-rows: auto auto;
+      gap: 4px;
     }
     .outl .ab {
       max-height: 220px;
     }
-    .props .ab {
-      overflow: visible;
-    }
     .status {
+      display: none;
+    }
+    /* what a phone can do without: the tabs need the room */
+    .spare {
       display: none;
     }
     .sheet {

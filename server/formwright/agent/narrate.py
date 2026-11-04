@@ -12,7 +12,7 @@ KIND = {
     "write_program": "build", "edit_program": "edit", "set_params": "params", "inspect_model": "inspect", "look": "look",
     "measure": "measure", "dimensions": "standard", "remember_interface": "memory", "ask_user": "ask", "fit_to_photo": "fit",
     "propose_probe": "probe", "concept_images": "concepts", "load_terrain": "terrain", "compare_print": "compare", "finish": "finish",
-    "mesh_write": "build", "mesh_edit": "edit",
+    "mesh_write": "build", "mesh_edit": "edit", "grid": "look", "collage": "look",
     # electronics: a board from a photo or the dataset, the case checked against it, the PCB and its fab files
     "scan_board": "measure", "use_board": "standard", "check_enclosure": "inspect",
     "write_circuit": "build", "check_pcb": "inspect", "export_fab": "export", "make_enclosure": "build",
@@ -51,6 +51,8 @@ STAGE_LABEL_RU = {
 RU = {
     "Writing the model": "Пишу модель", "Changing": "Меняю", "Adjusting": "Подстраиваю", "Measuring my own model": "Измеряю свою модель",
     "Comparing with the photo": "Сравниваю с фото", "Rendering views": "Рендерю виды", "Taking a closer look at the photo": "Смотрю на фото внимательнее",
+    "Reading exact coordinates on the picture": "Считываю точные координаты на картинке", "Laying pictures side by side": "Собираю картинки на один лист",
+    "Coordinate grid ready": "Сетка готова", "Pictures on one sheet": "Картинки на одном листе",
     "Reading measurements from the photos": "Беру замеры с фото", "Measuring": "Измеряю", "on the photo": "на фото", "Reading the caliper": "Читаю штангенциркуль",
     "Checking standards": "Смотрю стандарты", "Searching official dimensions": "Ищу официальные размеры", "Checking what I remember about your setup": "Вспоминаю ваши размеры",
     "Remembering": "Запоминаю", "for next time": "на будущее", "Asking you a question": "Задаю вопрос", "Fitting": "Подгоняю",
@@ -68,6 +70,7 @@ RU = {
     "on average": "в среднем", "Approved": "Принято", "Not yet": "Пока нет", "the reviewer found major problems": "ревьюер нашёл серьёзные замечания",
     "Handed over; the reviewer still has notes": "Сдано; у ревьюера остались замечания",
     "Handed over without a review: the reviewer did not answer": "Сдано без проверки: ревьюер не ответил",
+    "Handed over; a check could not run": "Сдано; одна из проверок не запустилась",
     "printability errors remain": "остались ошибки печатаемости", "needs fixes": "нужны правки", "Overlay ready": "Наложение готово", "Views rendered": "Виды готовы",
     "Download 3MF": "Скачать 3MF", "Prepare print settings": "Подготовить настройки печати", "Print a 5-minute test piece": "Напечатать 5-минутный пробник",
     "Order a print": "Заказать печать", "Share as a recipe": "Поделиться рецептом",
@@ -251,6 +254,18 @@ def review_of(critic: dict[str, Any] | None, version: int) -> str | None:
     return "notes" if c.get("verdict") == "revise" else None
 
 
+UNCHECKED = {"case_check": ("the check of the case against its board", "проверка корпуса по плате"),
+             "design_rules": ("the design rules", "проверка правил схемы")}
+
+
+def unchecked_note(kinds: list[str], language: str | None) -> str:
+    """The line after the summary when the engine failed a check at the finish: that is not the design's fault, and not an approval."""
+    r = _ru(language)
+    what = ", ".join(UNCHECKED.get(k, (k, k))[1 if r else 0] for k in kinds)
+    return f"Не запустилось: {what}. Это сбой у нас, а не в проекте, но эта часть не проверена." if r else (
+        f"Could not run: {what}. That is a failure on our side, not in the design, but this part is not checked.")
+
+
 def review_notes(critic: dict[str, Any] | None, version: int, language: str | None) -> str:
     """The line after the agent's own summary when the reviewer did not approve what was handed over: the summary is
     written before the review, so it cannot say so itself. Empty when the reviewer passed this version."""
@@ -400,6 +415,8 @@ def call_title(name: str, args: dict[str, Any]) -> str:
         "inspect_model": "Measuring my own model",
         "look": {"compare": "Comparing the model with the photo", "model": "Looking at the model from all sides", **PCB_LOOKS}.get(
             str(a.get("what")), "Taking a closer look at the photo"),
+        "grid": "Reading exact coordinates on the picture",
+        "collage": "Laying pictures side by side",
         "measure": "Reading the caliper" if str(a.get("target", "")).lower() == "caliper" else f"Measuring “{a.get('target', 'the object')}” on the photo",
         "dimensions": f"Looking up dimensions: {a.get('query', '')}",
         "remember_interface": f"Remembering “{a.get('name', '')}” for next time",
@@ -676,6 +693,10 @@ def result_title(name: str, args: dict[str, Any], r: dict[str, Any]) -> str:
             return f"PCB v{r['version']}" + {"pcb": " from the top", "pcb_bottom": " from below"}.get(what, " schematic")
         like = _likeness(r)
         return f"Silhouette match {like:.0%}" if like is not None else "Done"
+    if name == "grid":
+        return "Coordinate grid ready"
+    if name == "collage":
+        return "Pictures on one sheet"
     if name == "inspect_model":
         return "Measured the model"
     if name == "ask_user":
@@ -696,6 +717,8 @@ def result_title(name: str, args: dict[str, Any], r: dict[str, Any]) -> str:
                 return "Handed over; the reviewer still has notes"
             if r.get("review") == "none":
                 return "Handed over without a review: the reviewer did not answer"
+            if r.get("unchecked"):
+                return "Handed over; a check could not run"
             return "Approved"
         return f"Not yet: {r.get('reason', 'needs fixes')}"
     if name == "remember_interface":

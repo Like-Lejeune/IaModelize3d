@@ -181,24 +181,24 @@ public:
 };
 
 // display classes by bus, as U8g2lib.h declares them
-#define FW_U8G2_HW_I2C(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t reset = U8X8_PIN_NONE, uint8_t clock = U8X8_PIN_NONE, uint8_t data = U8X8_PIN_NONE); };
-#define FW_U8G2_2ND_HW_I2C(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t reset = U8X8_PIN_NONE); };
-#define FW_U8G2_SW_I2C(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t clock, uint8_t data, uint8_t reset = U8X8_PIN_NONE); };
-#define FW_U8G2_4W_SW_SPI(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t clock, uint8_t data, uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE); };
-#define FW_U8G2_4W_HW_SPI(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE); };
+#define FW_U8G2_HW_I2C(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t reset = U8X8_PIN_NONE, uint8_t clock = U8X8_PIN_NONE, uint8_t data = U8X8_PIN_NONE) {} };
+#define FW_U8G2_2ND_HW_I2C(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t reset = U8X8_PIN_NONE) {} };
+#define FW_U8G2_SW_I2C(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t clock, uint8_t data, uint8_t reset = U8X8_PIN_NONE) {} };
+#define FW_U8G2_4W_SW_SPI(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t clock, uint8_t data, uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE) {} };
+#define FW_U8G2_4W_HW_SPI(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE) {} };
 #define FW_U8G2_2ND_4W_HW_SPI(n) FW_U8G2_4W_HW_SPI(n)
-#define FW_U8G2_3W_SW_SPI(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t clock, uint8_t data, uint8_t cs, uint8_t reset = U8X8_PIN_NONE); };
-#define FW_U8G2_3W_HW_SPI(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t cs, uint8_t reset = U8X8_PIN_NONE); };
-#define FW_U8G2_PARALLEL(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, uint8_t enable, uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE); };
-#define FW_U8X8_HW_I2C(n) class n : public U8X8 { public: n(uint8_t reset = U8X8_PIN_NONE, uint8_t clock = U8X8_PIN_NONE, uint8_t data = U8X8_PIN_NONE); };
-#define FW_U8X8_2ND_HW_I2C(n) class n : public U8X8 { public: n(uint8_t reset = U8X8_PIN_NONE); };
-#define FW_U8X8_SW_I2C(n) class n : public U8X8 { public: n(uint8_t clock, uint8_t data, uint8_t reset = U8X8_PIN_NONE); };
-#define FW_U8X8_4W_SW_SPI(n) class n : public U8X8 { public: n(uint8_t clock, uint8_t data, uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE); };
-#define FW_U8X8_4W_HW_SPI(n) class n : public U8X8 { public: n(uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE); };
+#define FW_U8G2_3W_SW_SPI(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t clock, uint8_t data, uint8_t cs, uint8_t reset = U8X8_PIN_NONE) {} };
+#define FW_U8G2_3W_HW_SPI(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t cs, uint8_t reset = U8X8_PIN_NONE) {} };
+#define FW_U8G2_PARALLEL(n) class n : public U8G2 { public: n(const u8g2_cb_t *rotation, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, uint8_t enable, uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE) {} };
+#define FW_U8X8_HW_I2C(n) class n : public U8X8 { public: n(uint8_t reset = U8X8_PIN_NONE, uint8_t clock = U8X8_PIN_NONE, uint8_t data = U8X8_PIN_NONE) {} };
+#define FW_U8X8_2ND_HW_I2C(n) class n : public U8X8 { public: n(uint8_t reset = U8X8_PIN_NONE) {} };
+#define FW_U8X8_SW_I2C(n) class n : public U8X8 { public: n(uint8_t clock, uint8_t data, uint8_t reset = U8X8_PIN_NONE) {} };
+#define FW_U8X8_4W_SW_SPI(n) class n : public U8X8 { public: n(uint8_t clock, uint8_t data, uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE) {} };
+#define FW_U8X8_4W_HW_SPI(n) class n : public U8X8 { public: n(uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE) {} };
 #define FW_U8X8_2ND_4W_HW_SPI(n) FW_U8X8_4W_HW_SPI(n)
-#define FW_U8X8_3W_SW_SPI(n) class n : public U8X8 { public: n(uint8_t clock, uint8_t data, uint8_t cs, uint8_t reset = U8X8_PIN_NONE); };
-#define FW_U8X8_3W_HW_SPI(n) class n : public U8X8 { public: n(uint8_t cs, uint8_t reset = U8X8_PIN_NONE); };
-#define FW_U8X8_PARALLEL(n) class n : public U8X8 { public: n(uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, uint8_t enable, uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE); };
+#define FW_U8X8_3W_SW_SPI(n) class n : public U8X8 { public: n(uint8_t clock, uint8_t data, uint8_t cs, uint8_t reset = U8X8_PIN_NONE) {} };
+#define FW_U8X8_3W_HW_SPI(n) class n : public U8X8 { public: n(uint8_t cs, uint8_t reset = U8X8_PIN_NONE) {} };
+#define FW_U8X8_PARALLEL(n) class n : public U8X8 { public: n(uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, uint8_t enable, uint8_t cs, uint8_t dc, uint8_t reset = U8X8_PIN_NONE) {} };
 #if __has_include("fw_u8g2_gen.h")
 #include "fw_u8g2_gen.h"
 #endif

@@ -136,6 +136,7 @@ async def test_budget_after_a_build_hands_over_with_a_result_card(fresh_db, offl
 
 async def test_api_error_hands_over_in_the_persons_language(fresh_db, offline, monkeypatch):
     ctx = await _project(fresh_db, language="ru")
+    monkeypatch.setattr(loop, "OUTAGE_PATIENCE_S", 0.0)  # the outage has outlasted the run's patience (test_outage.py)
     gateway = APIStatusError("bad gateway", response=httpx.Response(502, request=httpx.Request("POST", "https://api")), body=None)
     _use(monkeypatch, FakeMeta([[call("write_program", {"source": "x"})], gateway]))
     await loop.design(ctx, SendMessage(text="кронштейн для полки"))

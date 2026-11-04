@@ -50,6 +50,15 @@ def _retryable(status: int) -> bool:
     return status in (408, 409, 425, 429) or status >= 500
 
 
+def service_outage(e: BaseException) -> bool:
+    """The model service is down, stuck or overloaded: waiting can cure this, unlike a refused request."""
+    if isinstance(e, APIStatusError):
+        return _retryable(e.status_code)
+    if isinstance(e, httpx.HTTPStatusError):
+        return _retryable(e.response.status_code)
+    return isinstance(e, (APIConnectionError, httpx.TransportError))  # APITimeoutError is an APIConnectionError
+
+
 def _retry_after(headers: Any) -> float | None:
     """The provider's own wait hint: retry-after-ms first, then retry-after in seconds."""
     if not headers:
@@ -124,7 +133,7 @@ class CostMeter:
 
     def check(self, estimate: float = 0.0) -> None:
         if self.usd + estimate > self.budget_usd:
-            raise BudgetExceeded(f"job budget ${self.budget_usd:.2f} reached (spent ${self.usd:.3f})")
+            raise BudgetExceeded(f"budget ${self.budget_usd:.2f} reached (spent ${self.usd:.3f})")
 
     def add(self, model: str, usd: float, tin: int = 0, tout: int = 0, tcached: int = 0, purpose: str | None = None) -> None:
         self.usd += usd

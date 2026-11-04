@@ -1,0 +1,11 @@
+Comment,Designator,Footprint,LCSC,lcsc_verified
+113991054,U1,,,false
+0.96in OLED 128x64 I2C (SSD1306),DS1,C2337,C2337,false
+C2337,PR1,pinrow3_p2.54_nopinlabels,C2337,false
+C12624,LED1,0603_color(green),C12624,false
+1k,"R3,RB",res0603,C21190,false
+C110153,SW1,pushbutton,C110153,false
+YX-YT9042 3v,BZ1,C781847,C781847,false
+S8050 J3Y(RANGE:200-350),Q1,C2146,C2146,false
+B5819W,D1,sod123,C8598,false
+4.7k,"R1,R2",res0603,C23162,false

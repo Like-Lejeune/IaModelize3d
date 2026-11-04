@@ -22,18 +22,21 @@ Document:
   {schema: 'fw.device/1', title, summary,
    board: {w?, h?, holes: true, shape?: rect|rounded|round, r? (a rounded board's corner radius, mm; a round board is a
            circle of diameter w, h = w)},
-   requirements?: [{id: 'R1', text, parts: [ids], firmware?: bool}],
+   requirements?: [{id: 'R1', text, parts: [ids], firmware?: bool, test?: {given?, steps?, expect} (firmware_sim plays it)}],
    concept?: {uses, options: [{name, look, form, stance, mounting, board, module_edge, panel}], chosen, why} (device_concept),
    nodes: [{id: 'U1', kind, label?, value?, package?, color?, lcsc?, module?, accessory?, pins? (header labels), edge?,
             place?: {x, y, rot} (mm from the board centre, +y up, degrees), face?: light|sound|sensor|display|none,
             pcb?: {x, y, rot} (the person's), ui?: [x, y]}],
    layouts?: [{pattern: dice|row|column|grid|ring, nodes: [ids], center?: [x, y], pitch?, cols?, radius?, rot?}],
-   nets:  [{name?: 'GND', pins: ['U1.GND', 'U2.GND', 'C1.2']}],
+   nets:  [{name?: 'GND', pins: ['U1.GND', 'U2.GND', 'C1.2'], amps?: 2.5}],
    firmware?: {lang, files: {name: text}}}
 Kinds: module (by part number, MODULES), chip (any LCSC part with an EasyEDA footprint), accessory (a ready-made module
 fitted by hand, accessories.ACCESSORIES: the carrier gets its connector), resistor, capacitor, led, diode, button,
 header, usb_c, jst, hole. Pin references are '<node>.<pin>'; for a chip a duplicated pin name ('GND' twice) is one
-reference for all of them.
+reference for all of them. A net may state amps, the current it carries: the build widens its traces by IPC-2221 and the
+rules hold connectors, transistors, resistors and the board's copper to it (device_rules). A button's switch says which: a tact switch (default), or a mechanical key switch (SWITCHES:
+hand-soldered, its top through a plate in the case lid, a printed keycap on it). Any node may carry model: primitives
+describing its 3D look (model_prims), for a part the catalogue has no 3D model of.
 """
 from __future__ import annotations
 
@@ -75,14 +78,14 @@ MODULES: dict[str, dict[str, Any]] = {
         "name": "Seeed XIAO ESP32-C3", "mcu": "ESP32-C3", "footprint": "dip14_w15.24mm", "size": [17.8, 21.0], "depth": 10.5,
         "pins": ["D0", "D1", "D2", "D3", "SDA", "SCL", "TX", "RX", "SCK", "MISO", "MOSI", "V3V3", "GND", "V5"],
         "aliases": {"D4": "SDA", "D5": "SCL", "D6": "TX", "D7": "RX", "D8": "SCK", "D9": "MISO", "D10": "MOSI", "3V3": "V3V3", "5V": "V5"},
-        "price_usd": 4.99, "wireless": ["Wi-Fi", "BLE 5"], "fw": "arduino-esp32 (board 'XIAO_ESP32C3')",
+        "price_usd": 4.99, "wireless": ["Wi-Fi", "BLE 5"], "fw": "arduino-esp32 (board 'XIAO_ESP32C3')", "port": {"label": "USB-C", "w": 8.94, "d": 7.3, "protrude": 1.0},
         "url": "https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/",
     },
     "113991114": {
         "name": "Seeed XIAO ESP32-S3", "mcu": "ESP32-S3", "footprint": "dip14_w15.24mm", "size": [17.8, 21.0], "depth": 10.5,
         "pins": ["D0", "D1", "D2", "D3", "SDA", "SCL", "TX", "RX", "SCK", "MISO", "MOSI", "V3V3", "GND", "V5"],
         "aliases": {"D4": "SDA", "D5": "SCL", "D6": "TX", "D7": "RX", "D8": "SCK", "D9": "MISO", "D10": "MOSI", "3V3": "V3V3", "5V": "V5"},
-        "price_usd": 7.49, "wireless": ["Wi-Fi", "BLE 5"], "fw": "arduino-esp32 (board 'XIAO_ESP32S3')",
+        "price_usd": 7.49, "wireless": ["Wi-Fi", "BLE 5"], "fw": "arduino-esp32 (board 'XIAO_ESP32S3')", "port": {"label": "USB-C", "w": 8.94, "d": 7.3, "protrude": 1.0},
         "url": "https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/",
     },
     "SC0915": {
@@ -90,7 +93,7 @@ MODULES: dict[str, dict[str, Any]] = {
         "pins": ["GP0", "GP1", "GND3", "GP2", "GP3", "GP4", "GP5", "GND8", "GP6", "GP7", "GP8", "GP9", "GND13", "GP10", "GP11", "GP12", "GP13",
                  "GND18", "GP14", "GP15", "GP16", "GP17", "GND23", "GP18", "GP19", "GP20", "GP21", "GND28", "GP22", "RUN", "GP26", "GP27",
                  "AGND", "GP28", "ADC_VREF", "V3V3", "V3V3_EN", "GND", "VSYS", "VBUS"],
-        "aliases": {"3V3": "V3V3"}, "price_usd": 4.0, "wireless": [], "fw": "MicroPython or arduino-pico",
+        "aliases": {"3V3": "V3V3"}, "price_usd": 4.0, "wireless": [], "fw": "MicroPython or arduino-pico", "port": {"label": "USB", "w": 8.0, "d": 5.6, "protrude": 1.3},
         "url": "https://datasheets.raspberrypi.com/pico/pico-datasheet.pdf",
     },
     "SC0918": {
@@ -98,7 +101,7 @@ MODULES: dict[str, dict[str, Any]] = {
         "pins": ["GP0", "GP1", "GND3", "GP2", "GP3", "GP4", "GP5", "GND8", "GP6", "GP7", "GP8", "GP9", "GND13", "GP10", "GP11", "GP12", "GP13",
                  "GND18", "GP14", "GP15", "GP16", "GP17", "GND23", "GP18", "GP19", "GP20", "GP21", "GND28", "GP22", "RUN", "GP26", "GP27",
                  "AGND", "GP28", "ADC_VREF", "V3V3", "V3V3_EN", "GND", "VSYS", "VBUS"],
-        "aliases": {"3V3": "V3V3"}, "price_usd": 6.0, "wireless": ["Wi-Fi", "BLE"], "fw": "MicroPython or arduino-pico",
+        "aliases": {"3V3": "V3V3"}, "price_usd": 6.0, "wireless": ["Wi-Fi", "BLE"], "fw": "MicroPython or arduino-pico", "port": {"label": "USB", "w": 8.0, "d": 5.6, "protrude": 1.3},
         "url": "https://datasheets.raspberrypi.com/picow/pico-w-datasheet.pdf",
     },
 }
@@ -121,6 +124,47 @@ for _k in ("SC0915", "SC0918"):
                         "adc": ["GP26", "GP27", "GP28"],
                         "battery": "no charger on board: a cell needs its own charger module feeding VSYS through a Schottky diode"})
 
+# key switches a button node may be (node.switch), soldered by hand: pads and locating holes around the switch's centre, the
+# cap's plan (nothing else on the board under it, keys sit `pitch` apart), the key data the case reads (mm above the PCB's
+# top face: where the plate's top goes so the switch clips in, the stem's top at rest). The fab cannot place them.
+SWITCHES: dict[str, dict[str, Any]] = {
+    "mx": {
+        "name": "MX-style mechanical key switch, 5-pin", "price_usd": 0.45, "pitch": 19.05, "cap": [18.0, 18.0], "hole": 1.5, "pad": 2.3,
+        "pins": {"A": (-3.81, 2.54), "B": (2.54, 5.08)}, "npth": [(0.0, 0.0, 4.0), (-5.08, 0.0, 1.75), (5.08, 0.0, 1.75)],
+        "url": "https://www.lcsc.com/search?q=mechanical%20keyboard%20switch",
+        "key": {"plate_top": 5.0, "plate_t": 1.5, "cut": 14.0, "travel": 4.0, "stem_top": 11.6, "stem": "mx", "cap": [18.0, 18.0]},
+        "note": "Any MX-compatible switch (Gateron, Outemu, Kailh Box, Cherry) fits: 14 mm plate cut-out, 19.05 mm pitch.",
+    },
+    "choc": {
+        "name": "Kailh Choc v1 low-profile key switch (PG1350)", "price_usd": 0.75, "pitch": 18.0, "cap": [17.5, 16.5], "hole": 1.2, "pad": 2.0,
+        "pins": {"A": (5.0, 3.8), "B": (0.0, 5.9)}, "npth": [(0.0, 0.0, 3.4), (-5.5, 0.0, 1.9), (5.5, 0.0, 1.9)],
+        "url": "https://www.lcsc.com/search?q=kailh%20choc",
+        "key": {"plate_top": 2.2, "plate_t": 1.2, "cut": 14.0, "travel": 3.0, "stem_top": 8.0, "stem": "choc", "cap": [17.5, 16.5]},
+        "note": "Low profile, 18 x 17 mm spacing, its own keycap stem (no MX caps). Verify the heights against the switch before an order.",
+    },
+    # switches held by the lid, on two wires to the board: a round hole in the lid, the body under it, so the case is as deep as the body
+    "arcade": {
+        "name": "30 mm arcade push button", "price_usd": 1.1, "pitch": 36.0, "cap": [33.0, 33.0], "hole": 1.0, "pad": 1.7,
+        "pins": {"A": (-1.27, 0.0), "B": (1.27, 0.0)}, "npth": [], "url": "https://www.lcsc.com/search?q=arcade%20button",
+        "key": {"stem": "panel", "cut": 28.2, "depth": 30.0, "cap": [33.0, 33.0], "color": "#c8352f"},
+        "note": "Snaps into a 28 mm hole in the lid, 30 mm deep, wired to the board's two pads. For big buttons hit in a hurry.",
+    },
+    "stomp": {
+        "name": "12 mm momentary foot switch (PBS-24B)", "price_usd": 1.6, "pitch": 30.0, "cap": [22.0, 22.0], "hole": 1.0, "pad": 1.7,
+        "pins": {"A": (-1.27, 0.0), "B": (1.27, 0.0)}, "npth": [], "url": "https://www.lcsc.com/search?q=foot%20switch",
+        "key": {"stem": "panel", "cut": 12.2, "depth": 26.0, "cap": [22.0, 22.0], "color": "#b9bdc4"},
+        "note": "A metal foot switch nutted through a 12 mm hole in the lid, 26 mm deep, wired to the board's two pads. For pedals: a tab in a printed lid does not survive a foot.",
+    },
+}
+# wire terminals a header node may be (node.connector): pins in a row at their pitch, the wires entering from the board's edge.
+# amps per contact, what the block is rated for
+CONNECTORS: dict[str, dict[str, Any]] = {
+    "terminal_5": {"name": "Screw terminal block, 5.08 mm", "pitch": 5.08, "hole": 1.3, "pad": 2.6, "amps": 16.0, "d": 7.6, "h": 10.0, "price_usd": 0.12, "color": "#2f7d4f"},
+    "terminal_3": {"name": "Screw terminal block, 3.5 mm", "pitch": 3.5, "hole": 1.1, "pad": 2.0, "amps": 8.0, "d": 7.0, "h": 8.5, "price_usd": 0.1, "color": "#2f7d4f"},
+}
+CONNECTOR_AMPS = {"header": 3.0, "jst": 2.0, "usb_c": 3.0}  # per contact, the part's usual rating: a 2.54 mm pin, a JST PH, USB-C's VBUS
+TRACE_MAX_MM = 2.0      # what the autorouter still places well; more current takes a pour (about 5 A at 1 oz)
+TRACE_MIN_AMPS = 0.5    # below this the default width carries it
 USB_C_LABELS = {"pin1": "SH1", "pin2": "SH2", "pin3": "SH3", "pin4": "SH4", "pin5": "GND_A", "pin6": "VBUS_A", "pin7": "SBU2", "pin8": "CC1",
                 "pin9": "DN2", "pin10": "DP1", "pin11": "DN1", "pin12": "DP2", "pin13": "SBU1", "pin14": "CC2", "pin15": "VBUS_B", "pin16": "GND_B"}
 PRIMS: dict[str, dict[str, Any]] = {
@@ -135,10 +179,11 @@ PRIMS: dict[str, dict[str, Any]] = {
     "hole": {"prefix": "H", "pins": [], "tsx": {}},
 }
 KINDS = ("module", "chip", "header", "accessory", *PRIMS)
-EDGE_KINDS = ("usb_c", "header", "jst", "module", "accessory")
+EDGE_KINDS = ("usb_c", "header", "jst", "module", "accessory", "chip")
 # what a part needs from the case above it (node.face, contract C1c) -> the access board.json gives it (C2a)
-FACES = ("light", "sound", "sensor", "display", "none")
+FACES = ("light", "sound", "sensor", "display", "shaft", "hole", "none")
 FACE_TEXT = (  # first match wins, on the part's kind hint, mpn, category, package and description
+    ("shaft", re.compile(r"rotary encoder|\bP?EC1[126]\b|\bP?EC1[126][A-Z0-9-]", re.I)),
     ("light", re.compile(r"\b(rgb_led|led)\b|WS28\d\d|SK68\d\d|APA10\d|addressable|\bRGB\b|\bLEDs?\b", re.I)),
     ("sound", re.compile(r"buzzer|speaker|sounder|piezo|transducer|\bBUZ", re.I)),
     ("sensor", re.compile(r"\bPIR\b|pyroelectric|motion sens|ambient light|light sens|illuminance|photo ?(diode|transistor|resistor)|"
@@ -174,6 +219,8 @@ PORT_REF = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z0-9_]+)$")
 PORT_NAMES = {"led": {"A": ["pin1"], "K": ["pin2"]}, "diode": {"A": ["pin1"], "K": ["pin2"]},
               "button": {"A": ["pin1", "pin2"], "B": ["pin3", "pin4"]}}
 USB_PORTS = {"VBUS": ["VBUS_A", "VBUS_B"], "GND": ["GND_A", "GND_B", "SH1"], "DP": ["DP1", "DP2"], "DM": ["DN1", "DN2"]}
+MODEL_PRIMS = 60       # primitives one part's model may have
+MODEL_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 # areas the person drew on the board: a copper pour of a net (a rectangle, or the whole board) and a keepout (no copper)
 ZONE_MAX = 24
 POUR_CLEARANCE_MM = 0.3
@@ -181,6 +228,26 @@ POUR_CLEARANCE_MM = 0.3
 
 class DeviceError(Exception):
     pass
+
+
+def trace_mm(amps: float, rise_c: float = 20.0) -> float:
+    """The width of an outer 1 oz (35 um) trace that carries `amps` with `rise_c` of heating (IPC-2221)."""
+    if amps <= 0:
+        return 0.0
+    area_mil2 = (amps / (0.048 * rise_c ** 0.44)) ** (1 / 0.725)
+    return round(area_mil2 / 1.378 * 0.0254, 2)
+
+
+def poured(doc: dict[str, Any], net: dict[str, Any]) -> bool:
+    return bool(net.get("name")) and any(z.get("kind") == "pour" and z.get("net") == net["name"] for z in doc.get("zones") or [])
+
+
+def net_width(doc: dict[str, Any], net: dict[str, Any]) -> float | None:
+    """The trace width a net's stated current asks for (mm), None when the default does or a pour carries it."""
+    a = float(net.get("amps") or 0)
+    if a < TRACE_MIN_AMPS or poured(doc, net) or GROUND.match(net.get("name") or ""):
+        return None
+    return min(TRACE_MAX_MM, max(0.25, trace_mm(a)))
 
 
 def ident(name: str) -> str:
@@ -191,6 +258,33 @@ def ident(name: str) -> str:
 # ------------------------------------------------------------------ the document
 def blank(title: str = "Device") -> dict[str, Any]:
     return {"schema": SCHEMA, "title": title, "summary": "", "board": {"holes": True}, "nodes": [], "nets": []}
+
+
+def model_prims(raw: Any) -> tuple[list[dict[str, Any]], str | None]:
+    """A part's own 3D look as primitives (mm, the part's origin, z = 0 on the board's top face): [{shape: box|cyl, at: [x, y,
+    z] (centre in plan, z its bottom), size: [w, d, h], color: '#rrggbb', r?: a box's corner radius, axis?: 'x'|'y' (lying
+    along it), taper?: the top's share of the bottom}]. What is broken is left out and said."""
+    if not isinstance(raw, list):
+        return [], "a list of primitives [{shape, at: [x, y, z], size: [w, d, h], color}]"
+    out: list[dict[str, Any]] = []
+    why: str | None = None
+    for p in raw[:MODEL_PRIMS]:
+        try:
+            at, size = [float(v) for v in p["at"]], [float(v) for v in p["size"]]
+            if len(at) != 3 or len(size) != 3 or min(size) <= 0 or max(map(abs, at + size)) > 150:
+                raise ValueError
+        except (KeyError, TypeError, ValueError):
+            why = "each primitive needs at [x, y, z] and size [w, d, h] in mm (positive, up to 150)"
+            continue
+        q: dict[str, Any] = {"shape": "cyl" if p.get("shape") == "cyl" else "box", "at": at, "size": size,
+                             "color": p["color"] if MODEL_COLOR.match(str(p.get("color") or "")) else "#333333"}
+        if p.get("axis") in ("x", "y"):
+            q["axis"] = p["axis"]
+        for k in ("r", "taper"):
+            if isinstance(p.get(k), (int, float)) and 0 <= p[k] <= 50:
+                q[k] = float(p[k])
+        out.append(q)
+    return out, why
 
 
 def _edge(v: Any) -> str | None:
@@ -263,6 +357,30 @@ def normalize(doc: Any) -> tuple[dict[str, Any], list[dict[str, str]]]:
             node["package"] = pkg if pkg in PASSIVE_PKG else "0603"
         if kind == "led":
             node["color"] = str(raw.get("color") or "green").lower()[:12]
+        if kind == "button" and raw.get("switch") not in (None, "", "tact"):
+            sw = str(raw["switch"]).strip().lower()
+            if sw in SWITCHES:
+                node["switch"] = sw
+            else:
+                issues.append({"code": "unknown_switch", "ref": nid, "msg": f"switch {raw['switch']!r} is not known; use tact (default) or one of {', '.join(SWITCHES)}"})
+        if kind == "header" and raw.get("connector"):
+            con = str(raw["connector"]).strip().lower()
+            if con in CONNECTORS:
+                node["connector"] = con
+            else:
+                issues.append({"code": "unknown_connector", "ref": nid, "msg": f"connector {raw['connector']!r} is not known; use one of {', '.join(CONNECTORS)}, or leave it out for a 2.54 mm header"})
+        for k in ("heatsink_w", "shaft_d", "shaft_h"):
+            try:
+                if raw.get(k) is not None and 0 < float(raw[k]) <= 500:
+                    node[k] = round(float(raw[k]), 1)
+            except (TypeError, ValueError):
+                issues.append({"code": "bad_field", "ref": nid, "msg": f"{nid}.{k} is a number"})
+        if raw.get("model") is not None:
+            prims, why = model_prims(raw["model"])
+            if prims:
+                node["model"] = prims
+            if why:
+                issues.append({"code": "bad_model", "ref": nid, "msg": f"{nid}.model: {why}"})
         if kind == "module":
             mpn = str(raw.get("module") or raw.get("mpn") or "").strip()
             if mpn not in MODULES:
@@ -354,6 +472,20 @@ def normalize(doc: Any) -> tuple[dict[str, Any], list[dict[str, str]]]:
         if pins:
             groups.append((name, pins))
     out["nets"] = _merge(groups, issues)
+    # the current a net carries, as the designer states it: it stays with the net its pins ended up on
+    for raw in doc.get("nets") or []:
+        try:
+            amps = float(raw.get("amps") or 0) if isinstance(raw, dict) else 0.0
+        except (TypeError, ValueError):
+            issues.append({"code": "bad_field", "ref": str(raw.get("name") or "net"), "msg": "a net's amps is a number"})
+            continue
+        if not math.isfinite(amps) or amps <= 0:
+            continue
+        refs = {str(r) for r in raw.get("pins") or []}
+        for net in out["nets"]:
+            if (raw.get("name") and net.get("name") == ident(raw["name"])) or refs & set(net["pins"]):
+                net["amps"] = round(max(net.get("amps") or 0, min(amps, 200.0)), 2)
+                break
     routes: list[dict[str, Any]] = []
     for raw in (doc.get("routes") or [])[:ROUTE_MAX]:
         r = _route(raw, by_id)
@@ -401,6 +533,8 @@ def normalize(doc: Any) -> tuple[dict[str, Any], list[dict[str, str]]]:
                                "msg": f"requirement {req['id']} ({req['text'][:60]}) names {p}, which is not a part of the device"})
         if raw.get("firmware") is not None:
             req["firmware"] = bool(raw["firmware"])
+        if isinstance(raw.get("test"), dict):
+            req["test"] = raw["test"]
         reqs.append(req)
     if reqs:
         out["requirements"] = reqs
@@ -554,6 +688,8 @@ def _zone(raw: Any, nets: list[dict[str, Any]]) -> dict[str, Any] | str:
 def ports_of(node: dict[str, Any], part: dict[str, Any], pin: str) -> list[str]:
     """The board's pad names one device pin stands for (what circuit.json and the hand traces call them)."""
     k = node["kind"]
+    if k == "button" and node.get("switch"):
+        return [{"A": "pin1", "B": "pin2"}[pin]] if pin in ("A", "B") else []
     if k in PORT_NAMES:
         return PORT_NAMES[k].get(pin, [])
     if k == "usb_c":
@@ -705,6 +841,14 @@ async def resolve(doc: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[
             if k == "chip":
                 card, raw = await asyncio.gather(catalog.info(node["lcsc"]), catalog.easyeda(node["lcsc"]))
                 parts[nid] = {**card, "raw": raw, "pads": catalog.pads_of(raw), "box": catalog.box_of(raw)}
+                if node.get("edge"):
+                    # a connector from the catalogue: which way it opens says how it sits on its edge
+                    got = await catalog.model_obj(raw)
+                    parts[nid]["mouth"] = catalog.mouth_of(raw, got[1] if got else None)
+                    if not parts[nid]["mouth"]:
+                        issues.append({"code": "no_mouth", "ref": nid, "msg": f"{nid} ({card.get('mpn')}): its drawing does not show which way it opens, so it cannot be put on an edge: "
+                                       "take another part of the same kind, a right-angle one"})
+                        node.pop("edge", None)
             elif k in ("resistor", "capacitor"):
                 parts[nid] = await catalog.resolve_basic(k, node["value"], node["package"]) or {}
             elif k == "led":
@@ -713,6 +857,12 @@ async def resolve(doc: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[
                 parts[nid] = await catalog.resolve_basic("schottky") or {}
             elif k in ("usb_c", "jst"):
                 parts[nid] = await catalog.resolve_basic("usb_c" if k == "usb_c" else "jst2") or {}
+            elif k == "button" and node.get("switch"):
+                sw = SWITCHES[node["switch"]]
+                parts[nid] = {"mpn": sw["name"], "switch": node["switch"], "prices": [{"qty": 1, "usd": sw["price_usd"]}], "stock": None, "url": sw["url"], "pads": 2}
+            elif k == "header" and node.get("connector"):
+                c = CONNECTORS[node["connector"]]
+                parts[nid] = {"mpn": f"{c['name']}, {len(node['pins'])} pole", "connector": node["connector"], "prices": [{"qty": 1, "usd": round(c["price_usd"] * len(node["pins"]), 2)}], "stock": None}
             elif k in ("header", "button"):
                 parts[nid] = await catalog.resolve_basic(k) or {}
             elif k == "module":
@@ -866,6 +1016,11 @@ def _conn_kind(node: dict[str, Any]) -> str:
 
 def _footprint_size(node: dict[str, Any], part: dict[str, Any]) -> tuple[float, float]:
     k = node["kind"]
+    if k == "button" and node.get("switch"):
+        return tuple(SWITCHES[node["switch"]]["cap"])  # type: ignore[return-value]
+    if k == "header" and node.get("connector"):
+        c = CONNECTORS[node["connector"]]
+        return (c["pitch"] * len(node.get("pins") or []) + 0.8, c["d"])
     if k in ("resistor", "capacitor"):
         return SIZE[node.get("package", "0603")]
     if k == "accessory":
@@ -891,6 +1046,8 @@ def _footprint_size(node: dict[str, Any], part: dict[str, Any]) -> tuple[float, 
 def _along(node: dict[str, Any], part: dict[str, Any]) -> tuple[float, float]:
     """(length along its edge, depth into the board) of an edge part."""
     k = node["kind"]
+    if k == "chip" and part.get("mouth"):
+        return part["mouth"]["w"], part["mouth"]["d"]
     w, h = _footprint_size(node, part)
     if k == "usb_c":
         return 10.4, 8.4
@@ -1146,7 +1303,7 @@ def local_box(node: dict[str, Any], part: dict[str, Any] | None = None) -> tuple
     if k == "diode":
         return centred(4.7, 2.3)
     if k == "button":
-        return centred(7.0, 9.0)
+        return centred(*SWITCHES[node["switch"]]["cap"]) if node.get("switch") else centred(7.0, 9.0)
     if k == "usb_c":
         return (-5.2, -5.5, 5.2, 2.9)
     if k == "module":
@@ -1161,6 +1318,9 @@ def local_box(node: dict[str, Any], part: dict[str, Any] | None = None) -> tuple
             return centred(a["body"][0], a["body"][1])
         n = len(a["pins"])
         return (-(n - 1) - 2.45, -3.3, (n - 1) + 2.45, 2.2) if a["connect"] == "jst" else centred(2.54 * n + 1.0, 3.54)
+    if k == "header" and node.get("connector"):
+        c = CONNECTORS[node["connector"]]
+        return centred(c["pitch"] * len(node.get("pins") or []) + 1.0, c["d"] + 0.04)
     if k == "header":
         return centred(2.54 * len(node.get("pins") or []) + 1.0, 3.54)
     if k == "jst":
@@ -1186,24 +1346,7 @@ def local_box(node: dict[str, Any], part: dict[str, Any] | None = None) -> tuple
     return centred(3.0, 3.0)
 
 
-def _model_outline(raw: dict[str, Any]) -> tuple[float, float, float, float] | None:
-    """The footprint's 3D model outline (x0, y0, x1, y1) in the frame of catalog.pads_of, or None: what the converter
-    takes for the courtyard (its SVGNODE's polygon points, EasyEDA units of 10 mil)."""
-    d = (raw.get("packageDetail") or {}).get("dataStr") or {}
-    head = d.get("head") or {}
-    pts: list[tuple[float, float]] = []
-    try:
-        ox, oy = float(head["x"]), float(head["y"])
-        for s in d.get("shape") or []:
-            if isinstance(s, str) and s.startswith("SVGNODE~"):
-                for ch in (json.loads(s.split("~", 1)[1]).get("childNodes") or []):
-                    v = [float(t) for t in str(((ch or {}).get("attrs") or {}).get("points") or "").split()]
-                    pts += [((v[i] - ox) * catalog.EE_UNIT, (oy - v[i + 1]) * catalog.EE_UNIT) for i in range(0, len(v) - 1, 2)]
-    except (KeyError, TypeError, ValueError, AttributeError):
-        return None
-    if not pts:
-        return None
-    return (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts))
+_model_outline = catalog.model_outline
 
 
 def _turned(box: tuple[float, float, float, float], x: float, y: float, rot: float) -> tuple[float, float, float, float]:
@@ -1378,6 +1521,8 @@ def _pin_pads(node: dict[str, Any], part: dict[str, Any], pin: str) -> list[tupl
     if k in ("led", "diode"):
         off = 0.82 if k == "led" else 1.65
         return [(-off if first else off, 0.0)]
+    if k == "button" and node.get("switch"):
+        return [SWITCHES[node["switch"]]["pins"].get(pin) or (0.0, 0.0)]
     if k == "button":  # its legs pair up inside: either of a pair will do
         return [(-2.25, 3.25), (-2.25, -3.25)] if first else [(2.25, -3.25), (2.25, 3.25)]
     if k == "jst":
@@ -1401,7 +1546,7 @@ def _pin_pads(node: dict[str, Any], part: dict[str, Any], pin: str) -> list[tupl
     if pin not in names:
         return [(0.0, 0.0)]
     a = acc.ACCESSORIES[node["accessory"]] if k == "accessory" else {}
-    t = (names.index(pin) - (len(names) - 1) / 2) * (2.0 if a.get("connect") == "jst" else 2.54)
+    t = (names.index(pin) - (len(names) - 1) / 2) * (CONNECTORS[node["connector"]]["pitch"] if node.get("connector") else 2.0 if a.get("connect") == "jst" else 2.54)
     return [(0.0, -t) if a.get("mount") == "board" and a.get("header_axis", "x") != "x" else (t, 0.0)]
 
 
@@ -2228,14 +2373,28 @@ def build_hints(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tup
 FACING_ROT = {"usb_c": {"-y": 0, "+x": 90, "+y": 180, "-x": 270}, "jst": {"+y": 0, "-x": 90, "-y": 180, "+x": 270}}
 
 
+MOUTH_COPPER_MM = 0.5  # a connector's pads from the rim, when its nose would leave them closer
+
+
+def _mouth_shift(m: dict[str, Any], rot: float, edge: str) -> float:
+    """How far a connector's mouth lies from its origin along the edge it is on, turned by rot."""
+    x, y = _turn((0.0, m["across"]) if m["dir"][1] == "x" else (m["across"], 0.0), rot)
+    return x if edge[1] == "y" else y
+
+
 def _placement(node: dict[str, Any], part: dict[str, Any], W: float, H: float, slot: float) -> dict[str, float]:
     """pcbX/pcbY/pcbRotation of an edge part whose slot centre lies `slot` mm along its edge (from the edge's middle)."""
     k, e = _conn_kind(node), node["edge"]
-    if k == "module":
+    if node["kind"] == "chip" and part.get("mouth"):
+        # turned so its mouth is on the edge, its face flush with the board's rim
+        m, angle = part["mouth"], {"+x": 0, "+y": 90, "-x": 180, "-y": 270}
+        rot = (angle[e] - angle[m["dir"]]) % 360
+        d, slot = max(m["reach"], m["pad"] + MOUTH_COPPER_MM) + EDGE_MARGIN_MM, slot - _mouth_shift(m, rot, e)
+    elif k == "module":
         d = MODULES[node["module"]]["depth"]
         rot = {"+y": 0, "-x": 90, "-y": 180, "+x": 270}[e]
     else:
-        d = DEPTH.get(k, 3.0)
+        d = CONNECTORS[node["connector"]]["d"] / 2 if node.get("connector") else DEPTH.get(k, 3.0)
         if k in FACING_ROT:
             rot = FACING_ROT[k][e]
         else:
@@ -2341,9 +2500,118 @@ def _accessory_tsx(node: dict[str, Any], part: dict[str, Any], pos: str) -> str 
     return f'<pinheader name="{nid}" pinCount={{{len(pins)}}} pitch="2.54mm" pinLabels={{[{quoted}]}}{_spn(conn)}{pos} />'
 
 
+def _module_footprint(m: dict[str, Any]) -> str:
+    """A module's pin rows as a footprint that draws the module: its real outline and its USB connector in the silkscreen.
+    The holes are where the DIP string (m['footprint']) has them, 1 mm so a 0.64 mm square header pin goes in (its diagonal is 0.9), the courtyard theirs alone: the module's body stands above
+    the board on its headers, and what may sit under it is the placer's business (place_issues, by its real size)."""
+    w = float(re.search(r"_w([\d.]+)mm", m["footprint"])[1])  # type: ignore[index]
+    half = len(m["pins"]) // 2
+    holes = []
+    for i in range(len(m["pins"])):
+        x, y = (-w / 2, ((half - 1) / 2 - i) * 2.54) if i < half else (w / 2, (i - half - (half - 1) / 2) * 2.54)
+        holes.append(f'<platedhole portHints={{["pin{i + 1}"]}} shape="circle" holeDiameter="1mm" outerDiameter="1.6mm" pcbX={{{x:g}}} pcbY={{{y:g}}} />')
+    mw, mh = m["size"]
+    p = m["port"]
+    py = mh / 2 + p["protrude"] - p["d"] / 2
+    return (f"<footprint>{''.join(holes)}<courtyardrect pcbX={{0}} pcbY={{0}} width={{{w + 1.7:g}}} height={{{(half - 1) * 2.54 + 1.7:g}}} />"
+            f"<silkscreenrect pcbX={{0}} pcbY={{0}} width={{{mw:g}}} height={{{mh:g}}} />"
+            f"<silkscreenrect pcbX={{0}} pcbY={{{py:g}}} width={{{p['w']:g}}} height={{{p['d']:g}}} /></footprint>")
+
+
+def _switch_tsx(node: dict[str, Any], part: dict[str, Any], pos: str) -> str:
+    """A mechanical key switch: its two pins, its locating holes, the cap's plan as its courtyard."""
+    sw = SWITCHES[node["switch"]]
+    holes = "".join(f'<platedhole portHints={{["pin{i + 1}"]}} shape="circle" holeDiameter="{sw["hole"]:g}mm" outerDiameter="{sw["pad"]:g}mm" pcbX={{{sw["pins"][p][0]:g}}} pcbY={{{sw["pins"][p][1]:g}}} />'
+                    for i, p in enumerate(("A", "B")))
+    pegs = "".join(f'<hole diameter="{d:g}mm" pcbX={{{x:g}}} pcbY={{{y:g}}} />' for x, y, d in sw["npth"])
+    cw, cd = sw["cap"]
+    fp = (f"<footprint>{holes}{pegs}<courtyardrect pcbX={{0}} pcbY={{0}} width={{{cw:g}}} height={{{cd:g}}} />"
+          f"<silkscreenrect pcbX={{0}} pcbY={{0}} width={{{sw['key']['cut']:g}}} height={{{sw['key']['cut']:g}}} /></footprint>")
+    mpn = sw["name"].replace('"', "'")
+    return f'<chip name="{node["id"]}" manufacturerPartNumber="{mpn}"{pos} pinLabels={{{{ pin1: "A", pin2: "B" }}}} footprint={{{fp}}} />'
+
+
+def _terminal_tsx(node: dict[str, Any], part: dict[str, Any], pos: str) -> str:
+    """A wire terminal block: its poles in a row across the part's origin, the body as its courtyard."""
+    c = CONNECTORS[node["connector"]]
+    n = len(node["pins"])
+    holes = "".join(f'<platedhole portHints={{["pin{i + 1}"]}} shape="circle" holeDiameter="{c["hole"]:g}mm" outerDiameter="{c["pad"]:g}mm" '
+                    f'pcbX={{{round((i - (n - 1) / 2) * c["pitch"], 3) + 0.0:g}}} pcbY={{0}} />' for i in range(n))
+    w = c["pitch"] * n
+    fp = (f'<footprint>{holes}<courtyardrect pcbX={{0}} pcbY={{0}} width={{{w:g}}} height={{{c["d"]:g}}} />'
+          f'<silkscreenrect pcbX={{0}} pcbY={{0}} width={{{w:g}}} height={{{c["d"]:g}}} /></footprint>')
+    labels = ", ".join(f'"{p}"' for p in node["pins"])
+    return f'<pinheader name="{node["id"]}" pinCount={{{n}}} pitch="{c["pitch"]:g}mm" manufacturerPartNumber="{c["name"]}"{pos} pinLabels={{[{labels}]}} footprint={{{fp}}} />'
+
+
+def connector_model(node: dict[str, Any]) -> list[dict[str, Any]]:
+    """A terminal block in the board's 3D view: its body and a screw over each pole."""
+    c, n = CONNECTORS[node["connector"]], len(node["pins"])
+    prims = [{"shape": "box", "at": [0, 0, 0], "size": [c["pitch"] * n, c["d"], c["h"]], "r": 0.3, "color": c["color"]}]
+    prims += [{"shape": "cyl", "at": [round((i - (n - 1) / 2) * c["pitch"], 3), 0, c["h"]], "size": [3.0, 3.0, 0.15], "color": "#c9ccd1"} for i in range(n)]
+    return prims
+
+
+def switch_model(sw: dict[str, Any]) -> list[dict[str, Any]]:
+    """A key switch in the board's 3D view (models.mjs primitives): the housing up to the plate, its flange and top, the stem."""
+    if sw["key"]["stem"] == "panel":
+        kk = sw["key"]
+        return [{"shape": "cyl", "at": [0, 0, 1.0], "size": [kk["cut"] - 1, kk["cut"] - 1, kk["depth"] - 1], "color": "#2a2a2c"},
+                {"shape": "cyl", "at": [0, 0, kk["depth"]], "size": [kk["cap"][0] - 1, kk["cap"][1] - 1, 3.0], "color": kk["color"]}]
+    k, c = sw["key"], sw["key"]["cut"]
+    top = k["stem_top"] - (3.6 if k["stem"] == "mx" else 3.0)
+    prims = [{"shape": "box", "at": [0, 0, 0], "size": [c, c, k["plate_top"]], "r": 0.5, "color": "#2a2a2c"},
+             {"shape": "box", "at": [0, 0, k["plate_top"]], "size": [c + 1.6, c + 1.6, 0.8], "r": 0.8, "color": "#36363a"},
+             {"shape": "box", "at": [0, 0, k["plate_top"] + 0.8], "size": [c - 1, c - 1, top - k["plate_top"] - 0.8], "r": 0.8, "color": "#3e3e44", "taper": 0.8}]
+    if k["stem"] == "mx":
+        prims += [{"shape": "box", "at": [0, 0, top], "size": [4.0, 1.2, 3.6], "color": "#c8352f"}, {"shape": "box", "at": [0, 0, top], "size": [1.2, 4.0, 3.6], "color": "#c8352f"}]
+    else:
+        prims += [{"shape": "box", "at": [x, 0, top], "size": [1.2, 3.0, 3.0], "color": "#c8352f"} for x in (-2.85, 2.85)]
+    return prims
+
+
+def accessory_model(a: dict[str, Any]) -> list[dict[str, Any]]:
+    """A board-mounted accessory in the board's 3D view: its header, its board at its stack height, the glass or the window.
+    The part's origin is the header row; the body lies off it by header_offset."""
+    bw, bd, bh = a["body"]
+    dx, dy = a.get("header_offset") or (0.0, 0.0)
+    cx, cy = -dx, -dy
+    z = float(a.get("stack_h") or 0)
+    n, along_x = len(a["pins"]), a.get("header_axis", "x") == "x"
+    plastic = [2.54 * n, 2.5] if along_x else [2.5, 2.54 * n]
+    prims = [{"shape": "box", "at": [0, 0, 0], "size": [*plastic, max(z, 0.5)], "color": "#1a1a1a"},
+             {"shape": "box", "at": [cx, cy, z], "size": [bw, bd, 1.2], "r": 0.6, "color": "#1b3a7a"}]
+    if a.get("window"):
+        wx, wy = a.get("window_offset") or (0.0, 0.0)
+        prims.append({"shape": "box", "at": [cx + wx, cy + wy, z + 1.2], "size": [a["window"][0] + 1.5, a["window"][1] + 2.0, max(bh - 1.2, 0.4)], "color": "#0c0c10"})
+    return prims
+
+
+def model_plan(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """What the worker needs to draw each part it cannot draw by itself (models.mjs): {ref: {prims} | {h}}. The designer's
+    node.model wins, then what the graph knows. A catalogue part's own OBJ goes by its uuid (catalog.model_obj), this
+    only says how high its block is should it have none."""
+    plan: dict[str, dict[str, Any]] = {}
+    for n in doc["nodes"]:
+        nid, k = n["id"], n["kind"]
+        if n.get("model"):
+            plan[nid] = {"prims": n["model"]}
+        elif k == "button" and n.get("switch"):
+            plan[nid] = {"prims": switch_model(SWITCHES[n["switch"]])}
+        elif k == "header" and n.get("connector"):
+            plan[nid] = {"prims": connector_model(n)}
+        elif k == "accessory" and acc.ACCESSORIES[n["accessory"]].get("mount") == "board" and _on_carrier(n):
+            plan[nid] = {"prims": accessory_model(acc.ACCESSORIES[n["accessory"]])}
+        elif k == "chip":
+            plan[nid] = {"h": (parts.get(nid) or {}).get("height_mm") or 2.0}
+    return plan
+
+
 def _tsx_pins(node: dict[str, Any], part: dict[str, Any], pin: str) -> list[str]:
     """The TSX pin labels one device pin stands for: a chip's 'GND' is every pin called GND, a Pico's 'GND' all eight."""
     k = node["kind"]
+    if k == "button" and node.get("switch"):
+        return [{"A": "pin1", "B": "pin2"}[pin]]
     if k in PRIMS:
         return [PRIMS[k]["tsx"][pin]]
     if k == "module":
@@ -2629,8 +2897,12 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
             lines.append(f'<led name="{nid}" color={_attr(n.get("color", "green"))} footprint="0603"{_spn(part)}{pos} />')
         elif k == "diode":
             lines.append(f'<diode name="{nid}" footprint="sod123" manufacturerPartNumber="B5819W"{_spn(part)}{pos} />')
+        elif k == "button" and n.get("switch"):
+            lines.append(_switch_tsx(n, part, pos))
         elif k == "button":
             lines.append(f'<pushbutton name="{nid}" footprint="pushbutton" internallyConnectedPins={{[["pin1","pin2"],["pin3","pin4"]]}}{_spn(part)}{pos} />')
+        elif k == "header" and n.get("connector"):
+            lines.append(_terminal_tsx(n, part, pos))
         elif k == "header":
             labels = ", ".join(f'"{p}"' for p in n["pins"])
             lines.append(f'<pinheader name="{nid}" pinCount={{{len(n["pins"])}}} pitch="2.54mm" pinLabels={{[{labels}]}}{_spn(part)}{pos} />')
@@ -2646,14 +2918,15 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
         elif k == "module":
             m = MODULES[n["module"]]
             labels = ", ".join(f'pin{i + 1}: "{p}"' for i, p in enumerate(m["pins"]))
-            lines.append(f'<chip name="{nid}" footprint="{m["footprint"]}" manufacturerPartNumber="{n["module"]}"{pos} pinLabels={{{{ {labels} }}}} />')
+            lines.append(f'<chip name="{nid}" manufacturerPartNumber="{n["module"]}"{pos} pinLabels={{{{ {labels} }}}} footprint={{{_module_footprint(m)}}} />')
         elif k == "chip":
             if not part.get("raw"):
                 continue
             labels = ", ".join(f'pin{p["num"] if p["num"].isdigit() else catalog.safe_label(p["num"])}: "{p["label"]}"' for p in part["pins"])
             mpn = str(part.get("mpn") or n.get("mpn") or n["lcsc"]).replace('"', "'")
             lines.append(f'<chip name="{nid}" footprint="lcsc:{n["lcsc"]}" manufacturerPartNumber="{mpn}"{_spn(part)}{pos} pinLabels={{{{ {labels} }}}} />')
-            lcsc[n["lcsc"]] = {"easyeda": part["raw"], "h": part.get("height_mm"), "type": "chip"}
+            # a connector on an edge goes by its pads and its model (mouth_of): its drawn courtyard is no measure of the part
+            lcsc[n["lcsc"]] = {"easyeda": part["raw"], "h": part.get("height_mm"), "type": "chip", **({"bare": True} if part.get("mouth") and n.get("edge") else {})}
         if nid in in_group and len(lines) > mark:
             grouped.setdefault(in_group[nid], []).append(lines.pop())
     for chip, members in grouped.items():
@@ -2669,7 +2942,7 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
     same: dict[str, str] = {}
     for n in doc["nodes"]:
         twins = {"led": {"anode": "pin1", "cathode": "pin2"}, "diode": {"anode": "pin1", "cathode": "pin2"},
-                 "button": {"pin2": "pin1", "pin4": "pin3"},
+                 "button": {} if n.get("switch") else {"pin2": "pin1", "pin4": "pin3"},
                  "usb_c": {"VBUS_B": "VBUS_A", "DP2": "DP1", "DN2": "DN1", "GND_B": "GND_A", "SH1": "GND_A"}}.get(n["kind"], {})
         same.update({_sel(f"{n['id']}.{a}"): _sel(f"{n['id']}.{b}") for a, b in twins.items()})
     island: dict[str, str] = {}
@@ -2709,7 +2982,9 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
         if len(ends) < 2:
             continue
         name = net.get("name")
-        if name and WIDE_NET.match(name):
+        width = net_width(doc, net)
+        thick = f"{max(width or 0.0, 0.4):g}mm" if width and width >= 0.4 else "0.4mm"
+        if (name and WIDE_NET.match(name) and not GROUND.match(name)) or width:
             # the supply path pin to pin, so its width is kept (a width on a trace to a net is dropped). A capacitor hangs
             # off the chain by one trace to the pin it serves (its chip's supply pin, else the first part on the net):
             # its traces carry the decoupling length limit, and as a link of the chain it would have to sit within 10 mm
@@ -2718,11 +2993,11 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
             is_cap = lambda e: by_id.get(e[1:].split(" > ", 1)[0], {}).get("kind") == "capacitor"  # noqa: E731
             chain = [e for e in reps if not is_cap(e)] or reps[:1]
             for a, b in zip(chain, chain[1:]):
-                traces.append(f'<trace from="{a}" to="{b}" thickness="0.4mm" />')
+                traces.append(f'<trace from="{a}" to="{b}" thickness="{thick}" />')
             for e in reps:
                 if e not in chain:
                     anchor = root(tied[e]) if e in tied and root(tied[e]) in chain else chain[0]
-                    traces.append(f'<trace from="{e}" to="{anchor}" thickness="0.4mm" />')
+                    traces.append(f'<trace from="{e}" to="{anchor}" thickness="{thick}" />')
         elif not name and len(ends) == 2:
             if root(ends[0]) != root(ends[1]):
                 traces.append(f'<trace from="{ends[0]}" to="{ends[1]}" />')
@@ -2803,6 +3078,52 @@ def dress_board(board: dict[str, Any], doc: dict[str, Any], parts: dict[str, dic
 
     for n in doc["nodes"]:
         nid, c, part = n["id"], comps.get(n["id"]), parts.get(n["id"]) or {}
+        if n["kind"] == "button" and n.get("switch"):
+            if c is not None and pcs.get(nid):
+                # the footprint's origin is the switch's centre: the board's box of it follows its pads
+                sw, o = SWITCHES[n["switch"]], pcs[nid].get("footprint_origin") or pcs[nid]["center"]
+                k = sw["key"]
+                panel = k["stem"] == "panel"
+                c.update({"type": f"key_{n['switch']}", "access": "key", "x": r2(o["x"] - ox), "y": r2(o["y"] - oy), "w": k["cut"], "d": k["cut"],
+                          "h": r2(k["depth"] if panel else k["plate_top"] - k["plate_t"]), "key": k, "normal": [0, 0, 1], "verify": []})
+                c.pop("note", None)
+            continue
+        if n["kind"] == "header" and n.get("connector"):
+            edge = n.get("edge")
+            if c is not None and pcs.get(nid):
+                con, o = CONNECTORS[n["connector"]], pcs[nid].get("footprint_origin") or pcs[nid]["center"]
+                w, x, y = con["pitch"] * len(n["pins"]), o["x"] - ox, o["y"] - oy
+                if edge in EDGES and n.get("face") != "none":
+                    # the wires come in through the wall: a window as wide as the block, as high as its entries
+                    c.update({"type": n["connector"], "access": "port", "edge": edge, "at": r2(x if edge[1] == "y" else y), "w": r2(w), "h": con["h"], "d": con["d"], "z0": 0.0, "protrude": 0.0,
+                              "plug": [r2(w), min(con["h"], 7.0)], "verify": []})
+                    for f in ("x", "y", "normal", "note"):
+                        c.pop(f, None)
+                else:
+                    c.update({"type": n["connector"], "access": "none", "x": r2(x), "y": r2(y), "w": r2(w), "d": con["d"], "h": con["h"], "verify": []})
+                    c.pop("note", None)
+            continue
+        if n["kind"] == "chip" and part.get("mouth") and n.get("edge") in EDGES and n.get("face") != "none" and c is not None and pcs.get(nid):
+            # a plug comes in through the wall: a window as wide as the body, from the board up to its top
+            m, o, edge = part["mouth"], pcs[nid].get("footprint_origin") or pcs[nid]["center"], n["edge"]
+            along = (o["x"] - ox if edge[1] == "y" else o["y"] - oy) + _mouth_shift(m, float(pcs[nid].get("rotation") or 0) % 360, edge)
+            h = m["z1"] - m["z0"]
+            c.update({"type": "connector", "access": "port", "edge": edge, "at": r2(along), "w": r2(m["w"]), "h": r2(h), "d": r2(m["d"]), "z0": r2(m["z0"]),
+                      "protrude": 0.0,
+                      "plug": [r2(max(m["w"], 8.0)), r2(max(h, 8.0))], "verify": []})
+            for f in ("x", "y", "normal", "note"):
+                c.pop(f, None)
+            continue
+        if face_of(n, part) in ("shaft", "hole") and c is not None and pcs.get(nid):
+            # a knob's shaft through the lid: an encoder's or a potentiometer's body stays under it, a printed knob goes on top
+            o = pcs[nid].get("footprint_origin") or pcs[nid]["center"]
+            top = float(n.get("shaft_h") or part.get("height_mm") or 20.0)
+            sd = float(n.get("shaft_d") or 6.0)
+            c.update({"access": "key", "x": r2(o["x"] - ox), "y": r2(o["y"] - oy), "h": r2(min(top, 9.0)), "normal": [0, 0, 1],
+                      "key": {"stem": "shaft", "cut": r2(sd + 1.0), "shaft_d": sd, "shaft_top": r2(top), "cap": [22.0, 22.0] if face_of(n, part) == "shaft" else [sd + 3.0, sd + 3.0],
+                              "knob": face_of(n, part) == "shaft"}, "verify": []})
+            c.pop("note", None)
+            continue
         if n["kind"] != "accessory":
             if c is not None and c.get("access") == "port" and n.get("face") == "none" and pcs.get(nid):
                 inside(c, pcs[nid]["center"]["x"] - ox, pcs[nid]["center"]["y"] - oy, "plugged inside the case (face none)")
@@ -2916,7 +3237,8 @@ def _hand_traces(doc: dict[str, Any], parts: dict[str, dict[str, Any]], place: d
 
 def intent_of(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Edges of every port part, and the module pin that drives each LED (directly or through one resistor) and button."""
-    edge = {n["id"]: n["edge"] for n in doc["nodes"] if n.get("edge")}
+    # a catalogue connector has no port until dress_board reads its mouth: its place on the edge is the compiler's own
+    edge = {n["id"]: n["edge"] for n in doc["nodes"] if n.get("edge") and n["kind"] != "chip"}
     net_of: dict[str, dict[str, Any]] = {}
     for net in doc["nets"]:
         for p in net["pins"]:
@@ -2983,7 +3305,7 @@ def view(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> dict[str, Any
             "pins": [{"name": p, "net": net_of.get(f"{n['id']}.{p}"), **({"count": counts[p]} if counts.get(p, 1) > 1 else {})}
                      for p in pins if not (n["kind"] == "chip" and p.upper().startswith("NC") and f"{n['id']}.{p}" not in net_of)],
             "part": {k: part.get(k) for k in ("lcsc", "mpn", "brand", "package", "category", "description", "stock", "basic", "datasheet", "image",
-                                              "url", "size_mm", "height_mm", "error") if part.get(k) is not None},
+                                              "url", "size_mm", "height_mm", "error", "tht") if part.get(k) is not None},
             "price_usd": catalog.price_at(part.get("prices") or [], 10) if part.get("prices") else None,
         }
         if n["kind"] == "module":
@@ -2992,6 +3314,12 @@ def view(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> dict[str, Any
         if n["kind"] == "accessory":
             a = acc.ACCESSORIES[n["accessory"]]
             nodes[n["id"]]["part"].update({"accessory": n["accessory"], "kind": a["kind"], "mount": a["mount"], "note": a["note"]})
+            conn = part.get("connector")
+            if conn and a["connect"] in ("header", "jst"):
+                unit = catalog.price_at(conn.get("prices") or [], 10) if conn.get("prices") else None
+                # a header is cut from a 1x40 strip, as bom_of prices it
+                price = unit * max(1, len(a["pins"])) / 40 if unit is not None and a["connect"] == "header" else unit
+                nodes[n["id"]]["part"]["connector"] = {**{k: conn.get(k) for k in ("lcsc", "mpn", "package", "basic", "stock", "url")}, "price_usd": price}
         nodes[n["id"]]["face"] = face_of(n, part)
     plan, _ = decoupling(doc, parts)
     return {"nodes": nodes, "power": [net.get("name") for net in doc["nets"] if net.get("name") and POWER_NET.match(net["name"])],
@@ -3009,6 +3337,10 @@ def library() -> dict[str, Any]:
         "accessories": acc.catalogue(),
         "faces": list(FACES),
         "layouts": list(LAYOUTS),
+        # what a button node may be besides a tact switch: node {kind: 'button', switch: key}
+        "switches": [{"switch": k, "name": v["name"], "price_usd": v["price_usd"], "pitch": v["pitch"], "note": v["note"]} for k, v in SWITCHES.items()],
+        # what a header node may be besides 2.54 mm pins: node {kind: 'header', connector: key, pins: [...]}
+        "connectors": [{"connector": k, "name": v["name"], "amps": v["amps"], "pitch": v["pitch"]} for k, v in CONNECTORS.items()],
     }
 
 
@@ -3028,7 +3360,7 @@ def changes(old: dict[str, Any], new: dict[str, Any], limit: int = 24) -> list[s
     for nid in a.keys() - b.keys():
         out.append(f"removed {nid} ({a[nid]['kind']} {what(a[nid])})".replace("  ", " "))
     for nid in sorted(a.keys() & b.keys()):
-        for k in ("lcsc", "module", "accessory", "value", "package", "color", "pins", "edge", "face", "label"):
+        for k in ("lcsc", "module", "accessory", "switch", "value", "package", "color", "pins", "edge", "face", "label"):
             if a[nid].get(k) != b[nid].get(k):
                 out.append(f"{nid}: {k} {a[nid].get(k) or '-'} -> {b[nid].get(k) or '-'}")
         pa, pb = a[nid].get("pcb"), b[nid].get("pcb")

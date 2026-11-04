@@ -55,7 +55,6 @@
   // status line: the current run, or the last one once it is over
   const job = $derived(store.currentJob ?? Object.values(store.jobs).sort((a, b) => b.started - a.started)[0] ?? null);
   const elapsed = $derived(job ? (job.finished ?? now / 1000) - job.started : 0);
-  const tokens = $derived(job?.cost ? (job.cost.tokens_in ?? 0) + (job.cost.tokens_out ?? 0) : 0);
 
   $effect(() => {
     if (!store.running && !recording) return;
@@ -97,7 +96,7 @@
     for (const f of Array.from(list)) {
       uploading++;
       const k = kind === 'camera' ? 'photo' : f.type.startsWith('video/') ? 'video' : f.type.startsWith('audio/') ? 'audio' : kind;
-      const a = await store.upload(f, k);
+      const a = await store.upload(f, k, undefined, () => addFiles(kind, [f]));
       if (a) {
         store.tray = [...store.tray, a];
         store.spot(a, text.trim());
@@ -141,13 +140,17 @@
         if (destroyed) return;
         const type = rec?.mimeType || 'audio/webm';
         const ext = type.includes('ogg') ? 'ogg' : type.includes('mp4') ? 'm4a' : 'webm';
-        uploading++;
-        const a = await store.upload(new Blob(chunks, { type }), 'audio', `voice.${ext}`);
-        if (a) {
-          store.tray = [...store.tray, a];
-          if (!destroyed) addTranscript(a);
-        }
-        uploading--;
+        const note = new Blob(chunks, { type });
+        const upload = async () => {
+          uploading++;
+          const a = await store.upload(note, 'audio', `voice.${ext}`, upload);
+          if (a) {
+            store.tray = [...store.tray, a];
+            if (!destroyed) addTranscript(a);
+          }
+          uploading--;
+        };
+        await upload();
       };
       rec.start();
       recording = true;
@@ -179,10 +182,6 @@
     await store.send(v || t('see_attached'), ids);
   }
 
-  function fmtTokens(n: number) {
-    return n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}k` : String(n);
-  }
-
   const isImage = (a: AssetOut) => ['photo', 'sketch', 'caliper', 'print', 'concept'].includes(a.kind);
   const selCount = (a: AssetOut) => store.selections.filter((s) => s.asset_id === a.id).length;
 </script>
@@ -196,12 +195,8 @@
   {#if tips}
     <div class="tipbox card"><CaptureTips compact /><button class="btn icon ghost small close" onclick={() => (tips = false)} aria-label={t('close')}><Icon name="x" size={14} /></button></div>
   {/if}
-  {#if job}
-    <div class="meta">
-      <span>{fmtDuration(elapsed)}</span>
-      {#if tokens}<span>{fmtTokens(tokens)} {t('tokens')}</span>{/if}
-      {#if store.running && job.kind === 'design' && !job.finished}<span class="eta">{t('eta_hint')}</span>{/if}
-    </div>
+  {#if store.running && job}
+    <div class="meta"><span>{fmtDuration(elapsed)}</span></div>
   {/if}
 
   <div
@@ -303,7 +298,7 @@
       <button class="round pressable" class:on={recording} onclick={toggleRecord} aria-label={t('record')} title={t('record')}><Icon name="mic" size={17} /></button>
       <span class="spacer"></span>
       {#if store.running && !store.replaying}
-        <button class="round pressable send stop" onclick={() => store.cancel()} disabled={stopping} aria-label={t(stopping ? 'stopping' : 'stop')} title={t(stopping ? 'stopping' : 'stop')}>
+        <button class="round pressable send stop" onclick={() => store.cancel()} disabled={stopping || !store.jobId} aria-label={t(stopping ? 'stopping' : 'stop')} title={t(stopping ? 'stopping' : 'stop')}>
           {#if stopping}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="stop" size={13} />{/if}
         </button>
       {:else}
@@ -314,7 +309,7 @@
 
   <div class="meta pickers">
     <Picker label={t('model')} value={prefs.model} options={modelOptions} up onpick={(v) => setPref('model', v)} />
-    <Picker label={t('reasoning')} value={prefs.reasoning} options={reasoningOptions} quiet up onpick={(v) => setPref('reasoning', v)} />
+    <Picker label={t('reasoning')} value={prefs.reasoning} options={reasoningOptions} up onpick={(v) => setPref('reasoning', v)} />
   </div>
 </div>
 
@@ -347,7 +342,6 @@
   }
   .box:focus-within {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
   }
   .box.dragging {
     border-color: var(--primary);
@@ -362,7 +356,7 @@
     background: transparent;
     box-shadow: none;
     resize: none;
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     line-height: 22px;
     padding: 11px 14px 2px;
     /* two lines from the start: the placeholder fits and the first typed line does not shrink the box */
@@ -413,9 +407,11 @@
     background: color-mix(in srgb, var(--primary) 92%, white);
     color: var(--on-primary);
   }
+  /* nothing to send yet: the colour waits for the words */
   .send:disabled {
     cursor: not-allowed;
-    opacity: 0.5;
+    background: var(--surface-high);
+    color: var(--outline);
   }
   .send.stop {
     background: var(--on-surface);
@@ -468,13 +464,12 @@
     object-fit: cover;
     display: block;
   }
-  /* the found object, cut out and glowing, instead of the whole photo */
+  /* the found object, cut out, instead of the whole photo */
   .thumb.found {
-    background: radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--primary) 30%, transparent), transparent 70%), #111;
-    border-color: color-mix(in srgb, var(--primary) 60%, transparent);
+    background: var(--surface-container-lowest);
+    border-color: var(--primary);
   }
   .thumb.found :global(.sticker) {
-    filter: drop-shadow(0 0 3px var(--primary));
     animation: lift 420ms var(--ease-pop);
   }
   @keyframes lift {
@@ -504,7 +499,7 @@
     position: absolute;
     bottom: 3px;
     border-radius: var(--radius-tag);
-    font-size: 10px;
+    font-size: var(--text-2xs);
     font-weight: var(--font-weight-semibold);
     padding: 1px 5px;
     display: inline-flex;
@@ -586,7 +581,7 @@
     background: none;
     cursor: pointer;
     font-family: inherit;
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     text-align: left;
     color: var(--on-surface);
   }
@@ -607,15 +602,10 @@
     display: flex;
     gap: 10px;
     padding: 0 14px;
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: var(--outline);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-  }
-  .eta {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   .pickers {
     justify-content: flex-end;
@@ -624,9 +614,9 @@
     padding: 0 6px;
   }
   .pickers :global(.cur) {
-    font-size: 11px;
+    font-size: var(--text-sm);
     padding: 2px 8px;
-    color: var(--outline);
+    color: var(--on-surface-var);
   }
   .pickers :global(.cur:hover),
   .pickers :global(.cur[aria-expanded='true']) {

@@ -1,0 +1,388 @@
+{
+ "schema": "fw.device/1",
+ "title": "Датчик протечки воды",
+ "summary": "Датчик протечки: щуп на кабеле, пищалка, LED и кнопка, питание от LiPo",
+ "board": {
+  "holes": true,
+  "w": 46.0,
+  "h": 37.0
+ },
+ "nodes": [
+  {
+   "id": "U1",
+   "kind": "module",
+   "label": "MCU",
+   "module": "113991054",
+   "edge": "-y"
+  },
+  {
+   "id": "PR1",
+   "kind": "accessory",
+   "label": "щуп протечки",
+   "accessory": "leak_probe",
+   "edge": "-y",
+   "face": "none"
+  },
+  {
+   "id": "BT1",
+   "kind": "accessory",
+   "label": "аккумулятор",
+   "accessory": "lipo_1s_500",
+   "place": {
+    "x": -8.0,
+    "y": -9.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "BZ1",
+   "kind": "chip",
+   "label": "пищалка 3 В",
+   "lcsc": "C781847",
+   "place": {
+    "x": -8.0,
+    "y": 9.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "Q1",
+   "kind": "chip",
+   "label": "ключ пищалки",
+   "lcsc": "C2146"
+  },
+  {
+   "id": "D1",
+   "kind": "diode",
+   "label": "диод пищалки"
+  },
+  {
+   "id": "RB",
+   "kind": "resistor",
+   "label": "резистор базы",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "R1",
+   "kind": "resistor",
+   "label": "подтяжка щупа",
+   "value": "100k",
+   "package": "0603"
+  },
+  {
+   "id": "R2",
+   "kind": "resistor",
+   "label": "защита щупа",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "LED1",
+   "kind": "led",
+   "label": "тревога",
+   "color": "red",
+   "place": {
+    "x": 18.0,
+    "y": 8.0,
+    "rot": 0.0
+   },
+   "face": "light"
+  },
+  {
+   "id": "RL",
+   "kind": "resistor",
+   "label": "резистор LED",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "SW1",
+   "kind": "button",
+   "label": "проверка/молчать",
+   "place": {
+    "x": 17.0,
+    "y": -5.0,
+    "rot": 0.0
+   },
+   "face": "none"
+  }
+ ],
+ "nets": [
+  {
+   "pins": [
+    "U1.GND",
+    "PR1.GND",
+    "Q1.E",
+    "LED1.K",
+    "SW1.B"
+   ],
+   "name": "GND"
+  },
+  {
+   "pins": [
+    "U1.V3V3",
+    "BZ1.POS",
+    "D1.K",
+    "R1.1"
+   ],
+   "name": "V3V3"
+  },
+  {
+   "pins": [
+    "U1.D3",
+    "R2.1"
+   ]
+  },
+  {
+   "pins": [
+    "R2.2",
+    "R1.2",
+    "PR1.SENSE"
+   ]
+  },
+  {
+   "pins": [
+    "U1.MOSI",
+    "RB.1"
+   ]
+  },
+  {
+   "pins": [
+    "RB.2",
+    "Q1.B"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D2",
+    "RL.1"
+   ]
+  },
+  {
+   "pins": [
+    "RL.2",
+    "LED1.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D1",
+    "SW1.A"
+   ]
+  },
+  {
+   "pins": [
+    "Q1.C",
+    "BZ1.NEG",
+    "D1.A"
+   ]
+  }
+ ],
+ "requirements": [
+  {
+   "id": "R1",
+   "text": "обнаруживать воду выносным щупом на кабеле",
+   "parts": [
+    "PR1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 2,
+      "on": true,
+      "output": "BZ1",
+      "to_s": 8
+     }
+    ],
+    "given": {},
+    "steps": [
+     {
+      "at_s": 1,
+      "input": "PR1",
+      "value": 1
+     }
+    ]
+   }
+  },
+  {
+   "id": "R2",
+   "text": "громко пищать при протечке",
+   "parts": [
+    "BZ1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 2,
+      "on": true,
+      "output": "BZ1",
+      "to_s": 8
+     }
+    ],
+    "given": {},
+    "steps": [
+     {
+      "at_s": 1,
+      "input": "PR1",
+      "value": 1
+     }
+    ]
+   }
+  },
+  {
+   "id": "R3",
+   "text": "мигать красным светодиодом при протечке",
+   "parts": [
+    "LED1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 2,
+      "on": true,
+      "output": "LED1",
+      "to_s": 8
+     }
+    ],
+    "given": {},
+    "steps": [
+     {
+      "at_s": 1,
+      "input": "PR1",
+      "value": 1
+     }
+    ]
+   }
+  },
+  {
+   "id": "R4",
+   "text": "кнопка: проверка сирены и отключение звука",
+   "parts": [
+    "SW1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 6,
+      "on": false,
+      "output": "BZ1",
+      "to_s": 12
+     }
+    ],
+    "given": {},
+    "steps": [
+     {
+      "at_s": 1,
+      "input": "PR1",
+      "value": 1
+     },
+     {
+      "at_s": 5,
+      "press": "SW1"
+     }
+    ]
+   }
+  },
+  {
+   "id": "R5",
+   "text": "работать от LiPo с зарядкой от USB-C, спать и просыпаться от воды или кнопки",
+   "parts": [
+    "BT1",
+    "U1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 62,
+      "on": true,
+      "output": "BZ1",
+      "to_s": 70
+     }
+    ],
+    "given": {},
+    "steps": [
+     {
+      "at_s": 60,
+      "input": "PR1",
+      "value": 1
+     }
+    ]
+   }
+  }
+ ],
+ "concept": {
+  "uses": [
+   "под стиральной машиной дома: щуп в низкой точке пола, при луже громкий писк и мигание",
+   "под кухонной мойкой: тихий тёмный шкаф, писк слышно через дверцу, проверка одной кнопкой",
+   "в ванной у стояка: долгая работа от аккумулятора, зарядка от USB-C"
+  ],
+  "options": [
+   {
+    "name": "Шайба на полу",
+    "look": "круглая шайба на полу, сама стоит в воде на двух винтах-контактах",
+    "panel": "светодиод в центре крышки, кнопка beside, зуммер под решёткой",
+    "form": "round",
+    "stance": "desk",
+    "mounting": "contacts",
+    "module_edge": "+y",
+    "board": {
+     "shape": "round",
+     "w": 48.0,
+     "h": 42.0
+    }
+   },
+   {
+    "name": "Заливной страж",
+    "look": "мягкий блок на полу рядом со стиралкой, щуп на кабеле лежит в низкой точке",
+    "panel": "красный светодиод и кнопка справа, зуммер слева, кабель щупа вниз",
+    "form": "soft",
+    "stance": "desk",
+    "mounting": "none",
+    "module_edge": "-y",
+    "board": {
+     "shape": "rect",
+     "w": 46.0,
+     "h": 37.0
+    }
+   },
+   {
+    "name": "Сторож на стене",
+    "look": "узкий блок на стене на ушках, щуп свисает кабелем вниз на пол",
+    "panel": "светодиод сверху, кнопка под ним, кабель щупа вниз",
+    "form": "box",
+    "stance": "wall",
+    "mounting": "ears",
+    "module_edge": "-y",
+    "board": {
+     "shape": "rect",
+     "w": 36.0,
+     "h": 50.0
+    }
+   }
+  ],
+  "chosen": "Заливной страж",
+  "why": "Щуп на кабеле лежит там, где раньше всего появится вода, а сам блок с пищалкой остаётся сухим."
+ },
+ "firmware": {
+  "lang": "arduino",
+  "files": {
+   "leak_sensor.ino": "// Датчик протечки воды — XIAO ESP32-C3\n// Щуп: PR1.SENSE на D3 (GPIO5) + 100k к V3V3, LOW = вода.\n// щуп от пина к GND через воду, подтяжка 100k к V3V3: сухо = HIGH, вода = LOW.\n// Пищалка: D10 (GPIO10) -> 1k -> база NPN, активная (DC). LED: D2 (GPIO4) -> 1k -> A.\n// Кнопка: D1 (GPIO3) -> GND, INPUT_PULLUP, LOW = нажата.\n#define PIN_PROBE 5\n#define PIN_BUZZ 10\n#define PIN_LED 4\n#define PIN_BTN 3\nbool muted = false;\nunsigned long muteUntil = 0;\nunsigned long lastBlink = 0;\nbool blinkOn = false;\nvoid alarmOff() { digitalWrite(PIN_BUZZ, LOW); digitalWrite(PIN_LED, LOW); }\nvoid setup() {\n  pinMode(PIN_PROBE, INPUT_PULLUP);\n  pinMode(PIN_BTN, INPUT_PULLUP);\n  pinMode(PIN_BUZZ, OUTPUT);\n  pinMode(PIN_LED, OUTPUT);\n  alarmOff();\n  Serial.begin(115200);\n  delay(200);\n}\nbool probeWet() { int wet = 0; for (int i = 0; i < 5; i++) { if (digitalRead(PIN_PROBE) == LOW) wet++; delay(5); } return wet >= 3; }\nbool btnPressed() { return digitalRead(PIN_BTN) == LOW; }\nvoid goSleep() {\n  alarmOff();\n  esp_deep_sleep_enable_gpio_wakeup((1ULL << PIN_PROBE) | (1ULL << PIN_BTN), ESP_GPIO_WAKEUP_GPIO_LOW);\n  Serial.println(\"sleep\"); Serial.flush(); delay(100);\n  esp_deep_sleep_start();\n}\nvoid loop() {\n  static unsigned long drySince = 0;\n  static bool hadWater = false;\n  bool wet = probeWet();\n  static unsigned long pressStart = 0;\n  static bool wasPressed = false;\n  bool pressed = btnPressed();\n  if (pressed && !wasPressed) { pressStart = millis(); }\n  if (!pressed && wasPressed) {\n    if (wet || hadWater) { muted = true; muteUntil = millis() + 5UL*60UL*1000UL; alarmOff(); }\n    else { digitalWrite(PIN_BUZZ, HIGH); digitalWrite(PIN_LED, HIGH); delay(800); alarmOff(); }\n  }\n  wasPressed = pressed;\n  if (pressed && millis() - pressStart > 3000) { muted = false; pressStart = millis(); }\n  if (muted && (long)(millis() - muteUntil) >= 0) muted = false;\n  if (wet) {\n    hadWater = true; drySince = 0;\n    if (!muted) {\n      digitalWrite(PIN_BUZZ, HIGH);\n      if (millis() - lastBlink > 250) { lastBlink = millis(); blinkOn = !blinkOn; digitalWrite(PIN_LED, blinkOn ? HIGH : LOW); }\n    } else {\n      digitalWrite(PIN_BUZZ, LOW);\n      if (millis() - lastBlink > 1000) { lastBlink = millis(); blinkOn = !blinkOn; digitalWrite(PIN_LED, blinkOn ? HIGH : LOW); }\n    }\n    delay(20); return;\n  } else {\n    if (hadWater) {\n      if (drySince == 0) drySince = millis();\n      alarmOff();\n      if (millis() - drySince > 10000) { hadWater = false; drySince = 0; goSleep(); }\n      delay(50); return;\n    }\n    static unsigned long bootT = 0;\n    if (bootT == 0) bootT = millis();\n    alarmOff();\n    if (millis() - bootT > 30000) goSleep();\n    delay(50);\n  }\n}\n"
+  },
+  "notes": "Плата Seeed XIAO ESP32-C3, Arduino-ESP32 3.x. Прошивка через USB-C модуля.",
+  "check": {
+   "ok": true,
+   "tool": "g++ 13.2.0 compile, no link (arduino-esp32 3.x stubs, Seeed ",
+   "errors": [],
+   "warnings": [],
+   "wiring": "f03216a6f6fd8a57",
+   "asks": "8d1a11ea6b99"
+  }
+ },
+ "_version": 16
+}

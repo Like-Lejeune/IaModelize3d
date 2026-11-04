@@ -22,7 +22,7 @@ import httpx
 from fastapi import HTTPException
 from PIL import Image
 
-from .. import storage
+from .. import idempotency, storage
 from ..config import settings
 from ..db import get_db, new_id, now
 from ..geom import geom
@@ -37,9 +37,22 @@ PREVIEW_MIN_PX = 256
 _transport: httpx.AsyncBaseTransport | None = None  # the tests answer as Axo here
 
 
-async def create_order(user: dict[str, Any], project: dict[str, Any], body: OrderRequest, version: int | None = None) -> dict[str, Any]:
+async def create_order(user: dict[str, Any], project: dict[str, Any], body: OrderRequest, version: int | None = None, *,
+                       key: str | None = None) -> dict[str, Any]:
     """Sends one version of the project to Axo: `version` pins it (a shop order's version, the one that was quoted and
-    checked), else the newest."""
+    checked), else the newest. `key`: the request's Idempotency-Key, so a retry answers with the first order; the header
+    goes to Axo too, for a retry after a reply that was lost on the way."""
+    async def first(ref: str) -> dict[str, Any] | None:
+        db = await get_db()
+        o = await db.one("SELECT id, checkout_url, quote FROM orders WHERE id = ?", ref)
+        q = (o or {}).get("quote") or {}
+        return {"status": "created", "order_id": o["id"], "checkout_url": o["checkout_url"], "price_kzt": q.get("price_kzt"), "eta_days": q.get("eta_days")} if o else None
+
+    return await idempotency.once(user["id"], f"axo:{project['id']}", key, lambda: _create_order(user, project, body, version, key), first,
+                                  ref=lambda r: r.get("order_id"))
+
+
+async def _create_order(user: dict[str, Any], project: dict[str, Any], body: OrderRequest, version: int | None, key: str | None) -> dict[str, Any]:
     s = settings()
     db = await get_db()
     if version:
@@ -63,15 +76,23 @@ async def create_order(user: dict[str, Any], project: dict[str, Any], body: Orde
         "source": f"{s.public_url}/r/{project['id']}",
         "external_id": f"{project['id']}:v{prog['version']}",
     }
-    async with httpx.AsyncClient(timeout=60) as h:
-        r = await h.post(
-            f"{s.axo_api_url.rstrip('/')}/partner/custom-orders",
-            headers={"Authorization": f"Bearer {s.axo_api_key}"},
-            files={"order": (None, json.dumps(order), "application/json"), "model": ("model.3mf", base64.b64decode(tmf["data"]), "model/3mf")},
-        )
+    try:
+        async with httpx.AsyncClient(timeout=60, transport=_transport) as h:
+            r = await h.post(
+                f"{s.axo_api_url.rstrip('/')}/partner/custom-orders",
+                headers={"Authorization": f"Bearer {s.axo_api_key}", **({"Idempotency-Key": key} if key else {})},
+                files={"order": (None, json.dumps(order), "application/json"), "model": ("model.3mf", base64.b64decode(tmf["data"]), "model/3mf")},
+            )
+    except httpx.HTTPError as e:
+        # the reply may be what was lost: said so, and a retry with the same key is safe where Axo honours it
+        log.warning("Axo order for %s: %s", project["id"], type(e).__name__)
+        return {"status": "error", "message": "Axo is not answering. Check your orders at Axo before trying again."}
     if r.status_code >= 400:
         return {"status": "error", "message": f"Axo rejected the order ({r.status_code})"}
-    data = r.json()
+    data = _json(r)
+    if not isinstance(data, dict):
+        log.error("Axo order for %s: answer %s is not a JSON object", project["id"], r.status_code)
+        return {"status": "error", "message": "Axo took the request but its answer could not be read. Check your orders at Axo before trying again."}
     oid = new_id("o_")
     await db.insert("orders", {"id": oid, "project_id": project["id"], "user_id": user["id"], "status": "created",
                                "external_ref": data.get("order_id"), "checkout_url": data.get("checkout_url"), "quote": data, "created_at": now()})
@@ -120,32 +141,75 @@ async def add_to_cart(project: dict[str, Any], version: int | None = None, repla
     preview = await _preview(project["id"], prog)
     if preview:
         files["preview"] = preview
+    data, url = await _send_design(f"{project['id']} v{v}", meta, files, replace)
+    return {"url": url, "design_id": data.get("design_id"), "price_kzt": data.get("price_kzt")}
+
+
+async def add_device_to_cart(project: dict[str, Any], qty: int, replace: str | None = None) -> dict[str, Any]:
+    """The finished device as a batch of `qty` in the Axo shop: its case, the archive for the workshop and the price of the
+    studio's quote without delivery, which the shop adds by the batch's parcel. {url} takes the buyer to their cart."""
+    from .. import device_package
+
+    if replace is not None and not DESIGN_ID.fullmatch(replace):
+        raise _fail(400, "bad_replace", "replace must be an Axo design id (32 lowercase hex characters)")
+    s = settings()
+    if not s.axo_api_url:
+        raise _fail(503, "not_configured", "The Axo shop is not connected on this server (FW_AXO_API_URL is not set)")
+    pkg = await device_package.build(project, qty)
+    prog, price = pkg.program, pkg.device["price_kzt"]
+    meta = {
+        "external_id": f"{project['id']}:v{prog['version']}:b{pkg.quote['pcb_version']}:q{pkg.device['qty']}",
+        "title": (str(project["title"] or "").strip()[:120].strip() or "Formwright device"),
+        "edit_url": f"{s.public_url.rstrip('/')}/p/{project['id']}",
+        "size_mm": pkg.size_mm,
+        "volume_mm3": pkg.volume_mm3,
+        "weight_g": pkg.case_grams,
+        "print_time_min": pkg.print_minutes,
+        "device": pkg.device,
+    }
+    files: dict[str, tuple[str, bytes, str]] = {"model": ("model.3mf", pkg.model_3mf, "model/3mf"),
+                                                "bundle": ("device.zip", pkg.zip_bytes, "application/zip")}
+    preview = await _device_preview(project["id"], prog)
+    if preview:
+        files["preview"] = preview
+    what = f"{project['id']} device x{pkg.device['qty']}"
+    data, url = await _send_design(what, meta, files, replace)
+    # the shop says the price back: one that does not know devices would sell this one at the price of its plastic
+    if data.get("price_kzt") != price:
+        log.error("Axo cart for %s: the shop answered price %r for %r: not sending the buyer there", what, data.get("price_kzt"), price)
+        raise _fail(502, "axo_no_device", "The Axo shop does not take whole devices yet")
+    return {"url": url, "design_id": data.get("design_id"), "price_kzt": price, "qty": pkg.device["qty"]}
+
+
+async def _send_design(what: str, meta: dict[str, Any], files: dict[str, tuple[str, bytes, str]], replace: str | None) -> tuple[dict[str, Any], str]:
+    """A design to the shop's partner route: (its answer, the link that takes the buyer to the cart)."""
+    s = settings()
     try:
         async with httpx.AsyncClient(timeout=60, transport=_transport) as h:
             r = await h.post(f"{s.axo_api_url.rstrip('/')}/partner/formwright/designs", headers={"Authorization": f"Bearer {s.axo_api_key}"},
                              data={"meta": json.dumps(meta)}, files=files)
     except httpx.HTTPError as e:
         # app.py answers a bare httpx error as the model service being busy: this one is Axo's
-        log.warning("Axo cart for %s v%s: %s", project["id"], v, type(e).__name__)
+        log.warning("Axo cart for %s: %s", what, type(e).__name__)
         raise _fail(502, "axo_unavailable", "The Axo shop is not answering; try again in a minute") from e
     if r.status_code in (401, 403):
-        log.error("Axo cart for %s v%s: Axo refused FW_AXO_API_KEY (%s)", project["id"], v, r.status_code)
+        log.error("Axo cart for %s: Axo refused FW_AXO_API_KEY (%s)", what, r.status_code)
         raise _fail(502, "axo_auth", "The Axo shop did not accept this server's key")
     if r.status_code == 413:
         raise _fail(413, "axo_too_large", "The model is too large for the Axo shop (64 MB max)")
     if r.status_code == 400:
         reason = _reason(r)
-        log.warning("Axo cart for %s v%s: rejected: %s", project["id"], v, reason)
+        log.warning("Axo cart for %s: rejected: %s", what, reason)
         raise _fail(422, "axo_rejected", f"The Axo shop did not take this model: {reason}")
     data = _json(r) if r.status_code in (200, 201) else None
     add_url = data.get("add_url") if isinstance(data, dict) else None
     # the browser goes there: an http(s) link only
     if not isinstance(add_url, str) or urlsplit(add_url).scheme not in ("http", "https"):
-        log.warning("Axo cart for %s v%s: answer %s without an add_url", project["id"], v, r.status_code)
+        log.warning("Axo cart for %s: answer %s without an add_url", what, r.status_code)
         raise _fail(502, "axo_unavailable", "The Axo shop is not answering; try again in a minute")
     url = add_url + (f"{'&' if '?' in add_url else '?'}replace={replace}" if replace else "")
-    log.info("Axo cart: %s v%s -> design %s%s", project["id"], v, data.get("design_id"), f" in place of {replace}" if replace else "")
-    return {"url": url, "design_id": data.get("design_id"), "price_kzt": data.get("price_kzt")}
+    log.info("Axo cart: %s -> design %s%s", what, data.get("design_id"), f" in place of {replace}" if replace else "")
+    return data, url
 
 
 def _dims(stats: Any) -> tuple[list[float], float] | None:
@@ -212,6 +276,18 @@ async def _preview(project_id: str, prog: dict[str, Any]) -> tuple[str, bytes, s
     if min(width, height) < PREVIEW_MIN_PX:
         return None
     return ("preview.png" if kind == "png" else "preview.jpg", data, f"image/{kind}")
+
+
+async def _device_preview(project_id: str, prog: dict[str, Any]) -> tuple[str, bytes, str] | None:
+    """The device as it comes, the case closed around its board; else the version's usual picture."""
+    try:
+        params = {**(prog["params"] or {}), "layout": "assembled", "show_board": True}
+        out = await geom().render(prog["source"], params, view="iso", tile=768, inputs=prog["inputs"])
+        data = base64.b64decode(out["png"])
+    except Exception as e:  # noqa: BLE001 - the picture is optional
+        log.info("Axo cart: no assembled picture of %s v%s (%s)", project_id, prog["version"], type(e).__name__)
+        return await _preview(project_id, prog)
+    return ("preview.png", data, "image/png") if len(data) <= PREVIEW_LIMIT else await _preview(project_id, prog)
 
 
 def _json(r: httpx.Response) -> Any:

@@ -20,6 +20,11 @@ const EXACT: Record<string, string> = {
   'printed stand-in for the pcb': 'Печатный макет платы',
   layout: 'Вид',
   'show the board': 'Показать плату',
+  shape: 'Форма',
+  mounting: 'Крепление',
+  'mounting wall': 'Стенка крепления',
+  'height at least': 'Высота не меньше',
+  'how it sits': 'Как стоит',
   // agent/examples.py, showcase.py, agent/prompts.py (params and viewer handles)
   'shelf thickness': 'Толщина полки',
   'clamp depth': 'Глубина зажима',

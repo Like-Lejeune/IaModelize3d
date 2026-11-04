@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import shutil
+import signal
 import sys
 import tempfile
 import time
@@ -116,6 +117,19 @@ def _orca_cmd(args: list[str]) -> list[str]:
     return cmd
 
 
+def _kill_tree(proc: asyncio.subprocess.Process) -> None:
+    """The slicer and what it started: under xvfb-run its own session holds OrcaSlicer too, which killing the wrapper leaves running."""
+    if proc.returncode is not None:
+        return
+    if os.name == "posix":
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+            return
+        except OSError:
+            pass
+    proc.kill()
+
+
 async def run_orca(workdir: Path, model_3mf: Path, machine: Path, process: Path, filament: Path, *, timeout: float = 240) -> Path:
     cmd = _orca_cmd([
         "--slice", "0",
@@ -125,18 +139,25 @@ async def run_orca(workdir: Path, model_3mf: Path, machine: Path, process: Path,
         "--export-3mf", "project.3mf",
         str(model_3mf),
     ])
-    proc = await asyncio.create_subprocess_exec(*cmd, cwd=str(workdir), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    proc = await asyncio.create_subprocess_exec(*cmd, cwd=str(workdir), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                                                **({"start_new_session": True} if os.name == "posix" else {}))
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout)
     except TimeoutError:
-        proc.kill()
+        _kill_tree(proc)
         await proc.wait()
         raise SliceError(f"slicer took longer than {timeout:.0f}s") from None
+    except asyncio.CancelledError:  # a Stop or a job's deadline: the slicer must not run on with nobody waiting for it
+        _kill_tree(proc)
+        await asyncio.shield(proc.wait())
+        raise
     gcode = workdir / "plate_1.gcode"
     if not gcode.exists():
+        # its output names this server's paths: for the log, not for whoever reads the error
         tail = (err or out or b"").decode(errors="ignore")[-1500:]
         log_txt = "".join(p.read_text(errors="ignore")[-800:] for p in workdir.glob("*.log"))
-        raise SliceError(f"slicer produced no G-code (exit {proc.returncode}) {tail} {log_txt}".strip())
+        log.warning("slicer produced no G-code (exit %s): %s %s", proc.returncode, tail, log_txt)
+        raise SliceError(f"slicer produced no G-code (exit {proc.returncode})")
     return gcode
 
 

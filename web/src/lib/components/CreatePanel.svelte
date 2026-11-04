@@ -111,7 +111,7 @@
     <p class="muted small">{t('concepts_hint')}</p>
     <div class="row nowrap">
       <input type="text" bind:value={prompt} placeholder={t('concepts_placeholder')} aria-label={t('concepts')} style="flex:1;min-width:0" />
-      <button class="btn" onclick={concepts} disabled={!prompt.trim() || store.running}><Icon name="sparkles" size={16} /> {t('generate')}</button>
+      <button class="btn" onclick={concepts} disabled={!prompt.trim() || store.running}><Icon name="scribble" size={16} /> {t('generate')}</button>
     </div>
     {#if store.concepts.length}
       <div class="cgrid">

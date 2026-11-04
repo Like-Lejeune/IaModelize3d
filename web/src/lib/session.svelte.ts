@@ -13,11 +13,6 @@ export async function refreshMe() {
   }
 }
 
-export async function setConsent(on: boolean) {
-  await api.consent(on);
-  await refreshMe();
-}
-
 export type ModelKey = ModelOption['key'];
 export type Reasoning = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export const REASONING: Reasoning[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];

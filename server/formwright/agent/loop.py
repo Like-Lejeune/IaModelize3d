@@ -7,7 +7,7 @@ import logging
 import math
 import re
 import time
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import httpx
 from openai import APIConnectionError, APIStatusError, APITimeoutError
@@ -19,13 +19,13 @@ from ..db import get_db, now
 from ..geom import GeomError
 from ..knowledge.facts import lookup_standard
 from ..llm.english import english, remember as remember_english
-from ..llm.client import BudgetExceeded, meta
+from ..llm.client import BudgetExceeded, meta, service_outage
 from ..memory import store as memory
 from ..models import SendMessage
 from .examples import EXAMPLES_TEXT, PACK_EXAMPLES
 from .prompts import CLASSIFY, MESH_ENGINE, PACK_NAMES, PACKS, SYSTEM
 from .runner import JobContext, add_message
-from . import narrate
+from . import narrate, pictures
 from . import compare
 from .side import GENERATED
 from .tools import DesignState, _crop_data_url, device_tools, is_mesh_doc, pcb_tools, run_tool, tools_for
@@ -55,6 +55,8 @@ CLASSIFY_SCHEMA = {
 
 PHOTO_KINDS = ("photo", "sketch", "print")
 HEARTBEAT_S = 15.0
+# How long a run outlasts a model service that is down: a shorter outage costs it nothing, and only a longer one needs "Continue".
+OUTAGE_PATIENCE_S = 180.0
 # what ends a run early without making its versions worthless: those get a handover instead of a bare failure
 STOPS = (BudgetExceeded, APIStatusError, APIConnectionError, APITimeoutError, httpx.HTTPError, TimeoutError, GeomError)
 WRAP_UP = "You are close to the {} limit. Fix only blocking problems and call finish with an honest summary."
@@ -65,8 +67,10 @@ MAX_OUTPUT = {"high": 20000, "xhigh": 28000, "max": 32000}  # tokens per designe
 # Per pack: a circuit file is long, and in the PCB spike medium effort twice spent all 12k tokens thinking and answered nothing.
 PACK_LLM: dict[str, dict[str, Any]] = {"pcb": {"effort": "low", "max_output_tokens": 24000}, "device": {"effort": "low", "max_output_tokens": 24000}}
 # Turns beyond the shared max_iterations * 3: a device is parts, graph, a few builds, case, firmware, price and a review
-# round; the soil sensor of 2026-11-03 spent all 24 on four failed builds and one review.
-PACK_TURNS = {"device": 8}
+# round; the soil sensor of 2026-11-03 spent all 24 on four failed builds and one review. A clean simulation can take a few
+# rewrites of the firmware more: the night light of 2026-11-04 ran out at 32 before its finish, and of 27 devices that evening
+# five harder ones ran out at 46 with a board built and no case.
+PACK_TURNS = {"device": 28}
 
 
 CYRILLIC = re.compile(r"[Ѐ-ӿ]")
@@ -320,28 +324,71 @@ async def _heartbeat(ctx: JobContext, stage: str | None) -> None:
     while True:
         await asyncio.sleep(HEARTBEAT_S)
         try:
-            await ctx.emit("job.heartbeat", {"seconds": round(time.monotonic() - t0), "stage": stage})
+            await ctx.emit("job.heartbeat", {"seconds": round(time.monotonic() - t0), "stage": stage, "outage": ctx.outage})
         except Exception as e:  # noqa: BLE001 - a missed heartbeat is not worth the job
             log.info("heartbeat: %s", e)
 
 
-async def _respond(ctx: JobContext, stage: str | None, **kwargs: Any) -> Any:
-    """One designer turn. The answer comes whole after up to minutes of thinking: a heartbeat says the job is alive."""
-    beat = asyncio.create_task(_heartbeat(ctx, stage))
+async def _keep_cost(ctx: JobContext) -> None:
+    """What the run has spent so far into its row: a restart settles that much, instead of nothing."""
+    m = ctx.meter
     try:
-        return await meta().respond(ctx.meter, **kwargs)
+        db = await get_db()
+        await db.update("jobs", "id", ctx.job_id, {"cost_usd": m.usd, "tokens_in": m.tokens_in, "tokens_out": m.tokens_out, "tokens_cached": m.tokens_cached})
+    except Exception as e:  # noqa: BLE001 - the running total is not worth the run; the job's end writes it anyway
+        log.info("job %s: running cost not saved: %s", ctx.job_id, e)
+
+
+async def _model_call(ctx: JobContext, stage: str | None, call: Callable[[], Awaitable[Any]]) -> Any:
+    """A model call the run depends on. The answer comes whole after up to minutes of thinking: a heartbeat says the job
+    is alive. A service that is down or stuck is waited out for OUTAGE_PATIENCE_S, the heartbeat saying so, and that time
+    does not count against the job's deadline; only then does the failure end the run."""
+    beat = asyncio.create_task(_heartbeat(ctx, stage))
+    since: float | None = None
+    delay = 5.0
+    try:
+        while True:
+            t0 = time.monotonic()
+            try:
+                out = await call()
+            except Exception as e:  # noqa: BLE001 - anything but an outage goes straight on
+                if not service_outage(e) or time.monotonic() - (since or t0) + delay > OUTAGE_PATIENCE_S:
+                    raise
+                since = since or t0
+                ctx.outage = True
+                ctx._arm(OUTAGE_PATIENCE_S)
+                log.warning("job %s: model service out (%s), trying again in %.0fs", ctx.job_id, type(e).__name__, delay)
+                await ctx.emit("job.heartbeat", {"seconds": round(time.monotonic() - since), "stage": stage, "outage": True})
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30.0)
+                continue
+            if since is not None:
+                ctx.deadline += time.monotonic() - since
+                ctx._arm()
+            await _keep_cost(ctx)
+            return out
     finally:
+        ctx.outage = False
         beat.cancel()
 
 
-async def _keep_language(ctx: JobContext, language: str) -> dict[str, Any]:
-    """The run's language into the brief, here and in the database: the tools, the reviewer and the runner's own lines
-    read it there. Returns the brief with it."""
+async def _respond(ctx: JobContext, stage: str | None, **kwargs: Any) -> Any:
+    """One designer turn."""
+    return await _model_call(ctx, stage, lambda: meta().respond(ctx.meter, **kwargs))
+
+
+async def _keep_brief(ctx: JobContext, **fields: Any) -> dict[str, Any]:
+    """Fields into the brief, here and in the database, as soon as they are known: the tools, the reviewer, the runner's
+    own lines and a "Continue" after a crash read them there. Returns the brief with them."""
     db = await get_db()
-    ctx.project["brief"] = {**(ctx.project.get("brief") or {}), "language": language}
+    ctx.project["brief"] = {**(ctx.project.get("brief") or {}), **fields}
     fresh = (await db.one("SELECT brief FROM projects WHERE id = ?", ctx.project_id) or {}).get("brief") or {}
-    await db.update("projects", "id", ctx.project_id, {"brief": {**fresh, "language": language}})
+    await db.update("projects", "id", ctx.project_id, {"brief": {**fresh, **fields}})
     return ctx.project["brief"]
+
+
+async def _keep_language(ctx: JobContext, language: str) -> dict[str, Any]:
+    return await _keep_brief(ctx, language=language)
 
 
 async def design(ctx: JobContext, body: SendMessage) -> str | None:
@@ -398,13 +445,13 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         content += [{"type": "input_image", "image_url": storage.data_url(a["path"], 768)} for a in photos[:2]]
         # intake runs on the open-weights model when one is configured for it
         intake = meta().model_for("classify", ctx.models.fast) if hasattr(meta(), "model_for") else ctx.models.fast
-        cls = await meta().json(ctx.meter, model=intake, system=CLASSIFY, content=content, schema=CLASSIFY_SCHEMA,
-                                name="classify", effort="minimal")
+        cls = await _model_call(ctx, stage["current"], lambda: meta().json(ctx.meter, model=intake, system=CLASSIFY, content=content, schema=CLASSIFY_SCHEMA,
+                                                                           name="classify", effort="minimal"))
         if cls.get("refuse") and intake != ctx.models.fast:
             # the open-weights intake is never the safety veto: Muse Spark decides a refusal (and the designer's own rules
             # still hold when the open model lets something through)
-            cls = await meta().json(ctx.meter, model=ctx.models.fast, system=CLASSIFY, content=content, schema=CLASSIFY_SCHEMA,
-                                    name="classify", effort="minimal")
+            cls = await _model_call(ctx, stage["current"], lambda: meta().json(ctx.meter, model=ctx.models.fast, system=CLASSIFY, content=content, schema=CLASSIFY_SCHEMA,
+                                                                               name="classify", effort="minimal"))
         if cls.get("refuse"):
             text = narrate.localize(f"I can't help with this one: {cls.get('reason', '')}", language if hint else cls.get("language") or language)
             await add_message(ctx.project_id, "agent", text)
@@ -439,6 +486,8 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         subject, photo_role = _concept_subject(concept) or subject, "copy"
         # the intake looked at the picture: its English noun phrase is what the segmenter gets for the prompt's words
         remember_english(subject, cls.get("subject_en") or "")
+    # not only when the run ends: a "Continue" after a crash from here on still knows what the photos are for
+    await _keep_brief(ctx, subject=subject, photo_role=photo_role, engine=engine)
 
     state = DesignState(pack=pack, copies_photo=photo_role == "copy")
     current = await db.one("SELECT * FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", ctx.project_id)
@@ -476,6 +525,9 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         ctx_lines.append(f"Previous result: {brief['summary']}")
     if brief.get("turns"):
         ctx_lines.append("Earlier requests: " + " | ".join(brief["turns"][-5:]))
+    if brief.get("interrupted"):
+        ctx_lines.append("# Interrupted request\nAn earlier run stopped before finishing this, quoted in full. Unless the request below replaces it, "
+                         "this is the work to finish:\n" + str(brief["interrupted"]))
     for a in all_assets:
         meta_bits = {k: a["meta"].get(k) for k in ("transcript", "exif") if a["meta"].get(k)}
         if a["kind"] == "mesh" and a["meta"].get("mesh"):
@@ -560,6 +612,9 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     has_prints = any(a["kind"] == "print" for a in all_assets)
     tools = tools_for(pack, photos=has_photos, prints=has_prints, engine=engine)
     max_turns = settings().max_iterations * 3 + PACK_TURNS.get(pack, 0)
+    if pack == "device" and math.isfinite(ctx.deadline):
+        ctx.deadline = ctx.started + settings().device_deadline_s
+        ctx._arm()
     final_text: str | None = None
     # why the run ended before an accepted finish: budget, failed, engine (errors), time, turns
     ending: str | None = None
@@ -606,7 +661,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
                                     "Call finish with your summary; it runs the independent review and the final checks."}]})
                     continue
                 break
-            images: list[str] = []
+            images: list[tuple[str, str]] = []
             state.turns_left = max_turns - turn - 1  # a finish that asks for one more round must leave a turn to answer it
             for call in calls:
                 name = call.get("name", "")
@@ -639,7 +694,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
                 if review:
                     # accepted is not approved: the step and its summary (first, inside the 600 characters) say how the review ended
                     result = {"accepted": True, "review": review, **result}
-                images.extend(imgs)
+                images.extend((name, r) for r in imgs)
                 ok = result.get("ok", result.get("accepted", True)) is not False
                 # people get a calm title without server paths; the model gets the full error below
                 await ctx.emit("tool.result", {"id": call.get("call_id"), "name": name, "kind": kind, "ok": ok,
@@ -657,8 +712,9 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
                 history.append({"type": "function_call_output", "call_id": call["call_id"],
                                 "output": json.dumps({**_room(ctx, turn, max_turns), **result}, ensure_ascii=False)[:12000]})
             if images:
-                parts: list[dict[str, Any]] = [{"type": "input_text", "text": "Images from the tools above:"}]
-                for ref in images[:4]:
+                parts: list[dict[str, Any]] = [{"type": "input_text", "text": "Images from the tools above, with the names grid and collage take:"}]
+                for pic, tool, ref in pictures.shown(ctx, state, images):
+                    parts.append({"type": "input_text", "text": f"{pic} ({tool}):"})
                     parts.append({"type": "input_image", "image_url": ref if ref.startswith("data:") else storage.data_url(ref, None if ref.endswith(".png") else 1280)})
                 history.append({"type": "message", "role": "user", "content": parts})
             if cut:
@@ -706,21 +762,31 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     # a run that ends as budget/failed has its request kept by the runner, marked as interrupted
     turns = (brief.get("turns") or []) + ([] if ctx.final_status else [body.text[:200]])
     fresh = (await db.one("SELECT brief FROM projects WHERE id = ?", ctx.project_id) or {}).get("brief") or {}
-    await db.update("projects", "id", ctx.project_id, {"brief": {**fresh, **brief, "turns": turns[-10:], "summary": text[:800], "language": language,
-                                                                      "subject": subject, "photo_role": photo_role, "engine": engine}, "updated_at": now()})
+    kept = {**fresh, **brief, "turns": turns[-10:], "summary": text[:800], "language": language, "subject": subject, "photo_role": photo_role, "engine": engine}
+    if not ctx.final_status:
+        kept.pop("interrupted", None)  # this run got through it
+    await db.update("projects", "id", ctx.project_id, {"brief": kept, "updated_at": now()})
     await memory.record_outcome(state.memory_ids, success=state.done)
     # skills are tested JS modules; a mesh document has none to harvest, and a PCB job's case program is generated
     if state.done and state.source and not is_mesh_doc(state.source) and pack not in ("pcb", "device") and (state.critic or {}).get("verdict") == "pass":
-        asyncio.create_task(_harvest_skill(ctx, state.source, pack))
+        task = asyncio.create_task(_harvest_skill(ctx, state.source, pack))
+        _harvests.add(task)
+        task.add_done_callback(_harvests.discard)
     return text[:300]
+
+
+_harvests: set[asyncio.Task] = set()  # the loop keeps only a weak reference to a running task
 
 
 async def _harvest_skill(ctx: JobContext, source: str, pack: str) -> None:
     from ..memory.skills import harvest
 
-    r = await harvest(source, pack, ctx.job_id, ctx.models.fast)
-    if r:
-        await ctx.emit("memory", {"items": [{"kind": "skill", "name": r["name"], "status": "candidate", "doc": r["doc"]}]})
+    try:
+        r = await harvest(source, pack, ctx.job_id, ctx.models.fast)
+        if r:
+            await ctx.emit("memory", {"items": [{"kind": "skill", "name": r["name"], "status": "candidate", "doc": r["doc"]}]})
+    except Exception:  # noqa: BLE001 - a bonus after the run: nobody waits for it
+        log.exception("skill harvest of job %s failed", ctx.job_id)
 
 
 def result_card(ctx: JobContext, state: DesignState) -> dict[str, Any]:

@@ -13,7 +13,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 
-from formwright import quotas
+from formwright import idempotency, quotas
 from formwright.db import Database, get_db, new_id, now
 
 from . import autoquote, flow, notes, quote, store
@@ -350,19 +350,32 @@ async def order_part(db: Database, user: dict[str, Any], project_id: str, *, pho
 
 
 @router.post("/requests")
-async def create_request(text: str = Form(""), appliance: str = Form(""), part_number: str = Form(""), quantity: int | None = Form(None, ge=1, le=200),
+async def create_request(request: Request, text: str = Form(""), appliance: str = Form(""), part_number: str = Form(""), quantity: int | None = Form(None, ge=1, le=200),
                          material: str | None = Form(None), delivery: Delivery = Form("courier"), contact: str = Form(""),
                          project_id: str | None = Form(None), files: list[UploadFile] = File(default=[]), plate: UploadFile | None = File(None),
                          voice: UploadFile | None = File(None), user=Depends(user_dep)):
     """A new part: photos of the broken or missing part on A4, the rating plate, the appliance model or part number,
     a voice note -> the request is read (Muse Spark 1.3), then designed and quoted in the background.
-    With `project_id`: a model already made in the studio goes straight to the slicer quote."""
+    With `project_id`: a model already made in the studio goes straight to the slicer quote. An Idempotency-Key answers a
+    retry with the first order."""
     db = await store.shop_db()
+
+    async def again(order_id: str) -> dict[str, Any] | None:
+        return await store.get(db, order_id)
+
     if project_id:
         p = await hooks.load_project(project_id, user)
-        o = await order_project(db, user, p, text=text, quantity=quantity, material=material, delivery=delivery, contact=contact)
+        o = await idempotency.once(user["id"], "shop.request", idempotency.key_of(request), lambda: order_project(
+            db, user, p, text=text, quantity=quantity, material=material, delivery=delivery, contact=contact), again)
         return await present(db, o, "customer")
 
+    o = await idempotency.once(user["id"], "shop.request", idempotency.key_of(request), lambda: _new_request(
+        db, user, text, appliance, part_number, quantity, material, delivery, contact, files, plate, voice), again)
+    return await present(db, o, "customer")
+
+
+async def _new_request(db: Database, user: dict[str, Any], text: str, appliance: str, part_number: str, quantity: int | None, material: str | None,
+                       delivery: Delivery, contact: str, files: list[UploadFile], plate: UploadFile | None, voice: UploadFile | None) -> dict[str, Any]:
     from formwright.vision import ingest
 
     uploads = [(f, "part") for f in files[:6]] + ([(plate, "plate")] if plate else []) + ([(voice, "voice")] if voice else [])
@@ -395,14 +408,13 @@ async def create_request(text: str = Form(""), appliance: str = Form(""), part_n
                 photos.append({"id": a["id"], "role": "plate" if role == "plate" else "part"})
             else:
                 skipped.append({"code": "not_photo", "file": (f.filename or role)[:120], "kind": a["kind"]})
-    except (quotas.QuotaExceeded, HTTPException):
+    except Exception:  # a quota, a file too large, the model service down (the face pass needs it)
         from formwright import app as _app
 
         await _app._drop_snap(pid)  # removes the half-made project with its rows and files
         raise
-    o = await order_part(db, user, pid, photos=photos, text=text, appliance=appliance, part_number=part_number, quantity=quantity,
-                         material=material, delivery=delivery, contact=contact, said=said, skipped=skipped)
-    return await present(db, o, "customer")
+    return await order_part(db, user, pid, photos=photos, text=text, appliance=appliance, part_number=part_number, quantity=quantity,
+                            material=material, delivery=delivery, contact=contact, said=said, skipped=skipped)
 
 
 @router.get("/instant-quote/{project_id}")
@@ -1100,26 +1112,35 @@ class ListingOrder(BaseModel):
 
 
 @router.post("/listings/{listing_id}/order")
-async def order_listing(listing_id: str, body: ListingOrder, user=Depends(user_dep)):
+async def order_listing(listing_id: str, body: ListingOrder, request: Request, user=Depends(user_dep)):
     """Reorder, or buy someone's verified part: no design step and no new-part fee; the pinned version is sliced and
-    quoted in the background, with the instant range in the answer right away."""
+    quoted in the background, with the instant range in the answer right away. An Idempotency-Key answers a retry with
+    the first order."""
     db = await store.shop_db()
     li = await store.get_listing(db, listing_id)
     if not li or not ((li["public"] and not li["flagged"]) or li["owner_id"] == user["id"]):
         raise HTTPException(404, "listing not found")
-    await order_cap(db, user, body.quantity)
-    _, org = await store.role(db, user["id"])
-    en, ru = card_titles(li)
-    req = {"kind": "listing", "text": f"Reorder of a catalog part: {en}", "quantity": body.quantity, "photos": []}
-    data = {"request": req, "refuse": False, "review": None, "part": {"name_en": en, "quantity": body.quantity},
-            "appliance": {"brand": li["brand"], "model": ", ".join(li["models"] or [])}}
-    o = await store.create_order(db, user_id=user["id"], org_id=org, project_id=li["project_id"], version=li["version"], listing_id=listing_id,
-                                 intake=data, quantity=body.quantity, material=li["material"], delivery={"method": body.delivery},
-                                 customer={"contact": body.contact.strip()}, code="ordered_catalog",
-                                 params={"title": li["title"], "title_en": en, "title_ru": ru},
-                                 quote=await _instant(db, li["project_id"], li["version"], user["id"], quantity=body.quantity, material=li["material"],
-                                                      delivery=body.delivery, new_part=False) or {})
-    autoquote.spawn(o["id"], autoquote.begin(o["id"]))
+
+    async def place() -> dict[str, Any]:
+        await order_cap(db, user, body.quantity)
+        _, org = await store.role(db, user["id"])
+        en, ru = card_titles(li)
+        req = {"kind": "listing", "text": f"Reorder of a catalog part: {en}", "quantity": body.quantity, "photos": []}
+        data = {"request": req, "refuse": False, "review": None, "part": {"name_en": en, "quantity": body.quantity},
+                "appliance": {"brand": li["brand"], "model": ", ".join(li["models"] or [])}}
+        o = await store.create_order(db, user_id=user["id"], org_id=org, project_id=li["project_id"], version=li["version"], listing_id=listing_id,
+                                     intake=data, quantity=body.quantity, material=li["material"], delivery={"method": body.delivery},
+                                     customer={"contact": body.contact.strip()}, code="ordered_catalog",
+                                     params={"title": li["title"], "title_en": en, "title_ru": ru},
+                                     quote=await _instant(db, li["project_id"], li["version"], user["id"], quantity=body.quantity, material=li["material"],
+                                                          delivery=body.delivery, new_part=False) or {})
+        autoquote.spawn(o["id"], autoquote.begin(o["id"]))
+        return o
+
+    async def again(order_id: str) -> dict[str, Any] | None:
+        return await store.get(db, order_id)
+
+    o = await idempotency.once(user["id"], f"shop.listing:{listing_id}", idempotency.key_of(request), place, again)
     return await present(db, o, "customer")
 
 

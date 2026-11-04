@@ -220,20 +220,42 @@ async def review(ctx: JobContext, state: Any, *, bar: float | None = None) -> di
         found = "; ".join(f"{n}. [{i.get('severity')}] {i.get('text', '')}" for n, i in enumerate(earlier["issues"][:6], 1))
         lines.append(f"An earlier review of v{earlier.get('version', '?')} found: {found}. Say in your issues which of them are still not fixed.")
     content: list[dict[str, Any]] = [{"type": "input_text", "text": "\n".join(lines)}]
+    missing: list[str] = []
+
+    def picture(rel: str, side: int | None, what: str) -> bool:
+        """A picture for the reviewer; one that cannot be read is left out and named, so it cannot stop every finish."""
+        try:
+            content.append({"type": "input_image", "image_url": storage.data_url(rel, side)})
+            return True
+        except (OSError, ValueError) as e:
+            log.warning("critic: %s %s is unreadable: %s", what, rel, e)
+            missing.append(what)
+            return False
+
     for p in photos:
-        content.append({"type": "input_image", "image_url": storage.data_url(p["path"], 1024)})
+        picture(p["path"], 1024, "a photo")
     if state.last_render:
         parts = legend(state)
         content.append({"type": "input_text", "text": "Renders of the model (6 views):" + (f"\n{parts}" if parts else "")})
-        content.append({"type": "input_image", "image_url": storage.data_url(state.last_render, None)})
+        picture(state.last_render, None, "the renders of the model")
     if state.copies_photo:
         from .tools import _likeness
 
-        facts, panels = await _likeness(ctx, state)
+        try:
+            facts, panels = await _likeness(ctx, state)
+        except BudgetExceeded:
+            raise
+        except Exception as e:  # noqa: BLE001 - the comparison is one more picture, not the review
+            log.warning("critic: no comparison with the photo: %s: %s", type(e).__name__, e)
+            facts, panels = [], []
+            missing.append("the model next to the photo")
         for f, rel in zip(facts, panels):
             content.append({"type": "input_text", "text": "The model next to the object on the photo, seen from about the same angle. "
                                                           "Measured silhouette agreement: " + json.dumps(f, ensure_ascii=False)})
-            content.append({"type": "input_image", "image_url": storage.data_url(rel, 1280)})
+            picture(rel, 1280, "the model next to the photo")
+    if missing:
+        content.append({"type": "input_text", "text": "These could not be shown to you: " + ", ".join(dict.fromkeys(missing))
+                                                      + ". Do not report them as problems of the design; judge what you have."})
     model = meta().model_for("critic", settings().model_critic or ctx.models.fast)
     try:
         verdict = usable(await meta().json(ctx.meter, model=model, system=CRITIC, content=content, schema=SCHEMA, name="critic", effort="low",
@@ -257,4 +279,6 @@ async def review(ctx: JobContext, state: Any, *, bar: float | None = None) -> di
             verdict = {}
     if "verdict" not in verdict:
         return {"reviewer": "unavailable"}
+    if any(i["severity"] == "major" for i in verdict["issues"]):
+        verdict["verdict"] = "revise"  # a pass with a major problem in it is no pass (as device_review does)
     return {**verdict, "model": model, "reviewer": reviewer, "version": state.version}

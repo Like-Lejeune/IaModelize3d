@@ -16,7 +16,7 @@
     { kind: 'sketch', accept: 'image/*', icon: 'pencil', capture: 'environment' },
     { kind: 'video', accept: 'video/mp4,video/quicktime,video/*', icon: 'video', capture: 'environment' },
   ];
-  const KIND_ICON: Record<string, string> = { photo: 'image', caliper: 'ruler', sketch: 'pencil', video: 'video', audio: 'mic', concept: 'sparkles', render: 'cube', print: 'printer' };
+  const KIND_ICON: Record<string, string> = { photo: 'image', caliper: 'ruler', sketch: 'pencil', video: 'video', audio: 'mic', concept: 'scribble', render: 'cube', print: 'printer' };
 
   let uploading = $state(0);
   let selecting = $state<AssetOut | null>(null);
@@ -237,7 +237,7 @@
     background: var(--primary);
     color: var(--on-primary);
     border-radius: var(--radius-tag);
-    font-size: 11px;
+    font-size: var(--text-xs);
     padding: 1px 7px;
   }
   .foot {

@@ -7,8 +7,8 @@
   import { page } from '$app/state';
   import Header from '$lib/components/Header.svelte';
   import Icon from '$lib/components/Icon.svelte';
-  import { plural } from '$lib/i18n.svelte';
-  import { shop, shopError } from '$lib/shop/api';
+  import { plural, t } from '$lib/i18n.svelte';
+  import { intentKey, shop, shopError } from '$lib/shop/api';
   import { kzt, money, moneyRange, mm, orderTitle, st, statusTone, when } from '$lib/shop/i18n';
   import type { DeliveryMethod, Listing, Order, Quote, ShowcaseCard, Tariff } from '$lib/shop/types';
 
@@ -18,6 +18,7 @@
   let orders = $state<Order[] | null>(null);
   let tariff = $state<Tariff | null>(null);
   let error = $state<string | null>(null);
+  let mineError = $state<string | null>(null);
 
   let showcase = $state<ShowcaseCard | null>(null);
 
@@ -42,14 +43,16 @@
       error = null;
     } catch (e) {
       error = shopError(e);
-      results ??= [];
     }
   }
 
+  // a failed fetch keeps what is on the page and says so: never an empty list that was not empty
   async function loadMine() {
     const [l, o] = await Promise.allSettled([shop.myListings(), shop.orders()]);
-    mine = l.status === 'fulfilled' ? l.value : [];
-    orders = o.status === 'fulfilled' ? o.value : [];
+    if (l.status === 'fulfilled') mine = l.value;
+    if (o.status === 'fulfilled') orders = o.value;
+    const failure = l.status === 'rejected' ? l.reason : o.status === 'rejected' ? o.reason : null;
+    mineError = failure ? shopError(failure) : null;
   }
 
   // /parts?listing=<id> ('Order the same part' on a delivered order the farm shows): that card, open, in view
@@ -77,7 +80,7 @@
     shop.showcaseLatest().then((c) => (showcase = c)).catch(() => {});
     // the header's "Orders" link lands on this page's section
     if (location.hash === '#orders' || location.hash === '#mine') setTimeout(() => document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: 'start' }), 300);
-    const id = setInterval(() => document.visibilityState === 'visible' && orders?.some((o) => o.working || ['requested', 'designing'].includes(o.status)) && loadMine(), 8000);
+    const id = setInterval(() => document.visibilityState === 'visible' && (mineError || orders?.some((o) => o.working || ['requested', 'designing'].includes(o.status))) && loadMine(), 8000);
     return () => clearInterval(id);
   });
 
@@ -110,6 +113,13 @@
     return () => clearTimeout(h);
   });
 
+  // the same order sent again (a lost answer, a second click) is the same order; another card or form is a new one
+  let orderKey: string | null = null;
+  $effect(() => {
+    void [open, qty, delivery, contact];
+    orderKey = null;
+  });
+
   function toggle(li: Listing, where: Where) {
     reporting = null;
     if (open === `${where}:${li.id}`) {
@@ -122,8 +132,10 @@
 
   async function order(li: Listing) {
     busy = open;
+    quoteError = null;
+    orderKey ??= intentKey();
     try {
-      const o = await shop.orderListing(li.id, { quantity: Math.max(1, Math.min(200, Math.round(qty) || 1)), delivery, contact });
+      const o = await shop.orderListing(li.id, { quantity: Math.max(1, Math.min(200, Math.round(qty) || 1)), delivery, contact }, orderKey);
       goto(`/orders/${o.id}`);
     } catch (e) {
       quoteError = shopError(e);
@@ -201,12 +213,12 @@
           {#if quote?.range}
             <strong>≈ {moneyRange(quote.range.total, quote.range.total_usd)}</strong>
             <span class="xs muted">{st('parts.no_design')}</span>
-          {:else if quoteError}
-            <span class="xs err">{quoteError}</span>
-          {:else}
+          {:else if !quoteError}
             <span class="xs muted"><i class="ti ti-loader-2 spin" aria-hidden="true"></i></span>
           {/if}
         </div>
+        <!-- a failed order as well as a failed price: it shows whatever the price above says -->
+        {#if quoteError}<p class="xs err" role="alert">{quoteError}</p>{/if}
         <button class="btn primary block" disabled={busy === key} onclick={() => order(li)}>
           {#if busy === key}<i class="ti ti-loader-2 spin" aria-hidden="true"></i> {st('parts.ordering')}{:else}<Icon name="package" size={16} /> {st('parts.order')}{/if}
         </button>
@@ -261,7 +273,7 @@
       {/if}
     </section>
 
-    {#if error}<p class="err small" role="alert">{error}</p>{/if}
+    {#if error}<p class="err small" role="alert">{error} <button class="btn small" onclick={search}>{t('retry')}</button></p>{/if}
     {#if notice}<p class="notice small" role="status">{notice}</p>{/if}
 
     <section class="sect">
@@ -270,13 +282,14 @@
         <span class="muted small">{st('parts.catalog_hint')}</span>
       </div>
       {#if results === null}
-        <div class="grid">{#each [0, 1, 2, 3] as i (i)}<div class="card sk"></div>{/each}</div>
+        {#if !error}<div class="grid">{#each [0, 1, 2, 3] as i (i)}<div class="card sk"></div>{/each}</div>{/if}
       {:else if !results.length}
-        <div class="empty card">
-          <Icon name="scan" size={28} />
-          <p>{q.trim() ? st('parts.empty') : st('parts.catalog_empty')}</p>
-          <a class="btn" href="/parts/new"><Icon name="camera" size={16} /> {st('parts.new_cta')}</a>
-        </div>
+        {#if !error}
+          <div class="empty card">
+            <Icon name="scan" size={28} />
+            <p>{q.trim() ? st('parts.empty') : st('parts.catalog_empty')}</p>
+          </div>
+        {/if}
       {:else}
         <div class="grid">
           {#each results as li (li.id)}{@render card(li, 'catalog')}{/each}
@@ -297,8 +310,9 @@
       {/if}
 
       <h3 class="section-title" id="orders">{st('parts.my_orders')}</h3>
+      {#if mineError}<p class="err small" role="alert">{mineError} <button class="btn small" onclick={loadMine}>{t('retry')}</button></p>{/if}
       {#if orders === null}
-        <div class="card sk row-sk"></div>
+        {#if !mineError}<div class="card sk row-sk"></div>{/if}
       {:else if !orders.length}
         <p class="small muted">{st('parts.no_orders')}</p>
       {:else}
@@ -360,15 +374,14 @@
     gap: var(--space-2);
   }
   h1 {
-    font-size: 32px;
-    font-weight: var(--font-weight-extrabold);
-    letter-spacing: -0.6px;
+    font-size: var(--text-3xl);
+    font-weight: var(--font-weight-semibold);
   }
   .lead p {
     margin: 0;
     max-width: 680px;
     color: var(--on-surface-var);
-    font-size: var(--text-product-lead);
+    font-size: var(--text-lg);
   }
   .search {
     grid-area: search;
@@ -390,7 +403,7 @@
     border: none;
     background: transparent;
     padding: 14px 0;
-    font-size: var(--text-product-lead);
+    font-size: var(--text-lg);
     box-shadow: none;
   }
   .cta {
@@ -415,7 +428,7 @@
     width: 52px;
     height: 52px;
     border-radius: var(--radius-btn);
-    background: #f6f6f3;
+    background: var(--render-bg);
     display: grid;
     place-items: center;
     color: var(--outline);
@@ -455,7 +468,7 @@
     flex-wrap: wrap;
   }
   h2 {
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
     font-weight: var(--font-weight-bold);
   }
   .sub {
@@ -480,7 +493,7 @@
   .pic {
     position: relative;
     aspect-ratio: 4 / 3;
-    background: #f6f6f3;
+    background: var(--render-bg);
     display: grid;
     place-items: center;
     color: var(--outline);
@@ -505,7 +518,7 @@
     min-width: 0;
   }
   .name {
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -523,7 +536,7 @@
   .badges .chip {
     min-height: 20px;
     padding: 0 6px;
-    font-size: 11px;
+    font-size: var(--text-xs);
     gap: 3px;
   }
   .buy {
@@ -541,7 +554,7 @@
   .buy select {
     width: 100%;
     padding: 8px 10px;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
   }
   .buy select {
     padding-right: 30px;
@@ -586,7 +599,7 @@
     width: 48px;
     height: 48px;
     border-radius: var(--radius-btn);
-    background: #f6f6f3;
+    background: var(--render-bg);
     display: grid;
     place-items: center;
     color: var(--outline);
@@ -668,7 +681,7 @@
       text-align: center;
     }
     h1 {
-      font-size: 26px;
+      font-size: var(--text-3xl);
     }
   }
   @media (max-width: 520px) {

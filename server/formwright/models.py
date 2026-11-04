@@ -54,6 +54,7 @@ class ProjectOut(BaseModel):
     status: str
     version: int
     public: bool = False
+    listed: bool = False
     cover: str | None = None
     forked_from: str | None = None
     created_at: float
@@ -92,7 +93,7 @@ class SendMessage(BaseModel):
     asset_ids: list[str] = []
     # auto: agent picks; hard: allow the strongest (costlier) designer model
     effort: Literal["auto", "hard"] = "auto"
-    # picked in the composer; None keeps the old rule (account consent + effort). spark_open: the open-weights model
+    # picked in the composer; None goes by the effort alone. spark_open: the open-weights model
     # (settings.open_model), when one is configured
     model: Literal["contributor", "spark", "wonder", "spark_open"] | None = None
     # how long the designer thinks on each turn; every Muse model accepts these
@@ -199,7 +200,6 @@ class Usage(BaseModel):
     today_usd: float
     limit_usd: float
     jobs_today: int
-    contributor_consent: bool
     models: list[ModelOption] = []
     # the Axo shop is connected (FW_AXO_API_URL): the studio offers "Add to Axo cart"
     axo_cart: bool = False

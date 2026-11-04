@@ -8,11 +8,13 @@ Add --apply to write. It never deletes anything.
     python scripts/curate_demo.py --unfeature [p_a]     # one run, or every featured run
     python scripts/curate_demo.py --list-empty          # projects with no version, or stuck 'working'
     python scripts/curate_demo.py --archive p_c         # out of its owner's list (undo: --restore p_c)
+    python scripts/curate_demo.py --take-down p_d       # a published run off the gallery, its link closed (undo: --put-back p_d)
     python scripts/curate_demo.py --stats               # cost, cache and timing numbers, measured on this database
 
 Featured runs are listed by GET /api/featured: public, featured > 0, not a replay copy, highest number first.
 Watching one replays its event log, so it spends nothing. --feature refuses a run whose last finish the reviewer did
-not approve ('notes' / 'none', or turned down) or whose latest version fails its checks (--force features it anyway),
+not approve ('notes' / 'none', or turned down; a device: without a passed self-check) or whose latest version fails its
+checks (--force features it anyway),
 and a PCB run whose latest board, built again offline in the sandboxed PCB worker (no model), has DRC errors such as
 pcb_button_short_error (no --force for that). Standard library only, except that rebuild (it needs the server package
 and packages/pcb/dist), so it runs in the container too:
@@ -225,12 +227,19 @@ def last_finish(conn: sqlite3.Connection, pid: str) -> tuple[str, str]:
 
 def _latest_review(conn: sqlite3.Connection, pid: str) -> tuple[str, str]:
     """The reviewer's last word on the latest version, for a finish that ran no review of its own. A board without a
-    case (pack 'pcb' with no review at all) ships without one: nothing to hold against it."""
+    case (pack 'pcb' with no review at all) ships without one: nothing to hold against it. A device has no LLM reviewer
+    (settings.device_reviewer is off): its finish's own checklist, which the run must have passed, takes that place."""
     version = conn.execute("SELECT MAX(version) FROM programs WHERE project_id = ?", (pid,)).fetchone()[0]
     reviews = [d for e in conn.execute("SELECT data FROM events WHERE project_id = ? AND type = 'critic' ORDER BY seq DESC", (pid,))
                if (d := loads(e["data"]))]
-    if not reviews and (conn.execute("SELECT pack FROM projects WHERE id = ?", (pid,)).fetchone() or [None])[0] == "pcb":
+    pack = (conn.execute("SELECT pack FROM projects WHERE id = ?", (pid,)).fetchone() or [None])[0]
+    if not reviews and pack == "pcb":
         return "approved", "approved (a board without a case: no review runs)"
+    if not reviews and pack == "device":
+        row = conn.execute("SELECT data FROM events WHERE project_id = ? AND type = 'device.self_check' ORDER BY seq DESC LIMIT 1", (pid,)).fetchone()
+        if row and loads(row["data"]).get("passed"):
+            return "approved", "approved (a device: its finish's self-check passed)"
+        return "none", "its last finish has no passed self-check, and a device has no reviewer to look at it instead"
     critic = next((c for c in reviews if c.get("version") == version), None)
     if critic is None:
         # older reviews did not record their version: the last of them still tells open notes apart
@@ -392,6 +401,14 @@ def list_empty(conn: sqlite3.Connection, apply: bool) -> None:
             print(f"\nArchive the empty ones with --apply, or pick: python scripts/curate_demo.py --archive {' '.join(p['id'] for p in empty)} --apply")
 
 
+def take_down(conn: sqlite3.Connection, ids: list[str], apply: bool, hidden: bool = True) -> None:
+    """What an admin's button on the replay does (POST /api/replays/<id>/hide), for a server with no admin signed in."""
+    for p in project_rows(conn, ids):
+        print(f"{'set' if apply else 'would set'} hidden={int(hidden)}{' public=0 listed=0 featured=0' if hidden else ''}  {p['id']}  {p['title']}")
+        if apply:
+            conn.execute("UPDATE projects SET hidden = 1, public = 0, listed = 0, featured = 0 WHERE id = ?" if hidden else "UPDATE projects SET hidden = 0 WHERE id = ?", (p["id"],))
+
+
 def archive(conn: sqlite3.Connection, ids: list[str], apply: bool) -> None:
     """Moves projects out of their owner's list; the owner is kept in brief.archived_from for --restore."""
     for p in project_rows(conn, ids):
@@ -469,11 +486,13 @@ def main() -> None:
     act.add_argument("--list-empty", action="store_true", help="projects without a version or stuck 'working'; --apply archives the empty ones")
     act.add_argument("--archive", nargs="+", metavar="ID", help="hide projects from their owner's list (reversible)")
     act.add_argument("--restore", nargs="+", metavar="ID", help="give archived projects back to their owner")
+    act.add_argument("--take-down", nargs="+", metavar="ID", help="take published runs down: off the gallery, their links closed")
+    act.add_argument("--put-back", nargs="+", metavar="ID", help="let their owners publish taken-down runs again")
     act.add_argument("--stats", action="store_true", help="cost, cache and timing numbers of the recorded runs")
     args = ap.parse_args()
 
     path = args.db or default_db()
-    writes = args.feature or args.unfeature is not None or args.list_empty or args.archive or args.restore
+    writes = args.feature or args.unfeature is not None or args.list_empty or args.archive or args.restore or args.take_down or args.put_back
     conn = connect(path, write=bool(args.apply and writes))
     print(f"database: {path}{'' if args.apply or not writes else '  (dry run: add --apply to write)'}\n")
     with conn:
@@ -487,6 +506,10 @@ def main() -> None:
             archive(conn, args.archive, args.apply)
         elif args.restore:
             restore(conn, args.restore, args.apply)
+        elif args.take_down:
+            take_down(conn, args.take_down, args.apply)
+        elif args.put_back:
+            take_down(conn, args.put_back, args.apply, hidden=False)
         elif args.stats:
             stats(conn)
         else:

@@ -1,35 +1,18 @@
 // Client for /api/shop (Formwright Parts). Same origin and cookie session as $lib/api, with the shop's own error codes.
-import { ApiError, errorText } from '$lib/api';
+import { ApiError, errorText, req as apiReq } from '$lib/api';
 import { st } from './i18n';
 import type { DeliveryMethod, Listing, OpsQueue, Order, Quote, ShopMe, ShopPrinter, ShowcaseCard, Tariff } from './types';
 
-async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = {};
-  let payload: BodyInit | undefined;
-  if (body instanceof FormData) payload = body;
-  else if (body !== undefined) {
-    headers['Content-Type'] = 'application/json';
-    payload = JSON.stringify(body);
-  }
-  const res = await fetch(`/api/shop${path}`, { method, body: payload, headers, credentials: 'same-origin' });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    let msg = res.statusText;
-    let code: string | undefined;
-    let info: Record<string, any> = {};
-    try {
-      // {detail, code, ...extra}, flattened by app.http_error
-      const { detail, code: c, ...rest } = JSON.parse(text) ?? {};
-      if (typeof detail === 'string') msg = detail;
-      else if (Array.isArray(detail)) msg = detail[0]?.msg ?? msg;
-      if (typeof c === 'string') code = c;
-      info = rest;
-    } catch {
-      if (res.status >= 500 && !text.trim()) code = 'offline';
-    }
-    throw new ApiError(res.status, msg || `HTTP ${res.status}`, code, info);
-  }
-  return (await res.json()) as T;
+/** One order intent's Idempotency-Key: a repeat of the same POST (a lost answer, a second click) returns the same order. */
+export const intentKey = (): string => crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+
+async function req<T>(method: string, path: string, body?: unknown, key?: string): Promise<T> {
+  // the headers given here are all the request gets: the JSON type goes along with the key
+  const init = key ? { headers: { ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), 'Idempotency-Key': key } } : {};
+  const out = await apiReq<T>(method, `/api/shop${path}`, body, init);
+  // the shop answers JSON only: anything else is a proxy's page, not an answer
+  if (out instanceof Blob) throw new ApiError(502, 'not a JSON answer', 'offline');
+  return out;
 }
 
 const qs = (o: Record<string, string | number | boolean | undefined | null>) =>
@@ -66,7 +49,7 @@ export const shop = {
   },
   tariff: () => req<Tariff>('GET', '/tariff'),
 
-  request: (f: RequestForm) => {
+  request: (f: RequestForm, key?: string) => {
     const fd = new FormData();
     for (const k of ['text', 'appliance', 'part_number', 'contact', 'material', 'project_id'] as const) if (f[k]) fd.append(k, String(f[k]));
     if (f.quantity) fd.append('quantity', String(f.quantity));
@@ -77,7 +60,7 @@ export const shop = {
       const ext = f.voice.type.includes('ogg') ? 'ogg' : f.voice.type.includes('mp4') ? 'm4a' : f.voice.type.includes('wav') ? 'wav' : 'webm';
       fd.append('voice', f.voice, `voice.${ext}`);
     }
-    return req<Order>('POST', '/requests', fd);
+    return req<Order>('POST', '/requests', fd, key);
   },
   instantQuote: (projectId: string, o: { quantity?: number; material?: string; delivery?: DeliveryMethod } = {}) =>
     req<Quote>('GET', `/instant-quote/${encodeURIComponent(projectId)}?${qs(o)}`),
@@ -130,7 +113,8 @@ export const shop = {
   listingQuote: (id: string, o: { quantity?: number; delivery?: DeliveryMethod } = {}) => req<Quote>('GET', `/listings/${id}/quote?${qs(o)}`),
   share: (body: { project_id: string; title?: string; brand?: string; models?: string[]; part_numbers?: string[]; public?: boolean }) =>
     req<Listing>('POST', '/listings', body),
-  orderListing: (id: string, body: { quantity: number; delivery: DeliveryMethod; contact?: string }) => req<Order>('POST', `/listings/${id}/order`, body),
+  orderListing: (id: string, body: { quantity: number; delivery: DeliveryMethod; contact?: string }, key?: string) =>
+    req<Order>('POST', `/listings/${id}/order`, body, key),
   report: (id: string, reason: string) => req<{ ok: boolean; flagged: boolean }>('POST', `/listings/${id}/report`, { reason }),
 
   createOrg: (body: { name: string; contact?: string }) => req<ShopMe['org']>('POST', '/orgs', body),

@@ -1,10 +1,10 @@
 """Credits instead of request counts: jobs differ 100x in cost, so limits are in USD.
 
-A job reserves its budget before it starts and settles the real cost from usage
-afterwards. A global daily cap protects the API credits; when it gets close, the
-service degrades (strong model -> fast model -> replays only). Model calls outside
-jobs (snaps, spots, selections, the face blur) reserve nothing: they only stop when
-today's budget is spent (`check_light`).
+A job has no cap of its own: it may spend what is left today (on the user's plan, for their
+address, in the global budget) and settles the real cost from usage afterwards. A global
+daily cap protects the API credits; when it gets close, the service degrades (strong model
+-> fast model -> replays only). Model calls outside jobs (snaps, spots, selections, the
+face blur) only stop when today's budget is spent (`check_light`).
 """
 from __future__ import annotations
 
@@ -92,7 +92,7 @@ async def active_jobs(user_id: str, live: Iterable[str] | None = None) -> list[d
     if not ids:
         return []
     db = await get_db()
-    return await db.all(f"SELECT id, project_id, kind, status, reserved_usd FROM jobs WHERE user_id = ? AND id IN ({','.join('?' * len(ids))}) "
+    return await db.all(f"SELECT id, project_id, kind, status FROM jobs WHERE user_id = ? AND id IN ({','.join('?' * len(ids))}) "
                         "AND status IN ('running', 'waiting') ORDER BY created_at", user_id, *ids)
 
 
@@ -134,25 +134,21 @@ def _check(user: dict, left: float, ip_left: float, global_left: float, need: fl
         raise QuotaExceeded(f"daily limit ${limit:.2f} reached; sliders, checks and downloads still work", code="daily_limit", limit_usd=limit)
 
 
-async def reserve(user: dict, budget: float, *, live: Iterable[str] | None = None, concurrency: bool = True) -> float:
-    """Returns the budget this job may spend: the requested cap, shrunk to what is left today.
+async def headroom(user: dict, *, live: Iterable[str] | None = None, concurrency: bool = True) -> float:
+    """What a job starting now may spend: all that is left today, the smallest of the user's plan, their
+    address and the global budget. Jobs have no cap of their own; what they spent is settled when they end.
     `concurrency`: False for light side jobs, which may run next to another job."""
     _, concurrent, _ = TIERS.get(user["tier"], TIERS["anon"])
-    rows = await active_jobs(user["id"], live)
-    running = blocking(rows)
+    running = blocking(await active_jobs(user["id"], live))
     if concurrency and len(running) >= concurrent:
         raise QuotaExceeded("another job is still running", code="job_running", project_id=running[0]["project_id"], job_id=running[0]["id"])
     left, ip_left, global_left = await _left(user)
-    if concurrency:
-        # a light job beside a design job is checked against what was really spent, not the design job's reservation
-        left -= sum(r["reserved_usd"] for r in rows)
     _check(user, left, ip_left, global_left, MIN_JOB_USD)
-    return min(budget, left, ip_left, global_left)
+    return min(left, ip_left, global_left)
 
 
 async def check_light(user: dict, est: float = 0.01) -> None:
-    """Before a model call outside a job. Running jobs' reservations are not subtracted: the
-    agent's own selections come through here too, and its job may have reserved all that is left."""
+    """Before a model call outside a job: the agent's own selections come through here too."""
     _check(user, *await _left(user), need=est)
 
 
@@ -193,8 +189,7 @@ async def choose_models(user: dict, effort: str = "auto", model: str | None = No
     s = settings()
     near_cap = await global_spent_today() > s.daily_budget_usd * 0.8
     if model is None:
-        consent = bool(user.get("contributor_consent")) and user["tier"] in ("anon", "free")
-        model = "wonder" if effort == "hard" else "contributor" if consent else "spark"
+        model = "wonder" if effort == "hard" else "spark"
     contributor = model == "contributor"
     fast = s.model_free if contributor else s.model_fast
     if model == "wonder" and not near_cap:

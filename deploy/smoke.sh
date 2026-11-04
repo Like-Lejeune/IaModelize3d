@@ -5,7 +5,7 @@
 # opens the PCB example as a project (its board, Gerbers, BOM and previews), asks that project for an instant quote,
 # and loads the web app's routes and scripts. Each run leaves one anonymous user with one example project on the
 # server. Exit status: 0 when every check passed, else the number of failed checks.
-#   FW_SMOKE_EXAMPLES=9        how many example cards the home page must show
+#   FW_SMOKE_EXAMPLES=13       how many example cards the home page must show
 #   FW_SMOKE_PCB_KEY=<key>     the PCB example's key (default: the card whose pack is 'pcb')
 #   FW_SMOKE_FEATURED=0        fail when fewer featured runs are listed (0: only report them)
 #   PYTHON=python3             the interpreter for reading JSON
@@ -17,7 +17,7 @@ if [ -z "$BASE" ]; then
   echo "usage: bash deploy/smoke.sh https://your.domain" >&2
   exit 2
 fi
-EXAMPLES=${FW_SMOKE_EXAMPLES:-9}
+EXAMPLES=${FW_SMOKE_EXAMPLES:-13}
 FEATURED=${FW_SMOKE_FEATURED:-0}
 PY=${PYTHON:-$(command -v python3 || command -v python || true)}
 if [ -z "$PY" ]; then

@@ -19,11 +19,15 @@
   let busy = $state<string | null>(null);
   let error = $state<string | null>(null);
   let fingerprint = $state<Record<string, any> | null>(null);
+  let printersError = $state<string | null>(null);
 
   // Which printer to slice for: the project's own (brief.printer, or the one its last slice used), then the one the
   // person picked here before, then the farm's (the server marks it default: the Axo farm prints on a Bambu Lab A1).
   // Only a pick from the list is remembered, so an old default never sticks.
-  onMount(async () => {
+  onMount(loadPrinters);
+
+  async function loadPrinters() {
+    printersError = null;
     try {
       printers = await api.printers();
       let picked = '';
@@ -36,10 +40,11 @@
       const known = (k: string | null | undefined) => (k ? printers.find((p) => p.id === k || p.name === k) : undefined);
       const p = known(store.detail?.printer) ?? known(store.slice?.printer?.id) ?? known(picked) ?? printers.find((x) => x.default) ?? printers[0];
       printer = p?.id ?? p?.name ?? '';
-    } catch {
+    } catch (e) {
       printers = [];
+      printersError = errorText(e);
     }
-  });
+  }
 
   function pickPrinter() {
     try {
@@ -162,6 +167,7 @@
         {/each}
       </select>
     </label>
+    {#if printersError}<p class="err small" role="alert">{printersError} <button class="btn small" onclick={loadPrinters}>{t('retry')}</button></p>{/if}
     <div class="field">{t('material')}
       <div class="seg mat" role="radiogroup" aria-label={t('material')}>
         {#each MATERIALS as m (m)}<button role="radio" aria-checked={material === m} class:on={material === m} onclick={() => (material = m)}>{m}</button>{/each}
@@ -298,13 +304,13 @@
     padding: 8px 12px;
   }
   dt {
-    font-size: var(--text-card-meta);
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-semibold);
     color: var(--outline);
   }
   dd {
     margin: 0;
-    font-size: var(--text-product-lead);
+    font-size: var(--text-lg);
     font-weight: var(--font-weight-semibold);
     color: var(--on-surface);
   }
@@ -326,7 +332,7 @@
     padding-left: 12px;
   }
   .key {
-    font-size: 12px;
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-semibold);
   }
   .reason {
@@ -340,7 +346,7 @@
   }
   .tool summary {
     cursor: pointer;
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     color: var(--on-surface);
     font-weight: var(--font-weight-semibold);
     display: flex;
@@ -384,7 +390,7 @@
     margin: 8px 0 0;
   }
   .fp dd {
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
   .err {
     color: var(--error);

@@ -67,7 +67,7 @@
   .f {
     display: grid;
     gap: 6px;
-    font-size: 12px;
+    font-size: var(--text-sm);
     color: var(--on-surface-var);
   }
   .seg2 {
@@ -77,10 +77,10 @@
   }
   .seg2 button {
     font: inherit;
-    font-size: 13px;
+    font-size: var(--text-md);
     height: var(--bw-row, 26px);
     padding: 0;
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     border: 1px solid var(--outline-variant);
     background: var(--surface-container-lowest);
     color: var(--on-surface);
@@ -100,11 +100,11 @@
     width: 70px;
     height: var(--bw-row, 26px);
     font: inherit;
-    font-size: 13px;
+    font-size: var(--text-md);
     color: var(--on-surface);
     background: var(--surface-container-lowest);
     border: 1px solid var(--outline-variant);
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     padding: 0 8px;
   }
   .chk {
@@ -127,11 +127,11 @@
     color: var(--on-surface);
   }
   .ref {
-    font-size: 11px;
+    font-size: var(--text-xs);
     border: 1px solid var(--outline-variant);
     background: var(--surface-container);
     color: var(--on-surface);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 1px 6px;
     cursor: pointer;
   }

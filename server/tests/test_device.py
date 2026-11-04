@@ -410,3 +410,157 @@ async def test_a_ground_pour_builds_into_the_copper(offline, real_pcb, no_store)
     b = (await no_store.build_device("p_test", doc))["build"]
     pours = [e for e in b["circuit_json"] if e["type"] == "pcb_copper_pour"]
     assert pours and pours[0]["layer"] == "bottom" and b["ok"] and not b["errors"], b["errors"][:3]
+
+
+# ---------------------------------------------------------------- key switches and the board's 3D view
+KEYPAD = {
+    "schema": "fw.device/1", "title": "Macro pad", "board": {"holes": True, "w": 84, "h": 46},
+    "nodes": [{"id": "U1", "kind": "module", "module": "113991054", "edge": "+y"},
+              {"id": "U2", "kind": "chip", "lcsc": "C92489", "label": "BME280"},
+              {"id": "C1", "kind": "capacitor", "value": "100nF", "label": "U2 decoupling"},
+              *[{"id": f"SW{i}", "kind": "button", "switch": "mx", "label": f"key {i}"} for i in range(1, 5)]],
+    "layouts": [{"pattern": "row", "nodes": ["SW1", "SW2", "SW3", "SW4"], "center": [0, -10], "pitch": 19.05}],
+    "nets": [{"name": "GND", "pins": ["U1.GND", "SW1.B", "SW2.B", "SW3.B", "SW4.B", "U2.GND", "U2.SDO", "C1.2"]},
+             {"name": "V3V3", "pins": ["U1.V3V3", "U2.VDD", "U2.VDDIO", "U2.CSB", "C1.1"]},
+             {"name": "SDA", "pins": ["U1.SDA", "U2.SDI"]}, {"name": "SCL", "pins": ["U1.SCL", "U2.SCK"]},
+             {"pins": ["U1.D0", "SW1.A"]}, {"pins": ["U1.D1", "SW2.A"]}, {"pins": ["U1.D2", "SW3.A"]}, {"pins": ["U1.D3", "SW4.A"]}],
+}
+
+
+def test_model_primitives_are_cleaned_and_an_unknown_switch_is_said():
+    doc, issues = device.normalize({"nodes": [
+        {"id": "SW1", "kind": "button", "switch": "alps"},
+        {"id": "U2", "kind": "chip", "lcsc": "C92489", "model": [{"shape": "cyl", "at": [0, 0, 0], "size": [3, 3, 2], "color": "#112233"},
+                                                                 {"shape": "box", "at": [0, 0], "size": [1, 1, 1]}]}]})
+    assert {i["code"] for i in issues} == {"unknown_switch", "bad_model"}
+    by_id = {n["id"]: n for n in doc["nodes"]}
+    assert "switch" not in by_id["SW1"]
+    assert [p["shape"] for p in by_id["U2"]["model"]] == ["cyl"]
+
+
+@needs_bundle
+async def test_key_switches_build_and_the_board_tells_the_case(offline, real_pcb):
+    from formwright import deviceapi
+
+    doc, issues = device.normalize(KEYPAD)
+    assert not issues
+    parts, more = await device.resolve(doc)
+    assert not more and parts["SW1"]["switch"] == "mx" and deviceapi.pad_count(doc["nodes"][3], parts["SW1"]) == 2
+    c = device.compile(doc, parts, (87, 46))
+    b = await pcb.pool().build(c["source"], intent=c["intent"], lcsc=c["lcsc"])
+    assert b["ok"] and not b["errors"], b["errors"][:3]
+    device.dress_board(b["board"], doc, parts, b["circuit_json"])
+    keys = [x for x in b["board"]["components"] if x.get("access") == "key"]
+    assert len(keys) == 4 and all(k["key"]["cut"] == 14.0 and k["w"] == 14.0 for k in keys)
+    # the centre of each switch is its peg hole, whatever the pads' box says, and the keys sit at their pitch
+    pegs = {round(h["x"], 2) for h in b["board"]["pcb"]["holes"] if h.get("d") == 4}
+    assert pegs == {round(k["x"], 2) for k in keys}
+    xs = sorted(k["x"] for k in keys)
+    assert all(abs(q - p - 19.05) < 0.02 for p, q in zip(xs, xs[1:]))
+
+
+@needs_bundle
+async def test_the_board_view_draws_real_models_and_the_module_as_itself(offline, real_pcb, monkeypatch):
+    from formwright import deviceapi
+
+    async def model_obj(raw):
+        return ("uuid-in-test", "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+    monkeypatch.setattr(catalog, "model_obj", model_obj)
+    monkeypatch.setattr(catalog, "model_uuid", lambda raw: "uuid-in-test" if raw else None)
+    doc, _ = device.normalize(KEYPAD)
+    parts, _ = await device.resolve(doc)
+    c = device.compile(doc, parts, (87, 46))
+    b = await pcb.pool().build(c["source"], intent=c["intent"], lcsc=c["lcsc"])
+    models = await deviceapi.part_models(doc, parts)
+    assert list(models["objs"]) == ["uuid-in-test"] and models["parts"]["SW1"]["prims"]
+    assert models["parts"]["U2"]["obj"] == "uuid-in-test" and len(models["parts"]["U2"]["at"]) == 3
+    x = await pcb.pool().export(b["circuit_json"], models=models)
+    assert x["files"]["board.glb"][:4] == b"glTF" and "glb_error" not in x
+    # the module is its own footprint, no DIP model left to draw
+    assert not any("dip14" in str(e.get("footprinter_string")) for e in b["circuit_json"] if e["type"] == "cad_component")
+
+
+# ---------------------------------------------------------------- what DRC does not see
+def _power_doc(**net):
+    return {"schema": "fw.device/1", "title": "Load", "nodes": [
+        {"id": "U1", "kind": "module", "module": "113991114", "edge": "+y"},
+        {"id": "Q1", "kind": "chip", "lcsc": "C92489", "label": "x"},
+        {"id": "J1", "kind": "header", "pins": ["LOAD", "GND"], "edge": "-y", **net.pop("header", {})},
+    ], "nets": [{"pins": ["J1.LOAD", "U1.D0"], "name": "VLOAD", **net}, {"name": "GND", "pins": ["J1.GND", "U1.GND"]}]}
+
+
+def test_trace_width_follows_ipc_2221():
+    assert device.trace_mm(1) == pytest.approx(0.2, abs=0.05)
+    assert device.trace_mm(5) == pytest.approx(1.8, abs=0.2)
+    assert device.trace_mm(10) == pytest.approx(4.7, abs=0.3)
+
+
+async def test_a_stated_current_is_held_to_the_contacts_and_the_copper(offline):
+    from formwright import device_rules
+
+    doc, _ = device.normalize(_power_doc(amps=10))
+    assert next(n for n in doc["nets"] if n.get("name") == "VLOAD")["amps"] == 10
+    codes = {f["code"]: f for f in device_rules.check(doc, (await device.resolve(doc))[0])}
+    assert codes["connector_current"]["severity"] == "error" and "J1" in codes["connector_current"]["ref"]
+    assert codes["trace_current"]["severity"] == "error"
+    # a terminal rated for it and a pour for the net and ground answer both
+    raw = _power_doc(amps=10, header={"connector": "terminal_5"})
+    raw["zones"] = [{"kind": "pour", "net": "VLOAD", "layer": "top"}, {"kind": "pour", "net": "GND", "layer": "bottom"}]
+    doc, issues = device.normalize(raw)
+    assert not [i for i in issues if i["code"] in ("unknown_connector", "bad_zone")]
+    found = {f["code"] for f in device_rules.check(doc, (await device.resolve(doc))[0])}
+    assert not found & {"connector_current", "trace_current"}
+
+
+async def test_named_currents_mains_and_unwired_inputs_are_errors(offline):
+    from formwright import device_rules
+
+    raw = _power_doc()
+    raw["requirements"] = [{"id": "R1", "text": "тянет ток до 10 А", "parts": ["U1"]}]
+    doc, _ = device.normalize(raw)
+    assert "current_unstated" in {f["code"] for f in device_rules.check(doc, (await device.resolve(doc))[0])}
+    raw = _power_doc()
+    raw["nets"][0]["name"] = "MAINS"
+    doc, _ = device.normalize(raw)
+    assert "mains_on_board" in {f["code"] for f in device_rules.check(doc, (await device.resolve(doc))[0])}
+    # a chip whose measured input is on no net: a current sensor that never sees a current
+    doc, _ = device.normalize({"nodes": [{"id": "U1", "kind": "module", "module": "113991114"}, {"id": "U2", "kind": "chip", "lcsc": "C92489"}],
+                               "nets": [{"pins": ["U2.GND", "U1.GND"], "name": "GND"}, {"pins": ["U2.VDD", "U1.V3V3"], "name": "V3V3"}]})
+    parts, _ = await device.resolve(doc)
+    parts["U2"]["pins"] = [{"num": "1", "name": "IP+", "label": "IPP"}, {"num": "2", "name": "IP-", "label": "IPN"}, {"num": "3", "name": "GND", "label": "GND"}, {"num": "4", "name": "VDD", "label": "VDD"}]
+    found = {f["code"]: f for f in device_rules.check(doc, parts)}
+    assert found["input_unwired"]["severity"] == "error" and "IP+" in found["input_unwired"]["msg"]
+
+
+async def test_a_terminal_and_a_panel_switch_build_and_tell_the_case(offline, real_pcb):
+    raw = {"schema": "fw.device/1", "title": "Pedal", "board": {"holes": True, "w": 60, "h": 60}, "nodes": [
+        {"id": "U1", "kind": "module", "module": "113991114", "edge": "+y"},
+        {"id": "SW1", "kind": "button", "switch": "stomp", "place": {"x": 0, "y": -7}},
+        {"id": "J1", "kind": "header", "connector": "terminal_5", "pins": ["A", "B"], "edge": "-y"}],
+        "nets": [{"name": "GND", "pins": ["U1.GND", "SW1.B", "J1.B"]}, {"pins": ["U1.D1", "SW1.A"]}, {"pins": ["U1.D2", "J1.A"]}]}
+    doc, issues = device.normalize(raw)
+    assert not issues
+    parts, more = await device.resolve(doc)
+    assert not more
+    c = device.compile(doc, parts, (60, 60))
+    b = await pcb.pool().build(c["source"], intent=c["intent"], lcsc=c["lcsc"])
+    assert b["ok"] and not b["errors"], b["errors"][:3]
+    device.dress_board(b["board"], doc, parts, b["circuit_json"])
+    comps = {x["id"]: x for x in b["board"]["components"]}
+    assert comps["SW1"]["access"] == "key" and comps["SW1"]["key"]["stem"] == "panel" and comps["SW1"]["h"] == 26.0
+    assert comps["J1"]["access"] == "port" and comps["J1"]["edge"] == "-y" and comps["J1"]["w"] == 10.16
+
+
+# ---------------------------------------------------------------- catalogue connectors on an edge
+def test_a_connectors_mouth_is_where_its_body_stands_past_its_pads():
+    pads = [f"PAD~RECT~{x}~{y}~4~4~11~~{i}~0~~0" for i, (x, y) in enumerate([(-10, 20), (10, 20), (-10, -5), (10, -5)], 1)]
+    # the model's outline in the drawing sits towards -y of the canvas, which is +y on the board (the canvas's y runs down)
+    outline = 'SVGNODE~{"attrs": {"c_rotation": "0,0,0", "z": "0"}, "childNodes": [{"attrs": {"points": "-20 -30 20 -30 20 10 -20 10"}}]}'
+    raw = {"packageDetail": {"dataStr": {"head": {"x": 0, "y": 0}, "shape": [*pads, outline]}}}
+    obj = "\n".join(f"v {x} {y} {z}" for x, y, z in [(-5, -3, 0), (5, -3, 0), (-5, 10, 6), (5, 10, 6)]) + "\nf 1 2 3\n"
+    m = catalog.mouth_of(raw, obj)
+    assert m and m["dir"] == "+y" and m["w"] == 10 and m["z1"] == 6
+    # turned towards an edge, its offset along that edge turns with it
+    assert device._mouth_shift({"dir": "+x", "across": 2.0}, 180, "+x") == pytest.approx(-2.0)
+    # no pads, nothing to read
+    assert catalog.mouth_of({"packageDetail": {"dataStr": {"head": {"x": 0, "y": 0}, "shape": []}}}, obj) is None

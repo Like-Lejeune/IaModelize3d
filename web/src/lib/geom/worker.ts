@@ -179,7 +179,10 @@ self.onmessage = async (ev: MessageEvent<Req>) => {
       post({ id: msg.id, ok: true, done: true });
       return;
     }
-    const { wasm, engine } = await ready;
+    const { wasm, engine } = await ready.catch((e) => {
+      // a kernel that failed to load stays failed in this worker: the main thread replaces it
+      throw Object.assign(new Error(`geometry engine failed to load: ${e?.message ?? e}`), { fatal: true });
+    });
     const inp = msg.inputsKey ? inputs.get(msg.inputsKey) : undefined;
     const printer = { ...DEFAULT_PRINTER, ...(msg.printer ?? {}) };
     if (msg.type === 'export') {
@@ -243,6 +246,6 @@ self.onmessage = async (ev: MessageEvent<Req>) => {
       disposeBuild(out);
     }
   } catch (e: any) {
-    post({ id: msg.id, ok: false, done: true, stage: e?.stage ?? 'runtime', message: String(e?.message ?? e) });
+    post({ id: msg.id, ok: false, done: true, stage: e?.stage ?? 'runtime', message: String(e?.message ?? e), fatal: !!e?.fatal });
   }
 };

@@ -44,7 +44,7 @@
   ul {
     margin: 0;
     padding-left: 16px;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     color: var(--on-surface-var);
     display: flex;
     flex-direction: column;

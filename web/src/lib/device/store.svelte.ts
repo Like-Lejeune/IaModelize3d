@@ -1,11 +1,13 @@
 // The device graph of a project as the node editor and the Device tab see it: the server's document and its view
 // (pins and their nets, part cards), the person's edits applied at once and saved a moment later, and the build that
 // is running ('device.build' events) until its PCB version arrives.
-import { ApiError, errorText } from '$lib/api';
+import { ApiError, errorText, isTransient } from '$lib/api';
 import { deviceApi, type DevNet, type DevNode, type DeviceDoc, type DeviceState, type Edge } from './api';
 
 export type BuildInfo = {
   running: boolean;
+  /** The agent's build_device: it ends with its tool result, 'done' is only sent for the editor's Build. */
+  agent?: boolean;
   attempt?: number;
   size?: [number, number];
   ok?: boolean;
@@ -47,6 +49,14 @@ export class DeviceStore {
   private rev = 0;
   private sentRev = 0;
   private pendingSummary = '';
+  private saveWait = 2000;
+  private loadTimer: ReturnType<typeof setTimeout> | null = null;
+  private buildAsked = false;
+  /** A replay: the document and board of this moment (version 0: no document yet); null follows the project. */
+  private at: { version: number; pcb: number } | null = null;
+  private atCache = new Map<string, DeviceState>();
+  private atToken = 0;
+  private atChanged = false;
 
   constructor(private projectId: string, private readonly canEdit: () => boolean) {}
 
@@ -64,16 +74,88 @@ export class DeviceStore {
   }
 
   async refresh() {
+    if (this.at) return this.refreshAt(this.at);
     if (this.timer || this.saving) return; // the person's edit wins; its save brings the server's view back
+    if (this.loadTimer) clearTimeout(this.loadTimer);
+    this.loadTimer = null;
     try {
       const s = await deviceApi.get(this.projectId);
       this.state = s;
       this.error = null;
+      this.sentRev = this.rev; // an edit the server refused is gone with this; one still being tried holds the timer and never gets here
       if (s.building && !this.build.running) this.build = { running: true };
+      // the build that was on when the connection went ended without a word to us (the API restarted)
+      else if (!s.building && this.build.running && !this.build.agent && !this.buildAsked) this.build = { running: false };
     } catch (e) {
-      if (!(e instanceof ApiError && e.status === 404)) this.error = errorText(e);
+      if (!(e instanceof ApiError && e.status === 404)) {
+        this.error = errorText(e);
+        // no document yet is no reason to show an empty device: it comes up as soon as the server answers
+        if (!this.state && isTransient(e)) this.loadTimer = setTimeout(() => this.refresh(), 5000);
+      }
     }
     this.loaded = true;
+  }
+
+  /** The document never arrived: the page says so instead of offering an empty device. */
+  get failed(): boolean {
+    return this.loaded && !this.state && !!this.error;
+  }
+
+  /** Edits not on the server yet. */
+  get hasUnsaved(): boolean {
+    return !!this.timer || this.saving || this.sentRev !== this.rev;
+  }
+
+  /** The connection came back, or the person asked: the edit that is still waiting goes now. */
+  retrySave() {
+    this.saveWait = 2000;
+    if (this.sentRev !== this.rev) void this.flush();
+  }
+
+  // ------------------------------------------------------------------ a replay's moment
+  private async refreshAt(at: { version: number; pcb: number }) {
+    const token = ++this.atToken;
+    this.loaded = true;
+    if (!at.version) {
+      this.state = null;
+      return;
+    }
+    const key = `${at.version}:${at.pcb}`;
+    let s = this.atCache.get(key);
+    if (!s) {
+      try {
+        s = await deviceApi.get(this.projectId, at);
+        this.atCache.set(key, s);
+      } catch (e) {
+        if (token === this.atToken && !(e instanceof ApiError && e.status === 404)) this.error = errorText(e);
+        return;
+      }
+    }
+    if (token === this.atToken) this.state = s;
+  }
+
+  /** A replay going back to the start: nothing built yet. */
+  resetReplay() {
+    this.at = { version: 0, pcb: 0 };
+    this.atToken++;
+    this.atChanged = false;
+    this.state = null;
+    this.build = { running: false };
+    this.selected = this.selectedNet = null;
+    this.lit = null;
+    this.arrived = 0;
+  }
+
+  /** A replay's board moved on: the document's checks are read against it. */
+  atBoard(pcb: number) {
+    if (this.at) this.at = { ...this.at, pcb };
+  }
+
+  /** The end of a jump: the document of the moment it landed on; the editor lays it out as it does an agent's. */
+  settleReplay() {
+    if (this.atChanged) this.arrived++;
+    this.atChanged = false;
+    this.refresh();
   }
 
   // ------------------------------------------------------------------ edits
@@ -96,11 +178,13 @@ export class DeviceStore {
     this.timer = setTimeout(() => this.flush(), 500);
   }
 
-  async flush() {
+  /** Saves the document; false when it did not reach the server. A passing failure is tried again until it does. */
+  async flush(): Promise<boolean> {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
-    if (!this.state || this.sentRev === this.rev) return;
+    if (!this.state || this.sentRev === this.rev) return true;
     const rev = this.rev;
+    const sent = this.sentRev;
     this.sentRev = rev;
     this.saving = true;
     try {
@@ -109,12 +193,22 @@ export class DeviceStore {
       if (rev === this.rev) this.state = s;
       else this.state = { ...s, doc: this.state.doc };
       this.error = null;
+      this.saveWait = 2000;
     } catch (e) {
+      // not sent after all: the next flush goes again, and a refresh does not overwrite the edit meanwhile
+      this.sentRev = sent;
       this.error = errorText(e);
+      this.saving = false;
+      if (isTransient(e) && !this.timer) {
+        this.timer = setTimeout(() => this.flush(), this.saveWait);
+        this.saveWait = Math.min(this.saveWait * 2, 30000);
+      }
+      return false;
     } finally {
       this.saving = false;
     }
     if (this.sentRev !== this.rev && !this.timer) this.timer = setTimeout(() => this.flush(), 300);
+    return true;
   }
 
   /** Back to the document before the last edit (and forward again): saved like any edit. */
@@ -249,29 +343,47 @@ export class DeviceStore {
 
   // ------------------------------------------------------------------ build
   async startBuild() {
-    await this.flush();
+    // a build from the server's older document would be followed by a refresh that overwrites the edit
+    if (!(await this.flush())) {
+      this.build = { running: false, ok: false, error: this.error, at: Date.now() };
+      return;
+    }
     this.build = { running: true };
+    this.buildAsked = true;
     try {
       await deviceApi.build(this.projectId);
     } catch (e) {
       this.build = { running: false, ok: false, error: errorText(e), at: Date.now() };
+    } finally {
+      this.buildAsked = false;
     }
   }
 
-  /** 'device.version' and 'device.build' from the project's event stream. */
-  onEvent(type: string, d: any) {
+  /** The agent's build returned, or its job ended; a build from the editor goes on to its 'done'. */
+  endAgentBuild() {
+    if (this.build.agent) this.build = { running: false };
+  }
+
+  /** 'device.version' and 'device.build' from the project's event stream; jobId: the agent's job that sent it. quiet: a
+   * replay jumping over it, whose settleReplay fetches what the moment shows. */
+  onEvent(type: string, d: any, jobId: string | null = null, quiet = false) {
     if (type === 'device.version') {
+      if (this.at && typeof d.version === 'number') this.at = { ...this.at, version: d.version };
+      if (quiet) {
+        this.atChanged = true;
+        return;
+      }
       if (d.author !== 'user') this.arrived++;
       this.refresh();
     } else if (type === 'device.build') {
       if (d.state === 'start') this.build = { running: true };
-      else if (d.state === 'attempt') this.build = { ...this.build, running: true, attempt: d.attempt, size: d.size_mm };
+      else if (d.state === 'attempt') this.build = { ...this.build, running: true, agent: !!jobId, attempt: d.attempt, size: d.size_mm };
       else if (d.state === 'done') {
         this.build = {
           running: false, ok: !!d.ok, pcbVersion: d.pcb_version ?? null, programVersion: d.program_version ?? null, size: d.size_mm,
           error: d.error ?? null, errors: d.errors ?? [], at: Date.now(),
         };
-        this.refresh();
+        if (!quiet) this.refresh();
       }
     }
   }

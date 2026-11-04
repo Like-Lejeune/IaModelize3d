@@ -25,7 +25,7 @@ async def _start(db, uid: str, pid: str, work, kind: str = "design") -> runner.J
     t = dbmod.now()
     await db.insert("projects", {"id": pid, "user_id": uid, "title": "x", "created_at": t, "updated_at": t})
     user = await db.one("SELECT * FROM users WHERE id = ?", uid)
-    ctx = await runner._create(user, {"id": pid, "user_id": uid}, kind, {"text": "a bracket"}, 0.6)
+    ctx = await runner._create(user, {"id": pid, "user_id": uid}, kind, {"text": "a bracket"})
     runner._spawn(ctx, work)
     return ctx
 

@@ -1,0 +1,486 @@
+{
+ "schema": "fw.device/1",
+ "title": "Ночник с датчиком движения",
+ "summary": "Ночник с датчиком движения: тёплый свет только в темноте",
+ "board": {
+  "holes": true,
+  "w": 42.0,
+  "h": 50.0,
+  "shape": "rounded"
+ },
+ "nodes": [
+  {
+   "id": "U1",
+   "kind": "module",
+   "label": "MCU",
+   "module": "113991054",
+   "edge": "-y"
+  },
+  {
+   "id": "U2",
+   "kind": "chip",
+   "label": "PIR датчик движения",
+   "lcsc": "C2887901",
+   "place": {
+    "x": 0.0,
+    "y": 18.0,
+    "rot": 0.0
+   },
+   "face": "sensor"
+  },
+  {
+   "id": "U3",
+   "kind": "chip",
+   "label": "датчик освещённости",
+   "lcsc": "C78960",
+   "place": {
+    "x": 12.0,
+    "y": 17.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "C1",
+   "kind": "capacitor",
+   "label": "U2 decoupling",
+   "value": "100nF",
+   "package": "0603"
+  },
+  {
+   "id": "C2",
+   "kind": "capacitor",
+   "label": "U3 decoupling",
+   "value": "100nF",
+   "package": "0603"
+  },
+  {
+   "id": "LED1",
+   "kind": "chip",
+   "label": "тёплый свет 1",
+   "lcsc": "C210315",
+   "face": "light"
+  },
+  {
+   "id": "LED2",
+   "kind": "chip",
+   "label": "тёплый свет 2",
+   "lcsc": "C210315",
+   "face": "light"
+  },
+  {
+   "id": "LED3",
+   "kind": "chip",
+   "label": "тёплый свет 3",
+   "lcsc": "C210315",
+   "face": "light"
+  },
+  {
+   "id": "LED4",
+   "kind": "chip",
+   "label": "тёплый свет 4",
+   "lcsc": "C210315",
+   "face": "light"
+  },
+  {
+   "id": "Q1",
+   "kind": "chip",
+   "label": "ключ подсветки",
+   "lcsc": "C2146"
+  },
+  {
+   "id": "R1",
+   "kind": "resistor",
+   "label": "SDA pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  },
+  {
+   "id": "R2",
+   "kind": "resistor",
+   "label": "SCL pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  },
+  {
+   "id": "R3",
+   "kind": "resistor",
+   "label": "база ключа",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "R4",
+   "kind": "resistor",
+   "label": "LED1 резистор",
+   "value": "100R",
+   "package": "0603"
+  },
+  {
+   "id": "R5",
+   "kind": "resistor",
+   "label": "LED2 резистор",
+   "value": "100R",
+   "package": "0603"
+  },
+  {
+   "id": "R6",
+   "kind": "resistor",
+   "label": "LED3 резистор",
+   "value": "100R",
+   "package": "0603"
+  },
+  {
+   "id": "R7",
+   "kind": "resistor",
+   "label": "LED4 резистор",
+   "value": "100R",
+   "package": "0603"
+  },
+  {
+   "id": "SW1",
+   "kind": "button",
+   "label": "режим",
+   "place": {
+    "x": -14.0,
+    "y": -2.0,
+    "rot": 0.0
+   }
+  }
+ ],
+ "nets": [
+  {
+   "pins": [
+    "U1.GND",
+    "U2.VSS",
+    "U3.GND",
+    "U3.ADDR",
+    "C1.2",
+    "C2.2",
+    "Q1.E",
+    "SW1.B"
+   ],
+   "name": "GND"
+  },
+  {
+   "pins": [
+    "U1.V3V3",
+    "U2.VDD",
+    "U3.VCC",
+    "U3.DVI",
+    "C1.1",
+    "C2.1",
+    "R1.1",
+    "R2.1"
+   ],
+   "name": "V3V3"
+  },
+  {
+   "pins": [
+    "U1.V5",
+    "R4.1",
+    "R5.1",
+    "R6.1",
+    "R7.1"
+   ],
+   "name": "V5"
+  },
+  {
+   "pins": [
+    "U1.SDA",
+    "U3.SDA",
+    "R1.2"
+   ],
+   "name": "SDA"
+  },
+  {
+   "pins": [
+    "U1.SCL",
+    "U3.SCL",
+    "R2.2"
+   ],
+   "name": "SCL"
+  },
+  {
+   "pins": [
+    "U1.D1",
+    "U2.REL"
+   ]
+  },
+  {
+   "pins": [
+    "U1.MOSI",
+    "R3.1"
+   ]
+  },
+  {
+   "pins": [
+    "Q1.B",
+    "R3.2"
+   ]
+  },
+  {
+   "pins": [
+    "Q1.C",
+    "LED1.K",
+    "LED2.K",
+    "LED3.K",
+    "LED4.K"
+   ]
+  },
+  {
+   "pins": [
+    "LED1.A",
+    "R4.2"
+   ]
+  },
+  {
+   "pins": [
+    "LED2.A",
+    "R5.2"
+   ]
+  },
+  {
+   "pins": [
+    "LED3.A",
+    "R6.2"
+   ]
+  },
+  {
+   "pins": [
+    "LED4.A",
+    "R7.2"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D2",
+    "SW1.A"
+   ]
+  }
+ ],
+ "layouts": [
+  {
+   "pattern": "row",
+   "nodes": [
+    "LED1",
+    "LED2",
+    "LED3",
+    "LED4"
+   ],
+   "center": [
+    0.0,
+    8.0
+   ],
+   "pitch": 9.0,
+   "rot": 0.0
+  }
+ ],
+ "requirements": [
+  {
+   "id": "R1",
+   "text": "видит движение человека (PIR)",
+   "parts": [
+    "U2",
+    "LED1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 38,
+      "output": "LED1",
+      "to_s": 60,
+      "on": true
+     }
+    ],
+    "given": {
+     "U3": 5
+    },
+    "steps": [
+     {
+      "at_s": 35,
+      "input": "U2",
+      "value": 1
+     }
+    ]
+   }
+  },
+  {
+   "id": "R2",
+   "text": "видит темноту (датчик света), днём не включается",
+   "parts": [
+    "U3",
+    "LED1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 38,
+      "output": "LED1",
+      "to_s": 60,
+      "on": false
+     }
+    ],
+    "given": {
+     "U3": 300
+    },
+    "steps": [
+     {
+      "at_s": 35,
+      "input": "U2",
+      "value": 1
+     }
+    ]
+   }
+  },
+  {
+   "id": "R3",
+   "text": "в темноте при движении плавно включает тёплый свет ~30 с и гасит",
+   "parts": [
+    "LED1",
+    "LED2",
+    "LED3",
+    "LED4",
+    "Q1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 38,
+      "output": "LED1",
+      "to_s": 60,
+      "on": true
+     },
+     {
+      "from_s": 100,
+      "output": "LED1",
+      "to_s": 120,
+      "on": false
+     }
+    ],
+    "given": {
+     "U3": 5
+    },
+    "steps": [
+     {
+      "at_s": 35,
+      "input": "U2",
+      "value": 1
+     },
+     {
+      "at_s": 40,
+      "input": "U2",
+      "value": 0
+     }
+    ]
+   }
+  },
+  {
+   "id": "R4",
+   "text": "кнопка переключает авто и постоянный слабый свет",
+   "parts": [
+    "SW1",
+    "LED1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 12,
+      "output": "LED1",
+      "to_s": 25,
+      "on": true
+     }
+    ],
+    "given": {
+     "U3": 300
+    },
+    "steps": [
+     {
+      "at_s": 10,
+      "press": "SW1"
+     }
+    ]
+   }
+  },
+  {
+   "id": "R5",
+   "text": "питается от USB-зарядки через USB-C модуля",
+   "parts": [
+    "U1"
+   ],
+   "firmware": false
+  }
+ ],
+ "concept": {
+  "uses": [
+   "в коридоре ночью: человек проходит, ночник мягко включается на 30 секунд",
+   "в спальне у кровати: в темноте светит тёплым тусклым светом, днём молчит",
+   "у детской кроватки: кнопкой можно включить постоянный слабый свет на всю ночь"
+  ],
+  "options": [
+   {
+    "name": "Shelf puck",
+    "look": "мягкий скруглённый блок на полке, светит вверх через матовый рассеиватель",
+    "panel": "4 тёплых LED в центре под рассеивателем, PIR-купол сверху, датчик света рядом, кнопка режима сбоку от LED",
+    "form": "soft",
+    "stance": "desk",
+    "mounting": "none",
+    "module_edge": "-y",
+    "board": {
+     "shape": "rounded",
+     "w": 42.0,
+     "h": 50.0
+    }
+   },
+   {
+    "name": "Wall tile",
+    "look": "плоская плитка на двух шурупах на стене коридора, светит вперёд",
+    "panel": "LED по центру, PIR сверху, датчик света снизу подальше от LED, кнопка сбоку",
+    "form": "box",
+    "stance": "wall",
+    "mounting": "ears",
+    "module_edge": "-y",
+    "board": {
+     "shape": "rect",
+     "w": 36.0,
+     "h": 55.0
+    }
+   },
+   {
+    "name": "Round puck",
+    "look": "круглая шайба с кольцом света, лежит на тумбочке",
+    "panel": "кольцо LED по кругу, PIR и датчик света в середине, кнопка с краю",
+    "form": "round",
+    "stance": "desk",
+    "mounting": "none",
+    "module_edge": "-y",
+    "board": {
+     "shape": "round",
+     "w": 48.0,
+     "h": 48.0
+    }
+   }
+  ],
+  "chosen": "Shelf puck",
+  "why": "Стоит везде, где дотягивается USB-зарядка, светит вверх через рассеиватель, PIR и датчик света смотрят вверх и видят человека и темноту."
+ },
+ "firmware": {
+  "lang": "arduino",
+  "files": {
+   "nochnik.ino": "// Ночник с датчиком движения: XIAO ESP32-C3\n// PIR PIR223D-S0 (REL -> D1), свет BH1750 (I2C SDA/SCL), 4 тёплых LED через NPN (база -> D10), кнопка режима (D2 -> GND)\n// Логика: темно (<15 лк) + движение = плавное включение на 30 с; кнопка = авто / постоянный слабый свет\n#include <Wire.h>\n\n#define PIR_PIN 3    // D1 = GPIO3\n#define LED_PIN 10   // D10 = GPIO10\n#define BTN_PIN 4    // D2 = GPIO4\n\n#define BH_ADDR 0x23\n#define LUX_DARK 15.0f\n#define LUX_LIGHT 25.0f\n#define LIGHT_TIME_MS 30000UL\n#define FADE_MS 1200\n\nbool alwaysOn = false;\nbool lampOn = false;\nunsigned long lampUntil = 0;\nunsigned long fadeStart = 0;\nbool fadingIn = false;\nint bright = 0;\nconst int BRIGHT_FULL = 3800;\nconst int BRIGHT_NIGHT = 1200;\nbool darkLatch = true;\nfloat lux = 0;\nunsigned long lastLux = 0;\nint lastBtn = HIGH;\nunsigned long bootAt = 0;\n\nfloat readLux() {\n  Wire.beginTransmission(BH_ADDR);\n  Wire.write(0x01);\n  if (Wire.endTransmission() != 0) return -1;\n  Wire.beginTransmission(BH_ADDR);\n  Wire.write(0x10);\n  if (Wire.endTransmission() != 0) return -1;\n  delay(180);\n  Wire.requestFrom(BH_ADDR, 2);\n  if (Wire.available() < 2) return -1;\n  uint16_t raw = (Wire.read() << 8) | Wire.read();\n  return raw / 1.2f;\n}\n\nvoid setLamp(bool on) {\n  lampOn = on;\n  fadeStart = millis();\n  fadingIn = on;\n}\n\nvoid setup() {\n  pinMode(PIR_PIN, INPUT);\n  pinMode(BTN_PIN, INPUT_PULLUP);\n  ledcAttach(LED_PIN, 5000, 12);\n  ledcWrite(LED_PIN, 0);\n  Wire.begin();\n  Serial.begin(115200);\n  delay(500);\n  float l = readLux();\n  if (l >= 0) { lux = l; darkLatch = (lux < LUX_DARK); }\n  else darkLatch = true;\n  bootAt = millis();\n}\n\nvoid loop() {\n  unsigned long now = millis();\n  bool warmed = (now - bootAt > 30000UL); // прогрев PIR ~30 с: движение игнорируем\n  if (now - lastLux > 1000) {\n    lastLux = now;\n    float l = readLux();\n    if (l >= 0) {\n      lux = l;\n      if (lux < LUX_DARK) darkLatch = true;\n      else if (lux > LUX_LIGHT) darkLatch = false;\n    }\n  }\n  int b = digitalRead(BTN_PIN);\n  if (b != lastBtn) {\n    delay(50);\n    b = digitalRead(BTN_PIN);\n    if (b != lastBtn) {\n      if (lastBtn == LOW && b == HIGH) { alwaysOn = !alwaysOn; if (alwaysOn) setLamp(true); else setLamp(false); }\n      lastBtn = b;\n    }\n  }\n  if (alwaysOn) {\n    if (bright < BRIGHT_NIGHT) bright = min(BRIGHT_NIGHT, bright + 40);\n    if (bright > BRIGHT_NIGHT) bright = max(BRIGHT_NIGHT, bright - 40);\n    ledcWrite(LED_PIN, bright);\n    lampOn = true;\n    return;\n  }\n  int motion = warmed ? digitalRead(PIR_PIN) : LOW;\n  if (motion == HIGH && darkLatch) { lampUntil = now + LIGHT_TIME_MS; if (!lampOn) setLamp(true); }\n  if (lampOn && now > lampUntil && motion == LOW) setLamp(false);\n  if (lampOn && !darkLatch && !alwaysOn) setLamp(false);\n  unsigned long fe = now - fadeStart;\n  if (fadingIn) bright = min(BRIGHT_FULL, (int)(BRIGHT_FULL * min(1.0f, fe / (float)FADE_MS)));\n  else bright = max(0, (int)(BRIGHT_FULL * (1.0f - min(1.0f, fe / (float)FADE_MS))));\n  if (!lampOn && fe > FADE_MS) bright = 0;\n  ledcWrite(LED_PIN, bright);\n  delay(20);\n}\n"
+  },
+  "notes": "Плата: Seeed XIAO ESP32-C3. Arduino IDE: плата «XIAO_ESP32C3», библиотек ставить не нужно (только Wire). Прошивка через USB-C модуля. PIR греется 30 с после включения — это нормально.",
+  "check": {
+   "ok": true,
+   "tool": "g++ 13.2.0 compile, no link (arduino-esp32 3.x stubs, Seeed ",
+   "errors": [],
+   "warnings": [],
+   "wiring": "7dc360c969d635c8",
+   "asks": "e298667e3d41"
+  }
+ },
+ "_version": 6
+}

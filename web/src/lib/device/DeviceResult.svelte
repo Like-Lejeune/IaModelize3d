@@ -1,13 +1,12 @@
 <script lang="ts">
-  // The hand-over of a device job in the chat: what is ready and whether it is right (the board's DRC, the case's check
-  // against the board, the firmware's compile check), the case as it stands assembled (the result's size_mm is the
-  // print plate, lid and base side by side, so it is named as such), the requirements the designer wrote with the parts
-  // serving each (a click lights them on the schematic) and the way on to manufacturing.
+  // The hand-over of a device job in the chat: what was built and what was checked, row by row from the facts (the board's
+  // DRC, the case's check against the board, the firmware's compile check), and what was not: no run has been on real
+  // hardware. The requirements the designer wrote with the parts serving each (a click lights them on the schematic) and
+  // the way on to the price and the fab files.
   import type { ProjectStore } from '$lib/project.svelte';
   import type { ResultCard } from '$lib/types';
   import { modelName } from '$lib/models';
-  import { sizeText } from './facets';
-  import { dt } from './i18n';
+  import { dt, sizeIn } from './i18n';
 
   let { store, result, onAction }: { store: ProjectStore; result: ResultCard; onAction: (a: string) => void } = $props();
   const pcb = $derived(store.pcb.versions.at(-1) ?? null);
@@ -19,11 +18,19 @@
   // else the studio's latest
   const enc = $derived(result.enclosure ?? store.enclosure?.check ?? null);
   const caseMm = $derived((enc?.summary as { case_mm?: number[] } | undefined)?.case_mm ?? null);
-  const plate = $derived(result.size_mm?.length ? result.size_mm : null);
   const items = $derived([
-    { stage: 'board', ok: !!pcb && !pcb.drc.errors, text: pcb ? (pcb.drc.errors ? dt('st_drc_err', { n: pcb.drc.errors }) : `${dt('stage_board')} v${pcb.version}`) : dt('stage_board') },
-    { stage: 'case', ok: store.casePcbVersion != null && enc?.ok !== false, text: dt('stage_case') },
-    { stage: 'firmware', ok: !!fw && check?.ok !== false, text: check && !check.ok ? dt('fw_check_bad', { n: check.errors?.length ?? 0 }) : dt('stage_firmware') },
+    {
+      stage: 'board', ok: !!pcb && !pcb.drc.errors,
+      text: pcb ? (pcb.drc.errors ? dt('st_drc_err', { n: pcb.drc.errors }) : dt('res_board_ok', { v: pcb.version })) : dt('board_empty_title'),
+    },
+    {
+      stage: 'case', ok: store.casePcbVersion != null && enc?.ok !== false,
+      text: store.casePcbVersion == null ? dt('case_empty_title') : enc?.ok === false ? dt('res_case_bad') : caseMm ? dt('res_case_ok_size', { s: sizeIn(caseMm) }) : dt('res_case_ok'),
+    },
+    {
+      stage: 'firmware', ok: !!fw && check?.ok !== false,
+      text: !fw ? dt('fw_empty_title') : !check ? dt('res_fw_unchecked') : check.ok ? dt('res_fw_ok') : dt('fw_check_bad', { n: check.errors?.length ?? 0 }),
+    },
   ]);
   const allOk = $derived(items.every((i) => i.ok));
   const reqs = $derived(doc?.requirements ?? []);
@@ -35,22 +42,18 @@
   }
 </script>
 
-<div class="dr" class:warn={!allOk}>
-  <div class="line">
-    <i class="ti {allOk ? 'ti-circle-check ok' : 'ti-alert-triangle wc'}" aria-hidden="true"></i>
-    <span class="ttl">{allOk ? dt('result_title') : dt('result_title_issues')}</span>
+<div class="dr">
+  <strong class="ttl">{allOk ? dt('result_title') : dt('result_title_issues')}</strong>
+  <ul class="rows">
     {#each items as it (it.stage)}
-      <button class="it" class:ok={it.ok} class:bad={!it.ok} onclick={() => onAction(`stage:${it.stage}`)}><i class="ti {it.ok ? 'ti-check' : 'ti-minus'}" aria-hidden="true"></i>{it.text}</button>
+      <li>
+        <button class="it" class:bad={!it.ok} onclick={() => onAction(`stage:${it.stage}`)}>
+          <i class="ti {it.ok ? 'ti-check' : 'ti-alert-triangle'}" aria-hidden="true"></i>{it.text}
+        </button>
+      </li>
     {/each}
-    {#if critic?.verdict}<span class="crit" title={modelName(critic.model ?? '')}>{dt('result_review_short', { s: critic.match_score ?? '—' })}</span>{/if}
-    <button class="go" onclick={() => onAction('stage:make')}>{dt('stage_make')} <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
-  </div>
-  {#if caseMm || plate}
-    <div class="sizes">
-      {#if caseMm}<span>{dt('size_case')} <span class="mono">{sizeText(caseMm)} {dt('mm')}</span></span>{/if}
-      {#if plate}<span class="muted" title={dt('size_plate_d')}>{dt('size_plate')} <span class="mono">{sizeText(plate)} {dt('mm')}</span></span>{/if}
-    </div>
-  {/if}
+  </ul>
+  {#if critic?.verdict}<span class="crit" title={modelName(critic.model ?? '')}>{dt('result_review_short', { s: critic.match_score ?? '—' })}</span>{/if}
   {#if reqs.length}
     <button class="fold" onclick={() => (open = !open)} aria-expanded={open}>
       <i class="ti ti-chevron-right ar" class:down={open} aria-hidden="true"></i>{dt('reqs_title', { n: reqs.length })}
@@ -69,107 +72,90 @@
       </ul>
     {/if}
   {/if}
+  <button class="go" onclick={() => onAction('stage:make')}>{dt('stage_make')} <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
 </div>
 
 <style>
   .dr {
     display: grid;
-    gap: 4px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    border: 1px solid color-mix(in srgb, var(--ok) 40%, var(--outline-variant));
-    background: color-mix(in srgb, var(--ok) 7%, transparent);
-    font-size: 12px;
-  }
-  .dr.warn {
-    border-color: color-mix(in srgb, var(--warn) 50%, var(--outline-variant));
-    background: color-mix(in srgb, var(--warn) 7%, transparent);
-  }
-  .line {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 6px;
-  }
-  .ok {
-    color: var(--ok);
-  }
-  .wc {
-    color: var(--warn-text);
+    gap: 6px;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--outline-variant);
+    font-size: var(--text-md);
   }
   .ttl {
-    font-weight: var(--font-weight-semibold);
-    margin-right: 4px;
+    font-size: var(--text-md);
   }
-  .it,
-  .go {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    height: 20px;
-    padding: 0 7px;
-    border-radius: 6px;
-    border: none;
-    background: var(--surface-container);
-    color: var(--on-surface-var);
-    font: inherit;
-    font-size: 11.5px;
-    cursor: pointer;
-  }
-  .it.ok {
-    color: var(--on-surface);
-  }
-  .it.ok i {
-    color: var(--ok);
-  }
-  .it.bad i {
-    color: var(--warn-text);
-  }
-  .crit {
-    font-size: 11px;
-    color: var(--on-surface-var);
-  }
-  .go {
-    margin-left: auto;
-    background: var(--primary);
-    color: var(--on-primary);
-  }
-  .sizes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px 12px;
-    font-size: 11.5px;
-    padding-left: 2px;
-  }
-  .sizes .mono {
-    font-size: 11px;
-  }
-  .fold {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    justify-self: start;
-    padding: 0 2px;
-    border: none;
-    background: none;
-    color: var(--on-surface-var);
-    font: inherit;
-    font-size: 11.5px;
-    cursor: pointer;
-  }
-  .ar {
-    font-size: 11px;
-    transition: transform var(--dur-fast) var(--ease-standard);
-  }
-  .ar.down {
-    transform: rotate(90deg);
-  }
+  .rows,
   .reqs {
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
     gap: 1px;
+  }
+  .it {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 1px 0;
+    border: none;
+    background: none;
+    color: var(--on-surface);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .it:hover {
+    text-decoration: underline;
+  }
+  .it i {
+    color: var(--on-surface-var);
+  }
+  .it.bad {
+    color: var(--warn-text);
+  }
+  .it.bad i {
+    color: inherit;
+  }
+  .crit {
+    font-size: var(--text-sm);
+    color: var(--on-surface-var);
+  }
+  .go {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+    border: none;
+    background: none;
+    color: var(--primary);
+    font: inherit;
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+  }
+  .go:hover {
+    text-decoration: underline;
+  }
+  .fold {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    justify-self: start;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--on-surface-var);
+    font: inherit;
+    cursor: pointer;
+  }
+  .ar {
+    font-size: var(--text-xs);
+    transition: transform var(--dur-fast) var(--ease-standard);
+  }
+  .ar.down {
+    transform: rotate(90deg);
   }
   .rq {
     display: grid;
@@ -179,11 +165,11 @@
     width: 100%;
     padding: 3px 4px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: none;
     color: var(--on-surface);
     font: inherit;
-    font-size: 12px;
+    font-size: var(--text-sm);
     text-align: left;
     cursor: pointer;
   }
@@ -192,7 +178,7 @@
   }
   .rid,
   .parts {
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     color: var(--on-surface-var);
   }
   .parts {
@@ -202,7 +188,7 @@
     white-space: nowrap;
   }
   .fwi {
-    font-size: 11px;
+    font-size: var(--text-xs);
     margin-left: 4px;
     color: var(--on-surface-var);
   }

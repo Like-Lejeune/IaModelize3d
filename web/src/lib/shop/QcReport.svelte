@@ -190,8 +190,7 @@
   }
   .verdict {
     font-family: var(--font-mono);
-    font-weight: var(--font-weight-extrabold);
-    letter-spacing: 1px;
+    font-weight: var(--font-weight-bold);
     padding: 3px 10px;
     border-radius: var(--radius-tag);
     background: color-mix(in srgb, var(--error) 18%, transparent);
@@ -323,7 +322,7 @@
     align-items: baseline;
   }
   .max {
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
     color: var(--primary);
   }
   .max.bad {

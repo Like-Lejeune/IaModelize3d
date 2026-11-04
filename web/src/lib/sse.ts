@@ -4,7 +4,7 @@ import type { EventRow } from './types';
 
 // The server pings every 15 s. A stream silent for longer is dead without having said so (a dev proxy whose API
 // restarted, a laptop that slept): drop it and reconnect.
-const IDLE_MS = 40_000;
+const IDLE_MS = 25_000;
 
 export interface EventStream {
   close(): void;
@@ -16,6 +16,7 @@ export function streamEvents(projectId: string, after: number, onEvent: (e: Even
   let ctrl: AbortController | null = null;
   let delay = 500;
   let idle: ReturnType<typeof setTimeout> | undefined;
+  let wake: (() => void) | null = null;
 
   const run = async () => {
     while (!closed) {
@@ -68,15 +69,33 @@ export function streamEvents(projectId: string, after: number, onEvent: (e: Even
       }
       if (closed) return;
       onState?.('retry');
-      await new Promise((r) => setTimeout(r, delay));
+      await new Promise<void>((r) => {
+        const timer = setTimeout(r, delay);
+        wake = () => {
+          clearTimeout(timer);
+          r();
+        };
+      });
+      wake = null;
       delay = Math.min(delay * 2, 8000);
     }
   };
+  // the browser knows before the stream's silence does
+  const lost = () => ctrl?.abort();
+  const back = () => {
+    delay = 500;
+    wake?.();
+  };
+  window.addEventListener('offline', lost);
+  window.addEventListener('online', back);
   run();
   return {
     close() {
       closed = true;
       ctrl?.abort();
+      wake?.();
+      window.removeEventListener('offline', lost);
+      window.removeEventListener('online', back);
     },
   };
 }

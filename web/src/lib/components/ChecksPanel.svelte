@@ -294,7 +294,7 @@
     color: var(--outline);
   }
   .empty strong {
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
     font-weight: var(--font-weight-semibold);
     color: var(--on-surface);
   }
@@ -305,7 +305,7 @@
     padding: 13px 15px;
     border-radius: var(--radius-card);
     border: var(--border-width) solid var(--outline-variant);
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
   }
   .sum strong {
     display: block;
@@ -359,13 +359,13 @@
     padding: 8px 12px;
   }
   dt {
-    font-size: var(--text-card-meta);
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-semibold);
     color: var(--outline);
   }
   dd {
     margin: 0;
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     font-weight: var(--font-weight-semibold);
     color: var(--on-surface);
   }
@@ -415,7 +415,7 @@
   .ttl {
     flex: 1;
     min-width: 140px;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     font-weight: var(--font-weight-semibold);
   }
   .detail {

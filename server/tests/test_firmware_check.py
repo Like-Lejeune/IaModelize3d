@@ -335,3 +335,24 @@ async def test_never_raises():
     r = await fc.check({"nodes": "x", "nets": 5}, {"a b?.ino": "x", "../ok.ino": "void setup(){}\nvoid loop(){}\n"}, "arduino")
     assert set(r) == {"ok", "tool", "errors", "warnings"} and r["ok"], r
     assert [w["code"] for w in r["warnings"]] == ["bad_name"]
+
+
+# a device that is a USB keyboard: the S3 has native USB, the C3 does not, and the check says so before anything is ordered
+HID_SKETCH = """#include "USB.h"
+#include "USBHIDKeyboard.h"
+USBHIDKeyboard Keyboard;
+void setup() { pinMode(D0, INPUT_PULLUP); Keyboard.begin(); USB.begin(); }
+void loop() { if (digitalRead(D0) == LOW) { Keyboard.press(KEY_LEFT_CTRL); Keyboard.write('c'); Keyboard.releaseAll(); delay(200); } }
+"""
+
+
+def _hid_doc(module: str) -> dict:
+    return {"schema": "fw.device/1", "title": "pad", "nodes": [{"id": "U1", "kind": "module", "module": module}, {"id": "SW1", "kind": "button", "switch": "mx"}],
+            "nets": [{"name": "GND", "pins": ["U1.GND", "SW1.B"]}, {"pins": ["U1.D0", "SW1.A"]}]}
+
+
+async def test_usb_keyboard_compiles_on_the_s3_and_not_on_the_c3():
+    ok = await fc.check(_hid_doc("113991114"), {"pad.ino": HID_SKETCH}, "arduino")
+    assert not [e for e in ok["errors"] if e.get("code") == "compile"], ok["errors"]
+    no = await fc.check(_hid_doc("113991054"), {"pad.ino": HID_SKETCH}, "arduino")
+    assert any("no native USB" in str(e.get("msg") or e.get("message")) for e in no["errors"]), no["errors"]

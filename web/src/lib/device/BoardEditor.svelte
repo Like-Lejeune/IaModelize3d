@@ -10,6 +10,8 @@
   // once (Ctrl+Z undoes it); "Route" in the workspace header builds the board again: hand traces and placements stay,
   // the autorouter joins the rest, the pours fill, DRC checks it all. A part's card says who placed it: the person (pcb),
   // the AI engineer (place, or a layout such as the dice pips: a dotted outline) or the build; dragging makes it the person's.
+  import { apiError, deadline, errorText } from '$lib/api';
+  import { t } from '$lib/i18n.svelte';
   import { pcbApi } from '$lib/pcb/api';
   import type { ProjectStore } from '$lib/project.svelte';
   import type { DeviceDoc, DevNode } from './api';
@@ -28,20 +30,30 @@
   let cj = $state.raw<any[] | null>(null);
   let loadedFor = 0;
   let err = $state<string | null>(null);
+  let attempt = $state(0);
+  // loaded only once it is in: a version that failed is asked for again (the retry below, or the next version)
   $effect(() => {
     const v = pcbV?.version;
+    void attempt;
     if (!v || v === loadedFor) return;
-    loadedFor = v;
-    fetch(pcbApi.url(store.id, v, 'circuit.json'), { credentials: 'same-origin' })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+    let current = true;
+    fetch(pcbApi.url(store.id, v, 'circuit.json'), { credentials: 'same-origin', signal: deadline(60_000) })
+      .then(async (r) => (r.ok ? r.json() : Promise.reject(await apiError(r))))
       .then((j) => {
+        if (!current) return;
+        loadedFor = v;
         cj = j;
         err = null;
         hidden = new Set();
         sel = null;
         draft = null;
       })
-      .catch((e) => (err = String(e)));
+      .catch((e) => {
+        if (current) err = errorText(e);
+      });
+    return () => {
+      current = false;
+    };
   });
 
   const copper = $derived(cj ? readCopper(cj) : null);
@@ -76,6 +88,7 @@
   let rect = $state<{ tool: 'pour' | 'keepout'; a: [number, number]; b: [number, number] } | null>(null);
   let meas = $state<{ a: [number, number]; b: [number, number] } | null>(null);
   let menu = $state<{ x: number; y: number; items: { label: string; key?: string; run: () => void; danger?: boolean }[] } | null>(null);
+  let keysOpen = $state(false);
   let flash = $state<string | null>(null);
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
   function say(msg: string) {
@@ -156,7 +169,7 @@
     const q = poses.get(p.id)!;
     const swap = turned(p.id) % 180 === 90;
     const by = placedBy(doc, nodeOf.get(p.id));
-    return { id: p.id, x: q.x, y: q.y, w: swap ? p.h : p.w, h: swap ? p.w : p.h, pinned: by === 'person', designer: by === 'designer', moved: moved.has(p.id) };
+    return { id: p.id, x: q.x, y: q.y, w: swap ? p.h : p.w, h: swap ? p.w : p.h, rot: turned(p.id), silk: p.silk, pinned: by === 'person', designer: by === 'designer', moved: moved.has(p.id) };
   }));
   // an autorouted trace to a part that moved is out of date: its connection shows as a ratsnest line until the build
   const gone = $derived(new Set([...hidden, ...(copper?.traces ?? []).filter((t) => !t.hand && [t.from, t.to].some((k) => k && moved.has(k.split('.')[0]))).map((t) => t.id)]));
@@ -748,8 +761,8 @@
 <svelte:window onkeydown={key} />
 
 <div class="ed" class:crosshair={!!draft || tool !== 'select'} bind:clientWidth={boxW} bind:clientHeight={boxH}>
-  {#if err}
-    <p class="msg">{err}</p>
+  {#if err && !copper}
+    <p class="msg" role="alert">{err} <button class="btn small" onclick={() => ((err = null), attempt++)}>{t('retry')}</button></p>
   {:else if !copper}
     <p class="msg"><i class="ti ti-loader-2 spin" aria-hidden="true"></i></p>
   {:else}
@@ -804,6 +817,9 @@
           {/if}
         {/each}
         {#each partsNow as p (p.id)}
+          <g class="silk" transform="translate({p.x} {p.y}) rotate({p.rot})">
+            {#each p.silk ?? [] as line, i (i)}<polyline points={line.map((q) => q.join(',')).join(' ')} />{/each}
+          </g>
           <rect class="court" class:sel={sel?.kind === 'part' && sel.id === p.id} class:moved={p.moved} class:pinned={p.pinned && !p.moved} class:designer={p.designer && !p.moved}
             x={p.x - p.w / 2 - 0.25} y={p.y - p.h / 2 - 0.25} width={p.w + 0.5} height={p.h + 0.5} rx="0.3" />
         {/each}
@@ -917,13 +933,25 @@
 
     <div class="legend">
       {#if ratsnest.length}<span><i class="sw rat"></i>{dt('route_left')}: {ratsnest.length}</span>{/if}
-      <span class="muted">{draft ? dt('route_hint_draw') : dt(`ed_hint_${tool}`)}</span>
+      <!-- the keys on demand, except while drawing a trace, when they are what the person needs next -->
+      <button class="keys" onclick={() => (keysOpen = !keysOpen)} aria-expanded={keysOpen}>{dt('ed_keys')}</button>
+      {#if keysOpen || draft}<span class="muted">{draft ? dt('route_hint_draw') : dt(`ed_hint_${tool}`)}</span>{/if}
       {#if pointer}<span class="xy">X {pointer[0].toFixed(2)} · Y {pointer[1].toFixed(2)}</span>{/if}
     </div>
   {/if}
 </div>
 
 <style>
+  .keys {
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
   .ed {
     position: absolute;
     inset: 0;
@@ -950,7 +978,7 @@
   }
   .hole {
     fill: #101010;
-    stroke: #ff26e2;
+    stroke: rgba(255, 255, 255, 0.55);
     stroke-width: 0.12;
   }
   .inactive {
@@ -995,6 +1023,12 @@
   }
   .court.pinned {
     stroke-dasharray: 0.5 0.3;
+  }
+  .silk polyline {
+    fill: none;
+    stroke: color-mix(in srgb, var(--on-surface) 62%, transparent);
+    stroke-width: 0.14;
+    pointer-events: none;
   }
   /* placed by the designer (place, a layout): a dotted outline in the accent of the designer's own marks */
   .court.designer {
@@ -1067,7 +1101,7 @@
     display: grid;
     gap: 2px;
     padding: 3px;
-    border-radius: 7px;
+    border-radius: var(--radius-sm);
     background: rgba(20, 20, 20, 0.9);
   }
   .tools button {
@@ -1076,10 +1110,10 @@
     display: grid;
     place-items: center;
     border: none;
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     background: transparent;
     color: #bbb;
-    font-size: 17px;
+    font-size: var(--text-xl);
     cursor: pointer;
   }
   .tools button:hover:not(:disabled) {
@@ -1101,16 +1135,16 @@
     gap: 8px;
     align-items: center;
     padding: 4px;
-    border-radius: 7px;
+    border-radius: var(--radius-sm);
     background: rgba(20, 20, 20, 0.9);
     color: #ddd;
-    font-size: 12.5px;
+    font-size: var(--text-md);
   }
   .seg {
     display: inline-flex;
     gap: 2px;
     padding: 2px;
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     background: rgba(255, 255, 255, 0.06);
   }
   .seg button,
@@ -1121,7 +1155,7 @@
     height: 24px;
     padding: 0 9px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: transparent;
     color: #ccc;
     font: inherit;
@@ -1147,7 +1181,7 @@
     width: 26px;
     padding: 0;
     justify-content: center;
-    font-size: 15px;
+    font-size: var(--text-lg);
   }
   .vsep {
     width: 1px;
@@ -1158,12 +1192,12 @@
     height: 24px;
     padding: 0 24px 0 7px;
     background-position: right 6px center;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     border: 1px solid rgba(255, 255, 255, 0.12);
     background-color: #1b1b1b;
     color: #eee;
     font: inherit;
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
   .xy {
     font-family: var(--font-mono);
@@ -1184,7 +1218,7 @@
     height: 24px;
     padding: 0 26px 0 8px;
     background-position: right 6px center;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     border: 1px solid rgba(255, 255, 255, 0.12);
     background-color: #1b1b1b;
     color: #eee;
@@ -1205,10 +1239,10 @@
     gap: 4px;
     min-width: 220px;
     padding: 9px 11px;
-    border-radius: 7px;
+    border-radius: var(--radius-sm);
     background: rgba(20, 20, 20, 0.92);
     color: #ddd;
-    font-size: 12.5px;
+    font-size: var(--text-md);
   }
   .ct {
     display: flex;
@@ -1217,9 +1251,9 @@
     justify-content: space-between;
   }
   .tag {
-    font-size: 11px;
+    font-size: var(--text-xs);
     padding: 1px 6px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: rgba(255, 255, 255, 0.08);
     color: #aaa;
   }
@@ -1233,7 +1267,7 @@
   }
   .cd {
     color: #aaa;
-    font-size: 11.5px;
+    font-size: var(--text-sm);
   }
   .mono {
     font-family: var(--font-mono);
@@ -1249,7 +1283,7 @@
     display: grid;
     min-width: 200px;
     padding: 4px;
-    border-radius: 7px;
+    border-radius: var(--radius-sm);
     background: #1c1c1c;
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1262,11 +1296,11 @@
     height: 26px;
     padding: 0 9px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: transparent;
     color: #ddd;
     font: inherit;
-    font-size: 12.5px;
+    font-size: var(--text-md);
     text-align: left;
     cursor: pointer;
   }
@@ -1278,7 +1312,7 @@
   }
   kbd {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: #888;
   }
   .flash {
@@ -1287,10 +1321,10 @@
     top: 46px;
     transform: translateX(-50%);
     padding: 6px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: rgba(230, 176, 69, 0.95);
     color: #1a1a1a;
-    font-size: 12.5px;
+    font-size: var(--text-md);
   }
   .legend {
     position: absolute;
@@ -1300,10 +1334,10 @@
     gap: 14px;
     align-items: center;
     padding: 5px 10px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: rgba(20, 20, 20, 0.85);
     color: #ddd;
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
   .legend span {
     display: inline-flex;

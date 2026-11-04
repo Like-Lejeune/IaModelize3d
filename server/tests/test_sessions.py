@@ -262,7 +262,7 @@ async def test_anonymous_visitors_together_keep_to_their_share(fresh_db, monkeyp
         await _user(fresh_db, f"u_a{i}", ip=f"10.0.{i}.1")
         await quotas.settle(f"u_a{i}", 0.5)
     with pytest.raises(quotas.QuotaExceeded) as e:
-        await quotas.reserve(await _user(fresh_db, "u_next", ip="10.0.9.1"), 0.6, live=set())
+        await quotas.headroom(await _user(fresh_db, "u_next", ip="10.0.9.1"), live=set())
     assert e.value.code == "demo_budget"
     # a judge with a sign-in link still has the rest of the day's budget
-    assert await quotas.reserve(await _user(fresh_db, JUDGE, tier="pro"), 0.6, live=set()) == pytest.approx(0.6)
+    assert await quotas.headroom(await _user(fresh_db, JUDGE, tier="pro"), live=set()) == pytest.approx(2.0)

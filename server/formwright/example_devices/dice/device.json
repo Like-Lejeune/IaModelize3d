@@ -1,0 +1,394 @@
+{
+ "schema": "fw.device/1",
+ "title": "Электронный игральный кубик",
+ "summary": "Электронный кубик: нажми кнопку — точки переберутся и выпадет 1-6",
+ "board": {
+  "holes": true,
+  "w": 31.0,
+  "h": 54.0
+ },
+ "nodes": [
+  {
+   "id": "U1",
+   "kind": "module",
+   "label": "MCU",
+   "module": "113991054",
+   "edge": "+x"
+  },
+  {
+   "id": "LED1",
+   "kind": "led",
+   "label": "точка 1",
+   "color": "red"
+  },
+  {
+   "id": "LED2",
+   "kind": "led",
+   "label": "точка 2",
+   "color": "red"
+  },
+  {
+   "id": "LED3",
+   "kind": "led",
+   "label": "точка 3",
+   "color": "red"
+  },
+  {
+   "id": "LED4",
+   "kind": "led",
+   "label": "точка 4",
+   "color": "red"
+  },
+  {
+   "id": "LED5",
+   "kind": "led",
+   "label": "точка 5",
+   "color": "red"
+  },
+  {
+   "id": "LED6",
+   "kind": "led",
+   "label": "точка 6",
+   "color": "red"
+  },
+  {
+   "id": "LED7",
+   "kind": "led",
+   "label": "точка 7",
+   "color": "red"
+  },
+  {
+   "id": "R1",
+   "kind": "resistor",
+   "label": "резистор LED1",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "R2",
+   "kind": "resistor",
+   "label": "резистор LED2",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "R3",
+   "kind": "resistor",
+   "label": "резистор LED3",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "R4",
+   "kind": "resistor",
+   "label": "резистор LED4",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "R5",
+   "kind": "resistor",
+   "label": "резистор LED5",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "R6",
+   "kind": "resistor",
+   "label": "резистор LED6",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "R7",
+   "kind": "resistor",
+   "label": "резистор LED7",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "SW1",
+   "kind": "button",
+   "label": "бросок",
+   "place": {
+    "x": -9.3,
+    "y": -12.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "BT1",
+   "kind": "accessory",
+   "label": "аккумулятор",
+   "accessory": "lipo_1s_500"
+  }
+ ],
+ "nets": [
+  {
+   "pins": [
+    "U1.GND",
+    "LED1.K",
+    "LED2.K",
+    "LED3.K",
+    "LED4.K",
+    "LED5.K",
+    "LED6.K",
+    "LED7.K",
+    "SW1.B"
+   ],
+   "name": "GND"
+  },
+  {
+   "pins": [
+    "U1.D2",
+    "R1.1"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D3",
+    "R2.1",
+    "R7.1"
+   ]
+  },
+  {
+   "pins": [
+    "U1.MOSI",
+    "R3.1",
+    "R6.1"
+   ]
+  },
+  {
+   "pins": [
+    "U1.RX",
+    "R4.1",
+    "R5.1"
+   ]
+  },
+  {
+   "pins": [
+    "R1.2",
+    "LED1.A"
+   ]
+  },
+  {
+   "pins": [
+    "R2.2",
+    "LED2.A"
+   ]
+  },
+  {
+   "pins": [
+    "R3.2",
+    "LED3.A"
+   ]
+  },
+  {
+   "pins": [
+    "R4.2",
+    "LED4.A"
+   ]
+  },
+  {
+   "pins": [
+    "R5.2",
+    "LED5.A"
+   ]
+  },
+  {
+   "pins": [
+    "R6.2",
+    "LED6.A"
+   ]
+  },
+  {
+   "pins": [
+    "R7.2",
+    "LED7.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D1",
+    "SW1.A"
+   ]
+  }
+ ],
+ "layouts": [
+  {
+   "pattern": "dice",
+   "nodes": [
+    "LED1",
+    "LED2",
+    "LED3",
+    "LED4",
+    "LED5",
+    "LED6",
+    "LED7"
+   ],
+   "center": [
+    0.0,
+    17.93
+   ],
+   "pitch": 8.0,
+   "rot": 0.0
+  }
+ ],
+ "requirements": [
+  {
+   "id": "R1",
+   "text": "семь точек в рисунке кубика, видны через крышку",
+   "parts": [
+    "LED1",
+    "LED2",
+    "LED3",
+    "LED4",
+    "LED5",
+    "LED6",
+    "LED7"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 1,
+      "on": true,
+      "output": "LED1",
+      "to_s": 6
+     }
+    ],
+    "given": {},
+    "steps": [
+     {
+      "at_s": 1,
+      "press": "SW1"
+     }
+    ]
+   }
+  },
+  {
+   "id": "R2",
+   "text": "кнопка на крышке бросает кубик: точки перебираются и останавливаются на 1-6",
+   "parts": [
+    "SW1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "from_s": 1,
+      "on": true,
+      "output": "LED4",
+      "to_s": 6
+     }
+    ],
+    "given": {},
+    "steps": [
+     {
+      "at_s": 1,
+      "press": "SW1"
+     }
+    ]
+   }
+  },
+  {
+   "id": "R3",
+   "text": "работа от LiPo с зарядкой от USB-C модуля, глубокий сон через 30 с, кнопка будит",
+   "parts": [
+    "U1",
+    "BT1"
+   ],
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "asleep": false,
+      "from_s": 33,
+      "to_s": 38
+     },
+     {
+      "asleep": true,
+      "from_s": 55,
+      "to_s": 60
+     }
+    ],
+    "given": {},
+    "steps": [
+     {
+      "at_s": 20,
+      "press": "SW1"
+     }
+    ]
+   }
+  }
+ ],
+ "concept": {
+  "uses": [
+   "на столе во время настольной игры: нажал кнопку — выпало число, видно всем за столом",
+   "в руке в дороге: встряхнул-нажал, точки ярко светятся",
+   "питается от аккумулятора, заряжается от USB-C модуля"
+  ],
+  "options": [
+   {
+    "name": "Настольный блок",
+    "look": "небольшой блок на столе, точки сверху, кнопка рядом",
+    "panel": "семь точек кубиком в верхней половине платы, кнопка броска рядом с модулем, USB-C модуля снизу",
+    "form": "box",
+    "stance": "desk",
+    "mounting": "none",
+    "module_edge": "+x",
+    "board": {
+     "shape": "rect",
+     "w": 31.0,
+     "h": 54.0
+    }
+   },
+   {
+    "name": "Шайба в ладонь",
+    "look": "круглая шайба в ладони, точки кольцом-кубиком, кнопка сбоку",
+    "panel": "точки кубиком в центре круга, кнопка у нижнего края, USB-C снизу",
+    "form": "round",
+    "stance": "hand",
+    "mounting": "none",
+    "module_edge": "-y",
+    "board": {
+     "shape": "round",
+     "w": 42.0,
+     "h": 42.0
+    }
+   },
+   {
+    "name": "Брелок",
+    "look": "брелок-кубик на кольце, точки на крышке",
+    "panel": "точки кубиком вверху, кнопка внизу, ушко для кольца сверху",
+    "form": "box",
+    "stance": "hand",
+    "mounting": "lanyard",
+    "module_edge": "-y",
+    "board": {
+     "shape": "rect",
+     "w": 34.0,
+     "h": 50.0
+    }
+   }
+  ],
+  "chosen": "Настольный блок",
+  "why": "Самый простой и компактный: точки видны сверху, кнопка под рукой, плата прямоугольная без проблем с размещением."
+ },
+ "firmware": {
+  "lang": "arduino",
+  "files": {
+   "dice.ino": "#include <Arduino.h>\n// Пины: D2=GPIO4 центр LED1; D3=GPIO5 LED2+LED7; D10=GPIO10 LED3+LED6; RX=GPIO20 LED4+LED5\n// Кнопка SW1: D1=GPIO3 к GND (INPUT_PULLUP), пробуждение по LOW.\nconst int PIN_C  = D2;\nconst int PIN_TL_BR = D3;\nconst int PIN_TR_BL = D10;\nconst int PIN_ML_MR = RX;\nconst int PIN_BTN = D1;\nconst uint32_t IDLE_SLEEP_MS = 30000;\n\nint value = 0;\nuint32_t lastAction = 0;\n\nvoid showValue(int v) {\n  bool c=false, tl=false, tr=false, ml=false;\n  switch (v) {\n    case 1: c=true; break;\n    case 2: tl=true; break;\n    case 3: tl=true; c=true; break;\n    case 4: tl=true; tr=true; break;\n    case 5: tl=true; tr=true; c=true; break;\n    case 6: tl=true; tr=true; ml=true; break;\n    default: break;\n  }\n  digitalWrite(PIN_C, c ? HIGH : LOW);\n  digitalWrite(PIN_TL_BR, tl ? HIGH : LOW);\n  digitalWrite(PIN_TR_BL, tr ? HIGH : LOW);\n  digitalWrite(PIN_ML_MR, ml ? HIGH : LOW);\n}\n\nvoid roll() {\n  uint32_t t0 = millis();\n  int v = 1;\n  int step = 60;\n  while (millis() - t0 < 1200) {\n    v = 1 + random(6);\n    showValue(v);\n    delay(step);\n    step += 25;\n  }\n  value = 1 + random(6);\n  showValue(value);\n}\n\nvoid goSleep() {\n  digitalWrite(PIN_C, LOW); digitalWrite(PIN_TL_BR, LOW);\n  digitalWrite(PIN_TR_BL, LOW); digitalWrite(PIN_ML_MR, LOW);\n  esp_deep_sleep_enable_gpio_wakeup(1ULL << 3, ESP_GPIO_WAKEUP_GPIO_LOW);\n  esp_deep_sleep_start();\n}\n\nvoid setup() {\n  pinMode(PIN_C, OUTPUT); pinMode(PIN_TL_BR, OUTPUT);\n  pinMode(PIN_TR_BL, OUTPUT); pinMode(PIN_ML_MR, OUTPUT);\n  digitalWrite(PIN_C, LOW); digitalWrite(PIN_TL_BR, LOW);\n  digitalWrite(PIN_TR_BL, LOW); digitalWrite(PIN_ML_MR, LOW);\n  pinMode(PIN_BTN, INPUT_PULLUP);\n  randomSeed(esp_random() + analogRead(A0));\n  value = 0;\n  showValue(0);\n  lastAction = millis();\n}\n\nvoid loop() {\n  static bool prevHigh = true;\n  bool high = digitalRead(PIN_BTN);\n  if (prevHigh && !high) {\n    delay(30);\n    if (!digitalRead(PIN_BTN)) {\n      roll();\n      lastAction = millis();\n      while (!digitalRead(PIN_BTN)) delay(10);\n      delay(30);\n    }\n  }\n  prevHigh = high;\n  if (millis() - lastAction > IDLE_SLEEP_MS) goSleep();\n  delay(5);\n}\n"
+  },
+  "notes": "Плата Seeed XIAO ESP32-C3, Arduino-ESP32 3.x. Прошивка через USB-C модуля.",
+  "check": {
+   "ok": true,
+   "tool": "g++ 13.2.0 compile, no link (arduino-esp32 3.x stubs, Seeed ",
+   "errors": [],
+   "warnings": [],
+   "wiring": "05ca0d6c32ab325b",
+   "asks": "bb0ff0499d01"
+  }
+ },
+ "_version": 8
+}

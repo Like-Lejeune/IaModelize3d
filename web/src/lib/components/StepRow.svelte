@@ -41,7 +41,7 @@
       }
       case 'critic': {
         // the finish gate asked for a closer match than the reviewer's own verdict did
-        const verdict = item.forced_by && item.score != null ? t('critic_forced', { score: item.score }) : t(item.verdict) + (item.score != null ? ` · ${t('score_of', { s: item.score })}` : '');
+        const verdict = item.forced_by && item.score != null ? t('critic_forced', { score: item.score }) : t(item.verdict === 'unavailable' ? 'not_reviewed' : item.verdict) + (item.score != null ? ` · ${t('score_of', { s: item.score })}` : '');
         return {
           icon: 'eye',
           title: t('critic'),
@@ -128,7 +128,7 @@
     background: none;
     text-align: left;
     color: var(--on-surface-var);
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     cursor: pointer;
   }
   .head:disabled {
@@ -177,7 +177,7 @@
   }
   /* the result carries the numbers ("PCB v3 — 0 DRC errors, 23 traces…"): two lines before it is cut */
   .note {
-    font-size: var(--text-card-meta);
+    font-size: var(--text-sm);
     color: var(--outline);
     line-height: 17px;
     overflow: hidden;
@@ -204,7 +204,7 @@
   }
   .model {
     flex: none;
-    font-size: 11px;
+    font-size: var(--text-xs);
     line-height: 16px;
     padding: 0 6px;
     border-radius: var(--radius-tag);
@@ -238,7 +238,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
   }
   .thumb {
     padding: 0;
@@ -256,7 +256,7 @@
   pre {
     margin: 0;
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--text-xs);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     max-height: 220px;

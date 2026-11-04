@@ -67,7 +67,8 @@
    "type": "object", "required": ["id", "type", "side", "access", "w", "h"],
    "properties": {
     "id": { "type": "string" }, "type": { "type": "string" }, "side": { "enum": ["top", "bottom"] },
-    "access": { "enum": ["port", "press", "light", "sensor", "display", "sound", "cable", "none"], "description": "what the case gives it: a wall window, a press tongue, a lid window (light, sensor, display), a lid grille (sound)" },
+    "access": { "enum": ["port", "press", "light", "sensor", "display", "sound", "key", "cable", "none"], "description": "what the case gives it: a wall window, a press tongue, a lid window (light, sensor, display), a lid grille (sound), a plate and a printed keycap (key)" },
+    "key": { "type": "object", "description": "a mechanical key switch: plate_top, stem_top (mm above the PCB top face), plate_t, cut, travel, stem (mx|choc), cap [w, d]" },
     "w": { "type": "number", "minimum": 0 }, "h": { "type": "number", "minimum": 0 }, "d": { "type": "number", "minimum": 0 },
     "edge": { "enum": ["+x", "-x", "+y", "-y"] }, "at": { "type": "number" }, "z0": { "type": "number" }, "protrude": { "type": "number" },
     "plug": { "oneOf": [{ "$ref": "#/$defs/xy" }, { "type": "null" }] }, "plugR": { "type": "number" },

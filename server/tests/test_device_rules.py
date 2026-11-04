@@ -337,7 +337,8 @@ def test_accessory_supply(monkeypatch):
                     {"name": "GND", "pins": ["U1.GND", "A1.GND", "A2.GND", "A3.GND"]}, {"pins": ["U1.D1", "A1.OUT"]}, {"pins": ["U1.D0", "A3.AOUT"]}]}
     found = device_rules.check(doc, {})
     assert {("accessory_supply", "A1"), ("accessory_supply", "A2")} == {c for c in codes(found) if c[0] == "accessory_supply"}
-    assert all(f["severity"] == "warning" for f in found if f["code"] == "accessory_supply")
+    # a 5 V relay that never pulls in passed as a warning on 2026-11-04: a module off its supply does not work
+    assert all(f["severity"] == "error" for f in found if f["code"] == "accessory_supply")
 
 
 def test_requirements_naming_parts_that_are_not_there():
@@ -419,7 +420,7 @@ def test_supply_no_source_a_rail_nothing_feeds():
     bare = [{"name": "GND", "pins": ["U1.GND", "U2.GND", "C1.2"]}, {"name": "V3V3", "pins": ["U2.VDD", "C1.1"]}]
     f = one(run(nodes, bare, {"U2": BME280}), "supply_no_source")
     assert f["severity"] == "error" and f["ref"] == "V3V3" and "U2.VDD, C1.1" in f["msg"] and f["hint"].startswith("Connect U1.V3V3 to V3V3")
-    assert not run(nodes, [bare[0], {"name": "V3V3", "pins": ["U1.V3V3", "U2.VDD", "C1.1"]}], {"U2": BME280})
+    assert not run(nodes, [bare[0], {"name": "V3V3", "pins": ["U1.V3V3", "U2.VDD", "U2.VDDIO", "C1.1"]}], {"U2": BME280})
     # a regulator's output, a diode from a source and a battery's + feed a rail; a divider tap named like one is no rail
     reg = run([*nodes, {"id": "U3", "kind": "chip", "lcsc": "C6186"}],
               [{"name": "GND", "pins": ["U1.GND", "U2.GND", "C1.2", "U3.GND"]}, {"name": "V5", "pins": ["U1.V5", "U3.VIN"]}, {"name": "V3V3", "pins": ["U3.VOUT", "U2.VDD", "C1.1"]}],
@@ -552,9 +553,9 @@ def test_night_light_2_ldr_reading_rises_with_light():
 def test_night_light_3_leds_behind_q1_and_a_v3v3_nothing_feeds():
     # these graphs also name a warm light and order another colour: led_colour has its own test (test_firmware_sim)
     v1 = [f for f in stored(GRAPHS["night_light_3_v1"]["doc"]) if f["code"] != "led_colour"]
-    assert codes(v1, "error") == [("load_unpowered", "LED1")] and "LED1, LED2, LED3, LED4 are never powered" in one(v1, "load_unpowered")["msg"]
+    assert [c for c in codes(v1, "error") if c[0] != "accessory_supply"] == [("load_unpowered", "LED1")] and "LED1, LED2, LED3, LED4 are never powered" in one(v1, "load_unpowered")["msg"]
     v2 = [f for f in stored(GRAPHS["night_light_3_v2"]["doc"]) if f["code"] != "led_colour"]
-    assert codes(v2, "error") == [("load_unpowered", "LED1"), ("supply_no_source", "V3V3")]
+    assert [c for c in codes(v2, "error") if c[0] != "accessory_supply"] == [("load_unpowered", "LED1"), ("supply_no_source", "V3V3")]
     f = one(v2, "supply_no_source")
     assert "U2.VCC, U2.DVI, C1.1, C2.1, R1.1, R2.1" in f["msg"] and f["hint"].startswith("Connect U1.V3V3 to V3V3")
     assert not codes([f for f in stored(GRAPHS["night_light_3_fixed"]["doc"]) if f["code"] != "led_colour"], "error")
@@ -613,3 +614,13 @@ def test_round_4_timer_soil_and_dice_stay_clean():
     """The same buzzer on V3V3 (timer), the YX-YT9042 behind an S8050 (soil), the dice: nothing to say."""
     for key in ("timer_4", "soil_4", "dice_4"):
         assert fresh(GRAPHS[key]["doc"])[0] == [], key
+
+
+def test_a_socket_must_be_reachable():
+    jack = card(["1", "2", "3"], labels=["P1", "P2", "P3"], mpn="PJ-320A", category="Audio Connectors", description="3.5mm Headphone Jack Right-Angle")
+    wires = [{"name": "GND", "pins": ["U1.GND", "J1.P1"]}]
+    inside = run([{"id": "J1", "kind": "chip", "lcsc": "C2884926"}], wires, {"J1": jack})
+    assert ("socket_unreachable", "J1") in codes(inside, "error")
+    lid = run([{"id": "J1", "kind": "chip", "lcsc": "C2884926", "face": "hole"}], wires, {"J1": jack})
+    assert "opens sideways" in one(lid, "socket_unreachable")["msg"]
+    assert ("socket_unreachable", "J1") not in codes(run([{"id": "J1", "kind": "chip", "lcsc": "C2884926", "edge": "-y"}], wires, {"J1": jack}))

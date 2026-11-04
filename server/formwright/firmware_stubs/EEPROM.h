@@ -40,4 +40,15 @@ public:
   template <typename T> T &get(int address, T &t);
   template <typename T> const T &put(int address, const T &t);
 };
+#ifdef FW_SIM
+// firmware_sim: the templates need bodies to link
+template <typename T> T &EEPROMClass::get(int address, T &t) {
+  memcpy(&t, getDataPtr() + address, sizeof(T));
+  return t;
+}
+template <typename T> const T &EEPROMClass::put(int address, const T &t) {
+  memcpy(getDataPtr() + address, &t, sizeof(T));
+  return t;
+}
+#endif
 extern EEPROMClass EEPROM;

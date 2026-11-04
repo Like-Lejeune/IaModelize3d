@@ -1,0 +1,861 @@
+{
+ "schema": "fw.board/1",
+ "id": "pcb",
+ "name": "Датчик влажности почвы",
+ "aliases": [],
+ "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side; x right, y up, z up from the PCB bottom face. Component z values are heights above the face they sit on. Generated from the routed circuit.",
+ "source": {
+  "kind": "pcb",
+  "pcb_job": "pcb:v3"
+ },
+ "sources": {
+  "circuit": "circuit.json",
+  "typical": "packages/geom/src/boards.json#typical",
+  "modules": "packages/pcb/src/modules.json"
+ },
+ "uncertainty_mm": 0,
+ "pcb": {
+  "outline": {
+   "kind": "rect",
+   "w": 61,
+   "h": 50,
+   "r": 0,
+   "src": "circuit"
+  },
+  "thickness": 1.6,
+  "layers": 2,
+  "holes": [
+   {
+    "x": 2.88,
+    "y": 17.38,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 5.42,
+    "y": 17.38,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 7.96,
+    "y": 17.38,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 10.5,
+    "y": 17.38,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 13.04,
+    "y": 17.38,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 15.58,
+    "y": 17.38,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 18.12,
+    "y": 17.38,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 18.12,
+    "y": 32.62,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 15.58,
+    "y": 32.62,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 13.04,
+    "y": 32.62,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 10.5,
+    "y": 32.62,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 7.96,
+    "y": 32.62,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 5.42,
+    "y": 32.62,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 2.88,
+    "y": 32.62,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 37.69,
+    "y": 47.4,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "DS1"
+   },
+   {
+    "x": 40.23,
+    "y": 47.4,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "DS1"
+   },
+   {
+    "x": 42.77,
+    "y": 47.4,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "DS1"
+   },
+   {
+    "x": 45.31,
+    "y": 47.4,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "DS1"
+   },
+   {
+    "x": 27.96,
+    "y": 2.5,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "PR1"
+   },
+   {
+    "x": 30.5,
+    "y": 2.5,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "PR1"
+   },
+   {
+    "x": 33.04,
+    "y": 2.5,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "PR1"
+   },
+   {
+    "x": 45.25,
+    "y": 14.25,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW1"
+   },
+   {
+    "x": 45.25,
+    "y": 7.75,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW1"
+   },
+   {
+    "x": 49.75,
+    "y": 7.75,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW1"
+   },
+   {
+    "x": 49.75,
+    "y": 14.25,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW1"
+   },
+   {
+    "x": 3.5,
+    "y": 46.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 57.5,
+    "y": 46.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 3.5,
+    "y": 3.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 57.5,
+    "y": 3.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 28,
+    "y": 12,
+    "d": 0.9999979999999999,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "BZ1"
+   },
+   {
+    "x": 33,
+    "y": 12,
+    "d": 0.9999979999999999,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "BZ1"
+   }
+  ]
+ },
+ "components": [
+  {
+   "id": "U1",
+   "type": "xiao_esp32c3",
+   "side": "top",
+   "access": "none",
+   "x": 10.5,
+   "y": 25,
+   "w": 21,
+   "d": 17.8,
+   "z0": 2.5,
+   "h": 1.2,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "Seeed XIAO ESP32-C3: module PCB 1.2 mm on 2.5 mm header spacers"
+  },
+  {
+   "id": "U1_hdr_1",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 10.5,
+   "y": 17.4,
+   "w": 17.78,
+   "d": 2.5,
+   "h": 2.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-C3"
+   }
+  },
+  {
+   "id": "U1_hdr_2",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 10.5,
+   "y": 32.6,
+   "w": 17.78,
+   "d": 2.5,
+   "h": 2.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-C3"
+   }
+  },
+  {
+   "id": "U1_usb",
+   "type": "usb_c",
+   "side": "top",
+   "access": "port",
+   "edge": "-x",
+   "at": 25,
+   "w": 8.94,
+   "h": 3.2,
+   "d": 7.3,
+   "z0": 3.7,
+   "protrude": 1,
+   "plug": [
+    12.4,
+    6.5
+   ],
+   "src": "modules",
+   "verify": [
+    "h",
+    "d",
+    "protrude",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "Seeed XIAO ESP32-C3 usb, z 3.7-6.9 over the carrier"
+  },
+  {
+   "id": "U1_btn_boot",
+   "type": "tact_3x4_smd",
+   "side": "top",
+   "access": "press",
+   "x": 3.2,
+   "y": 19.3,
+   "w": 3,
+   "d": 2.5,
+   "z0": 3.7,
+   "h": 1.4,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "BOOT button beside the USB connector (pinout image)"
+  },
+  {
+   "id": "U1_btn_reset",
+   "type": "tact_3x4_smd",
+   "side": "top",
+   "access": "press",
+   "x": 3.2,
+   "y": 30.7,
+   "w": 3,
+   "d": 2.5,
+   "z0": 3.7,
+   "h": 1.4,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "RESET button"
+  },
+  {
+   "id": "U1_can",
+   "type": "shield",
+   "side": "top",
+   "access": "none",
+   "x": 12.5,
+   "y": 25,
+   "w": 12,
+   "d": 13,
+   "z0": 3.7,
+   "h": 1.8,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-C3"
+   }
+  },
+  {
+   "id": "U1_ufl",
+   "type": "ufl",
+   "side": "top",
+   "access": "cable",
+   "x": 18.5,
+   "y": 18.6,
+   "w": 3,
+   "d": 3,
+   "z0": 3.7,
+   "h": 1.25,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "U.FL antenna connector (bottom-left of the front); the flat antenna cable must exit the case"
+  },
+  {
+   "id": "DS1",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 41.5,
+   "y": 47.4,
+   "w": 10.16,
+   "d": 2.54,
+   "h": 2.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "evidence": {
+    "ref": "DS1",
+    "footprint": ""
+   },
+   "note": "header under 0.96\" OLED 128x64 I2C (SSD1306)"
+  },
+  {
+   "id": "PR1",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "w": 8.62,
+   "h": 8.5,
+   "d": 3.54,
+   "z0": 0,
+   "src": "circuit",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "PR1",
+    "footprint": "pinrow3_p2.54_nopinlabels"
+   },
+   "x": 30.5,
+   "y": 2.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "note": "connector of Capacitive soil moisture sensor v1.2: its lead leaves by the cable exit"
+  },
+  {
+   "id": "LED1",
+   "type": "led_0603",
+   "side": "top",
+   "access": "light",
+   "x": 40.5,
+   "y": 8,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.6,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "LED1",
+    "footprint": "0603_color(green)"
+   }
+  },
+  {
+   "id": "R3",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 38,
+   "y": 5,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R3",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "SW1",
+   "type": "tact_6x6",
+   "side": "top",
+   "access": "press",
+   "x": 47.5,
+   "y": 11,
+   "w": 7,
+   "d": 9,
+   "h": 5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "SW1",
+    "footprint": "pushbutton"
+   }
+  },
+  {
+   "id": "BZ1",
+   "type": "chip",
+   "side": "top",
+   "access": "sound",
+   "x": 30.5,
+   "y": 12,
+   "w": 9.5,
+   "d": 9.5,
+   "h": 5.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "BZ1",
+    "footprint": ""
+   },
+   "shape": "round"
+  },
+  {
+   "id": "Q1",
+   "type": "chip",
+   "side": "top",
+   "access": "none",
+   "x": 39,
+   "y": 12,
+   "w": 3.74,
+   "d": 3.4,
+   "h": 1.1,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "Q1",
+    "footprint": ""
+   }
+  },
+  {
+   "id": "RB",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 38.5,
+   "y": 16,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "RB",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "D1",
+   "type": "diode_sod123",
+   "side": "top",
+   "access": "none",
+   "x": 22,
+   "y": 12,
+   "w": 4.7,
+   "d": 2.3,
+   "h": 1.35,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "D1",
+    "footprint": "sod123"
+   }
+  },
+  {
+   "id": "R1",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 14,
+   "y": 13.5,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R1",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "R2",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 15,
+   "y": 10.5,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R2",
+    "footprint": "res0603"
+   }
+  }
+ ],
+ "keepouts": [],
+ "heights": {
+  "top_max": 8.5,
+  "bottom_max": 2,
+  "verify": [
+   "top_max",
+   "bottom_max"
+  ]
+ },
+ "mount": {
+  "preferred": "screw",
+  "screw": "M3",
+  "holes": 4
+ },
+ "accessories": [
+  {
+   "id": "DS1",
+   "key": "oled_096_i2c",
+   "name": "0.96\" OLED 128x64 I2C (SSD1306)",
+   "kind": "display",
+   "mount": "board",
+   "x": 41.5,
+   "y": 35.0,
+   "w": 27.3,
+   "d": 27.8,
+   "h": 3.0,
+   "z0": 2.5,
+   "window": [
+    21.74,
+    10.86
+   ],
+   "window_dx": 0.0,
+   "window_dy": -1.6,
+   "holes": [
+    {
+     "x": 29.85,
+     "y": 46.9,
+     "d": 2.0
+    },
+    {
+     "x": 53.15,
+     "y": 46.9,
+     "d": 2.0
+    },
+    {
+     "x": 29.85,
+     "y": 23.1,
+     "d": 2.0
+    },
+    {
+     "x": 53.15,
+     "y": 23.1,
+     "d": 2.0
+    }
+   ]
+  },
+  {
+   "id": "PR1",
+   "key": "soil_capacitive_v12",
+   "name": "Capacitive soil moisture sensor v1.2",
+   "kind": "probe",
+   "mount": "cable",
+   "x": 30.5,
+   "y": 2.5,
+   "w": 98.0,
+   "d": 23.0,
+   "h": 4.0,
+   "cable_d": 5.0,
+   "edge": "-y",
+   "at": 30.5
+  }
+ ]
+}

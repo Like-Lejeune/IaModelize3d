@@ -163,7 +163,7 @@
     }
   }
   .kind {
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
   }
   .body {
     position: relative;
@@ -177,7 +177,7 @@
     max-height: 26dvh;
     border-radius: var(--radius-card);
     border: var(--border-width) solid var(--outline-variant);
-    background: #f6f6f3;
+    background: var(--render-bg);
   }
   .shot {
     opacity: 0.8;

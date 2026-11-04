@@ -32,9 +32,12 @@ _gates: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] 
 
 
 class QuoteError(Exception):
-    def __init__(self, code: str, message: str):
+    """str(e) is what a customer may read; `detail` what the operator's problem row and the log get."""
+
+    def __init__(self, code: str, message: str, detail: str | None = None):
         super().__init__(message)
         self.code = code
+        self.detail = detail or message
 
 
 def _hooks() -> Any:
@@ -68,8 +71,9 @@ def spawn(order_id: str, step: Coroutine[Any, Any, Any]) -> bool:
             await step
         except asyncio.CancelledError:
             raise
-        except Exception:  # noqa: BLE001 - a background step must not die silently
+        except Exception as e:  # noqa: BLE001 - a background step must not die silently
             log.exception("shop step failed for order %s", order_id)
+            await _step_failed(order_id, e)
         finally:
             if _tasks.get(order_id) is task:
                 _tasks.pop(order_id, None)
@@ -77,6 +81,17 @@ def spawn(order_id: str, step: Coroutine[Any, Any, Any]) -> bool:
     task = asyncio.get_running_loop().create_task(guarded())
     _tasks[order_id] = task
     return True
+
+
+async def _step_failed(order_id: str, e: Exception) -> None:
+    """The order's problem row, so the operator sees it and reconcile waits for RETRY_S instead of restarting it on every poll."""
+    try:
+        db = await store.shop_db()
+        o = await store.get(db, order_id)
+        if o and o["status"] in flow.OPEN:
+            await problem(db, o, "step_failed", f"{type(e).__name__}: {e}")
+    except Exception:  # noqa: BLE001 - the database that failed the step may fail this too
+        log.exception("order %s: its failure could not be recorded", order_id)
 
 
 async def drain(timeout: float = 30.0) -> None:
@@ -179,7 +194,7 @@ async def requote(order_id: str, *, material: str | None = None, quantity: int |
             sl = await slice_for(o["project_id"], version, printer, material)
             q = quote.firm(sl, material=material, **kw)
         except Exception as e:  # noqa: BLE001 - SliceError, GeomError, a slice without numbers: all mean no firm quote
-            raise QuoteError("slice_failed", f"{type(e).__name__}: {e}"[:300]) from e
+            raise QuoteError("slice_failed", "the slicer could not price this model; try again in a few minutes", f"{type(e).__name__}: {e}"[:300]) from e
         sl["version"] = version
     q.update({"version": version, "valid_until": now() + QUOTE_VALID_S, "quoted_at": now()})
     fields: dict[str, Any] = {"quote": q, "version": version, "material": material, "quantity": quantity,
@@ -211,7 +226,7 @@ async def quote_step(order_id: str) -> None:
         o = await store.get(db, order_id)
         if o and o["status"] in flow.OPEN and getattr(e, "code", "") != "conflict":
             p = await db.one("SELECT version FROM projects WHERE id = ?", o["project_id"])
-            await problem(db, o, e.code, str(e), retry=e.code == "slice_failed",
+            await problem(db, o, e.code, getattr(e, "detail", str(e)), retry=e.code == "slice_failed",
                           version=o["version"] if o.get("listing_id") else (p or {}).get("version"))
 
 
@@ -221,7 +236,7 @@ def _read(intake: dict[str, Any]) -> bool:
 
 
 # the quoting step's own problems: the intake, once it reads the request, leaves them for the operator
-QUOTE_PROBLEMS = ("slice_failed", "no_model", "bad_material", "guard", "design_unfinished")
+QUOTE_PROBLEMS = ("slice_failed", "no_model", "bad_material", "guard", "design_unfinished", "design_unreviewed")
 
 
 async def _read_request(db: Database, o: dict[str, Any], user: dict[str, Any]) -> dict[str, Any] | quotas.QuotaExceeded:
@@ -296,7 +311,7 @@ async def _follow_material(db: Database, order_id: str) -> None:
             log.warning("no %s quote for %s: %s", m, o["ref"], e)
             fresh = await store.get(db, order_id)
             if fresh and fresh["status"] == "quoted":
-                await problem(db, fresh, e.code, str(e), retry=e.code == "slice_failed", material=m)
+                await problem(db, fresh, e.code, e.detail, retry=e.code == "slice_failed", material=m)
 
 
 async def follow_step(order_id: str) -> None:
@@ -383,8 +398,13 @@ async def begin(order_id: str) -> None:
         return
     try:
         await store.move(db, order_id, "designing", "system", code="designing", data={"job_id": job}, fields={"problem": {}})
-    except flow.FlowError:
-        await _hooks().cancel_job(job, o["user_id"])  # cancelled in the moment the job started: it must not run on
+    except Exception:
+        # cancelled in the moment the job started, or the database failed: it must not run on, because the order still
+        # says 'requested' and the next try would start a second design
+        try:
+            await _hooks().cancel_job(job, o["user_id"])
+        except Exception:  # noqa: BLE001
+            log.exception("order %s: design job %s could not be stopped", o["ref"], job)
         raise
     await watch_design(order_id, o["project_id"], job)
 
@@ -425,10 +445,25 @@ async def _unfinished(db: Database, o: dict[str, Any], version: int) -> bool:
     """A design that stopped early (budget, deadline, a crash) can leave a version that fails its printability checks:
     no payable quote for it. The operator looks first and can still quote it by hand."""
     prog = await db.one("SELECT checks FROM programs WHERE project_id = ? AND version = ?", o["project_id"], version)
-    if ((prog or {}).get("checks") or {}).get("ok") is not False:
-        return False
-    await problem(db, o, "design_unfinished", f"v{version} of the design fails its printability checks", retry=False, version=version)
-    return True
+    if ((prog or {}).get("checks") or {}).get("ok") is False:
+        await problem(db, o, "design_unfinished", f"v{version} of the design fails its printability checks", retry=False, version=version)
+        return True
+    if await _unreviewed(db, o["project_id"], version):
+        await problem(db, o, "design_unreviewed", f"no reviewer looked at v{version} of the design", retry=False, version=version)
+        return True
+    return False
+
+
+async def _unreviewed(db: Database, project_id: str, version: int) -> bool:
+    """The agent handed this version over and no reviewer gave a verdict on it (it did not answer, or the run stopped
+    before the review). Not payable by itself: the operator looks first and can still quote it by hand."""
+    for m in await db.all("SELECT data FROM messages WHERE project_id = ? AND role = 'agent' ORDER BY created_at DESC LIMIT 30", project_id):
+        d = m["data"] if isinstance(m["data"], dict) else {}
+        c = d.get("critic") or {}
+        if d.get("version") != version and c.get("version") != version:
+            continue
+        return c.get("reviewer") == "unavailable" or c.get("version", d.get("version")) != version or c.get("verdict") not in ("pass", "revise")
+    return False
 
 
 async def _design_job(db: Database, o: dict[str, Any]) -> dict[str, Any] | None:

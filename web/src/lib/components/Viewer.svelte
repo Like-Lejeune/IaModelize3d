@@ -83,6 +83,7 @@
   let hoverHandle = $state<string | null>(null);
 
   let renderer: THREE.WebGLRenderer;
+  let glState = $state<'on' | 'off' | 'lost'>('on');
   let scene: THREE.Scene;
   let camera: THREE.PerspectiveCamera;
   let controls: OrbitControls;
@@ -996,7 +997,21 @@
   }
 
   onMount(() => {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    } catch (e) {
+      console.warn('WebGL is unavailable', e);
+      glState = 'off';
+      return;
+    }
+    // three.js rebuilds its GPU state once the context comes back; until then the view says so
+    const onContextLost = (ev: Event) => {
+      ev.preventDefault();
+      glState = 'lost';
+    };
+    const onContextRestored = () => (glState = 'on');
+    canvas.addEventListener('webglcontextlost', onContextLost);
+    canvas.addEventListener('webglcontextrestored', onContextRestored);
     renderer.setPixelRatio(Math.min(2, devicePixelRatio));
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(38, 1, 0.5, 10000);
@@ -1044,6 +1059,8 @@
     });
     (navigator as any).xr?.isSessionSupported?.('immersive-ar').then((ok: boolean) => (arSupported = !!ok)).catch(() => {});
     return () => {
+      canvas.removeEventListener('webglcontextlost', onContextLost);
+      canvas.removeEventListener('webglcontextrestored', onContextRestored);
       ro.disconnect();
       mq.removeEventListener('change', applyTheme);
       themeObserver.disconnect();
@@ -1153,7 +1170,8 @@
 <div class="viewer" class:photo={photoMode}>
   <div class="stage" bind:this={host} style:aspect-ratio={photoMode && photo ? `${photo.calibration.width} / ${photo.calibration.height}` : undefined}>
     {#if photoMode && photo}<img class="bg" src={photo.url} alt="" />{/if}
-    <canvas bind:this={canvas} onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp} onpointercancel={onUp} onpointerleave={() => !drag && (hoverHandle = null)} aria-label={t('viewer_aria')}></canvas>
+    <canvas bind:this={canvas} style:pointer-events={glState === 'off' ? 'none' : undefined} onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp} onpointercancel={onUp} onpointerleave={() => !drag && (hoverHandle = null)} aria-label={t('viewer_aria')}></canvas>
+    {#if glState !== 'on'}<div class="glmsg small" role="alert">{t(glState === 'off' ? 'viewer_gl_off' : 'viewer_gl_lost')}</div>{/if}
     {#if handleTip}<div class="htip xs" class:hint={handleTip.hint}>{handleTip.text}</div>{/if}
     <div class="labels" bind:this={labelHost} aria-hidden="true">
       {#each labels as l (l.key)}
@@ -1299,6 +1317,19 @@
     gap: 8px;
     align-items: center;
   }
+  .glmsg {
+    position: absolute;
+    left: 50%;
+    top: 12px;
+    transform: translateX(-50%);
+    max-width: calc(100% - 24px);
+    padding: 6px 12px;
+    border-radius: var(--radius-btn);
+    background: var(--surface);
+    border: var(--border-width) solid var(--error);
+    color: var(--error);
+    z-index: 2;
+  }
   .tools {
     position: absolute;
     left: 8px;
@@ -1396,11 +1427,14 @@
   }
   .tools .btn {
     background: color-mix(in srgb, var(--surface-container) 85%, transparent);
+    color: var(--on-surface-var);
     backdrop-filter: blur(6px);
   }
-  /* a switch that is on (X-ray is, from the start) reads as pressed, not only by its text colour */
+  /* a switch that is on (X-ray is, from the start) reads as pressed: filled and outlined, the others stay ghosts */
   .tools .btn.on {
-    background: color-mix(in srgb, var(--primary-container) 92%, transparent);
+    background: var(--primary-container);
+    border-color: var(--primary);
+    color: var(--on-primary-container);
   }
   /* assembled | print layout: one control of two halves */
   .pair {
@@ -1430,8 +1464,8 @@
     align-items: center;
     gap: 5px;
     padding: 2px 8px 2px 6px;
-    border-radius: 999px;
-    font-size: 11px;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
     font-weight: var(--font-weight-semibold);
     white-space: nowrap;
     color: var(--on-surface);

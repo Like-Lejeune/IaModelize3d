@@ -222,7 +222,7 @@ async def _crash(db, pid: str, payload: dict, brief: dict | None = None) -> str:
     async def crashes(ctx):
         raise KeyError("version")
 
-    ctx = await runner._create(user, {"id": pid, "user_id": "u1"}, "design", payload, 0.6)
+    ctx = await runner._create(user, {"id": pid, "user_id": "u1"}, "design", payload)
     runner._spawn(ctx, crashes)
     await asyncio.wait_for(ctx.finished.wait(), 10)
     [e] = [e for e in await events.since(pid, 0) if e["type"] == "job.finished"]

@@ -47,7 +47,7 @@ def _known_codes() -> set[str]:
     known |= set(re.findall(r'"code": "([a-z_0-9]+)"', (SERVER / "device.py").read_text(encoding="utf-8")))
     # the case's findings (packages/geom enclosure check) the finish gate reads
     return known | {"light_window", "sound_grille", "sensor_window", "display_window", "cable_exit", "battery_space",
-                    "button_unreachable", "button_reach"}
+                    "button_unreachable", "button_reach", "key_plate"}
 
 
 def test_the_checklist_is_english_compact_and_names_real_checks():
@@ -72,7 +72,7 @@ def test_the_device_prompt_carries_the_checklist_after_the_method():
     pack = prompts.PACKS["device"]
     assert device_prompt.PACK_TEXT in pack and device_prompt.CHECKLIST in pack
     assert pack.index(device_prompt.PACK_TEXT) < pack.index("# Self-check")
-    assert "`checked`" in device_prompt.PACK_TEXT and len(device_prompt.PACK_TEXT) < 18_000  # the concept step took ~1.3k
+    assert "`checked`" in device_prompt.PACK_TEXT and len(device_prompt.PACK_TEXT) < 26_000  # the concept step took ~1.3k, the requirement tests ~0.7k, key switches, models, currents and the larger accessory library ~4k
 
 
 def test_kinds_of_follows_the_design_rules_and_the_accessories():

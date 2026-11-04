@@ -95,8 +95,10 @@ export function lcscLibrary(parts = {}) {
       } catch (e) {
         throw new StageError('compile', `the EasyEDA footprint of ${code} could not be converted: ${String(e?.message ?? e).slice(0, 300)}`);
       }
-      // the 3D model links would make the GLB preview fetch them: the board view draws a plain box instead
-      cache.set(code, cj.map((e) => (e.type === 'cad_component' ? Object.fromEntries(Object.entries(e).filter(([k]) => !k.startsWith('model_') || k.endsWith('alignment'))) : e)));
+      // the 3D model comes with the export instead (models.mjs): the worker has no network, and the converter's own size for it is
+      // not the model's (it would shrink a 9 mm PIR can to 4 mm)
+      const kept = parts[code]?.bare ? cj.filter((e) => !String(e.type).startsWith('pcb_courtyard')) : cj;
+      cache.set(code, kept.map((e) => (e.type === 'cad_component' ? Object.fromEntries(Object.entries(e).filter(([k]) => !k.startsWith('model_') || k.endsWith('alignment'))) : e)));
     }
     return { footprintCircuitJson: cache.get(code) };
   };
@@ -138,7 +140,7 @@ function extentOf(e) {
 export function courtyardMargins(parts = {}) {
   const out = {};
   for (const [code, p] of Object.entries(parts)) {
-    if (!p?.easyeda) continue;
+    if (!p?.easyeda || p.bare) continue;
     let cj;
     try { cj = convertEasyEdaJsonToCircuitJson(EasyEdaJsonSchema.parse(p.easyeda)); } catch { continue; }
     const grow = (b, x) => (b ? [Math.min(b[0], x[0]), Math.min(b[1], x[1]), Math.max(b[2], x[2]), Math.max(b[3], x[3])] : x);

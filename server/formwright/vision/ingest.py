@@ -19,7 +19,9 @@ from pathlib import Path
 from typing import Any
 
 import cv2
+import httpx
 import numpy as np
+from openai import APIConnectionError, APIStatusError, APITimeoutError
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .. import quotas
@@ -130,8 +132,17 @@ async def _owner(project_id: str) -> dict[str, Any] | None:
     return await db.one("SELECT u.* FROM users u JOIN projects p ON p.user_id = u.id WHERE p.id = ?", project_id)
 
 
-async def _blur(img: np.ndarray, user: dict[str, Any] | None = None) -> tuple[np.ndarray, int]:
-    """`user`: whose daily budget pays for it; when that is spent the photo is refused, not kept unblurred."""
+def _outage(e: Exception) -> bool:
+    """The model service is down or refusing for now: the same photo goes through a minute later."""
+    if isinstance(e, APIStatusError):
+        return e.status_code == 429 or e.status_code >= 500
+    return isinstance(e, (APIConnectionError, APITimeoutError, httpx.TransportError))
+
+
+async def _blur(img: np.ndarray, user: dict[str, Any] | None = None) -> tuple[np.ndarray, int | None]:
+    """The photo with its faces blurred and how many there were. `user`: whose daily budget pays for it; when that is
+    spent the photo is refused, not kept unblurred, and so it is while the model service is down (app.model_busy answers
+    503). Faces None: the pass ran into anything else, so the photo is stored as it came and marked meta.blur_skipped."""
     if not settings().blur_faces or not settings().meta_api_key:
         return img, 0
     from .privacy import blur_people
@@ -141,9 +152,12 @@ async def _blur(img: np.ndarray, user: dict[str, Any] | None = None) -> tuple[np
     meter = CostMeter(budget_usd=0.02)
     try:
         return await blur_people(meter, img)
-    except Exception as e:  # noqa: BLE001 — privacy pass must never block an upload
-        log.warning("face blur skipped: %s", e)
-        return img, 0
+    except Exception as e:  # noqa: BLE001
+        if _outage(e):
+            log.warning("face blur unavailable, upload refused: %s", e)
+            raise
+        log.warning("face blur skipped: %s: %s", type(e).__name__, e)
+        return img, None
     finally:
         if user:
             await quotas.settle(user["id"], meter.usd, is_job=False)
@@ -166,7 +180,8 @@ async def to_wav(data: bytes, suffix: str) -> bytes:
         res = await asyncio.to_thread(_run, [ff, "-y", "-loglevel", "error", "-i", str(src), "-vn", "-ac", "1", "-ar", "24000", "-c:a", "pcm_s16le",
                                              "-map_metadata", "-1", str(dst)])
         if res.returncode != 0 or not dst.exists():
-            raise ValueError(f"could not read audio: {res.stderr.decode(errors='ignore')[-300:]}")
+            log.info("ffmpeg could not read audio: %s", res.stderr.decode(errors="ignore")[-300:])  # it names temp paths
+            raise ValueError("could not read audio (use MP3, M4A, OGG or WAV)")
         return dst.read_bytes()
 
 
@@ -261,6 +276,8 @@ async def ingest_asset(project_id: str, kind: str, filename: str, data: bytes, m
             img, faces = await _blur(img, await _owner(project_id))
             if faces:
                 meta_info["faces_blurred"] = faces
+            elif faces is None:
+                meta_info["blur_skipped"] = True
         height, width = img.shape[:2]
         if exif:
             meta_info["exif"] = exif

@@ -1,12 +1,24 @@
 <script lang="ts">
   // Inside <SvelteFlow>: the viewport helpers the editor's toolbar needs (fit, the centre of the view for a new part).
-  import { useSvelteFlow } from '@xyflow/svelte';
+  import { useNodes, useSvelteFlow } from '@xyflow/svelte';
+  import type { WireBoard } from './wireboard.svelte';
+  import { FIT } from './layout';
 
-  let { arrived, bridge = $bindable() }: { arrived: number; bridge?: { fit: () => void; fitTo: (ids: string[]) => void; centre: () => [number, number] } } = $props();
+  let { arrived, board, bridge = $bindable() }: { arrived: number; board: WireBoard; bridge?: { fit: () => void; fitTo: (ids: string[]) => void; centre: () => [number, number] } } = $props();
   const flow = useSvelteFlow();
+  const nodes = useNodes();
+
+  // where the parts stand and how big, for the wires: a selection changes the nodes too, and must not route anything again
+  const standing = $derived(nodes.current.map((n) => `${n.position.x},${n.position.y},${n.measured?.width ?? 240},${n.measured?.height ?? 110}`).join(';'));
+  $effect(() => {
+    board.setBoxes(standing.split(';').filter(Boolean).map((v) => {
+      const [x, y, w, h] = v.split(',').map(Number);
+      return { x, y, w, h };
+    }));
+  });
 
   bridge = {
-    fit: () => flow.fitView({ padding: 0.18, duration: 350 }),
+    fit: () => flow.fitView({ ...FIT, duration: 350 }),
     // a group of parts (a requirement's, a layout's), not closer than the whole schematic would be
     fitTo: (ids) => flow.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.35, duration: 350, maxZoom: 1.1 }),
     centre: () => {
@@ -22,7 +34,7 @@
   $effect(() => {
     if (arrived !== seen) {
       seen = arrived;
-      setTimeout(() => flow.fitView({ padding: 0.18, duration: 400 }), 120);
+      setTimeout(() => flow.fitView({ ...FIT, duration: 400 }), 120);
     }
   });
 </script>

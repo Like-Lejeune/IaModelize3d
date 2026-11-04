@@ -69,6 +69,12 @@
   });
 
   const lastText = $derived([...blocks].reverse().find((b) => b.type === 'text')?.key);
+  // a finished run: its last words up front, the way there in one folded line (a question or a picture stays in the open)
+  const lastAt = $derived(blocks.findLastIndex((b) => b.type === 'text'));
+  const folded = $derived(!active && lastAt > 0 ? blocks.slice(0, lastAt).filter((b) => b.type !== 'item') : []);
+  const shown = $derived(!active && lastAt > 0 ? blocks.filter((b, i) => i >= lastAt || b.type === 'item') : blocks);
+  let logOpen = $state(false);
+  const spent = $derived(job.finished ? fmtDuration(job.finished - job.started) : '');
   const tail = $derived(blocks[blocks.length - 1]);
   const busyStep = $derived(tail?.type === 'group' && tail.items.some((i) => i.kind === 'tool' && !i.result));
   const showLive = $derived(active && job.status !== 'waiting' && !busyStep);
@@ -122,8 +128,7 @@
   }
 </script>
 
-<section class="turn" aria-label={t(`job_${job.kind}`)}>
-  {#if thoughts.length}
+{#snippet reasoningGroup()}
     <div class="group">
       <button class="ghead" onclick={() => (reasoning = !reasoning)} aria-expanded={reasoning}>
         <Icon name="brain" size={13} />
@@ -136,9 +141,9 @@
         </div>
       {/if}
     </div>
-  {/if}
+{/snippet}
 
-  {#each blocks as b, i (b.key)}
+{#snippet block(b: Block)}
     {#if b.type === 'text'}
       <div class="say md">{@html markdown(b.text)}</div>
       {#if b.key === lastText && !active}
@@ -226,19 +231,44 @@
         </p>
       {/if}
     {/if}
-  {/each}
+{/snippet}
+
+<section class="turn" aria-label={t(`job_${job.kind}`)}>
+  {#if !active && (folded.length || thoughts.length)}
+    <div class="group">
+      <button class="ghead" onclick={() => (logOpen = !logOpen)} aria-expanded={logOpen}>
+        <span class="glabel">{t('work_log')}{spent ? ` · ${spent}` : ''}</span>
+        <span class="chev" class:open={logOpen}><Icon name="chevron" size={12} /></span>
+      </button>
+      {#if logOpen}
+        <div class="log">
+          {#if thoughts.length}{@render reasoningGroup()}{/if}
+          {#each folded as b (b.key)}{@render block(b)}{/each}
+        </div>
+      {/if}
+    </div>
+  {:else if thoughts.length}
+    {@render reasoningGroup()}
+  {/if}
+
+  {#each shown as b (b.key)}{@render block(b)}  {/each}
 
   {#if showLive}
     <div class="live" aria-live="polite">
       {#if stopping}
         <span class="shimmer">{t('stopping')}</span>
+      {:else if store.connection === 'retry'}
+        <!-- what the job is doing is not known while the stream is down: no thinking and no counter -->
+        <span class="shimmer">{t('reconnecting')}</span>
+      {:else if job.wait?.outage}
+        <span class="shimmer">{t('model_outage')}</span>
       {:else if thought}
         <span class="shimmer lbl">{t('reasoning_summary')}</span>
         <span class="thought" title={thought}>{thought}</span>
       {:else}
         <span class="shimmer">{t('agent_thinking')}</span>
       {/if}
-      {#if job.wait?.seconds && !stopping}<span class="secs">{fmtDuration(job.wait.seconds)}</span>{/if}
+      {#if job.wait?.seconds && !stopping && store.connection !== 'retry'}<span class="secs">{fmtDuration(job.wait.seconds)}</span>{/if}
     </div>
   {/if}
 
@@ -247,7 +277,8 @@
   {/if}
 
   <!-- a visitor's studio (someone else's run) offers no next turn: Remix is theirs to take -->
-  {#if stoppedEarly && last && !store.running && !store.readonly}
+  <!-- only a design run has a request to take up again: a slice or a set of sketches starts afresh from its own panel -->
+  {#if stoppedEarly && last && !store.running && !store.readonly && job.kind === 'design'}
     <div class="stopped small">
       <!-- with no model yet there is no version to keep -->
       <span>{stopNote ?? (job.status === 'budget' ? t('budget_hint') : hasModel ? t('retry_hint') : t('retry_hint_new'))}</span>
@@ -273,7 +304,7 @@
     gap: 10px;
   }
   .say {
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     line-height: 1.55;
     overflow-wrap: anywhere;
   }
@@ -321,7 +352,7 @@
     border: none;
     background: none;
     text-align: left;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     color: var(--outline);
     cursor: pointer;
   }
@@ -342,6 +373,13 @@
   .chev.open {
     transform: rotate(90deg);
   }
+  .log {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-left: 10px;
+    border-left: var(--border-width) solid var(--divider);
+  }
   .gbox {
     border: var(--border-width) solid var(--outline-variant);
     border-radius: var(--radius-field);
@@ -353,7 +391,7 @@
     align-items: baseline;
     gap: 6px;
     min-width: 0;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
   }
   .live .lbl,
   .secs {
@@ -377,7 +415,7 @@
     gap: 10px;
     max-height: 360px;
     overflow-y: auto;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     line-height: 1.5;
     color: var(--on-surface-var);
     overflow-wrap: anywhere;
@@ -438,7 +476,7 @@
     display: flex;
     gap: 8px;
     align-items: center;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
   }
   .err {
     color: var(--error);

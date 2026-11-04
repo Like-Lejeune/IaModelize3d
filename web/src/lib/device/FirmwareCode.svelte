@@ -183,10 +183,10 @@
   }
   .ftabs button {
     font: inherit;
-    font-size: 12px;
+    font-size: var(--text-sm);
     font-family: var(--font-mono);
     padding: 2px 8px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     border: 1px solid transparent;
     background: transparent;
     color: var(--on-surface-var);
@@ -208,7 +208,7 @@
     display: grid;
     grid-template-columns: auto 1fr;
     font-family: var(--font-mono);
-    font-size: 12.5px;
+    font-size: var(--text-md);
     line-height: 1.55;
   }
   /* the numbers, the colours and the textarea share every metric, or the caret drifts off its letters */
@@ -219,7 +219,6 @@
     border: none;
     font: inherit;
     line-height: inherit;
-    letter-spacing: normal;
     word-spacing: normal;
     font-variant-ligatures: none;
     white-space: pre;
@@ -252,12 +251,12 @@
     gap: 5px;
     height: 24px;
     padding: 0 9px;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     border: 1px solid var(--outline-variant);
     background: transparent;
     color: var(--on-surface-var);
     font: inherit;
-    font-size: 12px;
+    font-size: var(--text-sm);
     white-space: nowrap;
     cursor: pointer;
   }
@@ -283,7 +282,7 @@
     overflow: auto;
     border-top: 1px solid var(--divider);
     background: var(--surface-container-low);
-    font-size: 12.5px;
+    font-size: var(--text-md);
   }
   .dh {
     display: flex;
@@ -293,7 +292,7 @@
     position: sticky;
     top: 0;
     background: var(--surface-container-low);
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
   .dg {
     display: grid;
@@ -319,7 +318,7 @@
     color: var(--error);
   }
   .dg .at {
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     color: var(--on-surface-var);
     white-space: nowrap;
   }
@@ -330,7 +329,7 @@
   .hint {
     display: block;
     color: var(--on-surface-var);
-    font-size: 11.5px;
+    font-size: var(--text-sm);
   }
   .hl,
   textarea.src {
@@ -427,7 +426,7 @@
     margin: 0;
   }
   .big {
-    font-size: 36px;
+    font-size: var(--text-4xl);
     color: var(--primary);
   }
 </style>

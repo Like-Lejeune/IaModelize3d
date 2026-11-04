@@ -59,6 +59,7 @@ class Lane {
         job.onPartial?.(r);
         return;
       }
+      if (r.fatal) this.kill(); // its WASM kernel did not load: the next job gets a fresh worker
       this.finish(r);
     };
     this.worker.onerror = (ev) => {

@@ -1,9 +1,11 @@
 <script lang="ts">
+  // The parts studio, laid out as the device workspace is (lib/device/ui/workspace.css): workspace tabs in a thin top bar,
+  // the AI engineer on the left, the model in the middle, the Properties of the tab on the right.
   import { page } from '$app/state';
   import { goto, replaceState } from '$app/navigation';
-  import { onDestroy, setContext, untrack } from 'svelte';
-  import Header from '$lib/components/Header.svelte';
+  import { onDestroy, onMount, setContext, untrack } from 'svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import Logo from '$lib/components/Logo.svelte';
   import Viewer from '$lib/components/Viewer.svelte';
   import StageProgress from '$lib/components/StageProgress.svelte';
   import Conversation from '$lib/components/Conversation.svelte';
@@ -17,26 +19,43 @@
   import PcbPanel from '$lib/components/PcbPanel.svelte';
   import SnapHighlight from '$lib/components/SnapHighlight.svelte';
   import Modal from '$lib/components/Modal.svelte';
+  import ReplayBar from '$lib/components/ReplayBar.svelte';
+  import Sash from '$lib/components/Sash.svelte';
+  import { SideDock } from '$lib/dock.svelte';
   import { ProjectStore } from '$lib/project.svelte';
+  import { ReplayPlayer } from '$lib/replay.svelte';
   import { stashFirst, takeFirst } from '$lib/pending';
   import { api, download, errorText } from '$lib/api';
-  import { t, isText, projectTitle, unitLabel } from '$lib/i18n.svelte';
+  import { i18n, t, isText, projectTitle, unitLabel } from '$lib/i18n.svelte';
+  import { refreshMe } from '$lib/session.svelte';
+  import { callTitle } from '$lib/steps';
+  import { dt } from '$lib/device/i18n';
+  import Panel from '$lib/device/ui/Panel.svelte';
+  import '$lib/device/ui/workspace.css';
   import type { AssetOut, Calibration, Issue, ScanBox } from '$lib/types';
   import type { Box } from '$lib/snapframe';
 
   type Tab = 'chat' | 'model' | 'pcb' | 'checks' | 'print' | 'more';
-  const TAB_ICON: Record<Tab, string> = { chat: 'message', model: 'cube', pcb: 'cpu', checks: 'check-circle', print: 'printer', more: 'grid-dots' };
 
   let store = $state<ProjectStore | null>(null);
+  /** ?replay: the recorded run plays back here (/w/<id> opens it), the project itself stays as it is. */
+  const replayMode = $derived(page.url.searchParams.has('replay'));
+  let player = $state<ReplayPlayer | null>(null);
+  let barH = $state(0);
   let tab = $state<Tab>('model');
   let selectedIssue = $state<Issue | null>(null);
   let arAsset = $state<AssetOut | null>(null);
   let viewer = $state<Viewer>();
   let wide = $state(true);
+  // the side panels give way on a laptop screen, so the model keeps most of the width
+  const dock = new SideDock('studio', {
+    left: (w) => Math.round(Math.min(390, Math.max(300, w * 0.24))),
+    right: (w) => Math.round(Math.min(360, Math.max(300, w * 0.22))),
+  });
   let getIt = $state(false);
   /** What More → Ideas should do once it opens: sketch concepts for a prompt, or start drawing a change. */
   let ideas = $state<{ prompt?: string; draw?: boolean } | null>(null);
-  // phones and tablets: Share and Remix live in an overflow menu
+  // phones and small tablets: Share and Remix live in an overflow menu
   let menu = $state(false);
   let menuWrap = $state<HTMLElement>();
   // 'f' gives the whole width to the viewer (demo shots)
@@ -56,8 +75,11 @@
 
   $effect(() => {
     const id = page.params.id!;
-    const s = new ProjectStore(id);
+    const replay = replayMode;
+    const s = new ProjectStore(id, false, replay);
+    const p = replay ? new ReplayPlayer(s, Number(untrack(() => page.url.searchParams.get('at'))) || null) : null;
     store = s;
+    player = p;
     selectedIssue = null;
     arAsset = null;
     getIt = false;
@@ -73,29 +95,33 @@
       // a device has its own workspace: its first message goes along
       if (s.detail?.pack === 'device') {
         if (first) stashFirst(id, first.text, first.files);
-        goto(`/d/${id}`, { replaceState: true });
+        goto(`/d/${id}${replay ? location.search : ''}`, { replaceState: true });
         return;
       }
+      p?.start();
       // remembered for this tab: a reload or Back must not bring back a line an update has replaced since
       if (axo && !idea) {
         const u = new URL(location.href);
         u.searchParams.delete('axo');
         replaceState(u.pathname + u.search + u.hash, {});
       }
-      if (first) s.sendFiles(first.text, first.files);
+      if (first && s.detail) s.sendFiles(first.text, first.files);
       // a board project without a 3D model yet: its PCB is the picture
       if (s.detail?.pack === 'pcb' && !s.source && wide) show('pcb');
       if (idea && s.detail) {
         replaceState(location.pathname, {});
-        show('more');
+        open('more');
         ideas = { prompt: idea };
       }
     });
-    return () => s.dispose();
+    return () => {
+      p?.dispose();
+      s.dispose();
+    };
   });
 
   $effect(() => {
-    const mq = matchMedia('(min-width: 1100px)');
+    const mq = matchMedia('(min-width: 980px)');
     const set = () => {
       wide = mq.matches;
       if (wide && tab === 'chat') tab = 'model';
@@ -107,6 +133,8 @@
   });
 
   onDestroy(() => store?.dispose());
+  // the order panel asks who this is (the Axo cart); a visitor has no composer to ask for it
+  onMount(() => void refreshMe());
 
   const photo = $derived.by(() => {
     if (!store) return null;
@@ -127,7 +155,24 @@
   const outer = $derived(store?.assembled ? store.build?.parts?.find((p) => p.meta?.enclosure)?.meta?.enclosure?.outerSize : undefined);
   const size = $derived(outer ?? store?.checks?.stats?.size);
   const plate = $derived(!!store?.hasLayout && !outer);
+  // the editor header's line: version, size, weight
+  const facts = $derived.by(() => {
+    const grams = store?.checks?.stats?.estGrams;
+    return [
+      `v${store?.version}`,
+      size ? `${plate ? `${t('size_plate')} ` : ''}${size.map((v) => +v.toFixed(1)).join(' × ')} ${unitLabel('mm')}` : '',
+      grams ? `${Math.round(grams)} ${dt('g')}` : '',
+    ].filter(Boolean).join(' · ');
+  });
   const job = $derived(store?.currentJob ?? null);
+  // what the agent is doing right now, in words: its latest step or status line
+  const activity = $derived.by(() => {
+    if (!store?.running) return null;
+    const it = store.timeline.findLast((i) => i.kind === 'tool' || i.kind === 'status');
+    if (it?.kind === 'tool') return callTitle(it.name, it.args, it.title);
+    if (it?.kind === 'status') return it.text;
+    return t('agent_working');
+  });
   // no model yet and the agent is on it: the stage shows what it is doing instead of an empty bed
   const progress = $derived(!!store && !store.build && (!!store.starting || job?.status === 'running' || job?.status === 'waiting'));
   // printability boxes belong to the Checks tab; elsewhere the overhang heat tells the story
@@ -213,16 +258,6 @@
     }
   }
 
-  async function togglePublic() {
-    if (!store?.detail) return;
-    try {
-      const p = await api.patchProject(store.id, { public: !store.detail.public });
-      store.detail.public = p.public;
-    } catch (err) {
-      store.addError(errorText(err));
-    }
-  }
-
   async function fork() {
     if (!store) return;
     menu = false;
@@ -234,29 +269,20 @@
     }
   }
 
-  // a visitor can watch someone else's run play back in a copy of their own (free, no model calls)
-  let watching = $state(false);
-  async function watch() {
-    if (!store) return;
-    watching = true;
-    try {
-      const p = await api.replay(store.id, 8);
-      goto(`/p/${p.id}`);
-    } catch (err) {
-      store.addError(errorText(err));
-    } finally {
-      watching = false;
-    }
-  }
-
   /** Panels are hidden in the expanded viewer: switching to one brings them back. */
   function show(tb: Tab) {
     tab = tb;
     expanded = false;
   }
 
+  /** The same when the person asked for that tab: a right panel they had hidden comes back with it. */
+  function open(tb: Tab) {
+    show(tb);
+    if (dock.right.hidden) dock.show('right');
+  }
+
   function drawChange() {
-    show('more');
+    open('more');
     ideas = { draw: true };
   }
 
@@ -266,9 +292,14 @@
       if (!getIt) expanded = false;
       return;
     }
-    if (e.key.toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey || !wide || getIt) return;
     const el = e.target as HTMLElement | null;
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+    if (e.ctrlKey && /^[1-9]$/.test(e.key) && tabs[Number(e.key) - 1]) {
+      e.preventDefault();
+      open(tabs[Number(e.key) - 1]);
+      return;
+    }
+    if (e.key.toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey || !wide || getIt) return;
     expanded = !expanded;
   }
 
@@ -287,7 +318,7 @@
   }
 
   function onAction(a: string) {
-    if (a === 'slice' || a === 'probe') show('print');
+    if (a === 'slice' || a === 'probe') open('print');
     else if (a === 'download') download3mf();
     else if (a === 'order' || a === 'share') getIt = true;
   }
@@ -297,6 +328,7 @@
     const a = store.assets.find((x) => x.url === url);
     store.send(t('use_this') + (a ? '' : `: ${url}`), a ? [a.id] : []);
     if (!wide) tab = 'chat';
+    else if (dock.left.hidden) dock.show('left');
   }
 
   /** A stroke sculpted in the viewer becomes the next op of the mesh document. */
@@ -313,80 +345,151 @@
   function askFix(text: string) {
     store?.send(text);
     if (!wide) tab = 'chat';
+    else if (dock.left.hidden) dock.show('left');
   }
 </script>
 
 <svelte:head><title>{store?.detail ? projectTitle(store.detail.title) : t('studio')} · Formwright</title></svelte:head>
 
-<svelte:window onkeydown={onKey} onclick={(e) => menu && menuWrap && !e.composedPath().includes(menuWrap) && (menu = false)} />
+<svelte:window onkeydown={onKey} onclick={(e) => menu && menuWrap && !e.composedPath().includes(menuWrap) && (menu = false)} bind:innerWidth={dock.viewport} />
 
-<!-- in the composer's place for a visitor: whose project this is, and the way to make it one's own -->
-{#snippet remixOffer()}
-  <div class="remix">
-    <p class="small"><Icon name="lock" size={14} /> {t('forbidden')}</p>
-    <div class="row">
-      <button class="btn primary" onclick={fork}><Icon name="gitfork" size={16} /> {t('fork')}</button>
-      {#if store && Object.keys(store.jobs).length}
-        <button class="btn ghost" onclick={watch} disabled={watching}>
-          {#if watching}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="play" size={14} />{/if}
-          {t('watch_replay')}
-        </button>
-      {/if}
-    </div>
-  </div>
+{#snippet projectName()}
+  {#if store?.detail}
+    {#if store.readonly}<strong class="pname" title={projectTitle(store.detail.title)}>{projectTitle(store.detail.title)}</strong>
+    {:else}<input class="pname" value={projectTitle(store.detail.title)} onchange={rename} aria-label={t('name')} />{/if}
+  {/if}
 {/snippet}
 
-<div class="page">
-  <Header>
-    {#if store?.detail && store.readonly}
-      <!-- someone else's project: read-only from the start, the remix is the way to change it -->
-      <div class="titlebar">
-        <strong class="title ro" title={projectTitle(store.detail.title)}>{projectTitle(store.detail.title)}</strong>
-        {#if store.version}<span class="chip mono hide-sm">v{store.version}</span>{/if}
-        {#if store.connection === 'retry'}<span class="chip warn">{t('reconnecting')}</span>{/if}
-        <span class="spacer"></span>
-        <!-- on a phone the label gives the title its room: the offer under the chat says it in full -->
-        <button class="btn primary small" onclick={fork} title={t('forbidden')} aria-label={t('fork')}><Icon name="gitfork" size={15} /><span class="hide-sm"> {t('fork')}</span></button>
-      </div>
-    {:else if store?.detail}
-      <div class="titlebar">
-        <input class="title" value={projectTitle(store.detail.title)} onchange={rename} aria-label={t('name')} />
-        {#if store.version}<span class="chip mono hide-sm">v{store.version}</span>{/if}
-        {#if store.connection === 'retry'}<span class="chip warn">{t('reconnecting')}</span>{/if}
-        <span class="spacer"></span>
-        <button class="btn ghost small hide-md" onclick={() => (getIt = true)}><Icon name="share" size={15} /> {t('share')}</button>
-        <button class="btn ghost small hide-md" onclick={fork} title={t('fork')}><Icon name="gitfork" size={15} /> {t('fork')}</button>
-        <div class="menu show-md" bind:this={menuWrap}>
-          <button class="btn icon small ghost" onclick={() => (menu = !menu)} aria-haspopup="menu" aria-expanded={menu} aria-label="{t('share')} · {t('fork')}" title="{t('share')} · {t('fork')}">
+{#snippet chatArea()}
+  {#if store}
+    <header class="ah">
+      <span class="at">{dt('ai_engineer')}</span>
+      {#if store.running}<span class="busy"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {activity}</span>{/if}
+      <span class="spacer"></span>
+      {#if wide}<button class="hb icon" onclick={() => dock.hide('left')} title={dt('collapse')} aria-label={dt('collapse')}><i class="ti ti-layout-sidebar-left-collapse" aria-hidden="true"></i></button>{/if}
+    </header>
+    <div class="ab chatbody">
+      <Conversation {store} {onAction} onUseConcept={useConcept} />
+      {#if player}
+        <!-- the player's bar says what to do with the run -->
+      {:else if store.readonly}
+        <!-- in the composer's place for a visitor: whose project this is, and the way to make it one's own -->
+        <div class="remix">
+          <span><i class="ti ti-lock" aria-hidden="true"></i> {t('forbidden')}</span>
+          {#if Object.keys(store.jobs).length}<a class="hb" href="/w/{store.id}"><i class="ti ti-player-play" aria-hidden="true"></i> {t('replay')}</a>{/if}
+          <button class="hb primary" onclick={fork}><i class="ti ti-git-fork" aria-hidden="true"></i> {t('fork')}</button>
+        </div>
+      {:else}<Composer {store} />{/if}
+    </div>
+  {/if}
+{/snippet}
+
+{#snippet editorHeader()}
+  {#if store}
+    {#if !wide}{@render projectName()}{/if}
+    {#if store.version}
+      <span class="meta" title={facts}>{facts}</span>
+    {/if}
+    {#if job}
+      <!-- the stage card says it already -->
+      {#if !progress}<span class="busy"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {job.kind !== 'design' ? t(`job_${job.kind}`) : job.stage ? t(`stage.${job.stage}`) : t('agent_working')}</span>{/if}
+    {:else if store.building}
+      <span class="busy"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {t('building_model')}</span>
+    {:else if store.checking}
+      <span class="busy"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {t('refining')}</span>
+    {:else if store.checks}
+      <button class="hb verdict {errCount ? 'err' : warnCount ? 'warn' : 'ok'}" onclick={() => open('checks')} title={errCount ? t('checks_err') : warnCount ? t('checks_warn') : t('checks_ok')}>
+        <Icon name={errCount ? 'alert' : 'check'} size={13} />
+        {errCount ? t('checks_err') : warnCount ? t('checks_warn') : t('checks_ok')}
+      </button>
+    {/if}
+    <span class="spacer"></span>
+    <button class="hb" onclick={download3mf} disabled={!store.source}><i class="ti ti-download" aria-hidden="true"></i> 3MF</button>
+    {#if !store.readonly}
+      <button class="hb primary" onclick={() => (getIt = true)} disabled={!store.source} title={t('order')} aria-label={t('order')}><i class="ti ti-package" aria-hidden="true"></i>{#if wide} {t('order')}{/if}</button>
+    {/if}
+  {/if}
+{/snippet}
+
+<div class="bw" class:replay={!!player} class:chatting={!wide && tab === 'chat'} style:--replay-h="{player ? barH : 0}px">
+  <header class="top">
+    <a class="logo" href="/" title="Formwright" aria-label="Formwright"><Logo size={20} /></a>
+    {#if wide}{@render projectName()}{/if}
+    {#if store?.detail}
+      <nav class="wtabs" role="tablist" aria-label={t('studio')}>
+        {#each tabs as tb, i (tb)}
+          <button role="tab" class="wt" aria-selected={tab === tb} onclick={() => open(tb)} title="{t(tb)} (Ctrl+{i + 1})">
+            <!-- a mark only where there is something to say: the agent at work, or the checks found something -->
+            {#if (tb === 'chat' && store.running) || (tb === 'pcb' && store.pcb.live)}<i class="ti ti-loader-2 spin sd" aria-hidden="true"></i>
+            {:else if tb === 'checks' && (errCount || encErrors)}<span class="sd d-err"></span>
+            {:else if tb === 'checks' && warnCount}<span class="sd d-warn"></span>{/if}
+            {t(tb)}
+          </button>
+        {/each}
+      </nav>
+    {/if}
+    <span class="spacer"></span>
+    {#if store?.saveError}<button class="saving warnc retrysave" onclick={() => store?.retrySave()} title="{store.saveError} {t('not_saved_d')}">{t('not_saved')}</button>{/if}
+    {#if store?.connection === 'retry'}<span class="saving warnc">{t('reconnecting')}</span>{/if}
+    {#if store?.detail}
+      {#if store.readonly}
+        <button class="hb primary" onclick={fork} title={t('forbidden')} aria-label={t('fork')}><i class="ti ti-git-fork" aria-hidden="true"></i>{#if wide} {t('fork')}{/if}</button>
+      {:else if wide}
+        {#if Object.keys(store.jobs).length && !store.running}
+          <a class="hb icon" href="/w/{store.id}" title={t('watch_your_replay')} aria-label={t('watch_your_replay')}><i class="ti ti-player-play" aria-hidden="true"></i></a>
+        {/if}
+        <button class="hb icon" onclick={() => (getIt = true)} title={t('share')} aria-label={t('share')}><i class="ti ti-share" aria-hidden="true"></i></button>
+        <button class="hb icon" onclick={fork} title={t('fork')} aria-label={t('fork')}><i class="ti ti-git-fork" aria-hidden="true"></i></button>
+      {:else}
+        <div class="menu" bind:this={menuWrap}>
+          <button class="hb icon" onclick={() => (menu = !menu)} aria-haspopup="menu" aria-expanded={menu} aria-label="{t('share')} · {t('fork')}" title="{t('share')} · {t('fork')}">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
           </button>
           {#if menu}
             <div class="pop" role="menu">
+              {#if Object.keys(store.jobs).length && !store.running}
+                <a role="menuitem" href="/w/{store.id}"><Icon name="play" size={16} /> {t('replay')}</a>
+              {/if}
               <button role="menuitem" onclick={() => ((menu = false), (getIt = true))}><Icon name="share" size={16} /> {t('share')}</button>
               <button role="menuitem" onclick={fork}><Icon name="gitfork" size={16} /> {t('fork')}</button>
+              <button role="menuitem" onclick={() => ((menu = false), (i18n.lang = i18n.lang === 'ru' ? 'en' : 'ru'))}><span class="lang">{i18n.lang.toUpperCase()}</span> Language</button>
             </div>
           {/if}
         </div>
-      </div>
+      {/if}
     {/if}
-  </Header>
+    {#if wide || !store?.detail || store.readonly}
+      <button class="hb icon" onclick={() => (i18n.lang = i18n.lang === 'ru' ? 'en' : 'ru')} title="Language" aria-label="Language"><span class="lang">{i18n.lang.toUpperCase()}</span></button>
+    {/if}
+  </header>
 
   {#if store?.loadError}
     <!-- a private project the visitor cannot read: nothing to remix, so no remix offer either -->
-    <div class="center"><p class="err">{isText(store.loadError, 'forbidden') ? t('private_project') : store.loadError}</p><a class="btn" href="/">{t('back')}</a></div>
+    <div class="center" role="alert">
+      <p class="err">{isText(store.loadError, 'forbidden') ? t('private_project') : store.loadError}</p>
+      {#if store.loadRetrying}<p class="xs muted">{t('load_retrying')}</p><button class="hb primary" onclick={() => store?.retryLoad()}>{t('retry')}</button>{/if}
+      <a class="hb" href="/">{t('back')}</a>
+    </div>
   {:else if !store?.detail}
     <div class="center"><i class="ti ti-loader-2 spin" aria-hidden="true"></i></div>
   {:else}
-    <main class="studio" class:wide class:expanded={wide && expanded} class:chatting={!wide && tab === 'chat'}>
+    <div
+      class="screen"
+      class:wide
+      class:expanded={wide && expanded}
+      class:no-left={dock.left.hidden}
+      class:no-right={dock.right.hidden}
+      style:--dock-l="{dock.width('left')}px"
+      style:--dock-r="{dock.width('right')}px"
+    >
       {#if wide}
-        <aside class="left card">
-          <Conversation {store} {onAction} onUseConcept={useConcept} />
-          {#if store.readonly}{@render remixOffer()}{:else}<Composer {store} />{/if}
-        </aside>
+        <section class="area chat" class:gone={dock.left.hidden}>{@render chatArea()}</section>
+        {#if !expanded}<Sash {dock} side="left" label={dt('ai_engineer')} pulse={store.running} />{/if}
       {/if}
 
-      <section class="center-col">
-        <div class="stage card">
+      <section class="area editor" class:tight={wide && dock.viewport - dock.width('left') - dock.width('right') < 760}>
+        <header class="ah">{@render editorHeader()}</header>
+        <div class="ab canvas stage">
           <Viewer
             bind:this={viewer}
             loading={!!store.source && !store.build && !progress}
@@ -430,90 +533,74 @@
             {/if}
           {/if}
           {#if progress}<StageProgress {store} {job} />{/if}
-          <div class="overlay tl">
-            {#if job}
-              <!-- the stage card says it already -->
-              {#if !progress}<span class="pill work"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {job.kind !== 'design' ? t(`job_${job.kind}`) : job.stage ? t(`stage.${job.stage}`) : t('agent_working')}</span>{/if}
-            {:else if store.building}
-              <span class="pill"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {t('building_model')}</span>
-            {:else if store.checking}
-              <span class="pill"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {t('refining')}</span>
-            {:else if store.checks}
-              <button class="pill {errCount ? 'err' : warnCount ? 'warn' : 'ok'}" onclick={() => show('checks')}>
-                <Icon name={errCount ? 'alert' : 'check'} size={13} />
-                {errCount ? t('checks_err') : warnCount ? t('checks_warn') : t('checks_ok')}
-              </button>
-            {/if}
-          </div>
-          {#if size}<div class="overlay tr mono">{plate ? `${t('size_plate')} ` : ''}{size.map((v) => +v.toFixed(1)).join(' × ')} {unitLabel('mm')}</div>{/if}
           {#if store.buildError}<div class="builderr mono" role="alert"><strong>{t('model_error')}</strong> {store.buildError}</div>{/if}
         </div>
       </section>
 
-      <aside class="right card">
-        <div class="tabs" class:many={wide && tabs.length > 4}>
-          <div class="seg" role="tablist">
-            {#each tabs as tb (tb)}
-              <button role="tab" aria-selected={tab === tb} onclick={() => (tab = tb)}>
-                <span class="ticon" aria-hidden="true"><Icon name={TAB_ICON[tb]} size={18} /></span>
-                <span class="tlabel">{t(tb)}</span>
-                <!-- printability errors and the case's errors against its board -->
-                {#if tb === 'checks' && (errCount || encErrors || warnCount)}<span class="n {errCount || encErrors ? 'err' : 'warn'}">{errCount + encErrors || warnCount}</span>{/if}
-                {#if tb === 'chat' && store.running}<span class="live" aria-label={t('agent_working')}></span>{/if}
-              </button>
-            {/each}
-          </div>
+      {#if wide && !expanded}<Sash {dock} side="right" label={dt('properties')} />{/if}
+
+      {#if !wide && tab === 'chat'}
+        <section class="area chat">{@render chatArea()}</section>
+      {:else}
+        <div class="rcol" class:gone={wide && dock.right.hidden}>
+          <section class="area props">
+            <header class="ah"><span class="at">{dt('properties')}</span></header>
+            <div class="ab scroll panels">
+              {#if tab === 'model'}
+                {#if store.readonly && store.source}<p class="note">{t('readonly_hint')}</p>{/if}
+                {#if store.meshDoc}<Panel name="meshops" title={t('mesh_ops')}><MeshOpsPanel {store} /></Panel>{/if}
+                <Panel name="partparams" title={dt('part_params')}>
+                  <ParamsPanel panel={dt('part_params')} specs={sliderSpecs} values={store.values} agentValues={store.agentValues} building={store.building || (!!store.source && !store.build)} onChange={(n, v, c) => store!.setParam(n, v, c)} />
+                </Panel>
+              {:else if tab === 'pcb'}
+                <Panel name="pcbinfo" title={dt('panel_pcb')}>
+                  <PcbPanel {store} part="side" onSend={store.readonly || store.replaying ? undefined : askFix} />
+                </Panel>
+              {:else if tab === 'checks'}
+                <Panel name="partchecks" title={t('checks')}>
+                  {#snippet right()}
+                    {#if errCount || encErrors}<span class="badge err">{errCount + encErrors}</span>{/if}
+                    {#if warnCount}<span class="badge">{warnCount}</span>{/if}
+                  {/snippet}
+                  <ChecksPanel
+                    checks={store.checks}
+                    selected={selectedIssue}
+                    onSelect={(i) => (selectedIssue = i)}
+                    building={store.building}
+                    onAskFix={store.readonly ? undefined : askFix}
+                    {example}
+                    enclosure={store.enclosure?.check ?? null}
+                    enclosureStale={!!store.enclosure && !store.enclosureFresh}
+                    board={store.board}
+                    focusPart={encFocus}
+                    onFocusPart={(p) => {
+                      encFocus = p;
+                      // the rays are drawn around the board in the closed case
+                      if (p && store?.hasLayout && !store.assembled) store.setAssembled(true);
+                    }}
+                    onRecheck={store.readonly || store.replaying ? undefined : () => askFix(t('enc_recheck_msg'))}
+                    assembled={!!layout && layout === 'assembled'}
+                    enclosureChecking={store.enclosureChecking}
+                  />
+                </Panel>
+              {:else if tab === 'print'}
+                <Panel name="partprint" title={t('print')}>
+                  <PrintPanel {store} />
+                </Panel>
+                {#if !wide}<Panel name="partgetit" title={t('get_it')}><GetItPanel {store} readonly={store.readonly} /></Panel>{/if}
+              {:else if tab === 'more'}
+                <Panel name="partmore" title={t('more')}>
+                  <MorePanel {store} snapshot={() => viewer?.snapshot() ?? null} onUseConcept={useConcept} onPhotoAR={(a) => (arAsset = a)} focus={ideas} onFocused={() => (ideas = null)} />
+                </Panel>
+              {/if}
+            </div>
+          </section>
         </div>
-        <div class="tabbody" class:chat={tab === 'chat'}>
-          {#if tab === 'chat'}
-            <Conversation {store} {onAction} onUseConcept={useConcept} />
-            {#if store.readonly}{@render remixOffer()}{:else}<Composer {store} />{/if}
-          {:else if tab === 'model'}
-            {#if store.readonly && store.source}<p class="muted small ro-hint">{t('readonly_hint')}</p>{/if}
-            {#if store.meshDoc}<MeshOpsPanel {store} />{/if}
-            <ParamsPanel specs={sliderSpecs} values={store.values} agentValues={store.agentValues} building={store.building || (!!store.source && !store.build)} onChange={(n, v, c) => store!.setParam(n, v, c)} />
-          {:else if tab === 'pcb'}
-            <PcbPanel {store} part="side" onSend={store.readonly || store.replaying ? undefined : askFix} />
-          {:else if tab === 'checks'}
-            <ChecksPanel
-              checks={store.checks}
-              selected={selectedIssue}
-              onSelect={(i) => (selectedIssue = i)}
-              building={store.building}
-              onAskFix={store.readonly ? undefined : askFix}
-              {example}
-              enclosure={store.enclosure?.check ?? null}
-              enclosureStale={!!store.enclosure && !store.enclosureFresh}
-              board={store.board}
-              focusPart={encFocus}
-              onFocusPart={(p) => {
-                encFocus = p;
-                // the rays are drawn around the board in the closed case
-                if (p && store?.hasLayout && !store.assembled) store.setAssembled(true);
-              }}
-              onRecheck={store.readonly || store.replaying ? undefined : () => askFix(t('enc_recheck_msg'))}
-              assembled={!!layout && layout === 'assembled'}
-              enclosureChecking={store.enclosureChecking}
-            />
-          {:else if tab === 'print'}
-            <PrintPanel {store} />
-            {#if !wide}<div class="getit-inline"><GetItPanel {store} readonly={store.readonly} onPublish={togglePublic} /></div>{/if}
-          {:else if tab === 'more'}
-            <MorePanel {store} snapshot={() => viewer?.snapshot() ?? null} onUseConcept={useConcept} onPhotoAR={(a) => (arAsset = a)} focus={ideas} onFocused={() => (ideas = null)} />
-          {/if}
-        </div>
-        {#if wide && tab !== 'chat'}
-          <div class="getbar">
-            <button class="btn primary" onclick={download3mf} disabled={!store.source}><Icon name="download" size={16} /> {t('download_3mf')}</button>
-            {#if store.readonly}
-              <button class="btn" onclick={fork}><Icon name="gitfork" size={16} /> {t('fork')}</button>
-            {:else}
-              <button class="btn" onclick={() => (getIt = true)} disabled={!store.source}><Icon name="package" size={16} /> {t('order')}</button>
-            {/if}
-          </div>
-        {/if}
-      </aside>
-    </main>
+      {/if}
+    </div>
+    {#if player}
+      <div class="replaybar" bind:clientHeight={barH}><ReplayBar {player} onFork={fork} exit="/p/{store.id}" /></div>
+    {/if}
   {/if}
 </div>
 
@@ -531,7 +618,7 @@
 
 {#if getIt && store}
   <Modal title={t('get_it')} onClose={() => (getIt = false)}>
-    <GetItPanel {store} readonly={store.readonly} onPublish={togglePublic} />
+    <GetItPanel {store} readonly={store.readonly} />
   </Modal>
 {/if}
 
@@ -551,120 +638,111 @@
 {/if}
 
 <style>
-  .page {
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
+  /* 'f': the whole width to the model (demo shots) */
+  .screen.wide.expanded {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 4px;
   }
-  .titlebar {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .screen.wide.expanded .editor {
+    grid-column: 1;
+  }
+  .screen.expanded .chat,
+  .screen.expanded .rcol {
+    display: none;
+  }
+  .rcol {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+  }
+  .spacer {
+    flex: 1;
+  }
+  .meta {
+    flex: 0 1 auto;
     min-width: 0;
-  }
-  .title {
-    background: transparent;
-    border-color: transparent;
-    font-weight: var(--font-weight-semibold);
-    min-width: 60px;
-    flex: 0 1 340px;
-    height: 42px;
-    padding: 0 12px;
-    font-size: var(--text-product-lead);
+    color: var(--on-surface-var);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+    overflow: hidden;
     text-overflow: ellipsis;
   }
-  .title:hover {
-    border-color: var(--outline-variant);
-  }
-  .title:focus {
-    background: var(--surface-container);
-  }
-  /* a visitor's title: the same place and size, not editable */
-  .title.ro {
-    display: block;
-    line-height: 40px;
-    border: var(--border-width) solid transparent;
+  .busy {
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+    min-width: 0;
     overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--primary);
+    font-size: var(--text-sm);
     white-space: nowrap;
   }
-  .title.ro:hover {
-    border-color: transparent;
+  .retrysave {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--warn-text);
   }
-  .remix {
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
-    border-top: var(--border-width) solid var(--divider);
-    background: var(--surface-container);
-  }
-  .remix p {
-    margin: 0;
+  .saving {
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+    font-size: var(--text-sm);
     color: var(--on-surface-var);
   }
-  .remix p :global(.icon) {
-    vertical-align: -2px;
-  }
-  .remix .row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
-  /* side by side when they fit, else one full-width row each */
-  .remix .row .btn {
-    flex: 1 1 auto;
-  }
-  .ro-hint {
-    margin: 0 0 var(--space-3);
+  .warnc {
+    color: var(--warn-text);
   }
   .center {
-    flex: 1;
     display: grid;
     place-items: center;
-    gap: 12px;
-    padding: 40px 16px;
-    text-align: center;
+    align-content: center;
+    gap: 10px;
   }
   .err {
     color: var(--error);
   }
-  .studio {
-    flex: 1;
-    display: grid;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: min(46dvh, 460px) auto;
+  .note {
+    margin: 0;
+    padding: 2px 4px;
+    font-size: var(--text-sm);
+    line-height: 1.45;
+    color: var(--on-surface-var);
   }
-  .studio.wide {
-    /* the side panels give way on a laptop screen, so the model keeps most of the width */
-    grid-template-columns: clamp(300px, 24vw, 390px) minmax(0, 1fr) clamp(300px, 22vw, 360px);
-    grid-template-rows: minmax(0, 1fr);
-    /* a fixed height, not flex: a growing chat must scroll inside its panel, not stretch the page */
-    flex: none;
-    height: calc(100dvh - var(--header-h, 67px));
+  .badge {
+    font-size: var(--text-xs);
+    min-width: 16px;
+    padding: 0 4px;
+    border-radius: var(--radius-xs);
+    background: color-mix(in srgb, var(--warn) 28%, transparent);
+    color: var(--warn-text);
+    text-align: center;
   }
-  .studio.wide.expanded {
-    grid-template-columns: minmax(0, 1fr);
+  .badge.err {
+    background: color-mix(in srgb, var(--error) 24%, transparent);
+    color: var(--error);
   }
-  .studio.expanded .left,
-  .studio.expanded .right {
-    display: none;
+  /* an editor narrowed by its side panels: its buttons down to their icons, so the last of them stays on screen */
+  .editor.tight .ah .hb:not(.primary, .icon) {
+    font-size: 0;
+    gap: 2px;
+    padding: 0 7px;
   }
-  /* narrow screens, chat tab: one screen tall, the model above and the conversation scrolling under it */
-  .studio.chatting {
-    flex: none;
-    height: calc(100dvh - var(--header-h, 67px));
-    grid-template-rows: min(30dvh, 280px) minmax(0, 1fr);
+  /* the case check's verdict, in the editor's header */
+  .verdict.ok {
+    color: var(--primary);
   }
-  .studio.chatting .right {
-    overflow: hidden;
+  .verdict.warn {
+    color: var(--warn-text);
   }
-  /* the page does not scroll here, and a clipping panel would offset sticky tabs by the header height */
-  .studio.chatting .tabs {
-    position: static;
+  .verdict.err {
+    color: var(--error);
+  }
+  /* a panel's body is a grid: a wide table or row inside scrolls in its place instead of pushing the column out */
+  .panels :global(.bp .body > *) {
+    min-width: 0;
   }
   .menu {
     position: relative;
@@ -683,7 +761,8 @@
     background: var(--surface-container);
     box-shadow: var(--shadow-pop);
   }
-  .pop button {
+  .pop button,
+  .pop a {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -695,93 +774,16 @@
     font: inherit;
     color: var(--on-surface);
     text-align: left;
+    text-decoration: none;
     cursor: pointer;
   }
-  .pop button:hover {
+  .pop button:hover,
+  .pop a:hover {
     background: var(--surface-high);
   }
-  .show-md,
-  .ticon {
-    display: none;
-  }
-  .left,
-  .right {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-  }
-  .center-col {
-    position: relative;
-    min-height: 0;
-    min-width: 0;
-    display: flex;
-  }
   .stage {
-    position: relative;
-    flex: 1;
-    min-height: 0;
     overflow: hidden;
     display: flex;
-  }
-  .overlay {
-    position: absolute;
-    z-index: 2;
-    pointer-events: none;
-  }
-  .overlay > * {
-    pointer-events: auto;
-  }
-  .overlay.tl {
-    top: var(--space-3);
-    left: var(--space-3);
-  }
-  .overlay.tr {
-    top: var(--space-3);
-    right: var(--space-3);
-    font-size: var(--text-card-meta);
-    font-weight: var(--font-weight-semibold);
-    background: color-mix(in srgb, var(--surface-container) 88%, transparent);
-    border: var(--border-width) solid var(--outline-variant);
-    border-radius: var(--radius-tag);
-    padding: 4px 10px;
-    backdrop-filter: blur(6px);
-  }
-  /* status pill over the 3D view */
-  .pill {
-    display: inline-flex;
-    gap: 6px;
-    align-items: center;
-    font-family: inherit;
-    font-size: var(--text-card-meta);
-    font-weight: var(--font-weight-semibold);
-    padding: 4px 10px;
-    border-radius: var(--radius-tag);
-    border: var(--border-width) solid var(--outline-variant);
-    background: color-mix(in srgb, var(--surface-container) 88%, transparent);
-    backdrop-filter: blur(6px);
-    color: var(--on-surface-var);
-  }
-  button.pill {
-    cursor: pointer;
-  }
-  .pill.ok {
-    background: color-mix(in srgb, var(--primary-container) 88%, transparent);
-    border-color: transparent;
-    color: var(--primary);
-  }
-  .pill.warn {
-    background: color-mix(in srgb, var(--warn) 22%, var(--surface-container));
-    border-color: transparent;
-    color: var(--warn-text);
-  }
-  .pill.err {
-    background: color-mix(in srgb, var(--error) 20%, var(--surface-container));
-    border-color: transparent;
-    color: var(--error);
-  }
-  .pill.work {
-    color: var(--primary);
   }
   .builderr {
     position: absolute;
@@ -793,90 +795,18 @@
     color: var(--error);
     border-radius: var(--radius-card);
     padding: 10px 14px;
-    font-size: 12px;
+    font-size: var(--text-sm);
     max-height: 30%;
     overflow: auto;
     white-space: pre-wrap;
     z-index: 2;
   }
-  .tabs {
-    padding: var(--space-3);
-    border-bottom: var(--border-width) solid var(--divider);
-    flex: none;
-  }
-  /* the tabs share the width; tight padding keeps all four in the narrowest right column */
-  .tabs .seg button {
-    padding-inline: 8px;
-  }
-  /* five tabs (a board's PCB tab too) in the narrowest right column */
-  .tabs.many .seg button {
-    padding-inline: 3px;
-    font-size: 12px;
-  }
-  .n {
-    font-size: 10px;
-    font-weight: var(--font-weight-semibold);
-    min-width: 18px;
-    height: 18px;
-    border-radius: var(--radius-tag);
-    display: inline-grid;
-    place-items: center;
-    padding: 0 5px;
-  }
-  .n.err {
-    background: var(--error);
-    color: var(--surface);
-  }
-  .n.warn {
-    background: var(--warn);
-    color: #241a05;
-  }
-  .live {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--primary);
-    animation: fw-blink 1s ease-in-out infinite alternate;
-  }
-  @keyframes fw-blink {
-    to {
-      opacity: 0.3;
-    }
-  }
-  .tabbody {
-    padding: var(--space-4);
-    overflow-y: auto;
-    flex: 1;
-    min-height: 0;
-  }
-  /* a definite height from the chatting grid: the log scrolls inside and follows new output */
-  .tabbody.chat {
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  .tabbody.chat :global(.composer) {
-    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
-  }
-  .getbar {
-    display: flex;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    border-top: var(--border-width) solid var(--divider);
-    background: var(--surface-container);
-  }
-  /* both fit the narrowest right column (300 px) */
-  .getbar .btn {
-    flex: 1;
-    padding-inline: 8px;
-  }
-  /* under the header, over the middle of the stage: clear of the viewer's toolbar and the composer */
+  /* under the top bar, over the middle of the stage: clear of the viewer's toolbar and the composer */
   .toasts {
     position: fixed;
     left: 0;
     right: 0;
-    top: calc(var(--header-h, 67px) + var(--space-3));
+    top: 50px;
     z-index: 50;
     display: flex;
     justify-content: center;
@@ -892,7 +822,7 @@
     padding: 6px 8px 6px 6px;
     border-radius: var(--radius-field);
     box-shadow: var(--shadow-pop);
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     font-weight: var(--font-weight-semibold);
     animation: toast-in var(--dur-base) var(--ease-settle);
   }
@@ -923,7 +853,7 @@
   .scanchip {
     position: absolute;
     z-index: 2;
-    top: calc(var(--space-3) + 38px);
+    top: var(--space-3);
     right: var(--space-3);
   }
   .scanpip {
@@ -932,6 +862,18 @@
     overflow: hidden;
     box-shadow: var(--shadow-pop);
     animation: toast-in var(--dur-base) var(--ease-settle);
+  }
+  .scanchip {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font: inherit;
+    border: var(--border-width) solid var(--outline-variant);
+    border-radius: var(--radius-tag);
+    background: color-mix(in srgb, var(--surface-container) 88%, transparent);
+    backdrop-filter: blur(6px);
+    color: var(--on-surface-var);
+    cursor: pointer;
   }
   .scanimg {
     display: block;
@@ -982,86 +924,50 @@
     gap: 6px;
     margin-top: var(--space-3);
   }
-  .getit-inline {
-    margin-top: var(--space-5);
-    padding-top: var(--space-4);
-    border-top: var(--border-width) solid var(--divider);
-  }
-  @media (max-width: 1099px) {
-    /* the header has room for labelled Share and Remix only next to the three-column studio */
-    .hide-md {
-      display: none;
+  @media (max-width: 979px) {
+    .rcol {
+      grid-template-rows: auto;
     }
-    .show-md {
-      display: block;
+    /* the title has come down from the top bar: it gives the rest of the header some room */
+    .editor .ah .pname {
+      width: 130px;
     }
-    .right {
-      overflow: visible;
+    /* the verdict and the work in progress down to their marks: the tabs and the stage say the rest */
+    .editor .ah .verdict {
+      font-size: 0;
+      gap: 0;
+      padding: 0 10px;
     }
-    .tabbody {
-      overflow: visible;
+    .editor .ah .busy {
+      flex: none;
+      font-size: 0;
     }
-    .tabs {
-      position: sticky;
-      top: var(--header-h, 67px);
-      z-index: 5;
-      background: var(--surface-container);
-      border-radius: var(--radius-card) var(--radius-card) 0 0;
+    .editor .ah .busy i {
+      font-size: var(--text-base);
     }
-  }
-  @media (max-width: 640px) {
-    .hide-sm {
-      display: none;
+    /* a short tab leaves its room under the panels, not between them */
+    .screen {
+      align-content: start;
     }
-    .title {
-      padding: 0 6px;
+    .toasts {
+      top: 58px;
     }
-    /* the status pill goes under the size readout instead of running into it */
-    .overlay.tl {
-      top: calc(var(--space-3) + 34px);
+    /* the chat tab: one screen tall, the model above and the conversation scrolling under it */
+    .bw.chatting {
+      height: calc(100dvh - var(--replay-h, 0px));
+      min-height: 0;
+      overflow: hidden;
+      grid-template-rows: 50px minmax(0, 1fr);
+      padding-bottom: 0;
     }
-    .studio {
-      padding: var(--space-2);
-      gap: var(--space-2);
-      grid-template-rows: min(44dvh, 380px) auto;
-    }
-    .studio.chatting {
+    .bw.chatting .screen {
       grid-template-rows: min(30dvh, 260px) minmax(0, 1fr);
     }
-    .tabbody {
-      padding: var(--space-3);
+    .bw.chatting .editor {
+      height: auto;
     }
-    /* five tabs in 343 px: an icon over a short label, the counters on the icon */
-    .tabs {
-      padding: var(--space-2);
-    }
-    .tabs .seg button {
-      position: relative;
-      flex-direction: column;
-      gap: 1px;
-      min-width: 0;
-      padding: 5px 2px;
-      font-size: 11px;
-    }
-    .ticon {
-      display: inline-flex;
-    }
-    .tlabel {
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .tabs .n {
-      position: absolute;
-      top: 3px;
-      left: calc(50% + 6px);
-      min-width: 16px;
-      height: 16px;
-    }
-    .tabs .live {
-      position: absolute;
-      top: 6px;
-      left: calc(50% + 11px);
+    .chat :global(.composer) {
+      padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
     }
     .scanpip {
       width: 124px;

@@ -65,7 +65,7 @@ export function svgMap(svg, W, H) {
   return { matrix: [k(a), 0, 0, k(dd), k(x0), k(y1)], width: size ? Number(size[1]) : null, height: size ? Number(size[2]) : null };
 }
 
-export async function previews(cj) {
+export async function previews(cj, models = {}) {
   const { convertCircuitJsonToPcbSvg, convertCircuitJsonToSchematicSvg } = await import('circuit-to-svg');
   const { convertCircuitJsonToGltf } = await import('circuit-json-to-gltf');
   const b = cj.find((e) => e.type === 'pcb_board');
@@ -80,7 +80,19 @@ export async function previews(cj) {
   let glb = null, glbError = null;
   try {
     await ensureResvg();
-    glb = await time('glb', async () => new Uint8Array(await convertCircuitJsonToGltf(cj, { format: 'glb', boardTextureResolution: 1024, includeModels: false })));
+    const { withModels, withModelFetch } = await import('./models.mjs');
+    const convert = (m) => {
+      const dressed = withModels(cj, m);
+      return withModelFetch(dressed.objs, async () => new Uint8Array(await convertCircuitJsonToGltf(dressed.cj, { format: 'glb', boardTextureResolution: 1024 })));
+    };
+    glb = await time('glb', async () => {
+      try {
+        return await convert(models);
+      } catch (e) { // a catalogue model that does not parse costs the models, not the board's picture
+        glbError = `a part's 3D model failed: ${String(e?.message ?? e).slice(0, 200)}`;
+        return await convert({ ...models, objs: {} });
+      }
+    });
   } catch (e) {
     glbError = String(e?.message ?? e).slice(0, 300);
   }

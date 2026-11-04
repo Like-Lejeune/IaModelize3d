@@ -1,11 +1,11 @@
 {
  "schema": "fw.device/1",
- "title": "Home Weather Station",
- "summary": "Home weather station: BME280 + OLED + Wi-Fi",
+ "title": "Настольная метеостанция OLED",
+ "summary": "Настольная метеостанция: температура, влажность и давление на OLED, кнопка листает экраны",
  "board": {
   "holes": true,
   "w": 46.0,
-  "h": 50.0
+  "h": 48.0
  },
  "nodes": [
   {
@@ -13,7 +13,7 @@
    "kind": "module",
    "label": "MCU",
    "module": "113991054",
-   "edge": "-y"
+   "edge": "+y"
   },
   {
    "id": "U2",
@@ -43,20 +43,13 @@
    "package": "0603"
   },
   {
-   "id": "R3",
-   "kind": "resistor",
-   "label": "LED resistor",
-   "value": "1k",
-   "package": "0603"
-  },
-  {
-   "id": "LED1",
-   "kind": "led",
-   "label": "status",
-   "color": "green",
+   "id": "DS1",
+   "kind": "accessory",
+   "label": "display",
+   "accessory": "oled_096_i2c",
    "place": {
-    "x": -14.0,
-    "y": -12.0,
+    "x": -3.0,
+    "y": -8.0,
     "rot": 0.0
    }
   },
@@ -65,19 +58,8 @@
    "kind": "button",
    "label": "page",
    "place": {
-    "x": 14.0,
-    "y": -12.0,
-    "rot": 0.0
-   }
-  },
-  {
-   "id": "DS1",
-   "kind": "accessory",
-   "label": "display",
-   "accessory": "oled_096_i2c",
-   "place": {
-    "x": 0.0,
-    "y": 10.0,
+    "x": 15.0,
+    "y": -14.0,
     "rot": 0.0
    }
   }
@@ -89,10 +71,10 @@
     "U2.GND",
     "U2.SDO",
     "C1.2",
-    "LED1.K",
     "SW1.B",
     "DS1.GND"
-   ]
+   ],
+   "name": "GND"
   },
   {
    "pins": [
@@ -127,18 +109,6 @@
   },
   {
    "pins": [
-    "U1.MOSI",
-    "R3.1"
-   ]
-  },
-  {
-   "pins": [
-    "R3.2",
-    "LED1.A"
-   ]
-  },
-  {
-   "pins": [
     "U1.D1",
     "SW1.A"
    ]
@@ -147,88 +117,115 @@
  "requirements": [
   {
    "id": "R1",
-   "text": "measure temperature, humidity and pressure",
+   "text": "измерять температуру, влажность и давление",
    "parts": [
     "U2"
    ],
-   "firmware": true
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "at_s": 5,
+      "screen": "C"
+     }
+    ],
+    "given": {},
+    "steps": []
+   }
   },
   {
    "id": "R2",
-   "text": "show readings on OLED display, pages flipped by button",
+   "text": "показывать значения на экране OLED в крышке",
    "parts": [
     "DS1"
    ],
-   "firmware": true
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "at_s": 5,
+      "screen": "C"
+     }
+    ],
+    "given": {},
+    "steps": []
+   }
   },
   {
    "id": "R3",
-   "text": "serve readings over Wi-Fi web page",
+   "text": "кнопка листает экраны",
    "parts": [
-    "U1"
+    "SW1"
    ],
-   "firmware": true
-  },
-  {
-   "id": "R4",
-   "text": "status LED blinks on every reading",
-   "parts": [
-    "LED1"
-   ],
-   "firmware": true
+   "firmware": true,
+   "test": {
+    "expect": [
+     {
+      "at_s": 7,
+      "screen": "hPa"
+     }
+    ],
+    "given": {},
+    "steps": [
+     {
+      "at_s": 6,
+      "press": "SW1"
+     }
+    ]
+   }
   }
  ],
  "concept": {
   "uses": [
-   "on a living-room shelf powered from USB: readings on OLED and phone over Wi-Fi",
-   "in a bedroom at night: check temperature/humidity at a glance, flip display pages with button"
+   "на рабочем столе, питание от USB-зарядника сзади: взгляд на экран прямо, кнопка под рукой",
+   "в спальне ночью: температура и влажность на OLED, одно нажатие листает экраны"
   ],
   "options": [
    {
-    "name": "Shelf block",
-    "look": "small soft block standing on a shelf, OLED on lid, button below it",
-    "panel": "OLED centred on lid, status LED left, page button right below display",
+    "name": "Desk wedge",
+    "look": "мягкий клин на столе, экран в крышке лицом к человеку",
+    "panel": "OLED по центру крышки, кнопка справа от экрана",
     "form": "soft",
-    "stance": "desk",
+    "stance": "tilt",
     "mounting": "none",
-    "module_edge": "-y",
+    "module_edge": "+y",
     "board": {
      "shape": "rect",
      "w": 46.0,
-     "h": 50.0
+     "h": 48.0
     }
    },
    {
-    "name": "Wall tile",
-    "look": "flat tile on two screws at eye height, cable leaving at bottom",
-    "panel": "OLED at top, LED under it, button beside it, sensor vent at bottom far from module",
+    "name": "Upright frame",
+    "look": "вертикальная рамка-картина на подставке 75°",
+    "panel": "OLED по центру, кнопка сбоку",
     "form": "box",
-    "stance": "wall",
-    "mounting": "ears",
-    "module_edge": "-y",
+    "stance": "upright",
+    "mounting": "none",
+    "module_edge": "+y",
     "board": {
      "shape": "rect",
-     "w": 30.0,
-     "h": 45.0
+     "w": 40.0,
+     "h": 55.0
     }
    },
    {
-    "name": "Fridge puck",
-    "look": "round puck on magnets on a fridge",
-    "panel": "round OLED window centre, LED ring around it, button at bottom of circle",
+    "name": "Flat puck",
+    "look": "круглый шайба на столе экраном вверх",
+    "panel": "OLED в центре круга, кнопка рядом",
     "form": "round",
-    "stance": "upright",
-    "mounting": "magnets",
-    "module_edge": "-y",
+    "stance": "desk",
+    "mounting": "none",
+    "module_edge": "+y",
     "board": {
      "shape": "round",
-     "w": 42.0,
+     "w": 44.0,
      "h": 42.0
     }
    }
   ],
-  "chosen": "Shelf block",
-  "why": "Shelf block keeps the OLED facing the room, fits the display plus button, and needs no mounting."
+  "chosen": "Desk wedge",
+  "why": "Наклонная подставка 25° ставит текст прямо к глазам, задняя стенка +y свободна под USB, передняя -y свободна."
  },
  "_version": 2
 }

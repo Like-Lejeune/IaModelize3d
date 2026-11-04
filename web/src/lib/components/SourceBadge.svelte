@@ -14,7 +14,7 @@
 
 <style>
   .src {
-    font-size: 11px;
+    font-size: var(--text-xs);
     padding: 0 7px;
   }
 </style>

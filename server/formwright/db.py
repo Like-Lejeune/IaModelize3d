@@ -11,6 +11,7 @@ import aiosqlite
 from .config import settings
 
 SCHEMA = """
+PRAGMA busy_timeout=30000;
 PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY, tier TEXT NOT NULL DEFAULT 'anon', name TEXT,
@@ -88,6 +89,13 @@ CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY, project_id TEXT NOT NULL, user_id TEXT NOT NULL, status TEXT NOT NULL,
   external_ref TEXT, checkout_url TEXT, quote TEXT NOT NULL DEFAULT '{}', created_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS replay_views (
+  project_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at REAL NOT NULL, PRIMARY KEY (project_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS idempotency (
+  user_id TEXT NOT NULL, scope TEXT NOT NULL, idem_key TEXT NOT NULL, ref TEXT, created_at REAL NOT NULL,
+  PRIMARY KEY (user_id, scope, idem_key)
+);
 """
 
 MIGRATIONS = [
@@ -98,6 +106,11 @@ MIGRATIONS = [
     # users from before sessions, whose browsers send the bare user id: 0 until it is swapped for a session, then the
     # time of that swap (sessions.adopt_legacy); NULL for everyone else. The backfill runs once, as the column appears.
     ("users", "legacy_cookie", "REAL", "UPDATE users SET legacy_cookie = 0"),
+    # the replay gallery: public is the link, listed puts the run on /replays too; hidden is an admin's word over both
+    ("projects", "listed", "INTEGER DEFAULT 0"),
+    ("projects", "listed_at", "REAL"),
+    ("projects", "hidden", "INTEGER DEFAULT 0"),
+    ("projects", "views", "INTEGER DEFAULT 0"),
 ]
 
 JSON_COLUMNS = {"brief", "meta", "prompt", "data", "params", "inputs", "checks", "input", "result", "body", "preset", "fingerprint", "quote"}

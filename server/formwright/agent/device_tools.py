@@ -29,9 +29,10 @@ MAX_REQUIREMENTS = 20
 FIRMWARE_CHECK_S = 40.0  # the checker answers within 20 s (C3); a hung one must not hold the job
 # what the case must give a face part (board.json access, C2a) and how the enclosure check names it
 OPENING = {"light": ("light_window", "opening over the light"), "sound": ("sound_grille", "sound grille"),
-           "sensor": ("sensor_window", "opening for the sensor"), "display": ("display_window", "window in the lid")}
+           "sensor": ("sensor_window", "opening for the sensor"), "display": ("display_window", "window in the lid"),
+           "key": ("key_plate", "plate for the key switch")}
 # findings only a case engine that knows face parts and accessories reports: without any of them, their absence says nothing
-FACE_FINDINGS = {"display_window", "sound_grille", "sensor_window", "cable_exit", "battery_space"}
+FACE_FINDINGS = {"display_window", "sound_grille", "sensor_window", "cable_exit", "battery_space", "key_plate"}
 LIGHT_SKIN_MM = 0.6  # the most plastic a light still shows through (the enclosure check's own line)
 
 
@@ -74,7 +75,7 @@ WRITE_DEVICE = _fn(
                                               "nets, layouts}"},
      "edits": {"type": "array", "description": "instead of doc, in order: {op:'add', node:{...}} | {op:'remove', id} | {op:'set', id, "
                                                "fields:{...}} (place, face too) | {op:'connect', pins:[...], name?} | {op:'disconnect', "
-                                               "pins:[...]} | {op:'requirements', requirements:[...]} | {op:'layouts', layouts:[...]} | "
+                                               "pins:[...]} | {op:'amps', net or pins, amps} | {op:'zones', zones:[...]} | {op:'requirements', requirements:[...]} | {op:'layouts', layouts:[...]} | "
                                                "{op:'concept', concept:{...}} | {op:'compact'} (the smaller arrangement a board_too_large "
                                                "warning names: applied, the concept's board with it)",
                "items": {"type": "object"}},
@@ -110,9 +111,9 @@ SIMULATE_DEVICE = _fn(
     "the full run by itself: every input pressed in every condition, a probe that stays wet, a day left alone. With no arguments this "
     "repeats it. With `steps` it plays your own scenario and returns what happened: when each load was on, the screen, serial, boots "
     "and sleeps. Use it to check a requirement before you claim it: press start, wait, press stop, press start again.",
-    {"steps": {"type": "array", "description": "inputs changing: {at_s: 45, input: 'SW1', value: 1}, then {at_s: 45.3, input: 'SW1', value: 0}. Value 1 is pressed, "
-                                               "wet or motion; a light sensor takes lux, a thermistor degrees C. The inputs are listed in simulation.coverage",
-               "items": {"type": "object", "properties": {"at_s": {"type": "number"}, "input": _S, "value": {"type": "number"}}, "required": ["at_s", "input"]}},
+    {"steps": {"type": "array", "description": "what happens: {at_s: 45, press: 'SW1'} presses a button and lets go, {at_s: 60, input: 'PR1', value: 1} sets an input: 1 is water "
+                                               "or motion; an analog probe takes millivolts, a light sensor lux, a thermistor degrees C. The inputs are listed in simulation.coverage",
+               "items": {"type": "object", "properties": {"at_s": {"type": "number"}, "press": _S, "hold_s": {"type": "number"}, "input": _S, "value": {"type": "number"}}, "required": ["at_s"]}},
      "condition": {"type": "object", "description": "inputs that hold a value from the start, e.g. {'LDR1': 0.5} for a dark room"},
      "horizon_s": {"type": "number", "description": "how long to run, seconds of device time, up to 21600"}},
     [])
@@ -137,12 +138,22 @@ SELF_CHECK_ROUNDS = 2   # answers that leave a kind out go back this often; then
 SELF_CHECK_FULL = 9500  # characters of checklist sent whole; a larger device gets the items no rule checks
 
 
+def _parse(text: str) -> tuple[Any, str | None]:
+    """JSON a model passed as a string, read as forgivingly as it can be: raw newlines, a code fence, trailing commas. (value, None), or
+    (None, what is wrong with it): on 2026-11-04 designers lost 20 turns to a refusal that did not say."""
+    s = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+    last = ""
+    for attempt in (s, re.sub(r",(\s*[}\]])", r"\1", s)):
+        try:
+            return json.loads(attempt, strict=False), None
+        except json.JSONDecodeError as e:
+            last = f"{e.msg} at character {e.pos} of {len(attempt)}: ...{attempt[max(0, e.pos - 50):e.pos + 20]}..."
+    return None, last
+
+
 def _as_obj(v: Any) -> Any:
     if isinstance(v, str):
-        try:
-            return json.loads(v)
-        except json.JSONDecodeError:
-            return None
+        return _parse(v)[0]
     return v
 
 
@@ -231,7 +242,7 @@ def apply_edits(doc: dict[str, Any], edits: list[Any]) -> tuple[dict[str, Any], 
             if not op and k in e:
                 op, v = k, e[k]
                 e = {**e, **({"node": v} if k == "add" else {"id": v} if k == "remove" else {"pins": v} if isinstance(v, list) else {})}
-        if op in ("requirements", "layouts") and isinstance(e.get(op), list):
+        if op in ("requirements", "layouts", "zones") and isinstance(e.get(op), list):
             # document-level lists are replaced whole
             doc[op] = e[op]
         elif op == "concept" and isinstance(e.get("concept"), dict):
@@ -257,7 +268,15 @@ def apply_edits(doc: dict[str, Any], edits: list[Any]) -> tuple[dict[str, Any], 
                 for net in doc["nets"]:
                     if net.get("name") != name:
                         net["pins"] = [p for p in net["pins"] if p not in pins]
-            doc["nets"].append({"pins": pins, **({"name": str(e["name"])} if e.get("name") else {})})
+            doc["nets"].append({"pins": pins, **({"name": str(e["name"])} if e.get("name") else {}), **({"amps": e["amps"]} if e.get("amps") else {})})
+        elif op == "amps" and (e.get("net") or e.get("pins")):
+            # the current of a net that is there: by its name or any pin on it
+            pins = {str(p) for p in e.get("pins") or []}
+            hit = [net for net in doc["nets"] if (e.get("net") and net.get("name") == e["net"]) or pins & set(net["pins"])]
+            if not hit:
+                errors.append(f"edit {i}: no net {e.get('net') or sorted(pins)}")
+            for net in hit:
+                net["amps"] = e.get("amps")
         elif op == "disconnect" and isinstance(e.get("pins"), list):
             drop = {str(p) for p in e["pins"]}
             for net in doc["nets"]:
@@ -310,7 +329,8 @@ async def _write(ctx: Any, state: Any, args: dict[str, Any]) -> dict[str, Any]:
         if any(_is_compact(e) for e in ops):
             doc, compacted = await compact(doc)
     if not isinstance(doc, dict):
-        return {"ok": False, "error": "pass the whole device document as `doc` (an object), or `edits` on the current one"}
+        bad = next((f"`{k}` is not valid JSON: {_parse(args[k])[1]}" for k in ("doc", "edits") if isinstance(args.get(k), str) and _parse(args[k])[1]), None)
+        return {"ok": False, "error": (bad + ". Send it again, or the changes alone as `edits`: a smaller call is less likely to break") if bad else "pass the whole device document as `doc` (an object), or `edits` on the current one"}
     if not edits:
         # a `doc` with only the nodes being changed replaces the device with them (a timer once lost 8 parts and every net)
         cur, _ = await current(ctx.project_id)
@@ -390,6 +410,13 @@ async def _write(ctx: Any, state: Any, args: dict[str, Any]) -> dict[str, Any]:
         out["design_errors"] = design_errors[:12]
     if design_warnings:
         out["design_warnings"] = design_warnings[:12]
+    # told only at the finish, designers wrote them last, to match the code
+    untested = [r["id"] for r in requirements_of(norm) if r.get("firmware") and not r.get("test")]
+    if untested:
+        out["requirements_without_test"] = f"{', '.join(untested)}: write each one's `test` now, before the firmware: the code is written to pass them"
+    weak = weakened_tests(state, norm)
+    if weak:
+        out["tests_weakened"] = weak[:6]
     chosen = device_concept.line(norm)
     if chosen:
         out["concept"] = chosen
@@ -437,6 +464,9 @@ async def _build(ctx: Any, state: Any, args: dict[str, Any]) -> tuple[dict[str, 
     drift = concept_warnings(doc, board or {})
     if drift:
         out["concept_warnings"] = drift
+    blocks = (res.get("models") or {}).get("blocks")
+    if blocks:
+        out["no_3d_model"] = {"parts": blocks, "say": "the catalogue has no 3D model of these: plain blocks in the board view. Give each a model of your own (node.model) in the next write_device"}
     if not build.get("ok"):
         out["next"] = ("move or reshape, never delete a requested function, a decoupling capacitor or a driver: place the parts in the "
                        "way elsewhere, another edge for a connector, or a fixed larger board (board.w/h); then write_device and "
@@ -481,6 +511,7 @@ async def _firmware(ctx: Any, state: Any, args: dict[str, Any]) -> dict[str, Any
             await status("Running the firmware on a virtual board")
         sim = await simulation(norm, fw)
         fw["sim"] = sim
+        note_tests(state, norm, sim)
     version = await device_store.save(ctx.project_id, norm, author="agent", summary="firmware")
     await events.emit(ctx.project_id, "device.version", {"version": version, "author": "agent", "firmware": True}, ctx.job_id)
     state.device = {**(state.device or {}), "firmware": True, "firmware_ok": None if check is None else check["ok"]}
@@ -542,7 +573,7 @@ def sim_view(sim: dict[str, Any]) -> dict[str, Any]:
         return {"ran": False, "why": sim.get("why"), "note": "not simulated: nothing here was exercised, so say so in the summary"}
     keep = ("code", "severity", "ref", "msg", "hint", "trace")
     return {"ran": True, "ok": sim.get("ok"), "findings": [{k: f[k] for k in keep if f.get(k)} for f in sim.get("findings") or []],
-            "effects": sim.get("effects"), "power": sim.get("power"), "coverage": sim.get("coverage")}
+            "requirements": sim.get("requirements"), "effects": sim.get("effects"), "power": sim.get("power"), "coverage": sim.get("coverage")}
 
 
 async def sim_now(state: Any, doc: dict[str, Any], fw: dict[str, Any]) -> dict[str, Any] | None:
@@ -575,6 +606,7 @@ async def _simulate(ctx: Any, state: Any, args: dict[str, Any]) -> dict[str, Any
         await status("Running the firmware on a virtual board")
     if not steps and not condition:
         sim = await simulation(norm, fw)
+        note_tests(state, norm, sim)
         return {"ok": bool(sim.get("ok", True)), "simulation": sim_view(sim)}
     from .. import firmware_sim
 
@@ -592,7 +624,12 @@ async def finish_note(ctx: Any, state: Any, summary: str) -> str:
         return summary
     norm, _ = device.normalize(doc)
     keep_requirements(norm, doc)
-    return f"{summary.rstrip()}\n\n{sim_note(await sim_now(state, norm, fw), summary)}"
+    note = sim_note(await sim_now(state, norm, fw), summary)
+    changed = changed_tests(state, norm)
+    if changed:
+        note += (f" Сценарии проверки {', '.join(changed)} менялись после провала." if re.search(r"[А-Яа-яЁё]", summary or "")
+                 else f" The tests of {', '.join(changed)} were changed after they failed.")
+    return f"{summary.rstrip()}\n\n{note}"
 
 
 def sim_note(sim: dict[str, Any] | None, summary: str) -> str:
@@ -614,6 +651,10 @@ def sim_note(sim: dict[str, Any] | None, summary: str) -> str:
         if ru:
             life = life.replace("hours", "ч").replace("days", "дн.").replace("months", "мес.")
         bits.append((f"без использования батареи хватит примерно на {life}" if ru else f"left alone the cell lasts about {life}"))
+    tests = cov.get("tests") or {}
+    if tests:
+        done, total = tests.get("passed", 0), sum(tests.values())
+        bits.append((f"сценарии требований: прошли {done} из {total}" if ru else f"requirement tests: {done} of {total} passed"))
     errs = [f for f in sim.get("findings") or [] if f.get("severity") == "error"]
     if errs:
         bits.append((f"осталось проблем: {len(errs)} ({', '.join(str(f.get('code')) for f in errs[:3])})" if ru else f"problems left: {len(errs)} ({', '.join(str(f.get('code')) for f in errs[:3])})"))
@@ -661,7 +702,7 @@ def _fw_line(e: dict[str, Any]) -> str:
 
 
 def requirements_of(doc: dict[str, Any]) -> list[dict[str, Any]]:
-    """doc.requirements (C1e) cleaned: {id, text, parts, firmware?}, at most MAX_REQUIREMENTS. Unlike normalize, a part
+    """doc.requirements (C1e) cleaned: {id, text, parts, firmware?, test?}, at most MAX_REQUIREMENTS. Unlike normalize, a part
     id that is not a node stays: a requirement whose part was deleted must say so, not quietly lose it."""
     out: list[dict[str, Any]] = []
     for i, r in enumerate(doc.get("requirements") if isinstance(doc.get("requirements"), list) else []):
@@ -670,7 +711,8 @@ def requirements_of(doc: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         parts = list(dict.fromkeys(device.ident(str(p)) for p in (r.get("parts") if isinstance(r.get("parts"), list) else []) if str(p).strip()))
         out.append({"id": device.ident(str(r.get("id") or f"R{i + 1}"))[:12], "text": str(r["text"]).strip()[:300], "parts": parts[:40],
-                    **({"firmware": bool(r["firmware"])} if r.get("firmware") is not None else {})})
+                    **({"firmware": bool(r["firmware"])} if r.get("firmware") is not None else {}),
+                    **({"test": r["test"]} if isinstance(r.get("test"), dict) else {})})
     return out[:MAX_REQUIREMENTS]
 
 
@@ -758,8 +800,13 @@ def wiring(doc: dict[str, Any]) -> str:
     return hashlib.sha1(json.dumps([nodes, nets], sort_keys=True).encode()).hexdigest()[:16]
 
 
+RULES_NOT_RUN = {"code": "rules_not_run", "severity": "warn", "ref": "device", "ran": False,
+                 "msg": "the design rule check failed on our side and did not run: nothing here says the design passes it"}
+
+
 async def design_checks(doc: dict[str, Any], parts: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    """device_rules.check (C4) on a normalized document and its resolved parts; [] when the rules are not there or fail."""
+    """device_rules.check (C4) on a normalized document and its resolved parts; when they cannot run, one RULES_NOT_RUN
+    warning instead of an empty list, which would read as a clean design."""
     try:
         from .. import device_rules
     except Exception:  # noqa: BLE001 - not landed yet, or broken: the pack still works
@@ -771,7 +818,7 @@ async def design_checks(doc: dict[str, Any], parts: dict[str, dict[str, Any]] | 
         items = device_rules.check(doc, parts)
     except Exception:  # noqa: BLE001 - a rule that crashes is a bug of ours, never the design's
         log.exception("device_rules.check failed")
-        return []
+        return [dict(RULES_NOT_RUN)]
     return [i for i in items or [] if isinstance(i, dict) and i.get("msg")]
 
 
@@ -840,7 +887,58 @@ async def simulation_problems(state: Any, doc: dict[str, Any], fw: dict[str, Any
         return []
     sim = await sim_now(state, doc, fw)
     errs = [f for f in (sim or {}).get("findings") or [] if f.get("severity") == "error"]
-    return [f"simulation: {_sim_line(f)}" for f in errs[:5]] + (["fix it and write_firmware again (simulate_device replays it with your own steps)"] if errs else [])
+    mine = state.self_check if isinstance(getattr(state, "self_check", None), dict) else {}
+    note_tests(state, doc, sim)
+    out = weakened_tests(state, doc) + [f"simulation: {_sim_line(f)}" for f in errs[:5]] + (
+        ["fix it and write_firmware again (simulate_device replays it with your own steps)"] if errs else [])
+    untested = [x["id"] for x in (sim or {}).get("requirements") or [] if x.get("status") == "no_test"]
+    if untested and not errs and not mine.get("tests_asked"):
+        mine["tests_asked"] = True
+        out.append(f"{', '.join(untested)} have firmware work and no test. Add `test` to each with write_device edits [{{op:'requirements', requirements:[...]}}] (the whole "
+                   "list, texts unchanged): the steps a person takes and what must follow, for what only a sequence shows. The next finish plays them.")
+    return out
+
+
+def note_tests(state: Any, doc: dict[str, Any], sim: dict[str, Any] | None) -> None:
+    """What each test checked the first time it was played, and the version of it that failed. In five runs of 2026-11-04 designers
+    answered a failed test by rewriting it: a sleep requirement ended up checking that a LED lights."""
+    from .. import firmware_sim
+
+    mine = state.self_check if isinstance(getattr(state, "self_check", None), dict) else None
+    if mine is None or not sim:
+        return
+    pins, failed = mine.setdefault("test_pins", {}), mine.setdefault("failed_tests", {})
+    by_id = {r["id"]: r for r in requirements_of(doc)}
+    for x in sim.get("requirements") or []:
+        r = by_id.get(x.get("id"))
+        if not r or x.get("status") not in ("passed", "failed", "vacuous"):
+            continue
+        pins.setdefault(r["id"], sorted(firmware_sim.test_targets(r.get("test"))))
+        if x["status"] == "failed":
+            failed.setdefault(r["id"], json.dumps(r.get("test"), sort_keys=True, ensure_ascii=False))
+
+
+def weakened_tests(state: Any, doc: dict[str, Any]) -> list[str]:
+    """A test may move in time, or be fixed where it was wrong, but it keeps what it checked (unless that part left the device)."""
+    from .. import firmware_sim
+
+    pins = (state.self_check if isinstance(getattr(state, "self_check", None), dict) else {}).get("test_pins") or {}
+    nodes = {n.get("id") for n in doc.get("nodes") or []}
+    out = []
+    for r in requirements_of(doc):
+        now = firmware_sim.test_targets(r.get("test"))
+        lost = [t for t in pins.get(r["id"]) or [] if t not in now and (not t.endswith((" on", " off")) or t.rsplit(" ", 1)[0] in nodes)]
+        if lost:
+            out.append(f"the test of {r['id']} no longer checks {', '.join(lost)}, as it did when it was first played. A test may move in time but keeps what it checks: "
+                       "put that back and fix the device so it passes")
+    return out
+
+
+def changed_tests(state: Any, doc: dict[str, Any]) -> list[str]:
+    """Requirements whose test differs from the one that failed: a test may be wrong, and the person hears when it was changed."""
+    failed = (state.self_check if isinstance(getattr(state, "self_check", None), dict) else {}).get("failed_tests") or {}
+    by_id = {r["id"]: r for r in requirements_of(doc)}
+    return [rid for rid, was in failed.items() if json.dumps((by_id.get(rid) or {}).get("test"), sort_keys=True, ensure_ascii=False) != was]
 
 
 def opening_problems(doc: dict[str, Any], board: dict[str, Any] | None, enc: dict[str, Any] | None) -> list[str]:
@@ -856,7 +954,8 @@ def opening_problems(doc: dict[str, Any], board: dict[str, Any] | None, enc: dic
     out = []
     for n in doc.get("nodes") or []:
         c, face = comps.get(str(n.get("id"))), n.get("face")
-        if face in OPENING and c is not None and c.get("access") != face:
+        # an accessory's board entry is its connector: its window is the accessory's own, checked below
+        if n.get("kind") != "accessory" and face in OPENING and c is not None and c.get("access") != face:
             out.append(f"{n['id']} has face {face} but the built board gives it access {c.get('access')}, so the case cuts nothing over it: "
                        "build_device and make_enclosure again")
     for cid, c in comps.items():
@@ -911,7 +1010,10 @@ async def finish_gate(ctx: Any, state: Any) -> list[str]:
         return reasons
     norm, _ = device.normalize(doc)
     keep_requirements(norm, doc)
-    reasons += [f"design error {_line(i)}" for i in await design_checks(norm) if i.get("severity") == "error"][:8]
+    rules = await design_checks(norm)
+    if any(i.get("code") == RULES_NOT_RUN["code"] for i in rules):
+        state.unchecked.append("design_rules")
+    reasons += [f"design error {_line(i)}" for i in rules if i.get("severity") == "error"][:8]
     reasons += concept_problems(doc)
     reasons += requirement_problems(norm)
     board_reasons = await pcb_tools.finish_gate(ctx, state)

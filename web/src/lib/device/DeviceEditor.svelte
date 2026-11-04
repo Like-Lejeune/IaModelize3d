@@ -5,17 +5,22 @@
   import { SvelteFlow, Background, ConnectionMode, Panel, type Node, type Edge as FlowEdge } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import Icon from '$lib/components/Icon.svelte';
-  import PartNode, { netColor, type PartData } from './PartNode.svelte';
+  import { setContext, untrack } from 'svelte';
+  import PartNode, { netColors, useNetColors, type PartData } from './PartNode.svelte';
+  import WireEdge from './WireEdge.svelte';
+  import { WireBoard } from './wireboard.svelte';
   import FlowBridge from './FlowBridge.svelte';
   import { loadLibrary } from './PartLibrary.svelte';
   import type { Accessory } from './api';
   import { accessoriesOf, faceOf, layoutOf, refNode } from './facets';
-  import { autoLayout } from './layout';
+  import { FIT, autoLayout, mirrored } from './layout';
   import { POWER_NET, type DeviceStore } from './store.svelte';
   import { dt, patternName } from './i18n';
+  import { t } from '$lib/i18n.svelte';
 
   let {
     device, readonly = false, onOpen, onAddPart, onDescribe, buildBar = true, toolbar = true, powerWires = $bindable(false), busy = false,
+    grid = true, gridStep = 20, magnet = true,
   }: {
     device: DeviceStore;
     readonly?: boolean;
@@ -27,12 +32,21 @@
     powerWires?: boolean;
     /** The agent is drawing the device: an empty canvas says so instead of asking for a description. */
     busy?: boolean;
+    /** The sheet's grid, shown or not, and its step; the magnet snaps parts to it and to their neighbours. */
+    grid?: boolean;
+    gridStep?: number;
+    magnet?: boolean;
     onOpen?: (what: 'pcb' | '3d') => void;
     onAddPart?: () => void;
     onDescribe?: () => void;
   } = $props();
 
   const nodeTypes = { part: PartNode };
+  const edgeTypes = { wire: WireEdge };
+  const wireBoard = new WireBoard();
+  setContext('fw.wires', wireBoard);
+  // Shift held: this drag goes free of the magnet
+  let free = $state(false);
   let nodes = $state.raw<Node<PartData>[]>([]);
   let edges = $state.raw<FlowEdge[]>([]);
   let bridge = $state<{ fit: () => void; fitTo: (ids: string[]) => void; centre: () => [number, number] }>();
@@ -62,6 +76,10 @@
     const sel = device.selected;
     const hl = device.selectedNet;
     const lit = new Set(device.lit?.ids ?? []);
+    const colors = netColors(s.doc.nets);
+    untrack(() => useNetColors(colors));
+    const where = Object.fromEntries(s.doc.nodes.map((n) => [n.id, n.ui ?? auto[n.id] ?? [0, 0]])) as Record<string, [number, number]>;
+    const flipped = mirrored(s.doc, views, where, powerWires);
     // never read `nodes` here: the flow writes it back (measured sizes), which would run this again
     const list: Node<PartData>[] = s.doc.nodes
       .filter((n) => n.kind !== 'hole')
@@ -72,7 +90,7 @@
         const placed = n.pcb ? null : lay ? dt('placed_layout', { p: patternName(lay.layout.pattern) }) : n.place ? dt('placed_designer') : null;
         return {
           id: n.id, type: 'part', position: { x: at[0], y: at[1] },
-          data: { node: n, view: views[n.id], issues: issuesBy[n.id] ?? 0, power: powerWires, hl, acc, lit: lit.has(n.id), face: faceOf(n, views[n.id]?.part, acc, views[n.id]?.face), placed },
+          data: { node: n, view: views[n.id], issues: issuesBy[n.id] ?? 0, power: powerWires, hl, acc, lit: lit.has(n.id), face: faceOf(n, views[n.id]?.part, acc, views[n.id]?.face), placed, flip: flipped.has(n.id) },
           selected: sel === n.id,
         };
       });
@@ -85,16 +103,15 @@
       const power = POWER_NET.test(net.name ?? '');
       if (power && !powerWires && !lit) return;
       const pins = net.pins.filter((p) => ids.has(p.split('.')[0]));
-      const color = netColor(net.name ?? `n${i}`);
+      const color = colors[net.name ?? `n${i}`];
       for (let k = 1; k < pins.length; k++) {
         const [a, ap] = split(pins[0]);
         const [b, bp] = split(pins[k]);
         out.push({
-          id: `n${i}:${pins[0]}~${pins[k]}`, source: a, sourceHandle: ap, target: b, targetHandle: bp,
-          style: lit ? `stroke: ${color}; stroke-width: 3.5px; filter: drop-shadow(0 0 4px ${color});`
-            : `stroke: ${color}; stroke-width: ${power ? 1.2 : 2}px;${power ? ' stroke-dasharray: 4 3; opacity: 0.6;' : ''}${hl ? ' opacity: 0.35;' : ''}`,
-          ...(k === 1 && net.name && !power ? { label: net.name, labelStyle: `color: ${color}` } : {}),
-          data: { a: pins[0], b: pins[k], net: key },
+          id: `n${i}:${pins[0]}~${pins[k]}`, type: 'wire', source: a, sourceHandle: ap, target: b, targetHandle: bp,
+          style: lit ? `stroke: ${color}; stroke-width: 2.6px;`
+            : `stroke: ${color}; stroke-width: ${power ? 1.2 : 1.8}px;${power ? ' stroke-dasharray: 4 3; opacity: 0.6;' : ''}${hl ? ' opacity: 0.35;' : ''}`,
+          data: { a: pins[0], b: pins[k], net: key, color, first: k === 1 },
         });
       }
     });
@@ -121,9 +138,20 @@
     }
   }
 
-  function ondragstop({ nodes: moved }: { nodes: Node[] }) {
+  /** A part dropped this close to a neighbour's edge lines up with it. */
+  const ALIGN = 8;
+  function aligned(n: Node, others: Node[]): [number, number] {
+    let { x, y } = n.position;
+    const near = (v: number, list: number[]) => list.find((o) => Math.abs(o - v) <= ALIGN) ?? v;
+    x = near(x, others.map((o) => o.position.x));
+    y = near(y, others.map((o) => o.position.y));
+    return [x, y];
+  }
+  function ondragstop({ nodes: moved, event }: { nodes: Node[]; event: MouseEvent | TouchEvent }) {
     if (readonly || !moved?.length) return;
-    device.move(Object.fromEntries(moved.map((n) => [n.id, [n.position.x, n.position.y] as [number, number]])));
+    const pulled = magnet && !('shiftKey' in event && event.shiftKey) && moved.length === 1;
+    const others = pulled ? nodes.filter((n) => n.id !== moved[0].id) : [];
+    device.move(Object.fromEntries(moved.map((n) => [n.id, pulled ? aligned(n, others) : ([n.position.x, n.position.y] as [number, number])])));
   }
 
   export function fit() {
@@ -163,16 +191,19 @@
   const layouts = $derived(device.state?.doc.layouts ?? []);
 </script>
 
+<svelte:window onkeydown={(e) => e.key === 'Shift' && (free = true)} onkeyup={(e) => e.key === 'Shift' && (free = false)} onblur={() => (free = false)} />
+
 <div class="device-editor">
   <SvelteFlow
     bind:nodes
     bind:edges
     {nodeTypes}
+    {edgeTypes}
     connectionMode={ConnectionMode.Loose}
     connectionRadius={28}
-    snapGrid={[11, 11]}
+    snapGrid={magnet && !free ? [gridStep, gridStep] : undefined}
     fitView
-    fitViewOptions={{ padding: 0.18 }}
+    fitViewOptions={FIT}
     minZoom={0.15}
     maxZoom={2.5}
     nodesDraggable={!readonly}
@@ -189,10 +220,10 @@
     }}
     onpaneclick={() => (device.pickNode(null), device.pickNet(null))}
     proOptions={{ hideAttribution: true }}
-    defaultEdgeOptions={{ type: 'default' }}
+    defaultEdgeOptions={{ type: 'wire' }}
   >
-    <FlowBridge arrived={device.arrived} bind:bridge />
-    <Background gap={22} size={1.2} />
+    <FlowBridge arrived={device.arrived} bind:bridge board={wireBoard} />
+    {#if grid}<Background gap={gridStep} size={1.2} />{/if}
     {#if toolbar}<Panel position="top-left" class="toprow">
       <div class="tools">
         {#if !readonly}
@@ -239,7 +270,15 @@
     {/if}
   </SvelteFlow>
 
-  {#if device.loaded && device.empty}
+  {#if device.failed}
+    <div class="empty">
+      <div class="emptycard card" role="alert">
+        <Icon name="alert" size={28} />
+        <p class="small">{device.error}</p>
+        <div class="row"><button class="btn small" onclick={() => device.refresh()}>{t('retry')}</button></div>
+      </div>
+    </div>
+  {:else if device.loaded && device.empty}
     <div class="empty">
       <div class="emptycard card">
         {#if busy}
@@ -272,29 +311,10 @@
     z-index: 2;
     container-type: size;
     background: var(--surface);
-    --net-gnd: var(--on-surface-var);
-    --net-3v3: #f0716a;
-    --net-5v: #f0a03e;
-    --net-bat: #b18cf5;
-    --net-l: 66%;
-  }
-  :global(:root[data-theme='light']) .device-editor {
-    --net-3v3: #c4362f;
-    --net-5v: #b86200;
-    --net-bat: #6d3fd1;
-    --net-l: 40%;
-  }
-  @media (prefers-color-scheme: light) {
-    :global(:root:not([data-theme='dark'])) .device-editor {
-      --net-3v3: #c4362f;
-      --net-5v: #b86200;
-      --net-bat: #6d3fd1;
-      --net-l: 40%;
-    }
   }
   .device-editor :global(.svelte-flow) {
     --xy-background-color: var(--surface);
-    --xy-background-pattern-dots-color-default: var(--outline-variant);
+    --xy-background-pattern-dots-color-default: var(--surface-container-highest);
     --xy-edge-stroke-default: var(--outline);
     --xy-connectionline-stroke-default: var(--primary);
     --xy-minimap-background-color-default: var(--surface-container-low);
@@ -317,29 +337,40 @@
     padding: 0;
     border: none;
     background: transparent;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
   }
   .device-editor :global(.svelte-flow__edge-textbg) {
     fill: var(--surface);
   }
   .device-editor :global(.svelte-flow__edge-text) {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--text-2xs);
     fill: var(--on-surface-var);
   }
+  /* the gap a wire leaves in those it crosses, and the one under the pointer stands out */
+  .device-editor :global(.wire-halo) {
+    stroke: var(--surface);
+    stroke-width: 6px;
+    pointer-events: none;
+  }
+  .device-editor :global(.wire-dot) {
+    pointer-events: none;
+  }
+  .device-editor :global(.svelte-flow__edge:hover .svelte-flow__edge-path) {
+    stroke-width: 3px !important;
+  }
   .device-editor :global(.svelte-flow__edge.selected .svelte-flow__edge-path) {
-    stroke-width: 3.5px !important;
-    filter: drop-shadow(0 0 3px var(--primary));
+    stroke-width: 2.6px !important;
   }
   .device-editor :global(.svelte-flow__controls) {
     box-shadow: none;
     border: 1px solid var(--outline-variant);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     overflow: hidden;
   }
   .device-editor :global(.svelte-flow__minimap) {
     border: 1px solid var(--outline-variant);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     overflow: hidden;
   }
   /* one row across the top: tools on the left, the build on the right, wrapping on a narrow stage */
@@ -361,7 +392,7 @@
     align-items: center;
     flex-wrap: wrap;
     padding: 6px;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     background: color-mix(in srgb, var(--surface-container) 88%, transparent);
     border: 1px solid var(--outline-variant);
     backdrop-filter: blur(6px);
@@ -381,12 +412,12 @@
     gap: 5px;
     height: 24px;
     padding: 0 8px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--outline-variant);
     background: color-mix(in srgb, var(--surface-container) 90%, transparent);
     color: var(--on-surface-var);
     font: inherit;
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     cursor: pointer;
     max-width: 360px;
     overflow: hidden;
@@ -399,13 +430,13 @@
     background: color-mix(in srgb, var(--primary) 16%, var(--surface-container));
   }
   .lay .mono {
-    font-size: 11px;
+    font-size: var(--text-xs);
   }
   .toggle {
     display: inline-flex;
     gap: 6px;
     align-items: center;
-    font-size: 12px;
+    font-size: var(--text-sm);
     padding: 0 6px;
     cursor: pointer;
     color: var(--on-surface-var);
@@ -431,8 +462,8 @@
     margin: 0;
   }
   .big {
-    font-size: 36px;
-    color: var(--primary);
+    font-size: var(--text-4xl);
+    color: var(--on-surface-var);
   }
   .row {
     display: flex;

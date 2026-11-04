@@ -155,6 +155,7 @@ SECTIONS: dict[str, tuple[str, list[tuple[str, str]]]] = {
         ("Not on a strapping pin (C3 D0/D8/D9, S3 D2)", "strapping_pin"),
         ("A wake button on a wake-capable pin (C3 D1-D3; S3 any D pin but TX/RX)", ""),
         ("Pressed through the lid: placed under it where the case gives a press tab", "button_unreachable, button_reach (case)"),
+        ("The right switch for how it is used: pressed all day (keys, a game pad) a mechanical one (switch: mx or choc), at its pitch, its plate free of parts", "key_plate (case)"),
     ]),
     "fuse": ("fuse", [
         ("Hold current above the normal draw, trips below what the source and traces stand", ""),

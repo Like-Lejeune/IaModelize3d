@@ -193,6 +193,7 @@
         <div class="error small" role="alert">
           <Icon name="alert" size={15} />
           <span>{err.text}{#if err.code === 'job_running' && err.projectId && err.projectId !== store.id}&nbsp;<a href="/p/{err.projectId}">{t('open_blocking')}</a>{/if}</span>
+          {#if err.retry}<button class="btn small" onclick={() => store.retryError(err.key)} disabled={store.running}>{t('retry')}</button>{/if}
         </div>
       {/if}
     {/each}
@@ -240,13 +241,13 @@
     color: var(--outline);
   }
   .empty h3 {
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
     font-weight: var(--font-weight-semibold);
     color: var(--on-surface);
   }
   .empty p {
     margin: 0;
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     color: var(--on-surface-var);
   }
   .user {
@@ -317,10 +318,10 @@
   }
   .live {
     width: fit-content;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
   }
   .agent {
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     line-height: 1.55;
   }
   .error {

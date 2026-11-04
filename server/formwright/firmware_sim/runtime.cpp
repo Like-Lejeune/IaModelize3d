@@ -26,6 +26,8 @@
 #include <esp_timer.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <Preferences.h>
+#include <EEPROM.h>
 #include <string>
 #include <vector>
 #include <set>
@@ -46,6 +48,9 @@ IMPORT("has_i2c") int sim_has_i2c(int addr);
 IMPORT("rtc_load") void sim_rtc_load(void *p, int n);
 IMPORT("rtc_save") void sim_rtc_save(const void *p, int n);
 IMPORT("slept") void sim_slept(int64_t wake_t, int cause, int64_t mask);
+IMPORT("nvs_size") int sim_nvs_size(void);
+IMPORT("nvs_load") void sim_nvs_load(void *p);
+IMPORT("nvs_save") void sim_nvs_save(const void *p, int n);
 }
 extern "C" char __start_rtcmem[] __attribute__((weak));
 extern "C" char __stop_rtcmem[] __attribute__((weak));
@@ -250,7 +255,7 @@ void digitalWrite(uint8_t pin, uint8_t val) {
   advance(1);
 }
 int digitalRead(uint8_t pin) {
-  advance(2);
+  advance(5);
   if (!valid(pin)) return 0;
   Pin &p = pins[pin];
   if (p.driving) return p.out;
@@ -298,11 +303,11 @@ void analogSetClockDiv(uint8_t) {}
 
 // ------------------------------------------------------------------ time
 unsigned long micros(void) {
-  advance(2);
+  advance(10);
   return (unsigned long)(now_us - boot_t);
 }
 unsigned long millis(void) {
-  advance(2);
+  advance(10);
   return (unsigned long)((now_us - boot_t) / 1000);
 }
 void delay(uint32_t ms) { advance(ms ? (int64_t)ms * 1000 : 1); }
@@ -1040,6 +1045,13 @@ static uint8_t wire_request(int a, int n) {
   advance(200);
   rx.clear();
   if (!sim_has_i2c(a)) return 0;
+  if ((a == 0x23 || a == 0x5C) && n == 2) {
+    int raw = sim_env(0, now_us) * 12 / 1000;
+    if (raw > 65535) raw = 65535;
+    rx.push_back((uint8_t)(raw >> 8));
+    rx.push_back((uint8_t)raw);
+    return 2;
+  }
   warn("i2c_raw_read", std::to_string(a));
   rx.assign(n, 0);
   return (uint8_t)n;
@@ -1236,6 +1248,37 @@ void Adafruit_SSD1306::ssd1306_command(uint8_t c) {
 }
 bool Adafruit_SSD1306::getPixel(int16_t, int16_t) { return false; }
 
+Adafruit_GrayOLED::Adafruit_GrayOLED(uint8_t, uint16_t w, uint16_t h, TwoWire *, int8_t, uint32_t, uint32_t) : Adafruit_GFX(w, h) {}
+Adafruit_GrayOLED::~Adafruit_GrayOLED() {}
+void Adafruit_GrayOLED::clearDisplay() {
+  Gfx &g = G(this);
+  g.runs.clear();
+  g.drew = false;
+}
+void Adafruit_GrayOLED::invertDisplay(bool) {}
+void Adafruit_GrayOLED::setContrast(uint8_t) {}
+void Adafruit_GrayOLED::drawPixel(int16_t, int16_t, uint16_t) { G(this).drew = true; }
+bool Adafruit_GrayOLED::getPixel(int16_t, int16_t) { return false; }
+void Adafruit_GrayOLED::oled_command(uint8_t c) {
+  Gfx &g = G(this);
+  if (c == SH110X_DISPLAYOFF) emit("L " + i2s(now_us) + " " + std::to_string(g.addr) + " 0");
+  if (c == SH110X_DISPLAYON) emit("L " + i2s(now_us) + " " + std::to_string(g.addr) + " 1");
+  advance(100);
+}
+Adafruit_SH110X::Adafruit_SH110X(uint16_t w, uint16_t h, TwoWire *t, int8_t r, uint32_t a, uint32_t b) : Adafruit_GrayOLED(1, w, h, t, r, a, b) {}
+Adafruit_SH110X::~Adafruit_SH110X() {}
+bool Adafruit_SH110X::begin(uint8_t addr, bool) { return g_begin(G(this), addr); }
+void Adafruit_SH110X::display() {
+  advance(25000);
+  g_frame(G(this));
+}
+Adafruit_SH1106G::Adafruit_SH1106G(uint16_t w, uint16_t h, TwoWire *t, int8_t r, uint32_t a, uint32_t b) : Adafruit_SH110X(w, h, t, r, a, b) {}
+Adafruit_SH1106G::~Adafruit_SH1106G() {}
+bool Adafruit_SH1106G::begin(uint8_t addr, bool reset) { return Adafruit_SH110X::begin(addr, reset); }
+Adafruit_SH1107::Adafruit_SH1107(uint16_t w, uint16_t h, TwoWire *t, int8_t r, uint32_t a, uint32_t b) : Adafruit_SH110X(w, h, t, r, a, b) {}
+Adafruit_SH1107::~Adafruit_SH1107() {}
+bool Adafruit_SH1107::begin(uint8_t addr, bool reset) { return Adafruit_SH110X::begin(addr, reset); }
+
 // ------------------------------------------------------------------ addressable LEDs
 struct Neo { int pin = -1, n = 0, bright = 255; std::vector<uint32_t> c; };
 static std::map<const void *, Neo> neos;
@@ -1382,6 +1425,158 @@ float Adafruit_BME280::readAltitude(float sea) {
 }
 uint32_t Adafruit_BME280::sensorID() { return 0x60; }
 
+// ------------------------------------------------------------------ flash: Preferences and EEPROM outlive a boot
+static std::map<std::string, std::string> nvs;
+static bool nvs_read = false;
+static void nvs_open() {
+  if (nvs_read) return;
+  nvs_read = true;
+  int n = sim_nvs_size();
+  if (n <= 0) return;
+  std::string raw(n, 0);
+  sim_nvs_load(&raw[0]);
+  for (size_t i = 0; i + 8 <= raw.size();) {
+    uint32_t a, b;
+    memcpy(&a, &raw[i], 4);
+    memcpy(&b, &raw[i + 4], 4);
+    nvs[raw.substr(i + 8, a)] = raw.substr(i + 8 + a, b);
+    i += 8 + a + b;
+  }
+}
+static void nvs_commit() {
+  std::string raw;
+  for (auto &kv : nvs) {
+    uint32_t a = (uint32_t)kv.first.size(), b = (uint32_t)kv.second.size();
+    raw.append((const char *)&a, 4);
+    raw.append((const char *)&b, 4);
+    raw += kv.first;
+    raw += kv.second;
+  }
+  sim_nvs_save(raw.data(), (int)raw.size());
+}
+static std::map<const void *, std::string> pref_ns;
+static std::string pref_key(const void *o, const char *k) { return pref_ns[o] + "/" + (k ? k : ""); }
+static size_t pref_put(const void *o, const char *k, const void *v, size_t n) {
+  nvs_open();
+  nvs[pref_key(o, k)] = std::string((const char *)v, n);
+  nvs_commit();
+  return n;
+}
+static bool pref_get(const void *o, const char *k, void *v, size_t n) {
+  nvs_open();
+  auto it = nvs.find(pref_key(o, k));
+  if (it == nvs.end() || it->second.size() != n) return false;
+  memcpy(v, it->second.data(), n);
+  return true;
+}
+Preferences::Preferences() {}
+Preferences::~Preferences() {}
+bool Preferences::begin(const char *name, bool, const char *) {
+  pref_ns[this] = name ? name : "";
+  return true;
+}
+void Preferences::end() {}
+bool Preferences::clear() {
+  nvs_open();
+  std::string pre = pref_ns[this] + "/";
+  for (auto it = nvs.begin(); it != nvs.end();) it = it->first.rfind(pre, 0) == 0 ? nvs.erase(it) : std::next(it);
+  nvs_commit();
+  return true;
+}
+bool Preferences::remove(const char *k) {
+  nvs_open();
+  bool had = nvs.erase(pref_key(this, k)) > 0;
+  nvs_commit();
+  return had;
+}
+#define PREF(NAME, T) \
+  size_t Preferences::put##NAME(const char *k, T v) { return pref_put(this, k, &v, sizeof v); } \
+  T Preferences::get##NAME(const char *k, T d) { T v; return pref_get(this, k, &v, sizeof v) ? v : d; }
+PREF(Char, int8_t)
+PREF(UChar, uint8_t)
+PREF(Short, int16_t)
+PREF(UShort, uint16_t)
+PREF(Int, int32_t)
+PREF(UInt, uint32_t)
+PREF(Long, int32_t)
+PREF(ULong, uint32_t)
+PREF(Long64, int64_t)
+PREF(ULong64, uint64_t)
+PREF(Float, float)
+PREF(Double, double)
+PREF(Bool, bool)
+size_t Preferences::putString(const char *k, const char *v) { return pref_put(this, k, v ? v : "", v ? strlen(v) : 0); }
+size_t Preferences::putString(const char *k, String v) { return pref_put(this, k, v.c_str(), v.length()); }
+size_t Preferences::putBytes(const char *k, const void *v, size_t n) { return pref_put(this, k, v, n); }
+bool Preferences::isKey(const char *k) {
+  nvs_open();
+  return nvs.count(pref_key(this, k)) > 0;
+}
+size_t Preferences::getString(const char *k, char *v, size_t n) {
+  nvs_open();
+  auto it = nvs.find(pref_key(this, k));
+  if (it == nvs.end() || !n) return 0;
+  size_t m = it->second.size() < n - 1 ? it->second.size() : n - 1;
+  memcpy(v, it->second.data(), m);
+  v[m] = 0;
+  return m;
+}
+String Preferences::getString(const char *k, String d) {
+  nvs_open();
+  auto it = nvs.find(pref_key(this, k));
+  return it == nvs.end() ? d : String(it->second.c_str());
+}
+size_t Preferences::getBytesLength(const char *k) {
+  nvs_open();
+  auto it = nvs.find(pref_key(this, k));
+  return it == nvs.end() ? 0 : it->second.size();
+}
+size_t Preferences::getBytes(const char *k, void *buf, size_t n) {
+  nvs_open();
+  auto it = nvs.find(pref_key(this, k));
+  if (it == nvs.end()) return 0;
+  size_t m = it->second.size() < n ? it->second.size() : n;
+  memcpy(buf, it->second.data(), m);
+  return m;
+}
+size_t Preferences::freeEntries() { return 500; }
+static std::string eeprom_buf;
+EEPROMClass::EEPROMClass() {}
+EEPROMClass::~EEPROMClass() {}
+bool EEPROMClass::begin(size_t n) {
+  nvs_open();
+  auto it = nvs.find("eeprom");
+  eeprom_buf = it != nvs.end() ? it->second : std::string(n, (char)0xff);
+  eeprom_buf.resize(n, (char)0xff);
+  return true;
+}
+uint8_t EEPROMClass::read(int a) { return a >= 0 && a < (int)eeprom_buf.size() ? (uint8_t)eeprom_buf[a] : 0; }
+void EEPROMClass::write(int a, uint8_t v) {
+  if (a >= 0 && a < (int)eeprom_buf.size()) eeprom_buf[a] = (char)v;
+}
+uint16_t EEPROMClass::length() { return (uint16_t)eeprom_buf.size(); }
+bool EEPROMClass::commit() {
+  nvs["eeprom"] = eeprom_buf;
+  nvs_commit();
+  return true;
+}
+void EEPROMClass::end() { commit(); }
+uint8_t *EEPROMClass::getDataPtr() { return (uint8_t *)&eeprom_buf[0]; }
+const uint8_t *EEPROMClass::getConstDataPtr() const { return (const uint8_t *)eeprom_buf.data(); }
+uint8_t &EEPROMClass::operator[](int a) { return (uint8_t &)eeprom_buf[a]; }
+#define EE(RN, WN, T) \
+  T EEPROMClass::read##RN(int a) { T v; memcpy(&v, getDataPtr() + a, sizeof v); return v; } \
+  size_t EEPROMClass::write##WN(int a, T v) { memcpy(getDataPtr() + a, &v, sizeof v); return sizeof v; }
+EE(Byte, Byte, uint8_t)
+EE(Char, Char, int8_t)
+EE(Short, Short, int16_t)
+EE(Int, Int, int32_t)
+EE(Long, Long, int32_t)
+EE(Float, Float, float)
+EE(Double, Double, double)
+EE(Bool, Bool, bool)
+EEPROMClass EEPROM;
+
 // ------------------------------------------------------------------ Wi-Fi: the radio draws, the network never answers
 // Nothing is out there in a run: a sketch must go on without it. N <t> <0|1> says the radio is on or off.
 static bool radio = false;
@@ -1484,3 +1679,5 @@ int main() {
     advance(1);
   }
 }
+
+#include "libs.inc"

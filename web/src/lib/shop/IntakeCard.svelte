@@ -110,7 +110,7 @@
     <div class="read">
       <div class="row top">
         <span class="section-title">{st('intake.read')}</span>
-        {#if it.model}<span class="chip accent"><Icon name="sparkles" size={13} /> {spark}</span>{/if}
+        {#if it.model}<span class="chip accent"><Icon name="cpu" size={13} /> {spark}</span>{/if}
       </div>
       <p class="line">
         {#if fits}<strong class="mono">{fits}</strong><span class="sep">·</span>{/if}
@@ -266,7 +266,7 @@
   }
   .line {
     margin: 0;
-    font-size: var(--text-product-lead);
+    font-size: var(--text-lg);
     line-height: 1.4;
     overflow-wrap: anywhere;
   }

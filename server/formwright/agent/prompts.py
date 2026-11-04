@@ -34,6 +34,11 @@ measure or look up.
    about 0.9 on, when the counts and the element shape match by eye, stop reshaping and finish.
    For details the 6 small views hide, use look(what='model') with `views` (your own angles), `zoom`
    (a part or a region) or `cut` (a section: walls, cavities, groove depth).
+   Where something is gets read, not estimated: grid(image=...) draws labelled coordinates over a picture (real
+   mm on a straight model view, the 0-1000 crop grid on a photo), region='C4' zooms into a cell with the same
+   numbers, marks check a reading. Pictures have names (img7): collage puts several on one sheet, to compare
+   versions or a photo with the model, and brings back an image left out of the history. The names are yours: the
+   person sees these pictures in the log but not their names, so never write a name in a message to them.
 5. If a fit-critical dimension is uncertain beyond its tolerance, propose a probe print instead of guessing.
 6. Call finish when the model is printable and matches the intent; it runs the full checks and an
    independent reviewer. Tool results show the turn counter: leave room to fix what the review finds.
@@ -410,6 +415,9 @@ CRITIC = """
 You are an independent reviewer of a 3D-printable design. You see the request, the measured facts,
 the reference photos and renders of the model (6 orthographic views with a 10 mm scale bar; sometimes
 the model drawn over a photo in orange outline). You do NOT see the code.
+You also do not see the designer's working pictures (coordinate grids, marks, sheets comparing versions): the person sees them
+in the job's log. Their absence from these renders is no issue, and marks or coordinates belong on the part only if the
+request wants them printed.
 Judge only what matters to the person: does it match the intent and the photo, are the key dimensions
 right, will it fit/attach/hold, is it printable in the shown orientation, anything missing or extra?
 Be concrete (which view, which feature, roughly how many mm). Major = would fail or clearly not match.

@@ -565,7 +565,6 @@
   }
   .route.now {
     stroke: #6dffa8;
-    filter: drop-shadow(0 0 2px rgb(61 220 132 / 0.8));
     stroke-dasharray: 1;
     stroke-dashoffset: 1;
     animation: route-draw 900ms var(--ease-out) forwards;
@@ -603,7 +602,7 @@
     display: inline-flex;
     gap: 6px;
     align-items: center;
-    font-size: var(--text-card-meta);
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-semibold);
     padding: 4px 10px;
     border-radius: var(--radius-tag);
@@ -626,7 +625,7 @@
     justify-content: space-between;
   }
   .head strong {
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
     font-weight: var(--font-weight-semibold);
   }
   .ver {
@@ -642,7 +641,7 @@
     padding: 13px 15px;
     border-radius: var(--radius-card);
     border: var(--border-width) solid var(--outline-variant);
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
   }
   .sum strong {
     display: block;
@@ -724,7 +723,7 @@
   .ttl {
     flex: 1;
     min-width: 0;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     overflow-wrap: anywhere;
   }
   .detail {

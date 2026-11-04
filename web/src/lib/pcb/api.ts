@@ -1,6 +1,6 @@
 // Client for a project's PCB versions (contract C8, server/formwright/pcbapi.py): the list of versions and
 // their files by URL. Same origin and cookie session as $lib/api; errors come back as its ApiError.
-import { ApiError } from '$lib/api';
+import { apiError, deadline } from '$lib/api';
 import type { PcbDrc, PcbVersion, RouteFrames } from '$lib/types';
 
 /** The files the server keeps for every version (pcb_store.ARTIFACTS). */
@@ -12,22 +12,8 @@ export type PcbArtifact =
 export const FAB_FILES: PcbArtifact[] = ['gerbers.zip', 'bom.csv', 'cpl.csv'];
 
 async function get(path: string): Promise<Response> {
-  const res = await fetch(path, { credentials: 'same-origin' });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    let msg = res.statusText;
-    let code: string | undefined;
-    try {
-      // {detail, code}; an HTTPException nests the same object under detail
-      let j = JSON.parse(text);
-      if (j?.detail && typeof j.detail === 'object') j = j.detail;
-      if (typeof j?.detail === 'string') msg = j.detail;
-      if (typeof j?.code === 'string') code = j.code;
-    } catch {
-      if (res.status >= 500 && !text.trim()) code = 'offline';
-    }
-    throw new ApiError(res.status, msg || `HTTP ${res.status}`, code);
-  }
+  const res = await fetch(path, { credentials: 'same-origin', signal: deadline(60_000) });
+  if (!res.ok) throw await apiError(res);
   return res;
 }
 

@@ -1,0 +1,1 @@
+{"ok":true,"errors":[],"warnings":[],"suppressed":0,"counts":{"components":5,"nets":5,"connections":9,"traces":8,"vias":0},"intent":{"ok":true,"issues":[],"checked":6},"limits":{"ok":true,"issues":[],"limits":{"layers":2,"nets":30,"components":40,"size_mm":100}}}

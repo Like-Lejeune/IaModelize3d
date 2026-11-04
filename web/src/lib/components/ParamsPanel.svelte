@@ -11,12 +11,15 @@
     onChange,
     agentValues = {},
     building = false,
+    panel,
   }: {
     specs: Record<string, ParamSpec>;
     values: Record<string, any>;
     onChange: (name: string, value: any, commit: boolean) => void;
     agentValues?: Record<string, any>;
     building?: boolean;
+    /** The heading the panel around it already shows: a group of the same name goes without its own. */
+    panel?: string;
   } = $props();
 
   let legend = $state(false);
@@ -63,7 +66,7 @@
   {:else}
     {#each groups as [group, { orig: groupRaw, items }] (group)}
       <section>
-        {#if group}<h4 class="section-title" title={orig(group, groupRaw)}>{group}</h4>{/if}
+        {#if group && group !== panel}<h4 class="section-title" title={orig(group, groupRaw)}>{group}</h4>{/if}
         {#each items as [name, s] (name)}
           {@const k = kind(s)}
           {@const raw = s.label ?? name}
@@ -164,7 +167,7 @@
     color: var(--outline);
   }
   .empty strong {
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
     font-weight: var(--font-weight-semibold);
     color: var(--on-surface);
   }
@@ -184,7 +187,7 @@
     min-width: 0;
   }
   .head label {
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     color: var(--on-surface);
     font-weight: var(--font-weight-semibold);
     /* two lines before it is cut: 'Gap around the board' fits a narrow column */
@@ -199,13 +202,13 @@
     width: 76px;
     padding: 6px 8px;
     text-align: right;
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
   }
   .changed .num {
     border-color: var(--primary);
   }
   .unit {
-    font-size: var(--text-card-meta);
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-semibold);
     color: var(--outline);
     width: 24px;

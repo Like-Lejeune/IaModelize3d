@@ -277,7 +277,7 @@
   .ttl {
     flex: 1;
     min-width: 0;
-    font-size: var(--text-product-lead);
+    font-size: var(--text-lg);
     font-weight: var(--font-weight-bold);
     text-shadow: 0 1px 6px rgb(0 0 0 / 0.5);
     white-space: nowrap;
@@ -287,7 +287,7 @@
   .seg {
     display: flex;
     padding: 3px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     gap: 2px;
   }
   .seg button {
@@ -298,9 +298,9 @@
     background: transparent;
     color: rgb(255 255 255 / 0.85);
     font-weight: var(--font-weight-semibold);
-    font-size: var(--text-card-from);
+    font-size: var(--text-md);
     padding: 7px 12px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     min-height: 36px;
     transition: background-color var(--dur-fast) var(--ease-standard);
   }
@@ -349,7 +349,7 @@
   .name {
     flex: 1;
     min-width: 0;
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
     font-weight: var(--font-weight-bold);
     padding: 8px 10px;
     border-radius: var(--radius-field);
@@ -363,7 +363,7 @@
   }
   .busy {
     color: var(--primary);
-    font-size: 20px;
+    font-size: var(--text-2xl);
   }
   .err {
     color: var(--error);
@@ -400,7 +400,7 @@
   @media (min-width: 720px) {
     .panel {
       bottom: var(--space-4);
-      border-radius: 18px;
+      border-radius: var(--radius-xl);
       border-bottom: var(--border-width) solid var(--outline-variant);
     }
   }

@@ -154,7 +154,7 @@
     }
   }
   .lbl {
-    font-size: var(--text-card-meta);
+    font-size: var(--text-sm);
     color: var(--outline);
     line-height: 1.2;
   }
@@ -224,7 +224,7 @@
     gap: 2px var(--space-2);
   }
   .head strong {
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
   }
   .note {
     margin: 2px 0 0;

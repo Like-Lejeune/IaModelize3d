@@ -111,12 +111,15 @@ async def _replace_target(project_id: str, asset_id: str, name: str, prompt: dic
     """Exactly one target selection per snap photo: the new one replaces the old ones."""
     db = await get_db()
     old = await db.all("SELECT id FROM selections WHERE project_id = ? AND asset_id = ? AND role = 'target'", project_id, asset_id)
-    await db.execute("DELETE FROM selections WHERE project_id = ? AND asset_id = ? AND role = 'target'", project_id, asset_id)
+    gone = [r["id"] for r in old]
     sid = new_id("s_")
     mask_path = save_mask_png(f"{project_id}/{sid}_mask.png", mask.mask)
-    name = await _unique_name(project_id, name.strip().replace(" ", "_")[:40] or "object")
+    name = await _unique_name(project_id, name.strip().replace(" ", "_")[:40] or "object", exclude=tuple(gone))
+    # the new one first: a failure here leaves the old target, never none
     sel = await _insert_selection(project_id, asset_id, "target", name, prompt, mask_path, data, sid)
-    return sel, [r["id"] for r in old]
+    if gone:
+        await db.execute(f"DELETE FROM selections WHERE id IN ({','.join('?' * len(gone))})", *gone)
+    return sel, gone
 
 
 async def _set_subject(project: dict[str, Any], label: str, **brief: Any) -> None:
@@ -290,7 +293,9 @@ def sticker_detail(brief: dict[str, Any] | None, asset: dict[str, Any]) -> float
     snap_info = (brief or {}).get("snap") or {}
     if "person" in snap_info:
         return 0.0 if snap_info["person"] else relief.DETAIL
-    return 0.0 if (asset.get("meta") or {}).get("faces_blurred") else relief.DETAIL
+    meta_info = asset.get("meta") or {}
+    # a photo the face pass could not look at may have faces in it
+    return 0.0 if meta_info.get("faces_blurred") or meta_info.get("blur_skipped") else relief.DETAIL
 
 
 async def sticker_for(project_id: str, asset: dict[str, Any], sel: dict[str, Any], *, img: np.ndarray | None = None,

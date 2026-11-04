@@ -39,7 +39,8 @@ MODULE_GND = re.compile(r"^A?GND\d*$")
 RAIL_V = [(re.compile(r"^(V3V3|V3V|V33|V3_3|P3V3|VCC3V3|VDD3V3|VCC_3V3)$", re.I), 3.3),
           (re.compile(r"^(V5|V5V|VBUS|VSYS|VUSB|USB5V|P5V|VCC5V|VCC_5V)$", re.I), 5.0),
           (re.compile(r"^(VBAT|VBATT|BAT|BATT|VLIPO|VCELL)$", re.I), 4.2),
-          (re.compile(r"^(V1V8|V18)$", re.I), 1.8), (re.compile(r"^V9V?$", re.I), 9.0), (re.compile(r"^V12V?$", re.I), 12.0)]
+          (re.compile(r"^(V1V8|V18)$", re.I), 1.8), (re.compile(r"^V9V?$", re.I), 9.0), (re.compile(r"^V12V?$", re.I), 12.0),
+          (re.compile(r"^V24V?$", re.I), 24.0), (re.compile(r"^V36V?$", re.I), 36.0), (re.compile(r"^V48V?$", re.I), 48.0)]
 BATTERY = re.compile(r"bat|lipo|li-?ion|li-?po|18650|lifepo|аккум|батар", re.I)
 BAT_PLUS = re.compile(r"^(\+|P|VBAT|BAT|BATP|BAT_P|BAT\+|V\+|VP|VCC|VIN|PLUS|RED)$", re.I)
 SUPPLY_PIN = re.compile(r"^(VDD|VCC|VIN|VDDIO|AVDD|DVDD|VDDA|VS|VP|V\+|VBAT|PWR|POWER|V5|V5V|V3V3|5V|3V3|\+)$", re.I)
@@ -992,10 +993,10 @@ def _accessory_supply(g: _G) -> list[dict[str, Any]]:
             if v is None or not (SUPPLY_PIN.match(p["key"]) or SUPPLY_PIN.match(p["name"])):
                 continue
             if sup == "3V3" and v >= 4.5:
-                out.append(_f(WARNING, "accessory_supply", nid, f"{nid} ({g.what(nid)}) is a 3.3 V module but {nid}.{p['key']} is on {g.name(i)} ({v:g} V): it may be damaged",
+                out.append(_f(ERROR, "accessory_supply", nid, f"{nid} ({g.what(nid)}) is a 3.3 V module but {nid}.{p['key']} is on {g.name(i)} ({v:g} V): it may be damaged",
                               f"Wire {nid}.{p['key']} to V3V3."))
             elif sup == "5V" and v < 4.5:
-                out.append(_f(WARNING, "accessory_supply", nid, f"{nid} ({g.what(nid)}) needs 5 V but {nid}.{p['key']} is on {g.name(i)} ({v:g} V): it may not work",
+                out.append(_f(ERROR, "accessory_supply", nid, f"{nid} ({g.what(nid)}) needs 5 V but {nid}.{p['key']} is on {g.name(i)} ({v:g} V): it may not work",
                               f"Wire {nid}.{p['key']} to V5 (and check that its signal levels suit a 3.3 V microcontroller)."))
     return out
 
@@ -1027,6 +1028,204 @@ def _load_sides(g: _G, nid: str) -> tuple[int, int] | None:
     if supply is None:
         return None
     return supply, next(i for i in nets if i != supply)  # type: ignore[misc]
+
+
+# ---- what a chip cannot work without: the pins it measures on, its supply
+MEASURED = re.compile(r"^(IP|IN|VIN|AIN|ADC_?IN|RS|ISENSE|SENSE|VSENSE|CS)[+\-PN]?\d*$|^(IN|VIN|AIN)\d*[+\-PN]$|^A?IN\d+$", re.I)
+
+
+def _unwired_inputs(g: _G) -> list[dict[str, Any]]:
+    """A chip whose measured input or supply is on no net cannot do its job, whatever the rest of its wiring says: a current sensor
+    with no current through it reads a flat zero, and the firmware test passes on a made-up value. Only for a chip that is wired at all."""
+    out = []
+    for nid, n in g.nodes.items():
+        # only a chip wired at all: one with nothing but its grounds on a net is lint's unconnected part
+        if n.get("kind") != "chip" or not any(not g.gnd(i) for _p, i in g.wired(nid)):
+            continue
+        open_in, open_sup = [], []
+        for p in g.pins[nid]:
+            names = [p["name"], p["label"]]
+            if NC.match(p["name"] or "") or g.net(nid, p["key"]) is not None:
+                continue
+            if any(MEASURED.match(x or "") for x in names):
+                open_in.append(p["name"] or p["label"])
+            elif any(SUPPLY_PIN.match(x or "") for x in names):
+                open_sup.append(p["name"] or p["label"])
+        # a pin of a pair that is wired on its twin counts as wired: IN- only is a single-ended amplifier's business
+        if open_in:
+            what = ", ".join(dict.fromkeys(open_in))
+            out.append(_f(ERROR, "input_unwired", nid, f"{nid} ({g.what(nid)}) measures on {what}, and they are on no net: it reads nothing, and no firmware can make up for it",
+                          f"Wire {what} to what it must measure. If that is mains or anything this board must not carry, take another part: a clamp-on current transformer or an isolated energy-meter module on a cable (see the accessories)."))
+        if open_sup:
+            what = ", ".join(dict.fromkeys(open_sup))
+            out.append(_f(WARNING, "supply_unwired", nid, f"{nid} ({g.what(nid)}): its supply {what} is on no net: most chips do not run without every supply pin", f"Wire {what} to the rail in {nid}'s range, unless its datasheet says it may stay open."))
+    return out
+
+
+# ---- what the copper, the connectors and the parts carry
+MAINS_NET = re.compile(r"^(L|N|PE|L1|N1|LINE|NEUTRAL|MAINS|AC|ACL|ACN|AC_L|AC_N|AC_IN|HOT|V220V?|V230V?|V110V?)$", re.I)
+AMPS_SAID = re.compile(r"(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(?:А|A|амп\w*|amps?)(?![A-Za-zА-Яа-я])")
+WATTS_SAID = re.compile(r"(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(кВт|kW|Вт|W)(?![A-Za-zА-Яа-я])")
+POWER_TERM = re.compile(r"^(D|S|C|E|DRAIN|SOURCE|COLLECTOR|EMITTER)\d*$", re.I)
+RDS = re.compile(r"RDS|on.?resistance", re.I)
+PACKAGE_W = [(re.compile(r"TO-?247", re.I), 3.5), (re.compile(r"TO-?263|D2PAK", re.I), 3.0), (re.compile(r"TO-?220|TO-?252|DPAK", re.I), 2.0),
+             (re.compile(r"PDFN|DFN|QFN|SOP-?8|SOIC-?8|PowerPAK|LFPAK", re.I), 1.5), (re.compile(r"SOT-?223|SOT-?89", re.I), 1.0), (re.compile(r"SOT-?23|SC-?70|SOT-?323", re.I), 0.35)]
+RESISTOR_W = {"0402": 0.06, "0603": 0.1, "0805": 0.125, "1206": 0.25}
+
+
+def _pack_w(g: _G, nid: str) -> float:
+    """What a part's package sheds in still air on a small board without a heatsink, plus the heatsink the node states."""
+    text = f"{g.part(nid).get('package') or ''} {g.part(nid).get('footprint_name') or ''}"
+    base = next((w for rx, w in PACKAGE_W if rx.search(text)), 0.5)
+    return base + float(g.nodes[nid].get("heatsink_w") or 0)
+
+
+def _attr_ohms(part: dict[str, Any], rx: re.Pattern[str]) -> float | None:
+    for k, v in (part.get("attrs") or {}).items():
+        if rx.search(str(k)):
+            m = re.search(r"(\d+(?:\.\d+)?)\s*(m|k)?(?:Ω|ohm)", str(v), re.I)
+            if m:
+                return float(m.group(1)) * {"m": 1e-3, "k": 1e3}.get((m.group(2) or "").lower(), 1.0)
+    return None
+
+
+def _contacts(g: _G, nid: str, i: int) -> list[str]:
+    return [key for x, key in g.on[i] if x == nid]
+
+
+def _connector_amps(g: _G, nid: str) -> float | None:
+    n = g.nodes[nid]
+    if n.get("connector"):
+        return float(device.CONNECTORS[n["connector"]]["amps"])
+    if n.get("kind") == "chip" and n.get("edge"):
+        ma = g.part(nid).get("current_ma")
+        return float(ma) / 1000 if ma else None
+    if n.get("kind") in device.CONNECTOR_AMPS:
+        return device.CONNECTOR_AMPS[n["kind"]]
+    if n.get("kind") == "accessory" and g.acc(nid).get("connect") in ("header", "jst"):
+        return device.CONNECTOR_AMPS["jst" if g.acc(nid).get("connect") == "jst" else "header"]
+    return None
+
+
+def _said(g: _G) -> tuple[float, float]:
+    """The largest current and power the requirements name (A, W)."""
+    text = " ".join(str(r.get("text") or "") for r in g.doc.get("requirements") or [] if isinstance(r, dict))
+    amps = max([float(m.group(1).replace(",", ".")) for m in AMPS_SAID.finditer(text)] or [0.0])
+    watts = max([float(m.group(1).replace(",", ".")) * (1000 if m.group(2).lower() in ("квт", "kw") else 1) for m in WATTS_SAID.finditer(text)] or [0.0])
+    return amps, watts
+
+
+def _current(g: _G) -> list[dict[str, Any]]:
+    """The physics DRC does not see: a net is clean at any current. Each stated current (net.amps) is held to the width of copper it
+    gets, every contact and part it runs through; a current or power the requirements name must be stated; a power path that leaves
+    the board by a connector must state what it carries. IPC-2221 for copper, the part's own rating for the rest."""
+    out = []
+    amps_of = [float(n.get("amps") or 0) for n in g.nets]
+    top = max(amps_of or [0.0])
+    for i, net in enumerate(g.nets):
+        name = net.get("name") or g.name(i)
+        if MAINS_NET.match(net.get("name") or ""):
+            out.append(_f(ERROR, "mains_on_board", name, f"net {name} is mains: this board has no creepage distances, no fuse and no isolation, and it would be live under the person's fingers",
+                          "Keep mains off the board: a relay or energy-meter module on a cable (see the accessories) with its mains side outside this case, wired by an electrician, or a certified smart socket."))
+        a = amps_of[i]
+        conns = [x for x in dict.fromkeys(x for x, _ in g.on[i]) if _connector_amps(g, x) is not None]
+        v = g.volt(i)
+        if not a and conns and not g.gnd(i):
+            through = [x for x, key in g.on[i] if g.kind[x] in SWITCHES and POWER_TERM.match(g.raw(x, key) or "")]
+            if through or (v is not None and v > 5.5):
+                why = f"{', '.join(dict.fromkeys(through))} switches it" if through else f"it brings {v:g} V"
+                out.append(_f(ERROR, "current_unstated", name, f"net {name} leaves the board by {', '.join(conns)} and {why}, but says nothing of the current it carries, so nothing can check its copper or its contacts",
+                              f"Give that net amps: the most it carries in use, e.g. {{\"pins\": [...], \"amps\": 1.5}}."))
+        if a <= 0:
+            continue
+        for x in conns:
+            pins = max(1, len(_contacts(g, x, i)))
+            rating = float(_connector_amps(g, x) or 0) * pins
+            if a > rating:
+                out.append(_f(ERROR, "connector_current", x, f"{x} carries {a:g} A of net {name} on {pins} contact(s) rated about {rating:g} A in all: it overheats",
+                              f"Use a screw terminal (header with connector: {', '.join(device.CONNECTORS)}: up to {max(c['amps'] for c in device.CONNECTORS.values()):g} A a pole), or more contacts on the net."))
+        need = device.trace_mm(a)
+        if need > device.TRACE_MAX_MM and not device.poured(g.doc, net):
+            out.append(_f(ERROR, "trace_current", name, f"net {name} carries {a:g} A, which takes a {need:g} mm trace (IPC-2221, 1 oz, 20 C rise); traces stop at {device.TRACE_MAX_MM:g} mm",
+                          f"Name the net and add a pour for it: zones [{{\"kind\": \"pour\", \"net\": \"{name}\", \"layer\": \"top\"}}] with a rect over its path; the other power net takes the other layer."))
+        for x, key in g.on[i]:
+            k = g.kind[x]
+            if k in SWITCHES and POWER_TERM.match(g.raw(x, key) or ""):
+                card = g.part(x)
+                rated = float(card.get("current_ma") or 0) / 1000
+                if rated and a > 0.7 * rated:
+                    out.append(_f(ERROR, "part_current", x, f"{x} ({g.what(x)}) carries {a:g} A of net {name} and is rated {rated:g} A: keep it under 70 %", "A larger part from search_parts, or two in parallel."))
+                rds = _attr_ohms(card, RDS)
+                if rds:
+                    heat, can = a * a * rds, _pack_w(g, x)
+                    if heat > can:
+                        out.append(_f(ERROR, "part_heat", x, f"{x} ({g.what(x)}) sheds {heat:.2f} W at {a:g} A ({rds * 1000:g} mOhm on), and its package gets rid of about {can:g} W here", "A part with a lower on-resistance or a larger package; a heatsink stated on the node (heatsink_w) goes in the summary as an extra."))
+            elif k == "resistor":
+                card, n = g.part(x), g.nodes[x]
+                ohms = _attr_ohms(card, re.compile(r"^resistance$", re.I)) if n.get("kind") == "chip" else _ohms(n.get("value"))
+                if ohms is None:
+                    continue
+                m = re.search(r"(\d+(?:\.\d+)?)\s*(m)?W", str((card.get("attrs") or {}).get("Power(Watts)") or ""))
+                can = (float(m.group(1)) * (1e-3 if m.group(2) else 1)) if m else RESISTOR_W.get(str(n.get("package") or ""), 0.1)
+                heat = a * a * ohms
+                if heat > can:
+                    out.append(_f(ERROR, "part_heat", x, f"{x} ({g.what(x)}) sheds {heat:.2f} W at {a:g} A through {ohms:g} Ohm, and it is rated {can:g} W", "A lower value or a power resistor from search_parts."))
+    # what comes back through ground comes through its copper and the same connector
+    if top and any(g.gnd(i) for i in range(len(g.nets))):
+        for i, net in enumerate(g.nets):
+            if not g.gnd(i):
+                continue
+            name = net.get("name") or g.name(i)
+            if device.trace_mm(top) > device.TRACE_MAX_MM and not device.poured(g.doc, net):
+                out.append(_f(ERROR, "trace_current", name, f"the {top:g} A of the power path comes back through {name}, which takes a {device.trace_mm(top):g} mm trace; traces stop at {device.TRACE_MAX_MM:g} mm",
+                              f"Add a pour for it: zones [{{\"kind\": \"pour\", \"net\": \"{name}\", \"layer\": \"bottom\"}}]."))
+    named_a, named_w = _said(g)
+    if named_a >= 1 and top < 0.8 * named_a:
+        out.append(_f(ERROR, "current_unstated", "requirements", f"a requirement names {named_a:g} A, and no net states that current (the most is {top:g} A), so the board was not checked for it",
+                      "Give the net it runs through amps; the copper, the contacts and the parts are then held to it."))
+    # a transistor an op-amp drives is in its linear region: all the power the requirement names is heat on the board
+    linear = [x for x in g.nodes if g.kind[x] in SWITCHES and _linear(g, x)]
+    if linear and named_w:
+        can = sum(_pack_w(g, x) for x in linear)
+        if named_w > can:
+            out.append(_f(ERROR, "thermal_budget", linear[0], f"{', '.join(linear)} run in their linear region under an amplifier, so the {named_w:g} W a requirement names is heat on this board, and they get rid of about {can:g} W",
+                          "State the heatsink each one is bolted to (heatsink_w on the node, with the cooling in the summary as an extra the case does not hold), or say the power this board can really take. Never just lower the requirement without saying so."))
+    return out
+
+
+def _linear(g: _G, x: str) -> bool:
+    roles, _ = g.roles(x)
+    gate = next((k for r in ("G", "B") for k in (roles.get(r) or [])), None) if roles else None
+    i = g.net(x, gate) if gate else None
+    if i is None:
+        return False
+    nets = {i}
+    for y, _key in g.on[i]:  # through the series resistor between them
+        if g.nodes[y].get("kind") == "resistor":
+            nets |= {j for _p, j in g.wired(y)}
+    return any(g.kind.get(y) == "ic" and re.search(r"op ?amp|operational|amplifier|comparator|LM358|LM324|MCP600", g.text(y), re.I) for j in nets for y, _k in g.on[j])
+
+
+SOCKET = re.compile(r"Audio Connectors|Circular DIN|DC Power Connectors|Ethernet Connectors|Coaxial Connectors|Power connector|USB Connectors", re.I)
+SIDEWAYS = re.compile(r"Right.?Angle|\bSMD\b", re.I)
+
+
+def _sockets(g: _G) -> list[dict[str, Any]]:
+    """A socket a plug goes into has to be reached: on an edge, where the wall gets its window, or upright through a hole in the lid. Left
+    inside, it sits in a closed box and the summary tells the person to cut the wall themselves (a MIDI pedal on 2026-11-04)."""
+    out = []
+    for nid, n in g.nodes.items():
+        if n.get("kind") != "chip":
+            continue
+        card = g.part(nid)
+        if not SOCKET.search(f"{card.get('category') or ''} {card.get('family') or ''}"):
+            continue
+        text = f"{card.get('description') or ''} {card.get('package') or ''}"
+        if n.get("face") == "hole" and SIDEWAYS.search(text):
+            out.append(_f(ERROR, "socket_unreachable", nid, f"{nid} ({g.what(nid)}) opens sideways, so a hole in the lid does not reach it", f"Give {nid} an edge instead of face hole: the build turns it to open out of the wall."))
+        elif not n.get("edge") and n.get("face") != "hole":
+            out.append(_f(ERROR, "socket_unreachable", nid, f"{nid} ({g.what(nid)}) is a socket with no way in: it stays closed inside the case", f"Give {nid} an edge (\"edge\": \"-y\"): the build turns it to open outwards and the wall gets its window."))
+    return out
 
 
 def _floating(g: _G) -> list[dict[str, Any]]:
@@ -1301,7 +1500,7 @@ def _led_colour_rule(g: _G) -> list[dict[str, Any]]:
     return out
 
 
-RULES = (_led_colour_rule, _short_part, _battery_raw, _transistors, _gpio_overload, _buzzer_unwired, _gpio_short, _i2c_misuse, _strapping, _ws2812,
+RULES = (_current, _unwired_inputs, _sockets, _led_colour_rule, _short_part, _battery_raw, _transistors, _gpio_overload, _buzzer_unwired, _gpio_short, _i2c_misuse, _strapping, _ws2812,
          _pullup_5v, _led, _supply_range, _accessory_supply, _flyback, _floating, _flyback_orientation, _sensor_divider, _supply_no_source, _load_unpowered, _diode_to_ground,
          _diode_across_rail, _requirements)
 

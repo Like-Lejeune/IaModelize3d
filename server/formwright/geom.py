@@ -16,11 +16,13 @@ killed and replaced, and every worker is replaced after a number of calls.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import itertools
 import json
 import logging
 import os
+from collections import deque
 from typing import Any
 
 from .config import REPO_DIR, settings
@@ -35,6 +37,9 @@ class GeomError(Exception):
         self.message = message
 
 
+# people read these; what the engine itself said goes to the log
+CRASHED = "the geometry engine stopped unexpectedly"
+OUT_OF_PROTOCOL = "the geometry engine gave an unusable answer"
 # What each method's result carries; a reply without it means the two sides disagree.
 EXPECTED = {
     "build": ("ok", "params", "parts"),
@@ -63,6 +68,8 @@ class _Worker:
         self.calls = 0
         # the program (program_key) this worker has run; None while it has run none
         self.program: str | None = None
+        self.stderr: deque[str] = deque(maxlen=60)
+        self._drain: asyncio.Task | None = None
 
     async def start(self) -> None:
         s = settings()
@@ -87,68 +94,113 @@ class _Worker:
             env=env,
             limit=256 * 1024 * 1024,
         )
-        line = await asyncio.wait_for(self.proc.stdout.readline(), 30)  # type: ignore[union-attr]
+        # an unread stderr pipe would fill up and stall the worker, which reads as a program that is too heavy
+        self.stderr.clear()
+        self._drain = asyncio.create_task(self._read_stderr(self.proc))
+        try:
+            line = await asyncio.wait_for(self.proc.stdout.readline(), 30)  # type: ignore[union-attr]
+        except (TimeoutError, OSError, ValueError) as e:
+            await self.kill()
+            log.error("geom worker did not start: %s: %s", type(e).__name__, e)
+            raise GeomError("crash", CRASHED) from e
         if b"ready" not in line:
-            err = await self.proc.stderr.read(4000)  # type: ignore[union-attr]
-            raise RuntimeError(f"geom worker failed to start: {line!r} {err.decode(errors='ignore')}")
+            log.error("geom worker failed to start: %r %s", line[:200], await self._tail())
+            await self.kill()
+            raise GeomError("crash", CRASHED)
+
+    async def _read_stderr(self, proc: asyncio.subprocess.Process) -> None:
+        assert proc.stderr
+        with contextlib.suppress(Exception):
+            while line := await proc.stderr.readline():
+                self.stderr.append(line.decode(errors="ignore").rstrip()[:500])
+
+    async def _tail(self) -> str:
+        """The last of what the worker said; a worker that closed stdout but lives on must not hold the call up."""
+        if self._drain:
+            with contextlib.suppress(TimeoutError, asyncio.CancelledError):
+                await asyncio.wait_for(asyncio.shield(self._drain), 1)
+        return "\n".join(self.stderr)[-1500:]
 
     async def kill(self) -> None:
         if self.proc and self.proc.returncode is None:
             self.proc.kill()
             await self.proc.wait()
+        if self._drain:
+            self._drain.cancel()
+            self._drain = None
         self.proc = None
 
     async def call(self, method: str, params: dict[str, Any], timeout: float) -> dict[str, Any]:
-        async with self.lock:
-            program = program_key(params)
-            # an escaped program can patch this process (stdout, prototypes, timers), so a worker serves one program only
-            if self.proc is not None and (self.calls >= self.recycle_after or self.program not in (None, program)):
-                await self.kill()
-            if self.proc is None or self.proc.returncode is not None:
-                await self.start()
-                self.calls = 0
-                self.program = None
-            self.calls += 1
-            if program is not None:
-                self.program = program
-            assert self.proc and self.proc.stdin and self.proc.stdout
-            req_id = next(self.ids)
+        # the wait for this worker counts: a caller behind a long fit is told the engine is busy, not left waiting for good
+        deadline = asyncio.get_running_loop().time() + timeout
+        try:
+            await asyncio.wait_for(self.lock.acquire(), timeout)
+        except TimeoutError:
+            raise GeomError("timeout", f"the geometry engine stayed busy for {timeout:.0f}s") from None
+        try:
+            return await self._call(method, params, timeout, deadline)
+        finally:
+            self.lock.release()
+
+    async def _call(self, method: str, params: dict[str, Any], timeout: float, deadline: float) -> dict[str, Any]:
+        program = program_key(params)
+        # an escaped program can patch this process (stdout, prototypes, timers), so a worker serves one program only
+        if self.proc is not None and (self.calls >= self.recycle_after or self.program not in (None, program)):
+            await self.kill()
+        if self.proc is None or self.proc.returncode is not None:
+            await self.start()
+            self.calls = 0
+            self.program = None
+        self.calls += 1
+        if program is not None:
+            self.program = program
+        assert self.proc and self.proc.stdin and self.proc.stdout
+        req_id = next(self.ids)
+        try:
             self.proc.stdin.write((json.dumps({"id": req_id, "method": method, "params": params}) + "\n").encode())
             await self.proc.stdin.drain()
-            # A reply to an earlier call whose caller was cancelled may still be in the pipe;
-            # without matching ids every later call would get the previous call's result.
-            deadline = asyncio.get_running_loop().time() + timeout
-            while True:
-                try:
-                    line = await asyncio.wait_for(self.proc.stdout.readline(), max(0.0, deadline - asyncio.get_running_loop().time()))
-                except TimeoutError:
-                    await self.kill()
-                    raise GeomError("timeout", f"geometry took longer than {timeout:.0f}s") from None
-                except asyncio.CancelledError:
-                    # the worker is still busy with this call; a fresh one is cheaper than waiting
-                    await self.kill()
-                    raise
-                if not line:
-                    err = (await self.proc.stderr.read(4000)).decode(errors="ignore") if self.proc.stderr else ""
-                    await self.kill()
-                    raise GeomError("crash", err[-1500:] or "worker exited")
-                try:
-                    msg = json.loads(line)
-                except json.JSONDecodeError:
-                    log.warning("geom worker: non-JSON output %r", line[:200])
-                    continue
-                if isinstance(msg, dict) and msg.get("id") == req_id:
-                    break
-                log.warning("geom worker: dropping stale reply id=%r (waiting for %d)", msg.get("id") if isinstance(msg, dict) else None, req_id)
-            if "error" in msg:
-                err = msg["error"] if isinstance(msg["error"], dict) else {"message": str(msg["error"])}
-                raise GeomError(err.get("stage", "runtime"), err.get("message", ""))
-            result = msg.get("result")
-            missing = [k for k in EXPECTED.get(method, ()) if not isinstance(result, dict) or k not in result]
-            if missing:
+        except (OSError, RuntimeError) as e:  # the worker died between calls
+            log.warning("geom worker: write failed: %s: %s %s", type(e).__name__, e, await self._tail())
+            await self.kill()
+            raise GeomError("crash", CRASHED) from e
+        # A reply to an earlier call whose caller was cancelled may still be in the pipe;
+        # without matching ids every later call would get the previous call's result.
+        while True:
+            try:
+                line = await asyncio.wait_for(self.proc.stdout.readline(), max(0.0, deadline - asyncio.get_running_loop().time()))
+            except TimeoutError:
                 await self.kill()
-                raise GeomError("protocol", f"{method} reply has no {', '.join(missing)}")
-            return result
+                raise GeomError("timeout", f"geometry took longer than {timeout:.0f}s") from None
+            except asyncio.CancelledError:
+                # the worker is still busy with this call; a fresh one is cheaper than waiting
+                await self.kill()
+                raise
+            except ValueError as e:  # a line past the stream's limit: this reply cannot be read
+                log.error("geom worker: unreadable reply: %s", e)
+                await self.kill()
+                raise GeomError("protocol", OUT_OF_PROTOCOL) from e
+            if not line:
+                log.warning("geom worker exited during %s: %s", method, await self._tail() or "no output")
+                await self.kill()
+                raise GeomError("crash", CRASHED)
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                log.warning("geom worker: non-JSON output %r", line[:200])
+                continue
+            if isinstance(msg, dict) and msg.get("id") == req_id:
+                break
+            log.warning("geom worker: dropping stale reply id=%r (waiting for %d)", msg.get("id") if isinstance(msg, dict) else None, req_id)
+        if "error" in msg:
+            err = msg["error"] if isinstance(msg["error"], dict) else {"message": str(msg["error"])}
+            raise GeomError(err.get("stage", "runtime"), err.get("message", ""))
+        result = msg.get("result")
+        missing = [k for k in EXPECTED.get(method, ()) if not isinstance(result, dict) or k not in result]
+        if missing:
+            log.warning("geom worker: %s reply has no %s", method, ", ".join(missing))
+            await self.kill()
+            raise GeomError("protocol", OUT_OF_PROTOCOL)
+        return result
 
 
 class GeomPool:

@@ -14,10 +14,17 @@ type V3 = [number, number, number];
 // y up, z up from the PCB BOTTOM face, mm. Component heights are above the face they sit on.
 export type BoardEdge = '+x' | '-x' | '+y' | '-y';
 // what a part needs from the case: port (a wall window), press (a flex tongue), light / sensor / display (a lid opening),
-// sound (a lid grille), cable (an antenna lead or the like, nothing built yet) or none
-export type BoardAccess = 'port' | 'press' | 'light' | 'sensor' | 'display' | 'sound' | 'cable' | 'none';
+// sound (a lid grille), key (a mechanical key switch: a plate it clips into, a printed keycap), cable (an antenna lead or the
+// like, nothing built yet) or none
+export type BoardAccess = 'port' | 'press' | 'light' | 'sensor' | 'display' | 'sound' | 'key' | 'cable' | 'none';
+// a key switch, mm above the PCB's top face: where the plate's top goes, the stem's top at rest; the plate's cut-out, the
+// travel, the keycap's plan and which stem it plugs onto
+// stem 'panel': held by the lid in a round hole of `cut` (an arcade button, a foot switch); 'shaft': an encoder's or a potentiometer's
+// shaft through a hole, shaft_top above the PCB, a printed knob on it
+export interface KeySwitch { plate_top?: number; plate_t?: number; cut: number; travel?: number; stem_top?: number; stem: 'mx' | 'choc' | 'panel' | 'shaft'; cap: [number, number]; depth?: number; shaft_d?: number; shaft_top?: number; knob?: boolean }
 
 export interface BoardComponent {
+  key?: KeySwitch;
   id: string;
   type: string; // key of the dataset's `typical` table: usb_c, usb_micro_b, tact_6x6, led_0603, ...
   side: 'top' | 'bottom';
@@ -167,6 +174,7 @@ const EPS = 0.01;
 const ARC_SAG = 0.01; // mm a port window's corner chord may cut into its arc
 // segments per 360 deg for an arc of radius r that sags at most ARC_SAG (coarser in preview builds)
 const arcSegments = (r: number) => 4 * Math.max(2, Math.ceil(Math.PI / Math.acos(Math.max(0, 1 - (ARC_SAG * detail.factor) / r)) / 4));
+const KEYCAP_COLOR = '#e8e6df';
 const STRAIN_TAB = 0.018; // bending strain a press tongue is sized for when the program gives no tabLen
 const LED_SMALL = 2.2; // a light part this narrow or less (0603/0805, a row of them) keeps the round lightD hole
 const TIE_SLOT = 2.8, TIE_PLATE = 1.6, TIE_SIDE = 2.4; // cable tie block: zip-tie slot (2.5 mm ties), plate behind it, bore walls
@@ -359,6 +367,8 @@ export interface Enclosure {
   cells: { id: string; box: Box3 }[]; // loose accessories (a LiPo) where the case put them, board frame
   // the printed stand of a tilt or upright stance: lying as printed, and where it is under the case (case frame)
   stand: { print: Manifold; placed: Manifold } | null;
+  // printed keycaps, each lying as printed (its top on the bed), and where it sits on its switch (case frame)
+  keycaps: { id: string; print: Manifold; placed: Manifold }[];
   zBoard: number;
   zTop: number;
   lidT: number;
@@ -639,6 +649,7 @@ export function makeElec(wasm: Wasm, std: any, printer: PrinterProfile, part: Pa
     // holds it), a cell beside the board, and high enough for a cable exit over the board top and 1 mm under the lid joint
     const cableD = (a: BoardAcc) => Math.max(1, a.cable_d ?? 4) + 0.6;
     const zTop = Math.max(zBoard + b.T + Math.max(b.topMax + topGap, accNeed()), ...cellsAt.map((c) => floor + c.h + 1.0), ...cables.map((a) => zBoard + b.T + 0.3 + cableD(a) + 1.0),
+      ...b.comps.filter((c) => c.access === 'key' && c.key?.plate_top != null).map((c) => zBoard + b.T + c.key!.plate_top! - lidT), // the plate is in the lid or under it
       (o.minHeight ?? 0) - lidT);
     // --- the plan shape. 'box': the classic small corners. 'soft': every corner as round as the parts inside allow, a side
     // growing at most FORM_GROW mm for it. 'round': a pebble, asking for half the short side, a side growing up to
@@ -1029,6 +1040,15 @@ export function makeElec(wasm: Wasm, std: any, printer: PrinterProfile, part: Pa
       lidRects.push(...bars.slice(-2));
       for (const q of bars.slice(-2)) lidAdds.push(M.cube([q[2] - q[0], q[3] - q[1], zTop - (floor + c.h + 0.8) + EPS]).translate([q[0], q[1], floor + c.h + 0.8]));
     }
+    // key switches: a well in the lid over them, as wide as the caps and their play, its floor the plate they clip into
+    const keys = b.comps.filter((c) => c.access === 'key' && c.key && c.side !== 'bottom' && !coveredBy(b, c));
+    const KEY_PLAY = 0.5, KEY_WALL = 1.2;
+    const keyAt = (c: BoardPart) => [(c.box.min[0] + c.box.max[0]) / 2, (c.box.min[1] + c.box.max[1]) / 2];
+    const keyRect = (c: BoardPart, m: number) => {
+      const [cx, cy] = keyAt(c), [cw, cd] = c.key!.cap;
+      return [cx - cw / 2 - m, cy - cd / 2 - m, cx + cw / 2 + m, cy + cd / 2 + m];
+    };
+    lidRects.push(...keys.map((c) => keyRect(c, KEY_PLAY + KEY_WALL)));
     keepClear.push(...lidRects);
 
     // --- snap hooks (mech.snapHook) on the long sides, grooves in the walls
@@ -1180,6 +1200,76 @@ export function makeElec(wasm: Wasm, std: any, printer: PrinterProfile, part: Pa
       report.features.push({ type: 'flex_button', for: c.id, at: [cx, cy], dir: tab.dir, len: L, width: tab.width, plunger: +plunger.toFixed(2), plungerD: +plungerD.toFixed(2), gap, strain: +strain.toFixed(4), clearOfPosts: dirs[0].ok });
     }
     if (o.buttons === 'none' && presses.length) report.features.push({ type: 'buttons_off', for: presses.map((c) => c.id) });
+
+    // --- key switches: the plate at the height the switch clips at, its top sunk into the lid when the case stands higher than
+    // that (a module beside the keys); neighbouring wells become one. The cap is printed for this case: its skirt stops short
+    // of the plate at the bottom of the travel
+    const keycaps: Enclosure['keycaps'] = [];
+    const rectCS = (q: number[]) => std.rect(q[2] - q[0], q[3] - q[1], { center: false }).translate([q[0], q[1]]);
+    const closed = (rects: number[][], m: number): CrossSection => CS.union(rects.map(rectCS)).offset(m, 'Miter').offset(-m, 'Miter');
+    const inTheWay = (c: BoardPart, q: number[], z: number) => [...b.comps, ...b.accs.filter((a) => a.box).map((a) => ({ id: a.id, box: a.box! }))].filter((d) => d.id !== c.id && d.box.max[2] + zBoard > z - 0.1)
+      .filter((d) => d.box.min[0] < q[2] && d.box.max[0] > q[0] && d.box.min[1] < q[3] && d.box.max[1] > q[1]).map((d) => d.id);
+    // a round hole in the lid: the panel part's body hangs from it, a shaft comes through and takes a printed knob
+    for (const c of keys.filter((c) => c.key!.plate_top == null)) {
+      const k = c.key!, [cx, cy] = keyAt(c), lidTop = zTop + lidT;
+      lidCuts.push(M.cylinder(lidT + 2, k.cut / 2 + (printer.holeDelta ?? 0) / 2, k.cut / 2 + (printer.holeDelta ?? 0) / 2, 48).translate([cx, cy, zTop - 1]));
+      let rise = 99;
+      if (k.stem === 'shaft') {
+        const shaftTop = zBoard + b.T + (k.shaft_top ?? 20), sr = (k.shaft_d ?? 6) / 2 + 0.05, knobD = k.cap[0];
+        rise = +(shaftTop - lidTop).toFixed(2);
+        const zBottom = lidTop + 0.6, h = Math.max(8, shaftTop + 2 - zBottom);
+        // the bore holds the shaft's flat side: the knob turns it, whichever way an encoder or a pot is keyed
+        const bore = M.cylinder(h - 2, sr, sr, 28).subtract(M.cube([sr, 2 * sr + 1, h], false).translate([sr * 0.5, -sr - 0.5, -0.5]));
+        const knob: Manifold = M.cylinder(h, knobD / 2, knobD / 2 - 0.8, 64).subtract(bore);
+        if (k.knob !== false) keycaps.push({ id: c.id, print: knob.rotate([180, 0, 0]).translate([0, 0, h]), placed: knob.translate([cx, cy, zBottom]) });
+      }
+      const q = keyRect(c, 0);
+      const hc = k.cut / 2 + 0.5;
+      const hit = posts.filter((p) => Math.abs(p.x - cx) < hc + p.r && Math.abs(p.y - cy) < hc + p.r).map((p) => `the hold-down post at ${r2(p.x)}, ${r2(p.y)}`);
+      const under = k.stem === 'panel' ? inTheWay(c, [cx - k.cut / 2, cy - k.cut / 2, cx + k.cut / 2, cy + k.cut / 2], zBoard + b.T + 0.5) : [];
+      report.features.push({ type: 'key_plate', for: c.id, stem: k.stem, at: [r2(cx), r2(cy)], plate_z: r2(lidTop), plate_t: lidT, cut: k.cut, well: 0, lid_top: r2(lidTop), rise, travel: 0, under, posts: hit,
+        outside: q[0] < inner.x0 || q[1] < inner.y0 || q[2] > inner.x1 || q[3] > inner.y1 });
+    }
+    const byPlate = new Map<number, BoardPart[]>();
+    for (const c of keys.filter((c) => c.key!.plate_top != null)) byPlate.set(c.key!.plate_top!, [...(byPlate.get(c.key!.plate_top!) ?? []), c]);
+    for (const [plateTop, group] of byPlate) {
+      const zP = zBoard + b.T + plateTop, plateT = group[0].key!.plate_t!;
+      const floorZ = zP - plateT;
+      const well = closed(group.map((c) => keyRect(c, KEY_PLAY)), 1.5);
+      const shellPlan = closed(group.map((c) => keyRect(c, KEY_PLAY + KEY_WALL)), 1.5);
+      if (floorZ < zTop) lidAdds.push(shellPlan.extrude(zTop - floorZ + EPS).translate([0, 0, floorZ]));
+      if (zP < zTop + lidT) lidCuts.push(well.extrude(zTop + lidT - zP + 1).translate([0, 0, zP]));
+      for (const c of group) {
+        const k = c.key!, [cx, cy] = keyAt(c), fit = printer.holeDelta ?? 0;
+        // the cut-out through the plate; a plate inside a thicker lid gets room under it for the clips
+        lidCuts.push(M.cube([k.cut + fit, k.cut + fit, plateT + 2], true).translate([cx, cy, floorZ + plateT / 2]));
+        if (floorZ > zTop) lidCuts.push(M.cube([k.cut + 2.4, k.cut + 2.4, floorZ - zTop + 1], true).translate([cx, cy, (floorZ + zTop - 1) / 2]));
+        const [cw, cd] = k.cap, topT = 1.6, wallT = 1.2;
+        const skirt = Math.max(0.8, k.stem_top! - plateTop - k.travel! - 0.4); // how far it hangs below the stem's top
+        let cap: Manifold = std.rect(cw, cd, { r: 1.2 }).extrude(skirt + topT, 0, 0, [0.84, 0.84]);
+        cap = cap.subtract(std.rect(cw - 2 * wallT, cd - 2 * wallT, { r: 0.6 }).extrude(skirt, 0, 0, [0.86, 0.86]));
+        if (k.stem === 'mx') {
+          const socket = 3.4; // deep enough to grip the stem, short enough to reach the housing only at the end of the travel
+          const tube = M.cylinder(socket + 0.2, 2.75, 2.75, 28).translate([0, 0, skirt - socket]);
+          const cross = M.union([M.cube([4.15, 1.35, socket], true), M.cube([1.35, 4.15, socket], true)]).translate([0, 0, skirt - socket / 2]);
+          cap = cap.add(tube).subtract(cross);
+        } else {
+          for (const x of [-2.85, 2.85]) cap = cap.add(M.cube([1.1, 2.9, 3.2], true).translate([x, 0, skirt - 1.5]));
+        }
+        const capZ = zBoard + b.T + k.stem_top! - skirt; // the skirt's edge at rest
+        const placed = cap.translate([cx, cy, capZ]);
+        const pb = cap.rotate([180, 0, 0]).boundingBox();
+        keycaps.push({ id: c.id, print: cap.rotate([180, 0, 0]).translate([0, 0, -pb.min[2]]), placed });
+        const top = capZ + skirt + topT;
+        const near = inTheWay(c, keyRect(c, KEY_PLAY + KEY_WALL), floorZ);
+        const q = keyRect(c, KEY_PLAY + KEY_WALL);
+        // a post under the plate's rim just hangs from the plate; only one in the cut-out meets the switch
+        const hc = k.cut / 2 + 1;
+        const hit = posts.filter((p) => Math.abs(p.x - cx) < hc + p.r && Math.abs(p.y - cy) < hc + p.r).map((p) => `the hold-down post at ${r2(p.x)}, ${r2(p.y)}`);
+        const outside = q[0] < inner.x0 || q[1] < inner.y0 || q[2] > inner.x1 || q[3] > inner.y1;
+        report.features.push({ type: 'key_plate', for: c.id, stem: k.stem, at: [r2(cx), r2(cy)], plate_z: r2(zP), plate_t: plateT, cut: k.cut, well: r2(Math.max(0, zTop + lidT - zP)), cap_top: r2(top), lid_top: r2(zTop + lidT), rise: r2(top - (zTop + lidT)), travel: k.travel, skirt: r2(skirt), under: near, posts: hit, outside });
+      }
+    }
 
     // --- the openings, cut now that the posts, hooks and tongues are placed: a window shrinks off the one it overlaps
     // (the side that keeps the most of it), a round one gets smaller, a grille drops the holes over it; under half the
@@ -1398,7 +1488,7 @@ export function makeElec(wasm: Wasm, std: any, printer: PrinterProfile, part: Pa
     }
     const bb = base.boundingBox();
     report.outerSize = [+(bb.max[0] - bb.min[0]).toFixed(2), +(bb.max[1] - bb.min[1]).toFixed(2), +(zTop + lidT).toFixed(2)];
-    return { base, lid, at, report, posts, hooks, clips, ports, cells, stand, zBoard, zTop, lidT, inner, wall, board: b };
+    return { base, lid, at, report, posts, hooks, clips, ports, cells, stand, keycaps, zBoard, zTop, lidT, inner, wall, board: b };
   }
 
   // Lid flipped next to the base, both resting on z = 0 (print layout).
@@ -1422,10 +1512,16 @@ export function makeElec(wasm: Wasm, std: any, printer: PrinterProfile, part: Pa
         const bb = enc.base.boundingBox(), sb = enc.stand.print.boundingBox();
         printed.push(part(enc.stand.print.translate([bb.min[0] - sb.min[0], bb.max[1] + 6 - sb.min[1], 0]), { name: 'stand', color: STAND_COLOR }));
       }
+      if (enc.keycaps.length) {
+        // a tray of keycaps beyond the lid, four to a column, tops on the bed
+        const lb = L.lid.boundingBox(), step = 24;
+        printed.push(part(M.union(enc.keycaps.map((k, i) => k.print.translate([lb.max[0] + 16 + Math.floor(i / 4) * step, lb.min[1] + 10 + (i % 4) * step, 0]))), { name: 'keycaps', color: KEYCAP_COLOR }));
+      }
       return printed;
     }
     const out = [part(enc.base, { name: 'base' }), part(enc.lid, { name: 'lid', color: lidColor })];
     if (enc.stand) out.push(part(enc.stand.placed, { name: 'stand', color: STAND_COLOR }));
+    if (enc.keycaps.length) out.push(part(M.union(enc.keycaps.map((k) => k.placed)), { name: 'keycaps', color: KEYCAP_COLOR }));
     if (o.ghost) {
       const g = ghost(enc.board, { bottomPins: o.bottomPins }).translate([0, 0, enc.zBoard]);
       out.push(part(g, { name: 'board', role: 'reference', color: BOARD_COLOR, meta: { board: enc.board.spec.id, bottomPins: !!o.bottomPins, enclosure: enc.report } }));

@@ -7,8 +7,8 @@
   import Header from '$lib/components/Header.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { api } from '$lib/api';
-  import { projectTitle } from '$lib/i18n.svelte';
-  import { shop, shopError } from '$lib/shop/api';
+  import { projectTitle, t } from '$lib/i18n.svelte';
+  import { intentKey, shop, shopError } from '$lib/shop/api';
   import { kzt, moneyRange, st } from '$lib/shop/i18n';
   import type { DeliveryMethod, Quote, Tariff } from '$lib/shop/types';
   import type { ProjectDetail } from '$lib/types';
@@ -30,6 +30,8 @@
   let error = $state<string | null>(null);
 
   let project = $state<ProjectDetail | null>(null);
+  let projectError = $state<string | null>(null);
+  let projectTry = $state(0);
   let instant = $state<Quote | null>(null);
   let instantError = $state<string | null>(null);
 
@@ -54,9 +56,18 @@
 
   $effect(() => {
     const id = projectId;
+    void projectTry;
     project = null;
+    projectError = null;
     if (!id) return;
-    api.project(id).then((p) => (project = p)).catch((e) => (error = shopError(e)));
+    api.project(id).then((p) => (project = p)).catch((e) => (projectError = shopError(e)));
+  });
+
+  // the same request sent again (a lost answer) is the same order; a changed form is a new one
+  let requestKey: string | null = null;
+  $effect(() => {
+    void [text, appliance, partNumber, quantity, material, delivery, contact, projectId, parts, plate, voice];
+    requestKey = null;
   });
 
   // the instant range of a studio model, again whenever the quantity, material or delivery change
@@ -144,6 +155,7 @@
     }
     busy = true;
     error = null;
+    requestKey ??= intentKey();
     try {
       const o = await shop.request({
         text,
@@ -157,7 +169,7 @@
         files: parts.map((p) => p.file),
         plate: plate?.file ?? null,
         voice: voice?.blob ?? null,
-      });
+      }, requestKey);
       goto(`/orders/${o.id}`);
     } catch (err) {
       error = shopError(err);
@@ -189,7 +201,8 @@
         <section class="card proj">
           {#if project?.cover}<img src={project.cover} alt="" />{:else}<span class="ph"><Icon name="cube" size={28} /></span>{/if}
           <div class="stack">
-            <strong>{project ? projectTitle(project.title) : '…'}</strong>
+            <strong>{project ? projectTitle(project.title) : projectError ? '' : '…'}</strong>
+            {#if projectError}<span class="xs err" role="alert">{projectError} <button type="button" class="btn small" onclick={() => projectTry++}>{t('retry')}</button></span>{/if}
             {#if instant?.range}
               <span class="price">≈ {moneyRange(instant.range.total, instant.range.total_usd)}</span>
               <span class="xs muted">{st('quote.estimate_hint')}</span>
@@ -342,8 +355,8 @@
     gap: var(--space-2);
   }
   h1 {
-    font-size: var(--text-cart-h1);
-    font-weight: var(--font-weight-bold);
+    font-size: var(--text-3xl);
+    font-weight: var(--font-weight-semibold);
   }
   .intro p {
     margin: 0;
@@ -372,7 +385,7 @@
     background: color-mix(in srgb, var(--primary) 16%, transparent);
     color: var(--primary);
     font-weight: var(--font-weight-bold);
-    font-size: 11px;
+    font-size: var(--text-xs);
   }
   .form {
     display: flex;
@@ -410,7 +423,7 @@
     min-width: 0;
   }
   .tile-head strong {
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
   }
   .a4 {
     flex: none;
@@ -530,7 +543,7 @@
     min-width: 0;
   }
   .price {
-    font-size: var(--text-product-section-title);
+    font-size: var(--text-xl);
     font-weight: var(--font-weight-bold);
   }
   .err {

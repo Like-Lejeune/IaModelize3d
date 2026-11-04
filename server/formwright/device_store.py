@@ -83,6 +83,12 @@ async def get(project_id: str, version: int) -> dict[str, Any] | None:
     return _row(await db.one("SELECT * FROM device_docs WHERE project_id = ? AND version = ?", project_id, int(version)))
 
 
+async def up_to(project_id: str, version: int) -> dict[str, Any] | None:
+    """The document as of that version: an edit of the same sitting may have folded it into a later one's number."""
+    db = await _db()
+    return _row(await db.one("SELECT * FROM device_docs WHERE project_id = ? AND version <= ? ORDER BY version DESC LIMIT 1", project_id, int(version)))
+
+
 async def save(project_id: str, doc: dict[str, Any], *, author: str, summary: str = "") -> int:
     """Store a normalized document as the next version; the person's edits within EDIT_WINDOW_S of their own last one
     update it instead. Returns the version."""

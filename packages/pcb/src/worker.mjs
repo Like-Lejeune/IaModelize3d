@@ -137,7 +137,7 @@ async function exportFab(params) {
   const { zip, layers } = gerberZip(cj, params.base ?? 'board');
   const bom = await bomCsv(cj);
   const cpl = cplCsv(cj);
-  const pv = await previews(cj);
+  const pv = await previews(cj, params.models ?? {});
   const files = { 'gerbers.zip': b64(zip), 'bom.csv': bom.csv, 'cpl.csv': cpl.csv };
   for (const [k, v] of Object.entries(pv.files)) files[k] = typeof v === 'string' ? v : b64(v);
   return {

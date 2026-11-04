@@ -58,6 +58,7 @@ export interface ViewSpec {
 
 export interface RenderRequest extends BaseRequest {
   view?: 'sheet' | 'iso';
+  transparent?: boolean; // an iso cover without its backdrop
   camera?: Camera; // photo camera for overlays
   tile?: number;
   heat?: boolean;
@@ -277,11 +278,12 @@ export class Engine {
       if (req.view === 'iso') {
         const size = req.tile ?? 512;
         const cam = orthoFit([-1, 1, -0.8], { min: box.min as any, max: box.max as any }, size, size, 0.1);
-        const r = render(mesh, cam, { colors, alpha, background: [246, 246, 243, 255] });
+        // a transparent cover sits on whatever surface the page gives it, in either theme
+        const r = render(mesh, cam, { colors, alpha, background: req.transparent ? [0, 0, 0, 0] : [246, 246, 243, 255] });
         return { png: toBase64(encodePng(r.rgba, r.width, r.height)), width: r.width, height: r.height };
       }
       const s = renderSheet(mesh, { min: box.min as any, max: box.max as any }, { tile: req.tile ?? 340, colors, alpha, title: req.title, markers: req.markers });
-      return { png: toBase64(encodePng(s.rgba, s.width, s.height)), width: s.width, height: s.height };
+      return { png: toBase64(encodePng(s.rgba, s.width, s.height)), width: s.width, height: s.height, frames: s.frames };
     });
   }
 
@@ -336,7 +338,7 @@ export class Engine {
     if (!views.length) views = SHEET_VIEWS.slice(0, focus ? 3 : 6);
     const size = [0, 1, 2].map((i) => box.max[i] - box.min[i]);
     const s = renderSheet(mesh, frame, { tile: req.tile ?? 420, colors, alpha, views, title: req.title, size, markers: req.markers });
-    return { png: toBase64(encodePng(s.rgba, s.width, s.height)), width: s.width, height: s.height };
+    return { png: toBase64(encodePng(s.rgba, s.width, s.height)), width: s.width, height: s.height, frames: s.frames };
   }
 
   parseMesh(req: ParseMeshRequest) {

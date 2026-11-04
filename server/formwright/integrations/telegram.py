@@ -64,6 +64,10 @@ TEXT: dict[str, dict[str, str]] = {
         "q.project_busy": "The model is busy with another job; try again when it finishes.",
         "p.slice_failed": "the slicer could not price it",
         "p.no_model": "the design ended without a model",
+        "p.step_failed": "an automatic step failed on our side; it is tried again shortly",
+        "p.design_unreviewed": "the operator looks at the design first",
+        "broke": "Something broke on our side, so I stopped here. Please try again in a minute.",
+        "lost_track": "I lost the connection while following this. The latest state is here: {link}",
     },
     "ru": {
         "welcome": ("Пришлите фото детали рядом с листом A4 или банковской картой для масштаба, голосовое или текст: что нужно. "
@@ -101,9 +105,14 @@ TEXT: dict[str, dict[str, str]] = {
         "q.project_busy": "Модель занята другой задачей; попробуйте, когда она закончится.",
         "p.slice_failed": "слайсер не смог посчитать цену",
         "p.no_model": "проектирование закончилось без модели",
+        "p.step_failed": "автоматический шаг сорвался у нас; скоро он повторится",
+        "p.design_unreviewed": "сначала модель посмотрит оператор",
+        "broke": "У нас что-то сломалось, поэтому я остановился. Попробуйте ещё раз через минуту.",
+        "lost_track": "Я потерял связь, пока следил за этим. Текущее состояние здесь: {link}",
     },
 }
 WELCOME = TEXT["en"]["welcome"]
+FOLLOW_TRIES = 6  # failures in a row before a watcher gives up and says so; a pause of 2, 4, ... seconds after each
 RU_LANGS = ("ru", "kk", "ky", "uz", "uk", "be")  # Kazakhstan and around: Russian is the shared language of the UI
 
 
@@ -154,13 +163,37 @@ class Bot:
         self.pending: dict[int, list[str]] = {}
         self.langs: dict[int, str] = {}  # chat -> 'ru' | 'en', from the last sender's Telegram language
         self.replies: dict[tuple[int, int], tuple[str, str]] = {}  # (chat, message) of a relayed question -> (order, question_id)
+        self.tasks: set[asyncio.Task] = set()  # the watchers running: the loop only keeps weak references to tasks
 
     async def call(self, method: str, **params: Any) -> Any:
         r = await self.http.post(f"{self.api}/{method}", json=params)
-        data = r.json()
+        try:
+            data = r.json()
+        except ValueError:
+            log.warning("telegram %s: an answer that is not JSON (%s)", method, r.status_code)
+            return None
         if not data.get("ok"):
             log.warning("telegram %s failed: %s", method, data.get("description"))
         return data.get("result")
+
+    def watch(self, step: Any) -> None:
+        """A watcher in the background, held until it ends; whatever ends it is in the log."""
+        task = asyncio.create_task(step)
+        self.tasks.add(task)
+
+        def done(t: asyncio.Task) -> None:
+            self.tasks.discard(t)
+            if not t.cancelled() and t.exception():
+                log.error("telegram watcher failed", exc_info=t.exception())
+
+        task.add_done_callback(done)
+
+    async def lost_track(self, chat_id: int, user: dict, project_id: str, path: str | None = None) -> None:
+        """A watcher gives up: the chat is told where the rest is, if it can still be told anything."""
+        try:
+            await self.say(chat_id, t(self.langs.get(chat_id, "en"), "lost_track", link=await self.login_link(user["id"], project_id, path)))
+        except Exception as e:  # noqa: BLE001 - the failure that stopped the watcher may stop this too
+            log.warning("telegram chat %s could not be told: %s: %s", chat_id, type(e).__name__, e)
 
     async def send_photo(self, chat_id: int, png: bytes, caption: str, buttons: list[list[dict]] | None = None) -> None:
         files = {"photo": ("model.png", png, "image/png")}
@@ -269,7 +302,7 @@ class Bot:
             await self.say(chat_id, quota_text(e, self.langs.get(chat_id, "en")))
             return
         status = await self.say(chat_id, t(self.langs.get(chat_id, "en"), "working"))
-        asyncio.create_task(self.follow(chat_id, user, project["id"], job_id, status["message_id"] if status else None))
+        self.watch(self.follow(chat_id, user, project["id"], job_id, status["message_id"] if status else None))
 
     async def follow(self, chat_id: int, user: dict, project_id: str, job_id: str, status_id: int | None) -> None:
         db = await get_db()
@@ -277,33 +310,43 @@ class Bot:
         last_status = ""
         stage_label = ""
         cover = None
+        failures = 0
         while True:
-            rows = await events.since(project_id, max(0, last))
-            for r in rows:
-                last = r["seq"]
-                if r["job_id"] != job_id:
-                    continue
-                d = r["data"]
-                line = None
-                if r["type"] == "job.stage":
-                    stage_label = d.get("label", "")
-                    line = f"⏳ {stage_label}"
-                elif r["type"] in ("tool.call", "tool.result") and d.get("title"):
-                    line = f"⏳ {stage_label}\n{'→' if r['type'] == 'tool.call' else '✓'} {d['title']}"
-                if line and status_id and line != last_status:
-                    last_status = line
-                    await self.call("editMessageText", chat_id=chat_id, message_id=status_id, text=line[:1000])
-                if r["type"] == "program.updated":
-                    cover = d.get("cover")
-                elif r["type"] == "ask":
-                    kb = ask_keyboard(d.get("options", []), f"a|{job_id}")
-                    await self.call("sendMessage", chat_id=chat_id, text=d["question"], reply_markup={"inline_keyboard": kb})
-                    self.questions[job_id] = d.get("options", [])
-                elif r["type"] == "job.finished":
-                    await self.finish(chat_id, user, project_id, d, cover)
+            try:
+                rows = await events.since(project_id, max(0, last))
+                for r in rows:
+                    # an event counts as read once it is told: after a failure the same one is told again
+                    if r["job_id"] == job_id:
+                        d = r["data"]
+                        line = None
+                        if r["type"] == "job.stage":
+                            stage_label = d.get("label", "")
+                            line = f"⏳ {stage_label}"
+                        elif r["type"] in ("tool.call", "tool.result") and d.get("title"):
+                            line = f"⏳ {stage_label}\n{'→' if r['type'] == 'tool.call' else '✓'} {d['title']}"
+                        if line and status_id and line != last_status:
+                            last_status = line
+                            await self.call("editMessageText", chat_id=chat_id, message_id=status_id, text=line[:1000])
+                        if r["type"] == "program.updated":
+                            cover = d.get("cover")
+                        elif r["type"] == "ask":
+                            kb = ask_keyboard(d.get("options", []), f"a|{job_id}")
+                            await self.call("sendMessage", chat_id=chat_id, text=d["question"], reply_markup={"inline_keyboard": kb})
+                            self.questions[job_id] = d.get("options", [])
+                        elif r["type"] == "job.finished":
+                            await self.finish(chat_id, user, project_id, d, cover)
+                            return
+                    last = r["seq"]
+                if not rows:
+                    await events.wait(project_id, 20)
+                failures = 0
+            except Exception as e:  # noqa: BLE001 - the job runs on: the network or a locked database must not end the telling
+                failures += 1
+                log.warning("telegram follow of %s (%d): %s: %s", job_id, failures, type(e).__name__, e)
+                if failures >= FOLLOW_TRIES:
+                    await self.lost_track(chat_id, user, project_id)
                     return
-            if not rows:
-                await events.wait(project_id, 20)
+                await asyncio.sleep(2 ** failures)
 
     questions: dict[str, list[str]] = {}
 
@@ -316,10 +359,15 @@ class Bot:
         buttons = [[{"text": t(lang, "studio"), "url": link}],
                    [{"text": t(lang, "3mf"), "callback_data": f"f|{project_id}|3mf"}, {"text": t(lang, "stl"), "callback_data": f"f|{project_id}|stl"}],
                    [{"text": t(lang, "order"), "callback_data": f"o|{project_id}"}]]
+        png = None
         if cover:
             from .. import storage
 
-            png = storage.abs_path(cover.removeprefix("/files/")).read_bytes()
+            try:
+                png = storage.abs_path(cover.removeprefix("/files/")).read_bytes()
+            except OSError as e:  # the words and the buttons still go
+                log.warning("telegram: no cover for %s: %s", project_id, e)
+        if png:
             await self.send_photo(chat_id, png, text[:1000], buttons)
         else:
             await self.call("sendMessage", chat_id=chat_id, text=text[:4000], reply_markup={"inline_keyboard": buttons})
@@ -381,7 +429,7 @@ class Bot:
         title = f"{project['title']} · {o['material']}"
         await self.say(chat_id, t(lang, "ordered", ref=o["ref"], title=title, range=rng, link=link) if rng else
                        t(lang, "ordered_no_range", ref=o["ref"], title=title, link=link))
-        asyncio.create_task(self.follow_order(chat_id, user, o["id"], lang))
+        self.watch(self.follow_order(chat_id, user, o["id"], lang))
 
     async def start_part(self, chat_id: int, user: dict, project: dict, what: str) -> None:
         """/part <what it is>: a spare-part request from the photos sent before it (or with it). They move to the part's
@@ -412,7 +460,7 @@ class Bot:
             return
         link = await self.login_link(user["id"], pid, f"/orders/{o['id']}")
         await self.say(chat_id, t(lang, "part", ref=o["ref"], photos=t(lang, "photos", n=len(photos)) if photos else "", link=link))
-        asyncio.create_task(self.follow_order(chat_id, user, o["id"], lang))
+        self.watch(self.follow_order(chat_id, user, o["id"], lang))
 
     async def follow_order(self, chat_id: int, user: dict, order_id: str, lang: str, rounds: int = 360, every: float = 5.0) -> None:
         """Tells the chat when the order has its slicer price, or why it stopped (refused, held for the operator, a
@@ -420,40 +468,61 @@ class Bot:
         A ready model is priced while the intake reads it: 'pay' is said only once Pay is open (the safety verdict is
         in, no step is still changing the price, and the price is in the material the intake picked for "choose for
         me"), so a refusal or a hold that comes after the price is told too."""
-        from ..shop import autoquote, flow, store
+        from ..shop import store
 
         db = await store.shop_db()
         told: set[str] = set()
+        failures = 0
+        project_id = None
         for _ in range(rounds):
             await asyncio.sleep(every)
-            o = await store.get(db, order_id)
-            if not o:
-                return
-            status, q, data = o["status"], o.get("quote") or {}, o.get("intake") or {}
-            if (status == "quoted" and q.get("binding") and flow.safety(o) is None and not autoquote.running(order_id)
-                    and not flow.material_due(o)):
-                usd = (q.get("usd") or {}).get("total")
-                await self.say(chat_id, t(lang, "quoted", ref=o["ref"], total=kzt(q.get("total")) + (f" (${usd:.2f})" if usd is not None else ""),
-                                          grams=f"{q.get('grams_each')} {'г' if lang == 'ru' else 'g'}",
-                                          minutes=f"{q.get('minutes_each')} {'мин' if lang == 'ru' else 'min'}", n=q.get("quantity") or o["quantity"],
-                                          link=await self.login_link(user["id"], o["project_id"], f"/orders/{order_id}")))
-                return
-            if status == "refused":
-                await self.say(chat_id, t(lang, "refused", ref=o["ref"], reason=data.get("reason") or (data.get("reviewed") or {}).get("note") or ""))
-                return
-            if status not in ("requested", "designing", "needs_info", "quoted"):
-                return  # paid, cancelled or further on: the order page has it from here
-            ask = await question(db, o["project_id"]) if status == "needs_info" else None
-            if ask is not None and (key := f"ask.{ask.get('question_id') or ''}") not in told:
-                told.add(key)  # each question once: a second one after the answer is told too
-                await self.relay_question(chat_id, user, o, ask, lang)
-            elif data.get("review") and not data.get("reviewed") and "held" not in told:
-                told.add("held")
-                await self.say(chat_id, t(lang, "held", ref=o["ref"]))
-            elif (code := (o.get("problem") or {}).get("code")) and f"p.{code}" not in told:
-                told.add(f"p.{code}")
-                why = next((t(lang, k) for k in (f"p.{code}", f"q.{code}") if k in TEXT["en"]), code)
-                await self.say(chat_id, t(lang, "stopped", ref=o["ref"], why=why.rstrip(".")))
+            try:
+                o = await store.get(db, order_id)
+                if not o:
+                    return
+                project_id = o["project_id"]
+                if await self.order_round(chat_id, user, order_id, o, lang, db, told):
+                    return
+                failures = 0
+            except Exception as e:  # noqa: BLE001 - the order goes on: a failure here only costs this look at it
+                failures += 1
+                log.warning("telegram follow of order %s (%d): %s: %s", order_id, failures, type(e).__name__, e)
+                if failures >= FOLLOW_TRIES:
+                    if project_id:
+                        await self.lost_track(chat_id, user, project_id, f"/orders/{order_id}")
+                    return
+                await asyncio.sleep(2 ** failures)
+
+    async def order_round(self, chat_id: int, user: dict, order_id: str, o: dict, lang: str, db: Any, told: set[str]) -> bool:
+        """One look at the order; True when there is nothing more to tell. What is told counts as told once it went out."""
+        from ..shop import autoquote, flow
+
+        status, q, data = o["status"], o.get("quote") or {}, o.get("intake") or {}
+        if (status == "quoted" and q.get("binding") and flow.safety(o) is None and not autoquote.running(order_id)
+                and not flow.material_due(o)):
+            usd = (q.get("usd") or {}).get("total")
+            await self.say(chat_id, t(lang, "quoted", ref=o["ref"], total=kzt(q.get("total")) + (f" (${usd:.2f})" if usd is not None else ""),
+                                      grams=f"{q.get('grams_each')} {'г' if lang == 'ru' else 'g'}",
+                                      minutes=f"{q.get('minutes_each')} {'мин' if lang == 'ru' else 'min'}", n=q.get("quantity") or o["quantity"],
+                                      link=await self.login_link(user["id"], o["project_id"], f"/orders/{order_id}")))
+            return True
+        if status == "refused":
+            await self.say(chat_id, t(lang, "refused", ref=o["ref"], reason=data.get("reason") or (data.get("reviewed") or {}).get("note") or ""))
+            return True
+        if status not in ("requested", "designing", "needs_info", "quoted"):
+            return True  # paid, cancelled or further on: the order page has it from here
+        ask = await question(db, o["project_id"]) if status == "needs_info" else None
+        if ask is not None and (key := f"ask.{ask.get('question_id') or ''}") not in told:
+            await self.relay_question(chat_id, user, o, ask, lang)
+            told.add(key)  # each question once: a second one after the answer is told too
+        elif data.get("review") and not data.get("reviewed") and "held" not in told:
+            await self.say(chat_id, t(lang, "held", ref=o["ref"]))
+            told.add("held")
+        elif (code := (o.get("problem") or {}).get("code")) and f"p.{code}" not in told:
+            why = next((t(lang, k) for k in (f"p.{code}", f"q.{code}") if k in TEXT["en"]), code)
+            await self.say(chat_id, t(lang, "stopped", ref=o["ref"], why=why.rstrip(".")))
+            told.add(f"p.{code}")
+        return False
 
     async def relay_question(self, chat_id: int, user: dict, o: dict, ask: dict[str, Any], lang: str) -> None:
         """The designer's question about a /part order, in the chat: its options as buttons (as in a design job here),
@@ -495,9 +564,12 @@ class Bot:
         log.info("telegram bot started")
         while True:
             try:
-                updates = await self.call("getUpdates", offset=offset, timeout=50, allowed_updates=["message", "callback_query"]) or []
+                updates = await self.call("getUpdates", offset=offset, timeout=50, allowed_updates=["message", "callback_query"])
             except (httpx.HTTPError, ValueError) as e:
                 log.warning("telegram polling: %s", e)
+                await asyncio.sleep(5)
+                continue
+            if updates is None:  # Telegram said no (a bad token, a second bot on this token): call logged why
                 await asyncio.sleep(5)
                 continue
             for u in updates:
@@ -509,6 +581,18 @@ class Bot:
                         await self.on_callback(u["callback_query"])
                 except Exception:  # noqa: BLE001 - one bad update must not stop the bot
                     log.exception("telegram update failed")
+                    await self.tell_failed(u)
+
+    async def tell_failed(self, update: dict[str, Any]) -> None:
+        """A calm line instead of silence when handling someone's message failed."""
+        msg = update.get("message") or (update.get("callback_query") or {}).get("message") or {}
+        chat_id = (msg.get("chat") or {}).get("id")
+        if chat_id is None:
+            return
+        try:
+            await self.say(chat_id, t(self.langs.get(chat_id, "en"), "broke"))
+        except Exception as e:  # noqa: BLE001
+            log.warning("telegram chat %s could not be told: %s: %s", chat_id, type(e).__name__, e)
 
 
 async def run_bot() -> None:

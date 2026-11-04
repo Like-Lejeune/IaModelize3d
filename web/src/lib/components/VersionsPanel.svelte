@@ -83,7 +83,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
   }
   .vgrid {
     display: grid;

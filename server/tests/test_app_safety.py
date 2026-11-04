@@ -115,7 +115,7 @@ async def test_quota_error_carries_code_and_info(client, fresh_db, monkeypatch):
         e.code, e.info = "job_running", {"project_id": "p9", "job_id": "j9"}
         raise e
 
-    monkeypatch.setattr(quotas, "reserve", blocked)
+    monkeypatch.setattr(quotas, "headroom", blocked)
     body = _is_error(await client.post("/api/projects/p1/probe", json={}), 429)
     assert body == {"detail": "another job is still running", "code": "job_running", "project_id": "p9", "job_id": "j9"}
 
@@ -209,7 +209,7 @@ async def test_featured_lists_only_curated_public_originals(client, fresh_db):
     items = (await client.get("/api/featured")).json()
     assert [i["id"] for i in items] == ["p_owl", "p_hook"]
     owl = items[0]
-    assert set(owl) == {"id", "title", "cover", "pack", "versions", "summary", "duration_s", "models"}
+    assert set(owl) == {"id", "title", "cover", "pack", "versions", "summary", "duration_s", "models", "views", "featured"}
     assert owl["cover"] == "/files/p_owl/renders/v4_iso.png" and owl["versions"] == 4 and len(owl["summary"]) == 200
     assert owl["duration_s"] == 312
     assert owl["models"] == {"muse-spark-1.3": 13, "sam-3.1": 2}

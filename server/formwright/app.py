@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import bisect
+import gzip
 import importlib
 import json
 import logging
@@ -60,16 +61,22 @@ from .models import (
 )
 
 log = logging.getLogger("formwright")
+MODEL_SERVICE_ERRORS = (APIStatusError, APIConnectionError, APITimeoutError, httpx.HTTPError)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
 async def recover_interrupted() -> int:
     """Jobs still 'running' or 'waiting' belonged to the previous process, whose tasks are gone: close them as failed
     and free every project left 'working' (replay copies too), so nobody watches a dead job or is blocked by one."""
+    from .agent.runner import kept_request
+
     db = await get_db()
     t = now()
     stuck = await db.all("SELECT * FROM jobs WHERE status IN ('running', 'waiting')")
     for j in stuck:
+        # what the run wrote down it had spent: the bookkeeping that would have settled it died with the process
+        if j["user_id"]:
+            await quotas.settle(j["user_id"], float(j["cost_usd"] or 0))
         cost = (j["result"] if isinstance(j["result"], dict) else {}).get("cost") or {
             "usd": j["cost_usd"], "tokens_in": j["tokens_in"], "tokens_out": j["tokens_out"], "tokens_cached": j["tokens_cached"], "calls": 0, "by_model": {}}
         await db.update("jobs", "id", j["id"], {"status": "failed", "finished_at": t, "result": {"summary": "interrupted: the server restarted", "cost": cost}})
@@ -81,8 +88,7 @@ async def recover_interrupted() -> int:
             if p:
                 brief = p["brief"] or {}
                 req = j["input"] if isinstance(j["input"], dict) else {}
-                turns = (brief.get("turns") or []) + [f"{str(req.get('text', ''))[:200]} (interrupted: failed)"]
-                await db.update("projects", "id", j["project_id"], {"brief": {**brief, "turns": turns[-10:]}})
+                await db.update("projects", "id", j["project_id"], {"brief": kept_request(brief, req, "failed")})
         await events.emit(j["project_id"], "job.finished", {"job_id": j["id"], "status": "failed", "summary": "interrupted", "cost": cost}, j["id"])
     working = await db.all("SELECT id FROM projects WHERE status = 'working'")
     await db.execute("UPDATE projects SET status = 'idle', updated_at = ? WHERE status = 'working'", t)
@@ -270,7 +276,7 @@ async def load_project(project_id: str, user: dict[str, Any], write: bool = Fals
 def project_out(p: dict[str, Any]) -> dict[str, Any]:
     return ProjectOut(
         id=p["id"], title=p["title"], pack=p["pack"], status=p["status"], version=p["version"], public=bool(p["public"]),
-        cover=file_url(p["cover"]), forked_from=p["forked_from"], created_at=p["created_at"], updated_at=p["updated_at"],
+        listed=bool(p.get("listed")), cover=file_url(p["cover"]), forked_from=p["forked_from"], created_at=p["created_at"], updated_at=p["updated_at"],
     ).model_dump()
 
 
@@ -362,14 +368,7 @@ async def me(user=Depends(current_user)) -> Usage:
     usd, jobs = await quotas.spent_today(user["id"])
     limit = quotas.TIERS.get(user["tier"], quotas.TIERS["anon"])[0]
     return Usage(user_id=user["id"], tier=user["tier"], today_usd=round(usd, 4), limit_usd=limit, jobs_today=jobs,
-                 contributor_consent=bool(user["contributor_consent"]), models=quotas.model_options(user), axo_cart=bool(settings().axo_api_url))
-
-
-@app.post("/api/me/consent")
-async def consent(body: dict[str, bool], user=Depends(current_user)):
-    db = await get_db()
-    await db.update("users", "id", user["id"], {"contributor_consent": 1 if body.get("contributor") else 0})
-    return {"ok": True}
+                 models=quotas.model_options(user), axo_cart=bool(settings().axo_api_url))
 
 
 # ------------------------------------------------------------------ projects
@@ -402,31 +401,81 @@ async def featured():
     replays its event log, so it costs nothing. Empty when nothing is featured."""
     db = await get_db()
     rows = await db.all("SELECT * FROM projects WHERE public = 1 AND featured > 0 AND replay_of IS NULL ORDER BY featured DESC, updated_at DESC LIMIT 6")
-    out = []
-    for p in rows:
-        jobs = await db.all("SELECT kind, status, result, created_at, finished_at FROM jobs WHERE project_id = ? ORDER BY created_at", p["id"])
-        design = [j for j in jobs if j["kind"] == "design" and j["finished_at"]]
-        first = next((j for j in design if j["status"] == "done"), design[0] if design else None)
-        costs = [c for j in jobs if isinstance(j["result"], dict) and (c := j["result"].get("cost"))]
-        # calls per model when every job counted them (older jobs kept only USD per model); the two units never mix
-        key = "calls_by_model" if costs and all("calls_by_model" in c for c in costs) else "by_model"
-        models: dict[str, float] = {}
-        for c in costs:
-            for m, v in (c.get(key) or {}).items():
-                models[m] = models.get(m, 0) + v
-        # a run opened from a ready example still has that example's title in the language it was opened in (open_example
-        # names it, the agent renames only 'New project'): the home page shows the example's own title in the UI's language.
-        # Matched by the words (any case), so a title the person changed stays theirs
-        said = str(p["title"] or "").strip().casefold()
-        ex = next((e for e in showcase.EXAMPLES if said in {v.casefold() for v in e["title"].values()}), None)
-        out.append({
-            "id": p["id"], "title": p["title"], "cover": file_url(p["cover"]), "pack": p["pack"], "versions": p["version"],
-            **({"title_en": ex["title"]["en"], "title_ru": ex["title"]["ru"]} if ex else await _order_titles(p)),
-            "summary": str((p["brief"] or {}).get("summary") or "")[:200],
-            "duration_s": round(first["finished_at"] - first["created_at"]) if first else None,
-            "models": {m: round(v, 5) for m, v in models.items()} if key == "by_model" else models,
-        })
-    return out
+    return [await _run_card(p) for p in rows]
+
+
+async def _run_card(p: dict[str, Any]) -> dict[str, Any]:
+    """A recorded run as the home page and the replay gallery show it."""
+    db = await get_db()
+    jobs = await db.all("SELECT kind, status, result, created_at, finished_at FROM jobs WHERE project_id = ? ORDER BY created_at", p["id"])
+    design = [j for j in jobs if j["kind"] == "design" and j["finished_at"]]
+    first = next((j for j in design if j["status"] == "done"), design[0] if design else None)
+    costs = [c for j in jobs if isinstance(j["result"], dict) and (c := j["result"].get("cost"))]
+    # calls per model when every job counted them (older jobs kept only USD per model); the two units never mix
+    key = "calls_by_model" if costs and all("calls_by_model" in c for c in costs) else "by_model"
+    models: dict[str, float] = {}
+    for c in costs:
+        for m, v in (c.get(key) or {}).items():
+            models[m] = models.get(m, 0) + v
+    # a run opened from a ready example still has that example's title in the language it was opened in (open_example
+    # names it, the agent renames only 'New project'): the home page shows the example's own title in the UI's language.
+    # Matched by the words (any case), so a title the person changed stays theirs
+    said = str(p["title"] or "").strip().casefold()
+    ex = next((e for e in showcase.EXAMPLES if said in {v.casefold() for v in e["title"].values()}), None)
+    return {
+        "id": p["id"], "title": p["title"], "cover": file_url(p["cover"]), "pack": p["pack"], "versions": p["version"],
+        **({"title_en": ex["title"]["en"], "title_ru": ex["title"]["ru"]} if ex else await _order_titles(p)),
+        "summary": str((p["brief"] or {}).get("summary") or "")[:200],
+        "duration_s": round(first["finished_at"] - first["created_at"]) if first else None,
+        "models": {m: round(v, 5) for m, v in models.items()} if key == "by_model" else models,
+        "views": p.get("views") or 0,
+        "featured": bool(p["featured"]),
+    }
+
+
+# on the gallery: a run the agent finished, made public by its owner to be listed (or picked for the home page). A
+# project with a refused request stays off it, whatever else it holds; its link still opens for whoever has it
+GALLERY = ("public = 1 AND hidden = 0 AND replay_of IS NULL AND (listed = 1 OR featured > 0) "
+           "AND EXISTS (SELECT 1 FROM jobs j WHERE j.project_id = p.id AND j.kind = 'design' AND j.status = 'done') "
+           "AND NOT EXISTS (SELECT 1 FROM events e WHERE e.project_id = p.id AND e.type = 'job.finished' AND json_extract(e.data, '$.summary') = 'refused')")
+GALLERY_PAGE = 24
+
+
+@app.get("/api/replays")
+async def replay_gallery(kind: str = "", sort: str = "new", offset: int = 0):
+    """The public replay gallery, picked runs first. kind: 'device', 'part' or everything."""
+    where = {"device": " AND pack = 'device'", "part": " AND COALESCE(pack, '') != 'device'"}.get(kind, "")
+    order = "views DESC, COALESCE(listed_at, updated_at) DESC" if sort == "popular" else "COALESCE(listed_at, updated_at) DESC"
+    db = await get_db()
+    rows = await db.all(f"SELECT * FROM projects p WHERE {GALLERY}{where} ORDER BY featured DESC, {order} LIMIT ? OFFSET ?", GALLERY_PAGE, max(0, offset))
+    return [await _run_card(p) for p in rows]
+
+
+@app.post("/api/replays/{project_id}/view")
+async def replay_viewed(project_id: str, user=Depends(current_user)):
+    """One person watching a run counts once; the owner's own looks do not count."""
+    p = await load_project(project_id, user)
+    if p["user_id"] == user["id"]:
+        return {"views": p.get("views") or 0}
+    db = await get_db()
+    if not await db.one("SELECT 1 AS x FROM replay_views WHERE project_id = ? AND user_id = ?", project_id, user["id"]):
+        await db.execute("INSERT OR IGNORE INTO replay_views (project_id, user_id, created_at) VALUES (?, ?, ?)", project_id, user["id"], now())
+        await db.execute("UPDATE projects SET views = COALESCE(views, 0) + 1 WHERE id = ?", project_id)
+    row = await db.one("SELECT views FROM projects WHERE id = ?", project_id)
+    return {"views": (row or {}).get("views") or 0}
+
+
+@app.post("/api/replays/{project_id}/hide")
+async def replay_hide(project_id: str, body: dict[str, bool], user=Depends(current_user)):
+    """An admin takes a published run down: off the gallery, its link closed, and its owner cannot publish it again."""
+    if user["tier"] != "admin":
+        raise HTTPException(403, "admins only")
+    db = await get_db()
+    if not await db.one("SELECT 1 AS x FROM projects WHERE id = ?", project_id):
+        raise HTTPException(404, "project not found")
+    hidden = body.get("hidden", True)
+    await db.update("projects", "id", project_id, {"hidden": 1, "public": 0, "listed": 0, "featured": 0} if hidden else {"hidden": 0})
+    return {"hidden": hidden}
 
 
 async def _order_titles(p: dict[str, Any]) -> dict[str, str]:
@@ -518,10 +567,18 @@ async def project_detail(project_id: str, user=Depends(current_user)) -> Project
 
 @app.patch("/api/projects/{project_id}")
 async def update_project(project_id: str, body: dict[str, Any], user=Depends(current_user)):
-    await load_project(project_id, user, write=True)
+    p = await load_project(project_id, user, write=True)
     fields = {k: v for k, v in body.items() if k in ("title", "pack")}
-    if "public" in body:
-        fields["public"] = 1 if body["public"] else 0
+    if "public" in body or "listed" in body:
+        # two steps of the same thing: listed needs the link, and closing the link takes the run off the gallery
+        listed = bool(body.get("listed", p["listed"]))
+        public = bool(body["public"]) if "public" in body else bool(p["public"]) or listed
+        listed = listed and public
+        if public and p["hidden"]:
+            raise HTTPException(403, {"detail": "this run was taken down by the site's admins", "code": "replay_hidden"})
+        fields |= {"public": int(public), "listed": int(listed)}
+        if listed and not p["listed"]:
+            fields["listed_at"] = now()
     db = await get_db()
     await db.update("projects", "id", project_id, {**fields, "updated_at": now()})
     return project_out(await db.one("SELECT * FROM projects WHERE id = ?", project_id))  # type: ignore[arg-type]
@@ -574,6 +631,21 @@ async def _replay(src_id: str, dst_id: str, speed: float) -> None:
                                          "created_at": replayed(m["created_at"])})
     finally:
         await db.update("projects", "id", dst_id, {"status": "idle", "updated_at": now()})
+
+
+@app.get("/api/projects/{project_id}/log")
+async def replay_log(project_id: str, request: Request, user=Depends(current_user)):
+    """The whole event log at once, for the player in the browser: it copies nothing, so closing the project's link
+    ends every replay of it. Whoever may read the project may read this; a board's routing frames make it big, so gzip."""
+    await load_project(project_id, user)
+    db = await get_db()
+    rows = await db.all("SELECT seq, job_id, type, data, ts FROM events WHERE project_id = ? AND type NOT IN ('cost', 'job.heartbeat') ORDER BY seq", project_id)
+    body = json.dumps({"events": rows}, ensure_ascii=False).encode()
+    headers = {"Cache-Control": "no-store", "Vary": "Accept-Encoding"}
+    if "gzip" in request.headers.get("accept-encoding", ""):
+        body = gzip.compress(body, 5)
+        headers["Content-Encoding"] = "gzip"
+    return Response(body, media_type="application/json", headers=headers)
 
 
 @app.post("/api/projects/{project_id}/replay")
@@ -1004,11 +1076,12 @@ async def visual_edit(project_id: str, body: VisualEditRequest, user=Depends(cur
 
 
 @app.post("/api/projects/{project_id}/order")
-async def order(project_id: str, body: OrderRequest, user=Depends(current_user)):
+async def order(project_id: str, body: OrderRequest, request: Request, user=Depends(current_user)):
     p = await load_project(project_id, user, write=True)
+    from . import idempotency
     from .integrations import axo
 
-    return await axo.create_order(user, p, body)
+    return await axo.create_order(user, p, body, key=idempotency.key_of(request))
 
 
 @app.post("/api/projects/{project_id}/axo-cart")
@@ -1082,13 +1155,13 @@ async def snap_photo(file: UploadFile = File(...), x: float | None = Form(None),
     except ValueError as e:
         await _drop_snap(pid)
         raise HTTPException(400, str(e)) from e
-    except quotas.QuotaExceeded:
-        await _drop_snap(pid)  # the face blur hit today's limit: no empty draft is left behind
+    except (quotas.QuotaExceeded, *MODEL_SERVICE_ERRORS):
+        await _drop_snap(pid)  # the face blur hit today's limit or could not run: no empty draft is left behind
         raise
     p = await db.one("SELECT * FROM projects WHERE id = ?", pid)
     try:
         r = await snap.snap(user, p, asset, x, y, lang)  # type: ignore[arg-type]
-    except quotas.QuotaExceeded:
+    except (quotas.QuotaExceeded, *MODEL_SERVICE_ERRORS):
         await _drop_snap(pid)
         raise
     await events.emit(pid, "asset.added", asset_out(asset))
@@ -1291,9 +1364,9 @@ def _set_meta(page: str, key: str, value: str) -> str:
 
 async def share_page(page: str, path: str, base: str) -> str:
     """Link previews (X, chats) read the meta tags without running the app: the image has to be absolute, and a
-    shared public project (/r/<id>, /p/<id>) shows its own title, summary and cover."""
+    shared public project (/r/<id>, /p/<id>, /d/<id>, its replay /w/<id>) shows its own title, summary and cover."""
     page = _set_meta(page, "og:image", f"{base}/og.png")
-    m = re.fullmatch(r"[rp]/([\w-]+)/?", path)
+    m = re.fullmatch(r"[rpdw]/([\w-]+)/?", path)
     if not m:
         return page
     db = await get_db()
@@ -1340,7 +1413,7 @@ async def geom_error(_: Request, exc: GeomError):
 
 @app.exception_handler(quotas.QuotaExceeded)
 async def quota_error(_: Request, exc: quotas.QuotaExceeded):
-    # code and info (e.g. the blocking job's project_id and job_id for 'job_running') come from quotas.reserve
+    # code and info (e.g. the blocking job's project_id and job_id for 'job_running') come from quotas.headroom
     return error_response(429, str(exc), getattr(exc, "code", "quota"), **getattr(exc, "info", {}))
 
 
@@ -1354,7 +1427,7 @@ async def model_busy(request: Request, exc: Exception):
     return error_response(503, "the model service is busy or unreachable; try again in a minute", "model_busy")
 
 
-for _exc in (APIStatusError, APIConnectionError, APITimeoutError, httpx.HTTPError):
+for _exc in MODEL_SERVICE_ERRORS:
     app.add_exception_handler(_exc, model_busy)
 
 

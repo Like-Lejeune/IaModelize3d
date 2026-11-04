@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import base64
 import io
+import os
+import uuid
 from pathlib import Path
 
 from PIL import Image
@@ -14,11 +16,24 @@ def files_dir() -> Path:
     return settings().data_dir / "files"
 
 
+def write_atomic(path: Path, data: bytes) -> None:
+    """The whole file or the old one under this name, never a part: a crash or a full disk leaves only a temp file behind."""
+    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex[:8]}.tmp")
+    try:
+        tmp.write_bytes(data)
+        try:
+            os.replace(tmp, path)
+        except PermissionError:  # Windows: someone is reading the old file right now
+            path.write_bytes(data)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def save_bytes(project_id: str, subdir: str, name: str, data: bytes) -> str:
     rel = Path(project_id) / subdir / name
     path = files_dir() / rel
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(data)
+    write_atomic(path, data)
     return rel.as_posix()
 
 

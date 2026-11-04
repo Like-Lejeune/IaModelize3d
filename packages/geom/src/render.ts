@@ -262,6 +262,29 @@ export const SHEET_VIEWS: SheetView[] = [
   { name: 'BOTTOM', dir: [0, 0, 1] },
 ];
 
+/** Where a view sits on a sheet and, for one looking straight along a model axis, the model coordinates of its edges. */
+export interface ViewFrame {
+  name: string;
+  box: [number, number, number, number]; // x, y, w, h in the sheet's pixels
+  h?: string; // the axis across the picture, h0 at its left edge and h1 at its right
+  h0?: number;
+  h1?: number;
+  v?: string; // the axis down the picture, v0 at its top edge and v1 at its bottom
+  v0?: number;
+  v1?: number;
+}
+
+function viewFrame(name: string, cam: Camera, ox: number, oy: number, tile: number): ViewFrame {
+  const frame: ViewFrame = { name, box: [ox, oy, tile, tile] };
+  // an oblique view has no model coordinates per pixel: a screen axis mixes two model axes
+  const axisOf = (row: number) => [0, 1, 2].findIndex((k) => Math.abs(cam.R[row * 3 + k]) > 1 - 1e-6);
+  const kh = axisOf(0), kv = axisOf(1);
+  if (kh < 0 || kv < 0) return frame;
+  const across = (px: number) => ((px - cam.cx) / cam.fx - cam.t[0]) / cam.R[kh];
+  const down = (py: number) => ((py - cam.cy) / cam.fy - cam.t[1]) / cam.R[3 + kv];
+  return { ...frame, h: 'xyz'[kh], h0: across(0), h1: across(tile), v: 'xyz'[kv], v0: down(0), v1: down(tile) };
+}
+
 // 3x2 sheet of orthographic views with labels, size and a 10 mm scale bar.
 // `size` labels the model's real size when bbox only frames a close-up.
 export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { tile?: number; colors?: Uint8Array; alpha?: Uint8Array; views?: SheetView[]; title?: string; size?: number[]; markers?: Marker[] } = {}) {
@@ -272,10 +295,12 @@ export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { 
   const W = tile * cols, H = tile * rows + 28;
   const img = new Uint8ClampedArray(W * H * 4);
   for (let i = 0; i < W * H; i++) img.set([246, 246, 243, 255], i * 4);
+  const frames: ViewFrame[] = [];
   views.forEach((v, idx) => {
     const cam = orthoFit(v.dir, bbox, tile, tile, 0.12);
     const r = render(mesh, cam, { colors: opts.colors, alpha: opts.alpha, background: [246, 246, 243, 255] });
     const ox = (idx % cols) * tile, oy = Math.floor(idx / cols) * tile;
+    frames.push(viewFrame(v.name, cam, ox, oy, tile));
     for (let y = 0; y < tile; y++) img.set(r.rgba.subarray(y * tile * 4, (y + 1) * tile * 4), ((oy + y) * W + ox) * 4);
     drawText(img, W, H, v.name, ox + 8, oy + 18, 12, [90, 90, 90]);
     // markers: filled where visible, hollow where the surface hides them
@@ -301,5 +326,5 @@ export function renderSheet(mesh: FlatMesh, bbox: { min: V3; max: V3 }, opts: { 
   });
   const size = (opts.size ?? [0, 1, 2].map((i) => bbox.max[i] - bbox.min[i])).map((v) => v.toFixed(1));
   drawText(img, W, H, `${(opts.title ?? '').slice(0, 40)}  ${size[0]} X ${size[1]} X ${size[2]} MM`, 10, H - 8, 14, [30, 30, 30]);
-  return { rgba: img, width: W, height: H };
+  return { rgba: img, width: W, height: H, frames };
 }

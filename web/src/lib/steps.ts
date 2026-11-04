@@ -11,13 +11,13 @@ export const TOOL_KIND: Record<string, string> = {
   scan_board: 'measure', use_board: 'standard', check_enclosure: 'inspect', write_circuit: 'build', check_pcb: 'inspect',
   export_fab: 'export', make_enclosure: 'build',
   search_parts: 'standard', part_info: 'standard', write_device: 'build', build_device: 'build', write_firmware: 'build', quote_device: 'export',
-  inspect_board: 'look', inspect_case: 'look', inspect_part: 'inspect',
+  inspect_board: 'look', inspect_case: 'look', inspect_part: 'inspect', grid: 'look', collage: 'look',
 };
 
 export const KIND_ICON: Record<string, string> = {
   build: 'cube', edit: 'pencil', params: 'sliders', inspect: 'ruler', render: 'eye', look: 'scan', scene: 'camera',
   measure: 'ruler', caliper: 'caliper', standard: 'book', search: 'search', memory: 'brain', ask: 'help', fit: 'target',
-  probe: 'flask', concepts: 'sparkles', terrain: 'mountain', skill: 'package', compare: 'scan', finish: 'check-circle',
+  probe: 'flask', concepts: 'scribble', terrain: 'mountain', skill: 'package', compare: 'scan', finish: 'check-circle',
   export: 'download',
 };
 
@@ -93,6 +93,7 @@ export function parseSummary(summary?: string): Record<string, any> | null {
     const review = /"review":\s*"(\w+)"/.exec(summary);
     if (review) out.review = review[1];
     if (/"unresolved":\s*\[\s*"/.test(summary)) out.unresolved = ['…'];
+    if (/"unchecked":\s*\[\s*"/.test(summary)) out.unchecked = ['…'];
     elecSummary(summary, out);
     return Object.keys(out).length ? out : null;
   }
@@ -176,6 +177,8 @@ function ruCall(name: string, a: any): string {
     case 'save_skill': return `Сохраняю модуль «${s(a.name)}» для будущих проектов`;
     case 'compare_print': return 'Сравниваю отпечаток с целью';
     case 'finish': return 'Финальная проверка перед сдачей';
+    case 'grid': return 'Считываю точные координаты на картинке';
+    case 'collage': return 'Собираю картинки на один лист';
     case 'look': return a.what === 'compare' ? 'Сравниваю модель с фото' : a.what === 'model' ? 'Смотрю на модель со всех сторон' : 'Рассматриваю фото внимательнее';
     case 'measure': return String(a.target).toLowerCase() === 'caliper' ? 'Читаю штангенциркуль' : `Измеряю «${s(a.target) || 'объект'}» на фото`;
     case 'dimensions': return `Ищу размеры: ${s(a.query)}`;
@@ -219,6 +222,8 @@ function ruResult(name: string, a: any, r: Record<string, any>): string {
       const n = (Array.isArray(r.standards) ? r.standards.length : 0) + (Array.isArray(r.web) ? r.web.length : 0);
       return n ? `Найдено размеров: ${n}` : 'Ничего не найдено';
     }
+    case 'grid': return 'Сетка готова';
+    case 'collage': return 'Картинки на одном листе';
     case 'look': return likeness(r).replace(/^, с/, 'С') || 'Готово';
     case 'inspect_model': return 'Модель измерена';
     case 'scene': return 'Замеры доступны';
@@ -246,6 +251,8 @@ function enCall(name: string, a: any): string {
     case 'mesh_edit': return `Sculpting: ${s(a.summary) || 'details'}`;
     case 'set_params': return `Adjusting ${a.values && typeof a.values === 'object' ? Object.keys(a.values).join(', ') : 'parameters'}`;
     case 'inspect_model': return 'Measuring my own model';
+    case 'grid': return 'Reading exact coordinates on the picture';
+    case 'collage': return 'Laying pictures side by side';
     case 'look': return a.what === 'compare' ? 'Comparing the model with the photo' : a.what === 'model' ? 'Looking at the model from all sides' : 'Taking a closer look at the photo';
     case 'measure': return String(a.target).toLowerCase() === 'caliper' ? 'Reading the caliper' : `Measuring “${s(a.target) || 'the object'}” on the photo`;
     case 'dimensions': return `Looking up dimensions: ${s(a.query)}`;
@@ -281,6 +288,8 @@ function enResult(name: string, r: Record<string, any>): string {
       const n = (Array.isArray(r.standards) ? r.standards.length : 0) + (Array.isArray(r.web) ? r.web.length : 0);
       return n ? `Dimensions found: ${n}` : 'Nothing found';
     }
+    case 'grid': return 'Coordinate grid ready';
+    case 'collage': return 'Pictures on one sheet';
     case 'look': return likePct(r) !== undefined ? `Silhouette match ${likePct(r)}%` : 'Done';
     case 'inspect_model': return 'Measured the model';
     case 'ask_user': return r.answer ? `You answered: ${r.answer}` : 'No answer — continuing with a stated assumption';
@@ -496,7 +505,7 @@ function elecResult(name: string, a: any, r: Record<string, any>, ru: boolean): 
       return `${r.id}${Array.isArray(r.pins) ? ': ' + count(r.pins.length, ['pin', 'pins'], ['вывод', 'вывода', 'выводов'], ru) : ''}`;
     case 'quote_device':
       if (r.total_usd == null) return undefined;
-      return ru ? `${r.qty} шт.: $${r.total_usd} (${r.total_kzt} ₸), готово к ${r.eta}` : `${r.qty} devices: $${r.total_usd} (${r.total_kzt} KZT), ready by ${r.eta}`;
+      return ru ? `${r.qty} шт.: $${String(r.total_usd).replace('.', ',')} (${r.total_kzt} ₸), готово к ${String(r.eta).split('-').reverse().join('.')}` : `${r.qty} devices: $${r.total_usd} (${r.total_kzt} KZT), ready by ${r.eta}`;
     case 'scan_board':
     case 'use_board': {
       const b = r.board;
@@ -578,6 +587,7 @@ function handedOver(r: Record<string, any>, ru: boolean): string | undefined {
   if (r.accepted !== true) return undefined;
   if (r.unresolved?.length || r.review === 'notes') return ru ? 'Сдано; у ревьюера остались замечания' : 'Handed over; the reviewer still has notes';
   if (r.review === 'none') return ru ? 'Сдано без проверки: ревьюер не ответил' : 'Handed over without a review: the reviewer did not answer';
+  if (r.unchecked?.length) return ru ? 'Сдано; одну из проверок выполнить не удалось' : 'Handed over; a check could not run';
   return undefined;
 }
 
@@ -643,6 +653,11 @@ const RU_STATUS: [RegExp, string | ((m: RegExpMatchArray) => string)][] = [
   [/^Fitting parameters to the photo silhouette$/, 'Подгоняю размеры под силуэт на фото'],
   [/^Reading the board on the photo$/, 'Читаю плату на фото'],
   [/^Placing and routing the board$/, 'Расставляю детали и развожу плату'],
+  [/^Placing and routing the board \(([\d.]+) x ([\d.]+) mm\)$/, (m) => `Развожу плату ${m[1]} × ${m[2]} мм`],
+  [/^Looking at the case$/, 'Смотрю на корпус'],
+  [/^Looking at the case around (.+)$/, (m) => `Смотрю на корпус вокруг ${m[1]}`],
+  [/^Checking the firmware$/, 'Проверяю прошивку'],
+  [/^Running the firmware on a virtual board$/, 'Запускаю прошивку на виртуальной плате'],
 ];
 
 /** Progress lines the server writes itself, as opposed to what the model says. */
@@ -688,6 +703,14 @@ const PHRASE: Record<string, Phrase> = {
   case_check: { en: ['checked the case against the board', (n) => `checked the case ${n} times`], ru: ['сверил корпус с платой', (n) => `сверил корпус с платой ${ruN(n, ['раз', 'раза', 'раз'])}`] },
   board_scan: { en: ['read the board from the photo', () => 'read the board from the photo'], ru: ['прочитал плату на фото', () => 'прочитал плату на фото'] },
   board: { en: ['picked the board', () => 'picked the board'], ru: ['выбрал плату', () => 'выбрал плату'] },
+  // a device, by tool: the schematic, its firmware and the looks at what came out each say so
+  parts: { en: ['looked up parts', () => 'looked up parts'], ru: ['подобрал детали', () => 'подобрал детали'] },
+  device: { en: ['drew the schematic', (n) => `drew ${n} schematic versions`], ru: ['нарисовал схему', (n) => `нарисовал ${ruN(n, ['версию схемы', 'версии схемы', 'версий схемы'])}`] },
+  firmware: { en: ['wrote the firmware', (n) => `wrote the firmware ${n} times`], ru: ['написал прошивку', (n) => `написал прошивку ${ruN(n, ['раз', 'раза', 'раз'])}`] },
+  look_board: { en: ['looked at the board', (n) => `looked at the board ${n} times`], ru: ['осмотрел плату', (n) => `осмотрел плату ${ruN(n, ['раз', 'раза', 'раз'])}`] },
+  look_case: { en: ['looked at the case', (n) => `looked at the case ${n} times`], ru: ['осмотрел корпус', (n) => `осмотрел корпус ${ruN(n, ['раз', 'раза', 'раз'])}`] },
+  look_part: { en: ['read up on a part', (n) => `read up on ${n} parts`], ru: ['изучил деталь', (n) => `изучил ${ruN(n, ['деталь', 'детали', 'деталей'])}`] },
+  quote: { en: ['worked out the price', () => 'worked out the price'], ru: ['посчитал цену', () => 'посчитал цену'] },
 };
 const GROUP_OF: Record<string, string> = {
   render: 'look', compare: 'look', fit: 'measure', caliper: 'measure', scene: 'measure', standard: 'search',
@@ -695,6 +718,8 @@ const GROUP_OF: Record<string, string> = {
 const GROUP_OF_TOOL: Record<string, string> = {
   write_circuit: 'circuit', check_pcb: 'pcb_check', export_fab: 'fab', make_enclosure: 'case', check_enclosure: 'case_check',
   scan_board: 'board_scan', use_board: 'board',
+  search_parts: 'parts', part_info: 'parts', write_device: 'device', build_device: 'circuit', write_firmware: 'firmware',
+  inspect_board: 'look_board', inspect_case: 'look_case', inspect_part: 'look_part', quote_device: 'quote',
 };
 
 export function groupSummary(items: { kind: string; tkind?: string; name?: string }[]): string {

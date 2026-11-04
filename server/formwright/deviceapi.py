@@ -7,6 +7,8 @@
   PUT  /api/projects/{id}/device       save the person's edit (owner only)
   POST /api/projects/{id}/device/build compile, place, route, check; then the case (background; 'device.build' events)
   GET  /api/projects/{id}/device/quote?qty=  what the finished devices cost: parts, PCB, assembly, case, delivery
+  GET  /api/projects/{id}/device/package?qty=  the whole device for the workshop, one ZIP (device_package)
+  POST /api/projects/{id}/device/axo-cart    the whole device as a batch in the Axo shop's cart
   POST /api/projects/{id}/device/order       order them (device_orders)
   GET  /api/device-orders/{id}
   GET  /api/projects/{id}/device/firmware/{name}
@@ -23,13 +25,15 @@ import json
 import logging
 import math
 import re
+import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
-from . import accessories, catalog, device, device_store, events, pcb_store, pcbapi
+from . import accessories, catalog, device, device_package, device_store, events, idempotency, pcb_store, pcbapi
+from .db import new_id
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -72,13 +76,14 @@ async def device_library() -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------ the document
-async def state_of(project_id: str, row: dict[str, Any] | None = None) -> dict[str, Any]:
-    """The latest document, the editor's view of it and the checks; a project without one gets a blank document."""
+async def state_of(project_id: str, row: dict[str, Any] | None = None, pcb_version: int | None = None) -> dict[str, Any]:
+    """The latest document, the editor's view of it and the checks; a project without one gets a blank document.
+    pcb_version: the board as of a moment in a replay (0: none yet) instead of the latest."""
     row = row or await device_store.latest(project_id)
     doc = (row or {}).get("doc") or device.blank()
     doc, issues = device.normalize(doc)
     parts, more = await device.resolve(doc)
-    pcb_row = await pcb_store.get(project_id)
+    pcb_row = None if pcb_version == 0 else await pcb_store.get(project_id, pcb_version)
     built_from, stale = None, True
     if pcb_row and "device.json" in (pcb_row.get("artifacts") or {}):
         path = pcb_store.artifact_path(project_id, int(pcb_row["version"]), "device.json")
@@ -117,9 +122,14 @@ class DeviceUpdate(BaseModel):
 
 
 @router.get("/api/projects/{project_id}/device")
-async def get_device(project_id: str, user=Depends(_user)) -> dict[str, Any]:
+async def get_device(project_id: str, version: int | None = None, pcb: int | None = None, user=Depends(_user)) -> dict[str, Any]:
+    """The latest state, or (a replay) the document of that version with that board; version numbers come from its events."""
     await _app().load_project(project_id, user)
-    return await state_of(project_id)
+    if version is None:
+        return await state_of(project_id)
+    row = await device_store.up_to(project_id, version)
+    state = await state_of(project_id, row, pcb or 0)
+    return {**state, "building": False}
 
 
 @router.put("/api/projects/{project_id}/device")
@@ -256,10 +266,13 @@ async def build_device(project_id: str, doc: dict[str, Any], *, job_id: str | No
     if build.get("board"):
         device.dress_board(build["board"], doc, parts, build.get("circuit_json") or [])
     export = None
+    models = await part_models(doc, parts)
+    export_error: str | None = None
     try:
-        export = await pool().export(build["circuit_json"])
+        export = await pool().export(build["circuit_json"], models=models)
     except PcbError as e:
         log.warning("device export failed for %s: %s", project_id, e)
+        export_error = "the board was built but its fab files could not be written: build it again"
     files: dict[str, Any] | None = None
     if export:
         from .agent.pcb_tools import FAB, PREVIEWS
@@ -276,11 +289,12 @@ async def build_device(project_id: str, doc: dict[str, Any], *, job_id: str | No
     growth = device.growth_report(doc, parts, tuple(comp["size"]), attempts)
     if growth:  # said once, where the designer reads the build's warnings
         lint = [{"code": "board_grew", "ref": "board", "msg": growth["msg"]}, *lint]
-    # ok: a board that is clean AND does what the graph says (edges, the pins that drive LEDs and buttons)
-    return {"ok": drc_ok and intent_ok, "drc_ok": drc_ok, "intent_ok": intent_ok, "pcb_version": version, "size_mm": comp["size"], "growth": growth,
+    # ok: a board that is clean AND does what the graph says (edges, the pins that drive LEDs and buttons), with its fab files
+    return {"ok": drc_ok and intent_ok and export is not None, **({"error": export_error} if export_error else {}), "drc_ok": drc_ok, "intent_ok": intent_ok, "pcb_version": version, "size_mm": comp["size"], "growth": growth,
             "drc": {"errors": len(build.get("errors") or []), "cascaded": int(build.get("suppressed") or 0),
                     "warnings": len(build.get("warnings") or [])},
-            "attempts": attempts, "issues": issues, "lint": lint, "build": build, "doc": doc, "parts": parts, "export_ok": export is not None}
+            "attempts": attempts, "issues": issues, "lint": lint, "build": build, "doc": doc, "parts": parts, "export_ok": export is not None,
+            "models": models_report(doc, parts, models)}
 
 
 async def make_case(project_id: str, pcb_version: int, *, mockup: bool = True) -> int | None:
@@ -305,9 +319,10 @@ async def make_case(project_id: str, pcb_version: int, *, mockup: bool = True) -
                                          "inputs": {"boards": {"board": board}}, "summary": f"case for PCB v{pcb_version}", "checks": None,
                                          "author": "device", "created_at": t})
             break
-        except Exception:  # noqa: BLE001 - a concurrent version took the number
+        except sqlite3.IntegrityError:  # a concurrent version took the number
             continue
     else:
+        log.error("the case of %s PCB v%s lost its version number three times", project_id, pcb_version)
         return None
     await db.update("projects", "id", project_id, {"version": version, "updated_at": t})
     await events.emit(project_id, "program.updated", {"version": version, "params": {}, "checks": None, "author": "device", "source_changed": True})
@@ -329,10 +344,14 @@ async def _editor_build(project_id: str) -> None:
             "state": "done", "ok": bool(res.get("ok")), "pcb_version": res.get("pcb_version"), "program_version": case,
             "size_mm": res.get("size_mm"), "attempts": res.get("attempts"), "growth": (res.get("growth") or {}).get("msg"),
             "errors": [{k: e.get(k) for k in ("type", "message", "hint")} for e in (b.get("errors") or [])[:6]],
-            "error": res.get("error"), "intent_ok": bool((b.get("intent") or {}).get("ok", True))})
-    except Exception as e:  # noqa: BLE001 - the editor must hear that the build ended
-        log.exception("device build of %s failed", project_id)
-        await events.emit(project_id, "device.build", {"state": "done", "ok": False, "error": f"{type(e).__name__}: {str(e)[:300]}"})
+            "error": res.get("error"), "intent_ok": bool((b.get("intent") or {}).get("ok", True)),
+            **({"case_error": "the case could not be made from this board: build again"} if res.get("drc_ok") and case is None else {})})
+    except Exception:  # noqa: BLE001 - the editor must hear that the build ended
+        # the full error only goes to the log; the id finds it there
+        eid = new_id("e_")
+        log.exception("device build of %s failed (%s)", project_id, eid)
+        await events.emit(project_id, "device.build", {"state": "done", "ok": False, "code": "internal", "id": eid,
+                                                       "error": f"The build stopped on our side. Error id: {eid}."})
     finally:
         _building.pop(project_id, None)
 
@@ -353,13 +372,78 @@ async def start_build(project_id: str, user=Depends(_user)) -> dict[str, Any]:
 # (checked 2026-11). Estimates: the binding price is the fab's own at checkout.
 PCB_MIN_USD = 4.0          # 5 boards up to 100 x 100 mm
 PCB_USD_PER_CM2 = 0.012    # each board beyond the minimum
-SMT_SETUP_USD = 8.0
-STENCIL_USD = 1.5
-JOINT_USD = 0.0017
-EXTENDED_FEE_USD = 3.0     # per unique extended-library part
-FAB_SHIPPING_USD = 18.0    # JLCPCB -> Kazakhstan, Global Standard Direct
+SMT_SETUP_USD = 8.18
+STENCIL_USD = 1.53
+JOINT_USD = 0.0016
+EXTENDED_FEE_USD = 3.07    # per unique extended-library part
+MIN_ASSEMBLED = 2          # economic assembly mounts at least two of the five boards, and takes up to 50
+ECONOMIC_MAX_QTY = 50
+STANDARD_FEES_USD = 90.0   # standard assembly above that: setup, stencil, handling, fixtures (at 100 boards)
+# JLCPCB to Kazakhstan, its shipping calculator on 2026-11-04 (reference prices, final at checkout). Special Air Line is the
+# only cheap line there (13-24 business days), for parcels up to 1.5 kg and $150; past that only express goes.
+FAB_AIR_BASE_USD = 4.25
+FAB_AIR_USD_PER_KG = 8.29
+FAB_AIR_MAX_KG, FAB_AIR_MAX_USD = 1.5, 150.0
+FAB_DHL = ((0.5, 41.78), (1, 50.86), (1.5, 59.94), (2, 69.03), (3, 94.48), (5, 159.91), (10, 234.88))  # kg, USD; 4-8 business days
+FAB_UPS = ((0.5, 38.77), (1, 53.07), (1.5, 65.60), (2, 78.07), (3, 102.79), (5, 152.07), (10, 245.85))  # 6-10 business days
+FAB_TARE_KG = 0.17         # the box and its packing, from JLCPCB's bare-board weights
+BOARD_KG_PER_CM2 = 0.00035
+PARTS_KG_PER_DEVICE = 0.003
+SHIP_DAYS = {"air": 25, "express": 10}
+# LCSC to Kazakhstan for what the workshop fits by hand (SMD parts come on the boards, with no parcel of their own):
+# Singapore Post at its 1 kg floor, 20-35 business days. The workshop keeps these cents-a-piece parts in stock and restocks
+# in one parcel, so a lot pays its share of that parcel by value: our assumption, not LCSC's price for a parcel of its own.
+LCSC_SHIP_USD = 6.79
+LCSC_RESTOCK_USD = 50.0
 HAND_JOINT_USD = 0.05      # through-hole parts and modules soldered at the workshop
 ASSEMBLY_USD = 3.0         # per device: soldering the module, flashing the firmware, test, packing
+def _express_usd(table: tuple[tuple[float, float], ...], kg: float) -> float:
+    """The first step that holds this weight; past the table, its last step's price per kg."""
+    for limit, usd in table:
+        if kg <= limit:
+            return usd
+    (k0, u0), (k1, u1) = table[-2:]
+    return u1 + (kg - k1) * (u1 - u0) / (k1 - k0)
+
+
+def fab_shipping(area_cm2: float, boards: int, q: int, goods_usd: float) -> tuple[float, str]:
+    """What JLCPCB charges to send this lot to Kazakhstan, and by which line ('air' or 'express')."""
+    kg = FAB_TARE_KG + area_cm2 * boards * BOARD_KG_PER_CM2 + q * PARTS_KG_PER_DEVICE
+    if kg <= FAB_AIR_MAX_KG and goods_usd <= FAB_AIR_MAX_USD:
+        return round(FAB_AIR_BASE_USD + FAB_AIR_USD_PER_KG * kg, 2), "air"
+    return round(min(_express_usd(FAB_DHL, kg), _express_usd(FAB_UPS, kg)), 2), "express"
+
+
+def lcsc_shipping(lcsc_usd: float) -> float:
+    """This lot's share of the workshop's LCSC parcel for what it fits by hand; a whole parcel at most."""
+    return LCSC_SHIP_USD * min(1.0, lcsc_usd / LCSC_RESTOCK_USD)
+
+
+async def part_models(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """The 3D models the worker draws the board with: each catalogue part's real one from EasyEDA (it has no network) and
+    the primitives of what the graph knows (device.model_plan)."""
+    plan = device.model_plan(doc, parts)
+    raws = {catalog.model_uuid(p["raw"]): p["raw"] for n, p in parts.items() if "h" in plan.get(n, {}) and p.get("raw") and catalog.model_uuid(p["raw"])}
+    got = await asyncio.gather(*(catalog.model_obj(r) for r in raws.values()), return_exceptions=True)
+    objs = {g[0]: g[1] for g in got if isinstance(g, tuple)}
+    for nid, p in parts.items():
+        uuid = catalog.model_uuid(p.get("raw")) if "h" in plan.get(nid, {}) else None
+        if uuid in objs:
+            plan[nid].update({"obj": uuid, **catalog.model_place(p["raw"], objs[uuid])})
+    return {"objs": objs, "parts": plan}
+
+
+def models_report(doc: dict[str, Any], parts: dict[str, dict[str, Any]], models: dict[str, Any]) -> dict[str, list[str]]:
+    """Which parts have which look in the board's 3D view: `blocks` are plain boxes, worth a model of the designer's own."""
+    real, own, blocks = [], [], []
+    for n in doc["nodes"]:
+        if n.get("model"):
+            own.append(n["id"])
+        elif n["kind"] == "chip":
+            (real if catalog.model_uuid(parts.get(n["id"], {}).get("raw")) in (models.get("objs") or {}) else blocks).append(n["id"])
+    return {"catalogue": real, "own": own, "blocks": blocks}
+
+
 THT_KINDS = ("button", "header", "jst", "module", "accessory")
 
 
@@ -416,7 +500,7 @@ def bom_of(doc: dict[str, Any], parts: dict[str, dict[str, Any]], q: int) -> dic
                 cl["refs"].append(n["id"])
             continue
         key = part.get("lcsc") or (f"module:{n['module']}" if k == "module" else f"{k}:{n['id']}")
-        ln = lines.setdefault(key, {"refs": [], "kind": k, "lcsc": part.get("lcsc"), "mpn": part.get("mpn"), "package": part.get("package"),
+        ln = lines.setdefault(key, {"refs": [], "kind": k, "unpriced": bool(part.get("error")), "lcsc": part.get("lcsc"), "mpn": part.get("mpn"), "package": part.get("package"),
                                     "basic": part.get("basic"), "stock": part.get("stock"), "url": part.get("url"), "prices": part.get("prices") or [],
                                     "assembly": "hand" if k in THT_KINDS or part.get("tht") else "smt",
                                     "label": n.get("label") or n.get("value") or n.get("color") or "", "pins_each": len(n.get("pins") or [])})
@@ -431,7 +515,8 @@ def bom_of(doc: dict[str, Any], parts: dict[str, dict[str, Any]], q: int) -> dic
     extended = 0
     for ln in lines.values():
         per = len(ln["refs"])
-        need = per * q
+        # the fab mounts at least MIN_ASSEMBLED boards, so a single device still buys two boards' SMD parts
+        need = per * (max(q, MIN_ASSEMBLED) if ln["assembly"] == "smt" else q)
         unit = catalog.price_at(ln["prices"], need) if ln["prices"] else 0.0
         if ln["kind"] == "header":
             unit = unit * max(1, ln["pins_each"]) / 40  # cut from a 1x40 strip
@@ -447,7 +532,9 @@ def bom_of(doc: dict[str, Any], parts: dict[str, dict[str, Any]], q: int) -> dic
                     **({"accessory": ln["accessory"], "note": "ready-made module, bought finished and fitted by hand: in the order"}
                        if ln.get("accessory") else {}),
                     "name": name, "in_order": True, "qty_each": per, "qty": need, "unit_usd": round(unit, 4), "total_usd": total,
-                    "in_stock": ln["stock"] is None or (ln["stock"] or 0) >= need})
+                    # a part the catalogue did not answer for has neither a price nor a known stock
+                    **({"unpriced": True} if ln.get("unpriced") else {}),
+                    "in_stock": not ln.get("unpriced") and (ln["stock"] is None or (ln["stock"] or 0) >= need)})
     n_modules = sum(len(ln["refs"]) for ln in lines.values() if ln["kind"] == "accessory")
     # what each device arrives with, one line a BOM row: the summary says this, not what it guesses (the LiPo is in)
     in_order = [f"{', '.join(b['refs'])}: {b['qty_each']} x {b['name']}" for b in bom]
@@ -465,6 +552,12 @@ async def quote_for(project_id: str, qty: int) -> dict[str, Any]:
     doc = json.loads(pcb_store.artifact_path(project_id, v, "device.json").read_text(encoding="utf-8"))  # type: ignore[union-attr]
     doc, _ = device.normalize(doc)
     parts, _ = await device.resolve(doc)
+    missing = sorted(nid for nid, p in parts.items() if p.get("error"))
+    if missing:
+        # priced at nothing these parts would make a total that looks real and is not
+        log.warning("no quote for %s: the catalogue did not answer for %s", project_id, ", ".join(missing))
+        raise HTTPException(503, {"detail": f"the parts catalogue did not answer for {', '.join(missing)}; try again in a minute",
+                                  "code": "catalog_unavailable", "refs": missing})
     board = json.loads((pcb_store.artifact_path(project_id, v, "board.json") or pcb_store.artifact_path(project_id, v, "device.json")).read_text(encoding="utf-8"))  # type: ignore[union-attr]
     outline = (board.get("pcb") or {}).get("outline") or {}
     W, H = float(outline.get("w") or 40), float(outline.get("h") or 40)
@@ -478,8 +571,14 @@ async def quote_for(project_id: str, qty: int) -> dict[str, Any]:
     pcb_usd = max(PCB_MIN_USD, boards * area_cm2 * PCB_USD_PER_CM2 + (2.0 if boards > 5 else 0))
     if W > 100 or H > 100:
         pcb_usd *= 1.5
-    smt_usd = SMT_SETUP_USD + STENCIL_USD + joints * q * JOINT_USD + extended * EXTENDED_FEE_USD
+    assembled = max(q, MIN_ASSEMBLED)
+    fees_usd = STANDARD_FEES_USD if assembled > ECONOMIC_MAX_QTY else SMT_SETUP_USD + STENCIL_USD
+    smt_usd = fees_usd + joints * assembled * JOINT_USD + extended * EXTENDED_FEE_USD
     hand_usd = hand_joints * q * HAND_JOINT_USD
+    smt_parts_usd = sum(b["total_usd"] for b in bom if b["assembly"] == "smt")
+    hand_lcsc_usd = sum(b["total_usd"] for b in bom if b["assembly"] != "smt" and b["lcsc"])
+    fab_ship_usd, ship_line = fab_shipping(area_cm2, boards, q, pcb_usd + smt_usd + smt_parts_usd)
+    lcsc_ship_usd = lcsc_shipping(hand_lcsc_usd)
 
     # the case: the latest program made from this board, else an estimate from its size
     from .db import get_db
@@ -510,7 +609,8 @@ async def quote_for(project_id: str, qty: int) -> dict[str, Any]:
         {"key": "pcb", "usd": round(pcb_usd, 2), "note": f"{boards} boards {W:g} x {H:g} mm, 2 layers, 1.6 mm FR-4",
          "data": {"boards": boards, "w": W, "h": H}},
         {"key": "smt", "usd": round(smt_usd, 2), "note": f"{joints} SMD joints per board, setup and stencil", "data": {"joints": joints}},
-        {"key": "fab_shipping", "usd": FAB_SHIPPING_USD, "note": "JLCPCB to the workshop", "data": {}},
+        {"key": "fab_shipping", "usd": round(fab_ship_usd + lcsc_ship_usd, 2), "note": f"JLCPCB to the workshop by {ship_line}" + (", LCSC parcel for the hand-fitted parts" if lcsc_ship_usd else ""),
+         "data": {"line": ship_line, "jlcpcb": fab_ship_usd, "lcsc": round(lcsc_ship_usd, 2)}},
         {"key": "case", "usd": round(case_usd, 2), "note": f"{q} x {case['grams_each']:.0f} g PLA, {case_source}",
          "data": {"qty": q, "grams": round(case["grams_each"]), "source": case_source}},
         {"key": "assembly", "usd": round(assembly_usd + hand_usd, 2), "note": f"{hand_joints} hand joints per device, firmware, test",
@@ -518,8 +618,10 @@ async def quote_for(project_id: str, qty: int) -> dict[str, Any]:
         {"key": "delivery", "usd": round(delivery_usd, 2), "note": "courier", "data": {}},
     ]
     total = round(sum(g["usd"] for g in groups), 2)
+    # what the Axo shop sells the batch for: delivery is the shop's own, from the parcel
+    cart_lines = [{"key": g["key"], "kzt": round(g["usd"] * rate / 10) * 10} for g in groups if g["key"] != "delivery"]
     today = dt.date.today()
-    steps = [("pcb_fab", 5), ("pcb_ship", 7), ("case_print", 1), ("assembly", 1), ("delivery", 2)]
+    steps = [("pcb_fab", 5), ("pcb_ship", SHIP_DAYS[ship_line]), ("case_print", 1), ("assembly", 1), ("delivery", 2)]
     timeline, day = [], 0
     for key, days in steps:
         day += days
@@ -527,6 +629,8 @@ async def quote_for(project_id: str, qty: int) -> dict[str, Any]:
     return {
         "qty": q, "pcb_version": v, "program_version": (prog or {}).get("version"), "board_mm": [W, H], "usd_kzt": rate,
         "groups": groups, "bom": bom, "in_order": bm["in_order"], "total_usd": total, "total_kzt": round(total * rate / 10) * 10, "per_device_usd": round(total / q, 2),
+        "case": {"grams_each": case["grams_each"], "minutes_each": case["minutes_each"]},
+        "cart": {"lines": cart_lines, "price_kzt": sum(ln["kzt"] for ln in cart_lines)},
         "timeline": timeline, "eta": timeline[-1]["by"], "drc_ok": not (row.get("checks") or {}).get("errors"),
         "unverified": ["fab and assembly prices are estimates from JLCPCB's public calculator; the fab's checkout price is binding",
                        "part prices and stock are LCSC's at the time of this quote"],
@@ -542,6 +646,29 @@ async def device_quote(project_id: str, qty: int = 5, user=Depends(_user)) -> di
         raise HTTPException(502, str(e)) from e
 
 
+@router.get("/api/projects/{project_id}/device/package")
+async def device_package_zip(project_id: str, qty: int = 5, user=Depends(_user)) -> Response:
+    """Everything the workshop needs for a batch, as one ZIP (device_package)."""
+    project = await _app().load_project(project_id, user)
+    pkg = await device_package.build(project, qty)
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "_", str(project["title"] or "device"))[:40].strip("_") or "device"
+    return Response(pkg.zip_bytes, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{safe}-x{pkg.device["qty"]}.zip"'})
+
+
+class DeviceCart(BaseModel):
+    qty: int = 5
+    replace: str | None = None  # the design Axo sent the buyer back to edit (?axo=<design id>): its cart line is replaced
+
+
+@router.post("/api/projects/{project_id}/device/axo-cart")
+async def device_axo_cart(project_id: str, body: DeviceCart, user=Depends(_user)) -> dict[str, Any]:
+    """The whole device as a batch in the Axo shop's cart: {url} takes the buyer there. Only the owner sends it out."""
+    from .integrations import axo
+
+    project = await _app().load_project(project_id, user, write=True)
+    return await axo.add_device_to_cart(project, body.qty, body.replace)
+
+
 class DeviceOrder(BaseModel):
     qty: int = 5
     name: str = ""
@@ -551,17 +678,24 @@ class DeviceOrder(BaseModel):
 
 
 @router.post("/api/projects/{project_id}/device/order")
-async def device_order(project_id: str, body: DeviceOrder, user=Depends(_user)) -> dict[str, Any]:
+async def device_order(project_id: str, body: DeviceOrder, request: Request, user=Depends(_user)) -> dict[str, Any]:
+    """An Idempotency-Key answers a retry with the first order."""
     await _app().load_project(project_id, user, write=True)
-    q = await quote_for(project_id, body.qty)
-    if not q["drc_ok"]:
-        raise HTTPException(400, "the board still has DRC errors: build a clean version first")
-    contact = {k: str(getattr(body, k))[:200] for k in ("name", "contact", "city", "note") if getattr(body, k)}
-    order = await device_store.add_order(user_id=user["id"], project_id=project_id, pcb_version=q["pcb_version"],
-                                         program_version=q["program_version"], quantity=q["qty"], quote=q, contact=contact,
-                                         timeline=q["timeline"])
-    await events.emit(project_id, "device.order", {"id": order["id"], "ref": order["ref"]})
-    return _order_out(order)
+
+    async def place() -> dict[str, Any]:
+        q = await quote_for(project_id, body.qty)
+        if not q["drc_ok"]:
+            raise HTTPException(400, "the board still has DRC errors: build a clean version first")
+        if not pcb_store.artifact_path(project_id, q["pcb_version"], "gerbers.zip"):
+            raise HTTPException(409, {"detail": "this board has no fab files yet: build it again", "code": "no_gerbers"})
+        contact = {k: str(getattr(body, k))[:200] for k in ("name", "contact", "city", "note") if getattr(body, k)}
+        order = await device_store.add_order(user_id=user["id"], project_id=project_id, pcb_version=q["pcb_version"],
+                                             program_version=q["program_version"], quantity=q["qty"], quote=q, contact=contact,
+                                             timeline=q["timeline"])
+        await events.emit(project_id, "device.order", {"id": order["id"], "ref": order["ref"]})
+        return order
+
+    return _order_out(await idempotency.once(user["id"], f"device:{project_id}", idempotency.key_of(request), place, device_store.order))
 
 
 def _order_out(o: dict[str, Any]) -> dict[str, Any]:

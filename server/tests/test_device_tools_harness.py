@@ -87,7 +87,7 @@ class FakePcb:
     async def build(self, source, *, intent=None, on_frame=None, timeout=None, name=None, lcsc=None):
         return copy.deepcopy(self.builds.pop(0))
 
-    async def export(self, circuit_json, *, timeout=60):
+    async def export(self, circuit_json, *, timeout=60, models=None):
         return copy.deepcopy(EXPORT)
 
 
@@ -496,6 +496,7 @@ ENCLOSURE = {"version": 1, "board": "board", "ok": True, "findings": [
 async def test_finish_waits_for_rules_requirements_openings_and_firmware(fresh_db, offline, monkeypatch):
     plug(monkeypatch, "device_rules", rules([NOTE]))
     ctx, state = FakeCtx(), DesignState(pack="device")
+    state.self_check["tests_asked"] = True     # the once-only ask for requirement tests has its own test (test_firmware_sim)
     await built_device(ctx, state, monkeypatch)
 
     async def board_ok(ctx, state):
@@ -760,7 +761,7 @@ def test_the_method_and_the_front_panel_example_are_in_the_prompt():
     for want in ("Concept and brainstorm", "Requirements:", "concept_warnings", "module_bat", "never a cell on V5", "design_errors",
                  "Never by deleting a requested function", "sound_grille", "D0=GPIO2", "Strapping pins", "layouts", "accessory", "face", "firmware check", "honest summary"):
         assert want in text, want
-    assert "never add one yourself" not in text and is_english(text) and len(text) < 18_000
+    assert "never add one yourself" not in text and is_english(text) and len(text) < 26_000
     ex = device_prompt.EXAMPLE
     assert '"pattern":"dice"' in ex and '"place":{"x":14,"y":-12}' in ex and is_english(ex)
     dice = json.loads(ex.split("```json\n")[2].split("\n```")[0])

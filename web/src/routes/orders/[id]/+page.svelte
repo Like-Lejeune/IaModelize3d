@@ -7,6 +7,7 @@
   import Header from '$lib/components/Header.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { api } from '$lib/api';
+  import { t } from '$lib/i18n.svelte';
   import IntakeCard from '$lib/shop/IntakeCard.svelte';
   import OrderTimeline from '$lib/shop/OrderTimeline.svelte';
   import QcReport from '$lib/shop/QcReport.svelte';
@@ -17,8 +18,11 @@
 
   const id = $derived(page.params.id ?? '');
   let order = $state<Order | null>(null);
+  // an action's failure stays until the next action; a failed poll has its own line, cleared by the next good one
   let error = $state<string | null>(null);
+  let loadError = $state<string | null>(null);
   let missing = $state(false);
+  let gone = false; // a 404: nothing more to poll for
   let photos = $state<{ url: string; role: string }[]>([]);
   let busy = $state<string | null>(null);
   // in the catalog: the order says so (its owner's listing), or it was shared from this page a moment ago
@@ -34,7 +38,7 @@
   const qc = $derived<Qc | null>(order?.qc && ('max_mm' in order.qc || 'error' in order.qc) ? (order.qc as Qc) : null);
   const kind = $derived(order?.intake?.request?.kind ?? 'listing');
   // the design stopped (no model, or one that fails its checks): the order waits, it is not being designed
-  const paused = $derived(!!order && ['no_model', 'design_unfinished'].includes(order.problem?.code ?? '') && !FINAL.includes(order.status));
+  const paused = $derived(!!order && ['no_model', 'design_unfinished', 'design_unreviewed', 'step_failed'].includes(order.problem?.code ?? '') && !FINAL.includes(order.status));
   const hint = $derived.by(() => {
     if (!order) return '';
     if (order.status === 'designing' && !paused) return st('order.designing_hint');
@@ -51,7 +55,8 @@
       const o = await shop.order(id);
       if (order && o.updated_at < order.updated_at) return; // an older answer than the one an action gave
       order = o;
-      error = null;
+      loadError = null;
+      missing = false;
       if (!photos.length && o.intake?.request?.kind === 'photo' && o.intake.request.photos?.length) loadPhotos(o);
       if (!jumped && location.hash.length > 1) {
         jumped = true;
@@ -59,8 +64,11 @@
         document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView({ block: 'start' });
       }
     } catch (e) {
-      if ((e as { status?: number }).status === 404 || (e as { status?: number }).status === 403) missing = true;
-      error = shopError(e);
+      const status = (e as { status?: number }).status;
+      gone = status === 404;
+      // a refusal in the middle of watching an order is a hiccup, not a lost order
+      if (gone || (status === 403 && !order)) missing = true;
+      loadError = shopError(e);
     }
   }
 
@@ -79,7 +87,7 @@
     load();
     shop.me().then((m) => (me = m)).catch(() => {});
     const t = setInterval(() => {
-      if (document.visibilityState !== 'visible' || missing || order?.actor === 'public') return;
+      if (document.visibilityState !== 'visible' || gone || order?.actor === 'public') return;
       // a finished order changes no more; one in progress is checked every 3 s
       if (!order || !FINAL.includes(order.status)) load();
     }, 3000);
@@ -119,7 +127,7 @@
         <a class="btn" href="/parts">{st('nav.parts')}</a>
       </div>
     {:else if !order}
-      {#if error}<p class="err small" role="alert">{error}</p>{:else}<div class="card sk"></div>{/if}
+      {#if loadError}<p class="err small" role="alert">{loadError} <button class="btn small" onclick={load}>{t('retry')}</button></p>{:else}<div class="card sk"></div>{/if}
     {:else}
       <div class="head">
         <div class="ttl">
@@ -167,7 +175,7 @@
           {order.problem.code === 'no_model' && order.actor === 'customer' ? st('order.no_model_next') : problemText(order.problem, operator)}
         </p>
       {/if}
-      {#if error}<p class="err small" role="alert">{error}</p>{/if}
+      {#if error ?? loadError}<p class="err small" role="alert">{error ?? loadError}</p>{/if}
 
       <div class="grid">
         <div class="main">
@@ -247,7 +255,7 @@
   }
   .wrap {
     width: 100%;
-    max-width: 1120px;
+    max-width: var(--container-wide);
     margin: 0 auto;
     padding: var(--space-5) var(--space-5) var(--space-8);
     display: flex;
@@ -272,8 +280,8 @@
     min-width: 0;
   }
   h1 {
-    font-size: var(--text-cart-h1);
-    font-weight: var(--font-weight-bold);
+    font-size: var(--text-3xl);
+    font-weight: var(--font-weight-semibold);
     overflow-wrap: anywhere;
   }
   .ttl p {
@@ -354,7 +362,7 @@
     width: 100%;
     max-height: 260px;
     object-fit: contain;
-    background: #f6f6f3;
+    background: var(--render-bg);
     border-radius: var(--radius-btn);
   }
   .problem {

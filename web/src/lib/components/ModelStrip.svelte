@@ -36,10 +36,8 @@
     gap: 6px;
   }
   .lbl {
-    font-size: var(--text-card-section-label);
+    font-size: var(--text-xs);
     font-weight: var(--font-weight-semibold);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     color: var(--outline);
   }
   .chips {

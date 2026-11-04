@@ -12,6 +12,7 @@ import json
 import logging
 import re
 import sqlite3
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -25,6 +26,8 @@ from ..geom import GeomError, geom
 from ..knowledge import facts as knowledge
 from ..llm.english import english
 from ..memory import store as memory
+from . import narrate, pictures
+from .pictures import IMAGE_KINDS
 from .runner import JobContext
 
 log = logging.getLogger(__name__)
@@ -84,8 +87,13 @@ class DesignState:
     device: dict[str, Any] = field(default_factory=dict)
     # set by the loop before each tool call: the turns left after this one (None outside a loop)
     turns_left: int | None = None
+    # checks a finish could not run because the engine failed ('case_check', 'design_rules'): said in its summary
+    unchecked: list[str] = field(default_factory=list)
     # pack 'device': the designer's self-check at finish {asked, rejected, passed, kinds, checked} (device_tools.self_check)
     self_check: dict[str, Any] = field(default_factory=dict)
+    # every picture the designer was shown, by its name (agent/pictures.py), and what tools know of those not named yet
+    pictures: dict[str, dict[str, Any]] = field(default_factory=dict)
+    picture_notes: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def fn(name: str, description: str, properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -123,7 +131,8 @@ INSPECT = fn("inspect_model", "Measure the current model exactly (several ops pe
 LOOK = fn("look", "Look closely. what='model': 6 views of the model with overhang heat; add `views` for your own angles, `zoom` for a close-up "
           "of a region or a part, `cut` for a section (walls, cavities, how deep a groove is). what='compare': the model next to the object on "
           "the photo, seen from the same angle (set elevation to the photo's camera angle), with silhouette numbers. what=<asset id>: an input "
-          "photo at full resolution, optionally a crop [x1,y1,x2,y2] on a 0-1000 grid (a video gives frames from its start, middle and end).",
+          "photo at full resolution, optionally a crop [x1,y1,x2,y2] on a 0-1000 grid, which `grid` draws on the photo (a video gives frames "
+          "from its start, middle and end).",
           {"what": {**S, "description": "'model', 'compare' or an asset id"},
            "crop": {"type": "array", "items": N, "description": "[x1,y1,x2,y2] on a 0-1000 grid, for an asset"},
            "elevation": {**N, "description": "degrees above the horizon, for 'compare'"},
@@ -200,8 +209,7 @@ MESH_EDIT = fn("mesh_edit", "Change the current mesh document without rewriting 
                 "detail": {**N, "description": "default triangle size for clay and remesh, mm"},
                 "summary": SUMMARY}, ["summary"])
 
-IMAGE_KINDS = ("photo", "sketch", "caliper", "concept", "render", "print")
-FIT_PACKS = {"household", "copy", "adapter", "mechanisms", "enclosure"}
+FIT_PACKS ={"household", "copy", "adapter", "mechanisms", "enclosure"}
 LOOK_PACKS = {"forms", "stylize", "landmark"}
 # copying a look needs a real match, not "close enough"
 MATCH_PACKS = {"copy", "collect", "forms", "landmark", "stylize"}
@@ -214,12 +222,12 @@ def tools_for(pack: str, *, photos: bool, prints: bool, engine: str = "cad") -> 
     """Only the tools this job can use: fewer choices, fewer tokens. Order is stable per (pack, photos, prints, engine) for caching."""
     if pack == "pcb" and pcb_tools:
         # the board is a circuit file, not a program: its own tools and views; make_enclosure writes the case program
-        return pcb_tools.TOOLS + [pcb_tools.LOOK, DIMENSIONS, ASK, FINISH]
+        return pcb_tools.TOOLS + [pcb_tools.LOOK, *pictures.TOOLS, DIMENSIONS, ASK, FINISH]
     if pack == "device" and device_tools and pcb_tools:
         # a device is a graph of parts: the board is compiled from it, the case comes from the board
         return device_tools.TOOLS[:4] + [pcb_tools.MAKE_ENCLOSURE, pcb_tools.EXPORT_FAB] + device_tools.TOOLS[4:] + [pcb_tools.LOOK] + (
-            device_inspect.TOOLS if device_inspect else []) + [DIMENSIONS, ASK, getattr(device_tools, "FINISH", FINISH)]
-    tools = [WRITE, EDIT, SET_PARAMS, INSPECT, LOOK, DIMENSIONS, ASK]
+            device_inspect.TOOLS if device_inspect else []) + [*pictures.TOOLS, DIMENSIONS, ASK, getattr(device_tools, "FINISH", FINISH)]
+    tools = [WRITE, EDIT, SET_PARAMS, INSPECT, LOOK, *pictures.TOOLS, DIMENSIONS, ASK]
     if engine == "mesh":
         tools = [MESH_WRITE, MESH_EDIT] + tools
     if photos:
@@ -360,6 +368,20 @@ def _ops_brief(doc: dict[str, Any]) -> list[str]:
             for i, op in enumerate(doc.get("ops") or []) if isinstance(op, dict)]
 
 
+async def _cover(ctx: JobContext, source: str, params: dict[str, Any], built: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    """The project's cover, without a backdrop so it sits on the page's surface in either theme: a device's case taken apart
+    over its board, anything else as it is. A cover that does not build is no reason to lose the version."""
+    if (ctx.project or {}).get("pack") == "device" and "show_board" in (built.get("params") or {}):
+        from .device_inspect import cover_render
+
+        src, ps = cover_render(source, built["params"])
+        try:
+            return await _geom_retry(lambda: geom().render(src, ps, view="iso", tile=640, transparent=True, **extra))
+        except GeomError as e:
+            log.info("the device cover did not build (%s): the plain one instead", e.stage)
+    return await _geom_retry(lambda: geom().render(source, params, view="iso", tile=512, transparent=True, **extra))
+
+
 async def commit_build(ctx: JobContext, state: DesignState, source: str, params: dict[str, Any], summary: str, author: str = "agent",
                        markers: list[dict[str, Any]] | None = None):
     skills = await memory.active_skill_sources(_skills_used(source))
@@ -373,7 +395,7 @@ async def commit_build(ctx: JobContext, state: DesignState, source: str, params:
         # the same params as the build (the engine resolves the same defaults), so both renders reuse the kept build
         sheet = await _geom_retry(lambda: geom().render(source, params, view="sheet", tile=340, heat=True, title=ctx.project["title"],
                                                         **({"markers": markers} if markers else {}), **extra))
-        iso = await _geom_retry(lambda: geom().render(source, params, view="iso", tile=512, **extra))
+        iso = await _cover(ctx, source, params, built, extra)
     except GeomError as e:
         await ctx.emit("tool.result", {"name": "build", "ok": False, "summary": f"{e.stage}: {e.message[:300]}"})
         if e.stage == "protocol":
@@ -387,8 +409,6 @@ async def commit_build(ctx: JobContext, state: DesignState, source: str, params:
     for attempt in range(3):
         # the person's own edits and bred variants add versions too: take the next free number at the last moment
         state.version = (await db.one("SELECT COALESCE(MAX(version), 0) AS v FROM programs WHERE project_id = ?", ctx.project_id))["v"] + 1  # type: ignore[index]
-        rel = storage.save_bytes(ctx.project_id, "renders", f"v{state.version}.png", base64.b64decode(sheet["png"]))
-        cover = storage.save_bytes(ctx.project_id, "renders", f"v{state.version}_iso.png", base64.b64decode(iso["png"]))
         try:
             await db.insert("programs", {"project_id": ctx.project_id, "version": state.version, "source": source, "params": built["params"],
                                          "inputs": inputs, "summary": summary, "checks": checks, "author": author, "created_at": now()})
@@ -396,6 +416,10 @@ async def commit_build(ctx: JobContext, state: DesignState, source: str, params:
         except sqlite3.IntegrityError:
             if attempt == 2:
                 raise
+    # the number is ours now: pictures saved before it could overwrite those of the version that won it
+    rel = storage.save_bytes(ctx.project_id, "renders", f"v{state.version}.png", base64.b64decode(sheet["png"]))
+    pictures.note(state, rel, sheet.get("frames"))
+    cover = storage.save_bytes(ctx.project_id, "renders", f"v{state.version}_iso.png", base64.b64decode(iso["png"]))
     await db.update("projects", "id", ctx.project_id, {"version": state.version, "cover": cover, "updated_at": now()})
     # a failing code that disappeared after this edit is evidence for a fix; the lesson is learned after the version is out
     new_codes = {i["code"] for i in checks.get("issues", []) if i["severity"] != "info"}
@@ -551,8 +575,11 @@ async def _look(ctx: JobContext, state: DesignState, args: dict[str, Any]) -> tu
             r = await geom().render(state.source, ra.pop("params"), view="sheet", heat=not extra, **ra, **extra)
         except GeomError as e:
             return {"ok": False, "error": e.message[:500]}, []
-        name = f"v{state.version}_look{'_' + '_'.join(sorted(extra)) if extra else ''}.png"
-        return {"ok": True}, [storage.save_bytes(ctx.project_id, "renders", name, base64.b64decode(r["png"]))]
+        # each look its own file: a picture keeps its name and an earlier step keeps its image
+        name = f"v{state.version}_look{'_' + '_'.join(sorted(extra)) + '_' + uuid.uuid4().hex[:8] if extra else ''}.png"
+        rel = storage.save_bytes(ctx.project_id, "renders", name, base64.b64decode(r["png"]))
+        pictures.note(state, rel, r.get("frames"))
+        return {"ok": True}, [rel]
     if what == "compare":
         if args.get("elevation") is not None:
             state.view_elevation = max(-10.0, min(80.0, float(args["elevation"])))
@@ -575,7 +602,9 @@ async def _look(ctx: JobContext, state: DesignState, args: dict[str, Any]) -> tu
         return {"ok": True, "note": "frames from the start, middle and end of the clip"}, [data_url(f, 1280) for f in frames]
     if asset["kind"] not in IMAGE_KINDS:
         return {"ok": False, "error": f"asset {what} is {asset['kind']}, not an image; its notes are in the context"}, []
-    return {"ok": True}, [_crop_data_url(asset["path"], args.get("crop"))]
+    shot = _crop_data_url(asset["path"], args.get("crop"))
+    pictures.note(state, shot, clean=asset["path"], region=args.get("crop"))
+    return {"ok": True}, [shot]
 
 
 async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
@@ -596,10 +625,11 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
         return await device_tools.run(ctx, state, name, args)
     if device_inspect and name in device_inspect.NAMES:
         return await device_inspect.run(ctx, state, name, args)
+    if name in pictures.NAMES:
+        return await pictures.run(ctx, state, name, args)
     if name == "write_program":
         if not str(args.get("source") or "").strip():
             return {"ok": False, "error": "source is empty: pass the complete program"}, []
-        state.params = {}
         return await _checked(ctx, state, await commit_build(ctx, state, args["source"], {}, args.get("summary", "")))
     if name == "edit_program":
         if not state.source:
@@ -877,6 +907,7 @@ async def _finish(ctx: JobContext, state: DesignState, summary: str, checked: An
         if errors and state.finish_attempts <= 3:
             return {"accepted": False, "reason": "printability errors remain", "issues": _checks_brief({"issues": errors})}
     gate = pack_gate(state.pack)
+    state.unchecked = []
     if gate:
         # each gate stops blocking after its own number of attempts
         reasons = await gate[0].finish_gate(ctx, state)
@@ -911,7 +942,8 @@ async def _finish(ctx: JobContext, state: DesignState, summary: str, checked: An
         else:
             verdict = await review(ctx, state, bar=MATCH_BAR if look else None)
         if "verdict" not in verdict:
-            verdict = {"verdict": "pass", "match_score": None, "issues": [], "note": "reviewer unavailable", "reviewer": verdict.get("reviewer", "unavailable")}
+            # nobody looked: never stored as a pass, which would read as approved (skills, the shop's quote, the card)
+            verdict = {"verdict": "unavailable", "match_score": None, "issues": [], "note": "reviewer unavailable", "reviewer": verdict.get("reviewer", "unavailable")}
         major = [i for i in verdict.get("issues", []) if i.get("severity") == "major"]
         blocking_issues = major if verdict.get("verdict") == "revise" else []
         score = verdict.get("match_score")
@@ -941,6 +973,11 @@ async def _finish(ctx: JobContext, state: DesignState, summary: str, checked: An
             if score_only:
                 return {"accepted": False, "reason": "needs fixes", "match_score": score, "needs": MATCH_BAR, "issues": blocking_issues}
             return {"accepted": False, "reason": "the reviewer found major problems", "issues": blocking_issues}
+    if state.unchecked:
+        # not the design's fault, so it does not block; but what ships was not checked for this, and the person hears so
+        out["unchecked"] = list(state.unchecked)
+        note = narrate.unchecked_note(state.unchecked, (ctx.project.get("brief") or {}).get("language"))
+        summary = f"{summary}\n\n{note}" if summary.strip() else note
     state.done = True
     state.summary = summary
     return out

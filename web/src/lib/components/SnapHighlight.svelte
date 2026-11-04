@@ -353,7 +353,7 @@
     display: grid;
     place-items: center;
     font-weight: var(--font-weight-bold);
-    font-size: 15px;
+    font-size: var(--text-lg);
     line-height: 1;
     background: var(--primary);
     color: var(--on-primary);
@@ -370,11 +370,11 @@
     position: absolute;
     transform: translate(-50%, -100%);
     padding: 5px 12px;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: color-mix(in srgb, var(--primary) 92%, black);
     color: var(--on-primary);
     font-weight: var(--font-weight-bold);
-    font-size: var(--text-product-spec);
+    font-size: var(--text-base);
     white-space: nowrap;
     max-width: 70vw;
     overflow: hidden;

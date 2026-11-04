@@ -154,7 +154,7 @@
     </div>
     <div class="side stack">
       <p class="xs muted how">{t('select_hint')}</p>
-      <button class="btn" onclick={detect} disabled={busy}><Icon name="sparkles" size={15} /> {t('detect')}</button>
+      <button class="btn" onclick={detect} disabled={busy}><Icon name="scan" size={15} /> {t('detect')}</button>
       <label class="field">{t('role')}
         <select bind:value={role}>
           {#each ROLES as r (r)}<option value={r}>{t(`role.${r}`)}</option>{/each}
@@ -263,7 +263,7 @@
     position: absolute;
     left: 0;
     top: 0;
-    font-size: 11px;
+    font-size: var(--text-xs);
     font-weight: var(--font-weight-semibold);
     background: var(--info);
     color: #0d1a2b;
@@ -283,6 +283,6 @@
   }
   .err {
     color: var(--error);
-    font-size: 13px;
+    font-size: var(--text-md);
   }
 </style>

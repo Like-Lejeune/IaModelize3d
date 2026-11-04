@@ -86,7 +86,8 @@ class _Worker:
         dist = dist_dir()
         script = dist / WORKER
         if not script.exists():
-            raise PcbError("crash", f"PCB worker bundle not found at {script}: run `npm ci --ignore-scripts && npm run bundle` in packages/pcb")
+            log.error("PCB worker bundle not found at %s", script)
+            raise PcbError("crash", "the PCB worker is not built here: run `npm ci --ignore-scripts && npm run bundle` in packages/pcb")
         args = [
             s.node_bin,
             "--permission",
@@ -116,7 +117,8 @@ class _Worker:
             await asyncio.sleep(0.2)
             tail = self.tail()
             await self.kill()
-            raise PcbError("crash", f"PCB worker failed to start: {line[:200]!r} {tail}")
+            log.error("PCB worker failed to start: %r %s", line[:200], tail)
+            raise PcbError("crash", "the PCB engine could not start")
 
     async def _read_stderr(self, proc: asyncio.subprocess.Process) -> None:
         assert proc.stderr
@@ -161,9 +163,9 @@ class _Worker:
                 raise
             if not line:
                 await asyncio.sleep(0.1)
-                tail = self.tail()
+                log.warning("pcb worker exited during %s: %s", method, self.tail() or "no output")
                 await self.kill()
-                raise PcbError("crash", tail or "worker exited")
+                raise PcbError("crash", "the PCB engine stopped unexpectedly")
             try:
                 msg = json.loads(line)
             except json.JSONDecodeError:
@@ -233,10 +235,14 @@ class PcbPool:
             params["lcsc"] = lcsc
         return await self.call("build", params, timeout, on_frame)
 
-    async def export(self, circuit_json: list, *, timeout: float = 60) -> dict[str, Any]:
+    async def export(self, circuit_json: list, *, timeout: float = 90, models: dict[str, Any] | None = None) -> dict[str, Any]:
         """Circuit JSON -> {files: {gerbers.zip, board.glb: bytes; bom.csv, cpl.csv, pcb_top.svg, pcb_bottom.svg,
-        schematic.svg: str}, layers, svg_map, glb_map, ms}."""
-        r = await self.call("export", {"circuit_json": circuit_json}, timeout)
+        schematic.svg: str}, layers, svg_map, glb_map, ms}. models: what the board's 3D view draws its parts from
+        (packages/pcb/src/models.mjs): {objs: {uuid: OBJ text}, parts: {ref: {prims} | {h}}}."""
+        params: dict[str, Any] = {"circuit_json": circuit_json}
+        if models:
+            params["models"] = models
+        r = await self.call("export", params, timeout)
         r["files"] = _decode_files(r["files"])
         return r
 

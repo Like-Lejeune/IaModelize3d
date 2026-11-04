@@ -1,6 +1,6 @@
 // Snap & collect without the agent (server/formwright/collect.py): the instant sticker, "keep" and the
-// collection plate. Its own fetch wrapper; errors are the app's ApiError, so errorText() still applies.
-import { ApiError, errorText } from '$lib/api';
+// collection plate. Over $lib/api's request; errors are its ApiError, so errorText() still applies.
+import { ApiError, errorText, req as apiReq } from '$lib/api';
 import type { ProjectOut } from '$lib/types';
 import { ct } from './i18n';
 
@@ -66,26 +66,10 @@ export interface PlateResult {
 }
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method,
-    credentials: 'same-origin',
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    let j: any = null;
-    try {
-      j = JSON.parse(text);
-    } catch {
-      /* not json: the dev proxy while the API restarts */
-    }
-    const { detail, code, ...info } = j ?? {};
-    const msg = typeof detail === 'string' ? detail : Array.isArray(detail) ? (detail[0]?.msg ?? res.statusText) : res.statusText;
-    throw new ApiError(res.status, msg || `HTTP ${res.status}`, code ?? (res.status >= 500 && !text.trim() ? 'offline' : undefined), info);
-  }
-  const ct = res.headers.get('content-type') ?? '';
-  return (ct.includes('application/json') ? await res.json() : await res.blob()) as T;
+  const out = await apiReq<T>(method, path, body);
+  // the one picture aside, these answer JSON: anything else is a proxy's page, not an answer
+  if (out instanceof Blob && !path.endsWith('.png')) throw new ApiError(502, 'not a JSON answer', 'offline');
+  return out;
 }
 
 export const collectApi = {

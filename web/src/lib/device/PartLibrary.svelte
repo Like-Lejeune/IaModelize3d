@@ -17,6 +17,7 @@
   // hand (accessories: an OLED, a PIR, a soil probe), the basic parts and the live LCSC catalogue. Typing filters the modules and basics at once and searches LCSC after a short pause; arrows move,
   // Enter adds, Esc closes (AddMenu).
   import { errorText } from '$lib/api';
+  import { t } from '$lib/i18n.svelte';
   import { priceAt, type DevNode, type PartCard } from './api';
   import { accessoriesOf } from './facets';
   import { dt, usd } from './i18n';
@@ -34,7 +35,13 @@
   let list = $state<HTMLElement>();
   let seq = 0;
 
-  loadLibrary().then((l) => (lib = l)).catch(() => {});
+  // the basics and the search work without it, but the list must say the modules are missing
+  let libErr = $state<string | null>(null);
+  function getLibrary() {
+    libErr = null;
+    loadLibrary().then((l) => (lib = l)).catch((e) => (libErr = errorText(e)));
+  }
+  getLibrary();
   $effect(() => {
     input?.focus();
   });
@@ -64,11 +71,16 @@
   });
 
   type Item = { key: string; icon: string; name: string; sub: string; right?: string; tag?: 'basic' | 'ext' | 'hand'; node: Omit<DevNode, 'id'> };
-  const BASICS: { kind: string; extra?: Partial<DevNode>; words: string }[] = [
+  const BASICS: { kind: string; name?: string; extra?: Partial<DevNode>; words: string }[] = [
     { kind: 'resistor', extra: { value: '10k', package: '0603' }, words: 'resistor r pull' },
     { kind: 'capacitor', extra: { value: '100nF', package: '0603' }, words: 'capacitor cap c decoupling' },
     { kind: 'led', extra: { color: 'green' }, words: 'led light' },
     { kind: 'button', words: 'button switch tact' },
+    { kind: 'button', name: 'k_key_mx', extra: { switch: 'mx', label: 'key' }, words: 'key switch mechanical mx cherry gateron keyboard keypad клавиша свитч' },
+    { kind: 'button', name: 'k_key_choc', extra: { switch: 'choc', label: 'key' }, words: 'key switch mechanical choc kailh low profile keyboard клавиша свитч' },
+    { kind: 'button', name: 'k_key_arcade', extra: { switch: 'arcade', label: 'button' }, words: 'arcade big button game quiz кнопка аркадная' },
+    { kind: 'button', name: 'k_key_stomp', extra: { switch: 'stomp', label: 'pedal' }, words: 'stomp foot switch pedal педаль ножная' },
+    { kind: 'header', name: 'k_terminal_5', extra: { connector: 'terminal_5', pins: ['P1', 'P2'], edge: '-y' }, words: 'terminal screw block wire power клемма винтовая' },
     { kind: 'header', extra: { pins: ['V3V3', 'GND', 'SDA', 'SCL'], edge: '-y' }, words: 'header pin connector i2c' },
     { kind: 'usb_c', extra: { edge: '-y' }, words: 'usb usb-c type-c power' },
     { kind: 'jst', extra: { edge: '+x' }, words: 'jst battery ph' },
@@ -103,8 +115,8 @@
       })),
   );
   const basics = $derived<Item[]>(
-    BASICS.filter((b) => matches(`${dt(`k_${b.kind}`)} ${b.words}`)).map((b) => ({
-      key: `b:${b.kind}`, icon: ICON[b.kind], name: dt(`k_${b.kind}`), sub: DEFAULT[b.kind] ?? '', node: { kind: b.kind, ...(b.extra ?? {}) },
+    BASICS.filter((b) => matches(`${dt(b.name ?? `k_${b.kind}`)} ${b.words}`)).map((b) => ({
+      key: `b:${b.name ?? b.kind}`, icon: b.name ? 'ti-keyboard' : ICON[b.kind], name: dt(b.name ?? `k_${b.kind}`), sub: DEFAULT[b.kind] ?? '', tag: b.name ? ('hand' as const) : undefined, node: { kind: b.kind, ...(b.extra ?? {}) },
     })),
   );
   const parts = $derived<Item[]>(
@@ -153,6 +165,7 @@
   </div>
 
   <div class="list" bind:this={list} role="listbox" aria-label={dt('add_part')}>
+    {#if libErr}<div class="note" role="alert">{libErr} <button class="btn small" onclick={getLibrary}>{t('retry')}</button></div>{/if}
     {#each sections as s (s.title)}
       <div class="sec">{s.title}</div>
       {#each s.items as it (it.key)}
@@ -182,7 +195,7 @@
     flex-direction: column;
     min-height: 0;
     max-height: inherit;
-    font-size: 12.5px;
+    font-size: var(--text-md);
   }
   .qf {
     display: flex;
@@ -191,7 +204,7 @@
     height: 30px;
     padding: 0 6px 0 9px;
     margin: 6px;
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     border: 1px solid var(--bw-field-border, var(--outline-variant));
     background: var(--bw-field, var(--surface-container-lowest));
     color: var(--on-surface-var);
@@ -211,18 +224,18 @@
     box-shadow: none;
     color: var(--on-surface);
     font: inherit;
-    font-size: 12.5px;
+    font-size: var(--text-md);
     outline: none;
   }
   .pill {
     height: 20px;
     padding: 0 7px;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     border: 1px solid var(--outline-variant);
     background: transparent;
     color: var(--on-surface-var);
     font: inherit;
-    font-size: 11px;
+    font-size: var(--text-xs);
     cursor: pointer;
   }
   .pill.on {
@@ -237,9 +250,7 @@
   }
   .sec {
     padding: 8px 8px 3px;
-    font-size: 10.5px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    font-size: var(--text-xs);
     color: var(--on-surface-var);
   }
   .row {
@@ -250,7 +261,7 @@
     height: 26px;
     padding: 0 8px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: transparent;
     color: var(--on-surface);
     font: inherit;
@@ -262,7 +273,7 @@
   }
   .row i {
     width: 14px;
-    font-size: 14px;
+    font-size: var(--text-base);
     color: var(--primary);
     flex: none;
   }
@@ -281,11 +292,11 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--on-surface-var);
-    font-size: 11.5px;
+    font-size: var(--text-sm);
   }
   .tag {
     flex: none;
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     color: var(--ok);
   }
   .tag.ext {
@@ -297,19 +308,19 @@
   .rt {
     flex: none;
     color: var(--on-surface-var);
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     font-variant-numeric: tabular-nums;
   }
   .note {
     padding: 6px 8px;
     color: var(--on-surface-var);
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
   .foot {
     flex: none;
     padding: 5px 10px;
     border-top: 1px solid var(--bw-seam, var(--outline-variant));
     color: var(--on-surface-var);
-    font-size: 11px;
+    font-size: var(--text-xs);
   }
 </style>

@@ -3,8 +3,8 @@
   // fitted by hand (an OLED, a probe, a LiPo) are lines of their own: priced, not bought from LCSC, not soldered by the fab.
   import type { DeviceStore } from './store.svelte';
   import type { Accessory } from './api';
-  import { bomOf, type BomRow } from './bom';
-  import { dt, usd } from './i18n';
+  import { bomOf, partText, pkgText, type BomRow } from './bom';
+  import { accName, dt, usd } from './i18n';
 
   let { device, accessories = {} }: { device: DeviceStore; accessories?: Record<string, Accessory> } = $props();
   const rows = $derived(bomOf(device.state, accessories));
@@ -40,10 +40,10 @@
           {#each sorted as r (r.key)}
             <tr class:out={r.stock === 0} class:fitted={r.fitted}>
               <td class="mono refs"><button onclick={() => device.pickNode(r.refs[0])}>{r.refs.join(', ')}</button></td>
-              <td class="partcell"><span class="pn">{#if r.fitted}<i class="ti ti-puzzle" aria-hidden="true"></i>{' '}{/if}{r.part}</span>{#if r.role && r.role !== r.part}<span class="muted role">{r.role}</span>{/if}</td>
-              <td class="muted pkg" title={r.pkg}>{r.pkg}</td>
+              <td class="partcell"><span class="pn"><span title={r.part}>{partText(accName(r.part))}</span></span>{#if r.role && r.role !== r.part}<span class="muted role">{r.role}</span>{/if}</td>
+              <td class="muted pkg" title={r.pkg}>{pkgText(r.pkg)}</td>
               <td class="mono">{#if r.fitted}{#if r.url}<a href={r.url} target="_blank" rel="noopener noreferrer">{dt('acc_page')}</a>{:else}—{/if}{:else if r.lcsc && r.url}<a href={r.url} target="_blank" rel="noopener noreferrer">{r.lcsc}</a>{:else}{r.lcsc ?? '—'}{/if}</td>
-              <td>{#if r.fitted}<span class="tag fit" title={dt('accessory_d')}>{dt('fitted_hand')}</span>{:else if r.hand}<span class="tag hand">{dt('hand')}</span>{:else if r.basic === true}<span class="tag basic">basic</span>{:else if r.basic === false}<span class="tag ext">extended</span>{:else}—{/if}</td>
+              <td>{#if r.fitted}<span class="tag fit" title={dt('accessory_d')}>{dt('fitted_hand')}</span>{:else if r.hand}<span class="tag hand">{dt('hand')}</span>{:else if r.basic === true}<span class="tag basic">{dt('basic')}</span>{:else if r.basic === false}<span class="tag ext">{dt('extended')}</span>{:else}—{/if}</td>
               <td class="r mono" class:warn={low(r)}>{r.stock == null ? '—' : r.stock.toLocaleString()}</td>
               <td class="r mono">{r.qty}</td>
               <td class="r mono">{usd(r.unit, 3)}</td>
@@ -74,7 +74,7 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: var(--text-md);
   }
   th,
   td {
@@ -98,7 +98,7 @@
     top: 0;
     z-index: 1;
     background: var(--bw-head, var(--surface-container));
-    font-size: 12px;
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-medium);
     color: var(--on-surface-var);
   }
@@ -133,7 +133,7 @@
   }
   .role {
     display: block;
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     line-height: 1.3;
   }
   a {
@@ -141,28 +141,25 @@
     text-decoration: none;
   }
   .tag {
-    font-size: 11px;
+    font-size: var(--text-xs);
     padding: 1px 6px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
   }
   .basic {
-    color: var(--ok);
-    background: color-mix(in srgb, var(--ok) 14%, transparent);
+    color: var(--on-surface-var);
+    padding-left: 0;
   }
   .ext {
     color: var(--warn-text);
-    background: color-mix(in srgb, var(--warn) 16%, transparent);
+    padding-left: 0;
   }
   .hand {
     color: var(--on-surface-var);
-    background: var(--surface-container-high, var(--surface-high));
+    padding-left: 0;
   }
   .fit {
-    color: #2bb3a3;
-    background: color-mix(in srgb, #2bb3a3 14%, transparent);
-  }
-  tr.fitted .pn i {
-    color: #2bb3a3;
+    color: var(--on-surface-var);
+    padding-left: 0;
   }
   .warn {
     color: var(--warn-text);
@@ -189,6 +186,6 @@
     color: var(--on-surface-var);
   }
   .big {
-    font-size: 30px;
+    font-size: var(--text-3xl);
   }
 </style>

@@ -6,6 +6,8 @@
   export type PartData = {
     node: DevNode; view?: NodeView; issues: number; power: boolean; hl?: string | null; acc?: Accessory | null; lit?: boolean;
     face?: string; placed?: string | null;
+    /** Drawn mirrored: its pins swap sides to face what they are wired to. */
+    flip?: boolean;
   };
 
   export const KIND_ICON: Record<string, string> = {
@@ -24,27 +26,53 @@
     return [pins.slice(0, half), pins.slice(half).reverse()];
   }
 
-  // supply nets keep one colour everywhere; signal nets get one of a fixed set by name
+  // supply nets keep one colour everywhere; signal nets take the next of a set in the order of the device, so no two of a
+  // device's nets look alike (no reds among them: a wire must not look like an error)
   const POWER_COLOR: Record<string, string> = { GND: 'var(--net-gnd)', AGND: 'var(--net-gnd)' };
-  const HUES = [205, 145, 28, 280, 340, 95, 180, 50];
-  export function netColor(name: string | null | undefined): string {
-    if (!name) return 'var(--on-surface-var)';
-    const up = name.toUpperCase();
+  const HUES = [210, 130, 275, 180, 55, 320, 95, 245, 160, 35, 300, 195];
+  const hue = (i: number) => `hsl(${HUES[i % HUES.length]} 72% var(--net-l))`;
+
+  function supplyColor(up: string): string | null {
     if (POWER_COLOR[up]) return POWER_COLOR[up];
     if (/^V?3V3|VDD|VCC|V1V8$/.test(up)) return 'var(--net-3v3)';
     if (/^(V5|V5V|VBUS|VSYS|VIN|V12|V9)$/.test(up)) return 'var(--net-5v)';
     if (up === 'VBAT') return 'var(--net-bat)';
+    return null;
+  }
+
+  /** The colour of each net of a device, by its key (its name, else n + its index). */
+  export function netColors(nets: { name?: string | null }[]): Record<string, string> {
+    const out: Record<string, string> = {};
+    let k = 0;
+    nets.forEach((net, i) => {
+      const key = net.name ?? `n${i}`;
+      out[key] = supplyColor(key.toUpperCase()) ?? hue(k++);
+    });
+    return out;
+  }
+
+  let assigned = $state.raw<Record<string, string>>({});
+  /** The device on show: what netColor answers from, in every view of it. */
+  export function useNetColors(colors: Record<string, string>) {
+    assigned = colors;
+  }
+
+  export function netColor(name: string | null | undefined): string {
+    if (!name) return 'var(--on-surface-var)';
+    if (assigned[name]) return assigned[name];
+    const up = name.toUpperCase();
+    const supply = supplyColor(up);
+    if (supply) return supply;
     let h = 0;
     for (const ch of up) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    return `hsl(${HUES[h % HUES.length]} 62% var(--net-l))`;
+    return hue(h);
   }
 </script>
 
 <script lang="ts">
   import { Handle, Position, type NodeProps } from '@xyflow/svelte';
   import { POWER_NET } from './store.svelte';
-  import { FACE_ICON } from './facets';
-  import { dt, usd } from './i18n';
+  import { accName, dt, stockText, usd } from './i18n';
 
   let { id, data, selected }: NodeProps & { data: PartData } = $props();
   const node = $derived(data.node);
@@ -53,25 +81,38 @@
   // a header's pins are its labels; an accessory's those of its library card until the server's view arrives
   const ownPins = $derived(node.kind === 'header' ? node.pins : node.kind === 'accessory' ? acc?.pins : undefined);
   const pins = $derived<PinView[]>(view?.pins?.length ? view.pins : (ownPins ?? []).map((name) => ({ name, net: null })));
-  const [left, right] = $derived(sides(node, pins));
+  const pair = $derived(sides(node, pins));
+  const left = $derived(data.flip ? pair[1] : pair[0]);
+  const right = $derived(data.flip ? pair[0] : pair[1]);
   const part = $derived(view?.part ?? {});
   const title = $derived(
     node.kind === 'resistor' || node.kind === 'capacitor' ? `${node.value ?? ''} ${node.package ?? ''}`.trim()
       : node.kind === 'led' ? `${dt('k_led')} · ${node.color ?? 'green'}`
-        : node.kind === 'accessory' ? (acc?.name ?? part.mpn ?? node.accessory ?? dt('k_accessory'))
+        : node.kind === 'accessory' ? accName(acc?.name ?? part.mpn ?? node.accessory ?? dt('k_accessory'))
           : part.mpn ?? dt(`k_${node.kind}`),
   );
   const price = $derived(view?.price_usd ?? (node.kind === 'accessory' ? acc?.price_usd : null) ?? null);
   const face = $derived(data.face && data.face !== 'none' ? data.face : null);
   const named = (p: PinView) => !!p.net && !/^n\d+$/.test(p.net);
+  const isPower = (p: PinView) => POWER_NET.test(p.net ?? '');
+  // supply nets are labels unless their wires are on: then no colour of their own to read as a warning
+  const pinColor = (p: PinView) => (isPower(p) && !data.power ? 'var(--on-surface-var)' : netColor(p.net));
+  // what the case does over the part, where the designer placed it, the board edge it faces: in words, not badges
+  const notes = $derived(
+    [
+      face ? dt(`face_${face}`) : '',
+      data.placed ?? '',
+      node.edge ? `${dt('edge')}: ${dt(`edge_${node.edge}`)}` : '',
+    ].filter(Boolean),
+  );
 </script>
 
 {#snippet pinRow(p: PinView, side: 'left' | 'right')}
   <div class="pin {side}" class:wired={!!p.net} class:lit={!!data.hl && p.net === data.hl}>
-    <Handle type="source" id={p.name} position={side === 'left' ? Position.Left : Position.Right} class="h" style="--c: {netColor(p.net)}" />
-    {#if side === 'right' && named(p)}<span class="tag" class:pw={POWER_NET.test(p.net ?? '')} style="--c: {netColor(p.net)}">{p.net}</span>{/if}
+    <Handle type="source" id={p.name} position={side === 'left' ? Position.Left : Position.Right} class="h" style="--c: {pinColor(p)}" />
+    {#if side === 'right' && named(p)}<span class="tag" class:pw={isPower(p)} style="--c: {pinColor(p)}">{p.net}</span>{/if}
     <span class="pname">{p.name}{#if p.count}<sub>×{p.count}</sub>{/if}</span>
-    {#if side === 'left' && named(p)}<span class="tag" class:pw={POWER_NET.test(p.net ?? '')} style="--c: {netColor(p.net)}">{p.net}</span>{/if}
+    {#if side === 'left' && named(p)}<span class="tag" class:pw={isPower(p)} style="--c: {pinColor(p)}">{p.net}</span>{/if}
   </div>
 {/snippet}
 
@@ -80,12 +121,10 @@
     <i class="ti {KIND_ICON[node.kind] ?? 'ti-cpu'} kicon" aria-hidden="true"></i>
     <strong class="ref mono">{id}</strong>
     <span class="title" title={title}>{title}</span>
-    {#if face}<i class="ti {FACE_ICON[face as keyof typeof FACE_ICON]} badge" title="{dt('face')}: {dt(`face_${face}`)}{node.face ? '' : ` (${dt('face_auto')})`}" aria-hidden="true"></i>{/if}
-    {#if data.placed}<i class="ti ti-map-pin badge" title={data.placed} aria-hidden="true"></i>{/if}
-    {#if node.edge}<span class="edge" title="{dt('edge')}: {dt(`edge_${node.edge}`)}">{EDGE_ARROW[node.edge]}</span>{/if}
-    {#if data.issues > 0}<i class="ti ti-alert-triangle warn" aria-hidden="true"></i>{/if}
+    {#if data.issues > 0}<i class="ti ti-alert-triangle warn" title={dt('side_checks')} aria-hidden="true"></i>{/if}
   </header>
   {#if node.label}<div class="role">{node.label}</div>{/if}
+  {#if notes.length}<div class="notes" title={notes.join(' · ')}>{notes.join(' · ')}</div>{/if}
   <div class="pins">
     <div class="col">
       {#each left as p (p.name)}{@render pinRow(p, 'left')}{/each}
@@ -105,84 +144,61 @@
     <div class="foot muted"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> LCSC {node.lcsc}</div>
   {:else if part.lcsc || view?.price_usd != null}
     <div class="foot">
-      {#if part.lcsc}<span class="mono">{part.lcsc}</span>{/if}
-      {#if part.basic === true}<span class="b">basic</span>{/if}
+      {#if part.lcsc}<span class="mono" title={part.basic === true ? dt('basic') : part.basic === false ? dt('extended') : undefined}>{part.lcsc}</span>{/if}
       {#if view?.price_usd != null}<span>{usd(view.price_usd, 3)}</span>{/if}
-      {#if part.stock != null}<span class:out={part.stock <= 0}>{part.stock > 0 ? `${part.stock >= 1000 ? Math.round(part.stock / 1000) + 'k' : part.stock}` : '0'}</span>{/if}
+      {#if part.stock != null}<span class="stock" class:out={part.stock <= 0} title={dt('f_stock')}>{stockText(part.stock)}</span>{/if}
     </div>
   {/if}
 </div>
 
 <style>
   .part {
-    width: 230px;
+    width: 240px;
     background: var(--surface-container-low);
     border: 1px solid var(--outline-variant);
-    border-radius: 12px;
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
-    font-size: 12px;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
     color: var(--on-surface);
     position: relative;
-    --accent: var(--outline);
-  }
-  .part::before {
-    content: '';
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 4px;
-    border-radius: 12px 0 0 12px;
-    background: var(--accent);
   }
   .part.selected {
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent);
+    box-shadow: 0 0 0 1px var(--primary);
   }
   .part.lit {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 45%, transparent), 0 0 14px color-mix(in srgb, var(--primary) 40%, transparent);
+    box-shadow: 0 0 0 2px var(--primary);
   }
   /* a module fitted by hand: an outline rather than a card, as it is not soldered by the fab */
   .k-accessory {
-    --accent: #2bb3a3;
     border-style: dashed;
-    border-color: color-mix(in srgb, var(--accent) 60%, var(--outline-variant));
-    background: color-mix(in srgb, var(--accent) 6%, var(--surface-container-low));
+    background: transparent;
   }
   .k-accessory .fit {
-    color: var(--accent);
     display: inline-flex;
     gap: 3px;
     align-items: center;
   }
-  .badge {
-    font-size: 13px;
-    color: var(--on-surface-var);
-  }
   .part.bad {
-    border-color: color-mix(in srgb, var(--error) 60%, var(--outline-variant));
+    border-color: var(--error);
   }
   .part.loading {
     opacity: 0.75;
   }
-  .k-module { --accent: var(--primary); }
-  .k-chip { --accent: var(--info, #4f8cff); }
-  .k-led { --accent: #e0b400; }
-  .k-usb_c, .k-jst { --accent: var(--net-5v); }
-  .k-header { --accent: var(--ok, #3fb950); }
-  .k-button { --accent: #b48ead; }
   header {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 7px 10px 5px 12px;
+    padding: 7px 12px 5px;
     min-width: 0;
   }
   .kicon {
-    font-size: 15px;
-    color: var(--accent);
+    font-size: var(--text-base);
+    color: var(--on-surface-var);
   }
   .ref {
-    font-size: 12px;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
   }
   .title {
     flex: 1;
@@ -192,22 +208,20 @@
     white-space: nowrap;
     color: var(--on-surface-var);
   }
-  .edge {
-    font-size: 12px;
-    padding: 0 5px;
-    border-radius: 6px;
-    background: var(--surface-container-highest);
-  }
   .warn {
     color: var(--error);
   }
-  .role {
+  .role,
+  .notes {
     padding: 0 12px 4px;
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: var(--on-surface-var);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .notes {
+    color: var(--outline);
   }
   .pins {
     display: flex;
@@ -237,7 +251,7 @@
   }
   .pname {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--text-xs);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -246,23 +260,22 @@
     color: var(--on-surface-var);
   }
   .pname sub {
-    font-size: 9px;
+    font-size: var(--text-2xs);
     margin-left: 1px;
     color: var(--on-surface-var);
   }
   .tag {
     font-family: var(--font-mono);
-    font-size: 9.5px;
+    font-size: var(--text-2xs);
     line-height: 14px;
     padding: 0 4px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     color: var(--c);
-    border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
-    background: color-mix(in srgb, var(--c) 12%, transparent);
+    border: 1px solid currentColor;
     white-space: nowrap;
   }
   .tag.pw {
-    font-weight: var(--font-weight-semibold);
+    border-color: var(--outline-variant);
   }
   /* the whole pin row is the handle, as a pin with its name is in a schematic editor: a wire starts anywhere on it
      and ends on any pin row (DeviceEditor's connectionRadius snaps to the nearest); the dot is drawn at its edge */
@@ -317,13 +330,13 @@
     display: flex;
     gap: 8px;
     align-items: center;
-    padding: 5px 12px 7px;
+    padding: 5px 12px 6px;
     border-top: 1px solid var(--outline-variant);
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     color: var(--on-surface-var);
   }
-  .foot .b {
-    color: var(--ok, #3fb950);
+  .foot .stock {
+    margin-left: auto;
   }
   .foot .out {
     color: var(--error);

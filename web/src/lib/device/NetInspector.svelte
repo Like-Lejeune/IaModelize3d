@@ -42,7 +42,7 @@
         <li><button onclick={() => device.pickNode(ref.split('.')[0])}><span class="mono">{ref}</span>{#if label(ref)}<span class="muted">{label(ref)}</span>{/if}</button></li>
       {/each}
     </ul>
-    {#if !readonly}<button class="hb danger" onclick={drop}><i class="ti ti-unlink" aria-hidden="true"></i> {dt('net_drop')}</button>{/if}
+    {#if !readonly}<button class="act danger" onclick={drop}><i class="ti ti-unlink" aria-hidden="true"></i> {dt('net_drop')}</button>{/if}
   </Panel>
 {/if}
 
@@ -53,7 +53,7 @@
     align-items: center;
     gap: 10px;
     min-height: var(--bw-row, 26px);
-    font-size: 13px;
+    font-size: var(--text-md);
   }
   .pr > span:first-child {
     color: var(--on-surface-var);
@@ -61,22 +61,22 @@
   }
   .pr input {
     font: inherit;
-    font-size: 13px;
+    font-size: var(--text-md);
     height: var(--bw-row, 26px);
     padding: 0 8px;
     color: var(--on-surface);
     background: var(--bw-field);
     border: 1px solid var(--bw-field-border);
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     min-width: 0;
   }
   .v {
-    font-size: 13px;
+    font-size: var(--text-md);
   }
   .sw {
     width: 10px;
     height: 10px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     background: var(--c);
   }
   .pins {
@@ -94,11 +94,11 @@
     height: 24px;
     padding: 0 8px;
     border: none;
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     background: none;
     color: var(--on-surface);
     font: inherit;
-    font-size: 12.5px;
+    font-size: var(--text-md);
     text-align: left;
     cursor: pointer;
   }
@@ -106,27 +106,27 @@
     background: color-mix(in srgb, var(--on-surface) 7%, transparent);
   }
   .pins .muted {
-    font-size: 12px;
+    font-size: var(--text-sm);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .hb {
+  .act {
     justify-self: start;
     display: inline-flex;
     align-items: center;
     gap: 6px;
     height: 26px;
     padding: 0 10px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--bw-field-border);
     background: var(--surface-high);
     color: var(--on-surface);
     font: inherit;
-    font-size: 12.5px;
+    font-size: var(--text-md);
     cursor: pointer;
   }
-  .hb.danger:hover {
+  .act.danger:hover {
     color: var(--error);
     border-color: var(--error);
   }

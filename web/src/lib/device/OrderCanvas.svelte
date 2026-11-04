@@ -1,8 +1,9 @@
 <script lang="ts">
   // The Manufacturing stage's main view: what each step costs and when the devices are ready (the bill of materials
   // has its own stage), and the ready-made modules the workshop fits by hand, each with its price.
+  import { t } from '$lib/i18n.svelte';
   import type { QuoteState } from './quote.svelte';
-  import { dt, usd, kzt, date, groupNote, known } from './i18n';
+  import { accName, dt, usd, kzt, date, groupNote, known } from './i18n';
 
   let { q, built }: { q: QuoteState; built: boolean } = $props();
   const quote = $derived(q.quote);
@@ -18,19 +19,15 @@
       <p class="muted small">{dt('quote_need_build')}</p>
     </div>
   {:else if !quote}
-    <div class="empty">{#if q.error}<p class="err small">{q.error}</p>{:else}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{/if}</div>
+    <div class="empty">{#if q.error}<p class="err small" role="alert">{q.error}</p><button class="btn small" onclick={() => q.retry()} disabled={q.busy}>{t('retry')}</button>{:else}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{/if}</div>
   {:else}
     <div class="scroll" class:busy={q.busy}>
       <section class="summary">
         <div class="big-total">
           <span class="lbl xs muted">{dt('total_for', { n: quote.qty })}</span>
           <strong>{usd(quote.total_usd)}</strong>
-          <span class="muted">{kzt(quote.total_kzt)} · {dt('per_device', { p: usd(quote.per_device_usd) })}</span>
-        </div>
-        <div class="kpis">
-          <div><span class="xs muted">{dt('kpi_board')}</span><strong class="mono">{quote.board_mm[0]} × {quote.board_mm[1]} {dt('mm')}</strong></div>
-          <div><span class="xs muted">{dt('kpi_lines')}</span><strong class="mono">{quote.bom.length}</strong></div>
-          <div><span class="xs muted">{dt('kpi_ready')}</span><strong>{date(quote.eta)}</strong></div>
+          <span class="muted">{kzt(quote.total_kzt)} · {dt('per_device', { p: usd(quote.per_device_usd) })} · {dt('ready_by', { d: date(quote.eta) })}</span>
+          <span class="xs muted">{dt('quote_estimate')}</span>
         </div>
       </section>
 
@@ -57,7 +54,7 @@
               {#each fitted as b, i (i)}
                 <tr>
                   <td class="mono refs">{b.refs.join(', ')}</td>
-                  <td>{#if b.url}<a href={b.url} target="_blank" rel="noopener noreferrer">{b.name ?? b.mpn ?? b.label}</a>{:else}{b.name ?? b.mpn ?? b.label}{/if}</td>
+                  <td>{#if b.url}<a href={b.url} target="_blank" rel="noopener noreferrer">{accName(b.name ?? b.mpn ?? b.label ?? '')}</a>{:else}{accName(b.name ?? b.mpn ?? b.label ?? '')}{/if}</td>
                   <td class="r mono">{b.qty} × {usd(b.unit_usd)}</td>
                   <td class="r mono">{usd(b.total_usd)}</td>
                 </tr>
@@ -103,7 +100,7 @@
   }
   h3 {
     margin: 0;
-    font-size: 15px;
+    font-size: var(--text-lg);
   }
   .summary {
     display: flex;
@@ -117,20 +114,8 @@
     gap: 2px;
   }
   .big-total strong {
-    font-size: 34px;
+    font-size: var(--text-4xl);
     line-height: 1.1;
-  }
-  .kpis {
-    display: flex;
-    gap: var(--space-4);
-  }
-  .kpis div {
-    display: grid;
-    gap: 2px;
-    padding: 8px 12px;
-    border-radius: 10px;
-    background: var(--surface-container-low);
-    border: 1px solid var(--outline-variant);
   }
   .bars {
     display: grid;
@@ -141,18 +126,18 @@
     grid-template-columns: 170px 1fr 70px;
     gap: 4px 10px;
     align-items: center;
-    font-size: 13px;
+    font-size: var(--text-md);
   }
   .track {
     height: 8px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: var(--surface-container-high, var(--surface-high));
     overflow: hidden;
   }
   .fill {
     display: block;
     height: 100%;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: var(--primary);
   }
   .bar .mono {
@@ -165,14 +150,14 @@
   .fit {
     width: 100%;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: var(--text-md);
   }
   .fit td {
     padding: 5px 8px;
     border-bottom: 1px solid var(--divider);
   }
   .fit .refs {
-    font-size: 12px;
+    font-size: var(--text-sm);
     color: var(--on-surface-var);
     width: 1%;
     white-space: nowrap;
@@ -197,7 +182,7 @@
     grid-template-columns: 22px 1fr auto;
     gap: 10px;
     align-items: center;
-    font-size: 13px;
+    font-size: var(--text-md);
   }
   .dot {
     width: 22px;
@@ -205,9 +190,9 @@
     border-radius: 50%;
     display: grid;
     place-items: center;
-    font-size: 11px;
-    background: var(--primary-container);
-    color: var(--on-primary-container);
+    font-size: var(--text-xs);
+    background: var(--surface-high);
+    color: var(--on-surface-var);
   }
   .empty {
     margin: auto;
@@ -223,8 +208,8 @@
     margin: 0;
   }
   .big {
-    font-size: 36px;
-    color: var(--primary);
+    font-size: var(--text-4xl);
+    color: var(--on-surface-var);
   }
   @media (max-width: 700px) {
     .scroll {

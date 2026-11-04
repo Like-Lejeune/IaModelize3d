@@ -21,11 +21,13 @@ import json
 import logging
 import math
 import re
+import uuid
 import xml.etree.ElementTree as ET
 from typing import Any
 
 from .. import device, pcb, pcb_store, storage
 from ..geom import GeomError
+from . import pictures
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +39,7 @@ IMG_H_MAX = 1200
 DETOUR = 2.0           # a connection routed this many times its straight distance (and >= DETOUR_MIN_MM) is called out
 DETOUR_MIN_MM = 10.0
 SVG_NS = "http://www.w3.org/2000/svg"
-ACCESS_COLOR = {"light": "#ffd60a", "sensor": "#30d158", "sound": "#bf5af2", "display": "#64d2ff", "press": "#ff9f0a", "port": "#ff453a"}
+ACCESS_COLOR = {"light": "#ffd60a", "sensor": "#30d158", "sound": "#bf5af2", "display": "#64d2ff", "press": "#ff9f0a", "key": "#ff9f0a", "port": "#ff453a"}
 OPPOSITE = {"sensor": "light", "light": "sensor"}
 VIEWS = {"iso": (45.0, 30.0), "top": (0.0, 90.0), "bottom": (0.0, -90.0), "front": (0.0, 0.0), "right": (90.0, 0.0),
          "back": (180.0, 0.0), "left": (270.0, 0.0)}
@@ -823,7 +825,8 @@ async def inspect_board(ctx: Any, state: Any, args: dict[str, Any]) -> tuple[dic
             png = await pcb.render_png_async(pic.svg(), pic.out_w)
             if png:
                 tag = re.sub(r"[^A-Za-z0-9_-]", "_", str(target if kind in ("part",) else (facts.get("net") if kind == "net" else kind)))[:24]
-                images.append(storage.save_bytes(ctx.project_id, "renders", f"pcb_v{v}_inspect_{side}_{layers}_{tag}.png", png))
+                # each look its own file: two regions are two pictures
+                images.append(storage.save_bytes(ctx.project_id, "renders", f"pcb_v{v}_inspect_{side}_{layers}_{tag}_{uuid.uuid4().hex[:8]}.png", png))
                 facts["picture"] = (f"{side} side, layers {layers}, grid {step} mm (labels in board mm, origin bottom-left)"
                                     + {"net": "; the net's copper bright (top yellow, bottom blue dashed), its pads circled, the rest dimmed",
                                        "part": "; the part outlined cyan; user-facing parts dashed (light yellow, sensor green, sound "
@@ -839,7 +842,7 @@ function build(p, lib) {
   const parts = __case.build(p, lib);
   const ghost = parts.find((q) => q && q.name === 'board' && q.role === 'reference');
   const rep = ghost && ghost.meta ? ghost.meta.enclosure : null;
-  const up = __fw.mode === 'exploded' ? __fw.lift : 0;
+  const up = __fw.mode === 'exploded' ? (__fw.lift || (rep ? Math.max(12, rep.outerSize[2] * 0.9) : 12)) : 0;
   const out = [];
   for (const q of parts) {
     if (!q || !q.solid || q.name === 'stand') continue;  // a stand (stance tilt, upright) lies apart from the board and its frame
@@ -882,6 +885,12 @@ def case_program(source: str, mode: str, focus: dict[str, Any] | None = None, li
             "const __case = (function () {\n" + source + "\n})();\n" f"const __fw = {cfg};\n" + WRAP_JS)
 
 
+def cover_render(source: str, params: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """The source and params of a device's cover: the case taken apart over its board (the lift from the case's own height),
+    which shows what the finished device is made of and tells one device from another."""
+    return case_program(source, "exploded"), {**params, "layout": "assembled", "show_board": True}
+
+
 async def _enclosure_findings(ctx: Any, state: Any) -> list[dict[str, Any]]:
     """The case check of the current case: the job's own, else the one stored with the program version."""
     enc = ((state.last_build or {}).get("checks") or {}).get("enclosure")
@@ -897,7 +906,7 @@ async def _enclosure_findings(ctx: Any, state: Any) -> list[dict[str, Any]]:
     return [f for f in (enc or {}).get("findings") or [] if isinstance(f, dict)] if isinstance(enc, dict) else []
 
 
-OPENING_TYPES = {"light", "light_window", "sensor_window", "display_window", "sound_grille", "port_window", "flex_button", "cable_exit"}
+OPENING_TYPES = {"light", "light_window", "sensor_window", "display_window", "sound_grille", "port_window", "flex_button", "cable_exit", "key_plate"}
 
 
 def _feature_rect(f: dict[str, Any]) -> tuple[float, float, float, float] | None:
@@ -918,6 +927,8 @@ def _describe(f: dict[str, Any]) -> str:
         s = f"sound grille of {f.get('count')} holes d {f.get('d')} mm"
     elif t == "flex_button":
         s = f"press tab {f.get('len')} mm long, plunger {f.get('plunger')} mm"
+    elif t == "key_plate":
+        s = f"key plate {f.get('plate_t')} mm with a {f.get('cut')} mm cut-out, in a well {f.get('well')} mm deep; keycap {f.get('rise')} mm above the lid"
     elif t == "port_window":
         s = f"port window {f.get('w')} x {f.get('h')} mm in the {f.get('edge')} wall"
     elif t == "cable_exit":
@@ -979,7 +990,7 @@ def case_facts(pid: str | None, board: dict[str, Any], rep: dict[str, Any] | Non
     if b:
         area = max(1e-6, (b[2] - b[0]) * (b[3] - b[1]))
         for f in feats:
-            if f.get("type") not in OPENING_TYPES - {"port_window", "cable_exit", "flex_button"}:
+            if f.get("type") not in OPENING_TYPES - {"port_window", "cable_exit", "flex_button", "key_plate"}:
                 continue
             r = _feature_rect(f)
             if r is None:
@@ -1074,8 +1085,10 @@ async def inspect_case(ctx: Any, state: Any, args: dict[str, Any]) -> tuple[dict
     r = await _geom_retry(lambda: geom().render(source, params, view="sheet", **ra, **extra))
     import base64
 
-    name = f"v{state.version}_case_{mode}{'_' + view if view else ''}{'_' + re.sub(r'[^A-Za-z0-9_-]', '_', pid) if pid else ''}.png"
+    # each look its own file: two cuts of one mode are two pictures
+    name = f"v{state.version}_case_{mode}{'_' + view if view else ''}{'_' + re.sub(r'[^A-Za-z0-9_-]', '_', pid) if pid else ''}_{uuid.uuid4().hex[:8]}.png"
     image = storage.save_bytes(ctx.project_id, "renders", name, base64.b64decode(r["png"]))
+    pictures.note(state, image, r.get("frames"))
     facts = case_facts(pid, board, rep, await _enclosure_findings(ctx, state))
     legend = ("case base grey, lid orange, board dark green; lights yellow, sensors green, sound violet, displays blue, buttons "
               "orange, ports red" + (f"; {pid} magenta with a dot (hollow where the case hides it)" if pid else ""))

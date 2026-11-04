@@ -5,6 +5,7 @@
   import { onMount, tick } from 'svelte';
   import Header from '$lib/components/Header.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import { t } from '$lib/i18n.svelte';
   import OpsCard from '$lib/shop/OpsCard.svelte';
   import { shop, shopError } from '$lib/shop/api';
   import { st } from '$lib/shop/i18n';
@@ -46,15 +47,25 @@
     }
   }
 
+  // who is asking comes first: a failed answer is asked again, by the refresh below or the retry button
+  async function start() {
+    try {
+      const m = await shop.me(true);
+      me = m;
+      error = null;
+      if (m.is_operator) load();
+    } catch (e) {
+      error = shopError(e);
+    }
+  }
+
   onMount(() => {
-    shop
-      .me(true)
-      .then((m) => {
-        me = m;
-        if (m.is_operator) load();
-      })
-      .catch((e) => (error = shopError(e)));
-    const id = setInterval(() => me?.is_operator && document.visibilityState === 'visible' && load(), 10000);
+    start();
+    const id = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (!me) start();
+      else if (me.is_operator) load();
+    }, 10000);
     return () => clearInterval(id);
   });
 
@@ -108,7 +119,7 @@
       {/if}
     </div>
 
-    {#if error}<p class="err small" role="alert">{error}</p>{/if}
+    {#if error}<p class="err small" role="alert">{error}{#if !board}{' '}<button class="btn small" onclick={() => (me ? load() : start())}>{t('retry')}</button>{/if}</p>{/if}
 
     {#if me && !me.is_operator}
       <div class="empty card">
@@ -216,7 +227,7 @@
     flex-wrap: wrap;
   }
   h1 {
-    font-size: var(--text-cart-h1);
+    font-size: var(--text-2xl);
     font-weight: var(--font-weight-bold);
   }
   .head p {
@@ -378,7 +389,7 @@
       padding: 6px 2px;
       white-space: normal;
       text-align: center;
-      font-size: 11px;
+      font-size: var(--text-xs);
       line-height: 1.15;
       min-width: 0;
     }

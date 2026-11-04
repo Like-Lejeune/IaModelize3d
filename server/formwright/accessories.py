@@ -73,6 +73,7 @@ ACCESSORIES: dict[str, dict[str, Any]] = {
         "pins": ["GND", "DQ", "VCC"], "connect": "header", "mount": "cable",
         "body": [6.0, 6.0, 50.0], "cable_d": 4.0, "supply": "3V3-5V", "current_ma": 2,
         "url": "https://www.lcsc.com/search?q=DS18B20",
+        "sim": {"type": "bus", "channel": 1, "rest": 25.0, "values": [10.0, 40.0]},
         "note": "1-Wire: DQ needs a 4.7k pull-up to VCC on the carrier (a resistor from the DQ net to V3V3). Leads: red VCC, "
                 "black GND, yellow DQ, bare tinned ends (crimped inside the case). OneWire + DallasTemperature libraries.",
     },
@@ -120,7 +121,159 @@ ACCESSORIES: dict[str, dict[str, Any]] = {
         "pins": ["VCC", "GND", "IN"], "connect": "header", "mount": "cable",
         "body": [50.0, 26.0, 18.5], "cable_d": 5.0, "supply": "5V", "current_ma": 75,
         "note": "Coil from 5 V (about 75 mA). IN from a 3.3 V GPIO: pick a module with an optocoupler or transistor input that "
-                "switches at 3.3 V (most are active LOW). Single Dupont leads (5 mm exit). Mains wiring stays outside this case.",
+                "switches at 3.3 V (most are active LOW). Single Dupont leads (5 mm exit). Rated 10 A at 250 V: a load above 2 kW takes a contactor. "
+                "Mains wiring stays outside this case.",
+    },
+    # displays beyond the OLEDs: SPI, on the board behind a window. Bodies from the usual module drawings: verify on the module
+    "epaper_213": {
+        "name": "2.13\" e-paper 250x122 SPI (SSD1680)", "kind": "display", "price_usd": 7.5,
+        "pins": ["VCC", "GND", "SDI", "SCK", "CS", "DC", "RES", "BUSY"], "connect": "header", "mount": "board",
+        "body": [59.2, 29.2, 3.0], "stack_h": 2.5, "header_offset": [-27.3, 0.0], "header_axis": "y",
+        "window": [48.6, 23.8], "window_offset": [2.0, 0.0], "window_shape": "rect", "supply": "3V3", "current_ma": 8, "keeps_image": True,
+        "note": "Keeps its picture with no power: right for what changes rarely on a battery. GxEPD2 library, full refresh about 2 s. Window offset: verify.",
+    },
+    "epaper_29": {
+        "name": "2.9\" e-paper 296x128 SPI (SSD1680)", "kind": "display", "price_usd": 10.0,
+        "pins": ["VCC", "GND", "SDI", "SCK", "CS", "DC", "RES", "BUSY"], "connect": "header", "mount": "board",
+        "body": [79.0, 36.7, 3.0], "stack_h": 2.5, "header_offset": [-37.0, 0.0], "header_axis": "y",
+        "window": [66.9, 29.1], "window_offset": [2.5, 0.0], "window_shape": "rect", "supply": "3V3", "current_ma": 8, "keeps_image": True,
+        "note": "As the 2.13 inch one. GxEPD2 library, full refresh about 2 s. Window offset: verify.",
+    },
+    "tft_13_st7789": {
+        "name": "1.3\" colour IPS TFT 240x240 SPI (ST7789)", "kind": "display", "price_usd": 3.2,
+        "pins": ["GND", "VCC", "SCL", "SDA", "RES", "DC", "BLK"], "connect": "header", "mount": "board",
+        "body": [27.8, 39.0, 3.2], "stack_h": 2.5, "header_offset": [0.0, 17.6], "header_axis": "x",
+        "window": [23.4, 23.4], "window_offset": [0.0, -2.0], "window_shape": "rect", "supply": "3V3", "current_ma": 40,
+        "note": "SPI despite the pin names (no CS on this one). Adafruit_ST7789 or TFT_eSPI. Window offset: verify.",
+    },
+    "tft_24_ili9341": {
+        "name": "2.4\" colour TFT 320x240 SPI (ILI9341)", "kind": "display", "price_usd": 5.0,
+        "pins": ["VCC", "GND", "CS", "RESET", "DC", "SDI", "SCK", "LED", "SDO"], "connect": "header", "mount": "board",
+        "body": [42.7, 77.0, 4.0], "stack_h": 2.5, "header_offset": [0.0, 35.5], "header_axis": "x",
+        "window": [37.0, 49.0], "window_offset": [0.0, -3.0], "window_shape": "rect", "supply": "3V3-5V", "current_ma": 80,
+        "note": "Adafruit_ILI9341 or TFT_eSPI. Window offset: verify.",
+    },
+    # sound and storage
+    "speaker_max98357": {
+        "name": "I2S class-D amplifier MAX98357A with a 3 W 40 mm speaker", "kind": "module", "price_usd": 4.0,
+        "pins": ["LRC", "BCLK", "DIN", "GND", "VIN"], "connect": "header", "mount": "inside",
+        "body": [40.0, 40.0, 20.0], "supply": "3V3-5V", "current_ma": 600,
+        "note": "Real sound where a piezo only beeps: I2S from the ESP32-S3 or C3 (ESP8266Audio or the I2S driver). VIN from 5 V for full power. Speaker sits in the case: a sound hole is yours to ask for.",
+    },
+    "dfplayer_mini": {
+        "name": "DFPlayer Mini MP3 module with a 3 W speaker and microSD", "kind": "module", "price_usd": 3.5,
+        "pins": ["VCC", "RX", "TX", "GND"], "connect": "header", "mount": "inside",
+        "body": [40.0, 40.0, 20.0], "supply": "5V", "current_ma": 200,
+        "sim": {"type": "bus"},
+        "note": "Plays MP3 files from its card, driven over serial (DFRobotDFPlayerMini library): 1k in series with RX. For sound effects and voices.",
+    },
+    "microsd_spi": {
+        "name": "microSD card module, SPI", "kind": "module", "price_usd": 1.0,
+        "pins": ["CS", "SCK", "MOSI", "MISO", "VCC", "GND"], "connect": "header", "mount": "cable",
+        "body": [42.0, 24.0, 4.0], "cable_d": 5.0, "supply": "3V3", "current_ma": 100,
+        "sim": {"type": "bus"},
+        "note": "Logging and recordings (SD library). The card slot must be reached: it goes on a short lead at a slot in the wall.",
+    },
+    "mic_inmp441": {
+        "name": "INMP441 I2S MEMS microphone module", "kind": "sensor", "price_usd": 2.0,
+        "pins": ["VDD", "GND", "SD", "WS", "SCK", "LR"], "connect": "header", "mount": "cable",
+        "body": [14.0, 14.0, 3.0], "cable_d": 4.0, "supply": "3V3", "current_ma": 2,
+        "note": "Digital microphone for sound levels and FFT over I2S; tie LR to GND. Faces a hole in the wall on its lead.",
+    },
+    # clocks, identity, position, radio
+    "rtc_ds3231": {
+        "name": "DS3231 real-time clock module with a coin cell", "kind": "module", "price_usd": 1.8,
+        "pins": ["GND", "VCC", "SDA", "SCL"], "connect": "header", "mount": "cable",
+        "body": [38.0, 22.0, 14.0], "cable_d": 5.0, "supply": "3V3-5V", "current_ma": 1, "i2c_addr": "0x68",
+        "sim": {"type": "bus"},
+        "note": "Keeps time through a power cut, within seconds a month: for alarms and schedules without Wi-Fi. RTClib. Lives inside the case on its lead.",
+    },
+    "rfid_rc522": {
+        "name": "RC522 13.56 MHz RFID reader", "kind": "module", "price_usd": 1.6,
+        "pins": ["SDA", "SCK", "MOSI", "MISO", "IRQ", "GND", "RST", "VCC"], "connect": "header", "mount": "cable",
+        "body": [60.0, 40.0, 5.0], "cable_d": 5.0, "supply": "3V3", "current_ma": 30,
+        "sim": {"type": "bus", "channel": 6, "event": True, "hold": 1.0},
+        "note": "SPI (SDA is its CS): MFRC522 library. Reads through up to about 3 mm of plastic, so it lies flat against a wall of the case.",
+    },
+    "gps_neo6m": {
+        "name": "NEO-6M GPS module with a ceramic antenna", "kind": "module", "price_usd": 4.5,
+        "pins": ["VCC", "RX", "TX", "GND"], "connect": "header", "mount": "cable",
+        "body": [36.0, 25.0, 12.0], "cable_d": 5.0, "supply": "3V3-5V", "current_ma": 50,
+        "sim": {"type": "bus", "channel": 7, "rest": 1.0, "values": [0.0, 1.0]},
+        "note": "Position over serial at 9600 baud (TinyGPSPlus). The antenna needs the sky: no metal over it. First fix a minute or more.",
+    },
+    "lora_ra02": {
+        "name": "LoRa radio SX1278 (Ra-02) with an antenna on a lead", "kind": "module", "price_usd": 4.0,
+        "pins": ["VCC", "GND", "SCK", "MISO", "MOSI", "NSS", "RST", "DIO0"], "connect": "header", "mount": "cable",
+        "body": [17.0, 16.0, 3.5], "cable_d": 6.0, "supply": "3V3", "current_ma": 120,
+        "sim": {"type": "bus", "channel": 8, "event": True, "hold": 1.0},
+        "note": "Kilometres at low speed (LoRa library). Transmitting without the antenna kills it; its frequency must be legal where it is used. An answer from rescuers takes a receiver: it is no satellite beacon.",
+    },
+    # moving things: the module and its motor on a cable; the mechanics around them are the person's
+    "stepper_tmc2209": {
+        "name": "TMC2209 stepper driver with a NEMA 17 motor", "kind": "module", "price_usd": 14.0,
+        "pins": ["EN", "STEP", "DIR", "VM", "GND", "VIO"], "connect": "header", "mount": "cable",
+        "body": [42.3, 42.3, 40.0], "cable_d": 8.0, "supply": "3V3", "current_ma": 5,
+        "sim": {"type": "bus"},
+        "note": "Quiet stepping at up to about 1.7 A a phase: VM 12-24 V from its own supply on a terminal, with 100 uF across it at the driver; VIO on 3.3 V. Never unplug the motor under power. Motor mount and rails are not in the case.",
+    },
+    "dc_driver_drv8871": {
+        "name": "DRV8871 DC motor driver module", "kind": "module", "price_usd": 4.0,
+        "pins": ["IN1", "IN2", "VM", "GND"], "connect": "header", "mount": "cable",
+        "body": [25.0, 20.0, 8.0], "cable_d": 6.0, "supply": "3V3", "current_ma": 10,
+        "note": "One small brushed motor both ways, up to 3.6 A at 6.5-45 V, current limited: VM from its own supply on a terminal. No brushless or hub motor, no regeneration. Motor and gearbox are the person's.",
+    },
+    "pump_12v": {
+        "name": "12 V mini diaphragm water pump", "kind": "module", "price_usd": 4.5,
+        "pins": ["P", "N"], "connect": "header", "mount": "cable",
+        "body": [40.0, 28.0, 60.0], "cable_d": 5.0, "supply": "12V", "current_ma": 500,
+        "note": "Low-side MOSFET with a flyback diode, on a 12 V supply: state 1 A on its net. Never runs dry for long: a level or flow check belongs in the firmware.",
+    },
+    "solenoid_lock_12v": {
+        "name": "12 V solenoid door latch", "kind": "module", "price_usd": 5.0,
+        "pins": ["P", "N"], "connect": "header", "mount": "cable",
+        "body": [54.0, 41.0, 28.0], "cable_d": 5.0, "supply": "12V", "current_ma": 800,
+        "note": "Low-side MOSFET with a flyback diode, on a 12 V supply (1 A on its net), energised only for seconds: it overheats if held. Fitting it to a door is the person's.",
+    },
+    # weight and current without touching mains
+    "loadcell_hx711": {
+        "name": "HX711 board with a 1 kg bar load cell", "kind": "sensor", "price_usd": 3.0,
+        "pins": ["VCC", "SCK", "DT", "GND"], "connect": "header", "mount": "cable",
+        "body": [80.0, 13.0, 13.0], "cable_d": 5.0, "supply": "3V3-5V", "current_ma": 2,
+        "sim": {"type": "bus", "channel": 4, "rest": 0.0, "values": [0.0, 500.0]},
+        "note": "HX711 library; calibrate with a known weight. The bar must be bolted at one end and loaded at the other: the case does not make that yet, so say so.",
+    },
+    "ct_sct013": {
+        "name": "SCT-013 clamp-on current transformer (non-invasive, on a lead)", "kind": "probe", "price_usd": 5.0,
+        "pins": ["S", "GND"], "connect": "header", "mount": "cable",
+        "body": [30.0, 30.0, 25.0], "cable_d": 4.0, "supply": "3V3", "current_ma": 0,
+        "note": "Measures a mains wire from outside it, so nothing live reaches the board: clamp one conductor. The 1 V type reads directly on an ADC through a mid-rail bias of two 10k with 10 uF.",
+    },
+    "power_pzem004t": {
+        "name": "PZEM-004T isolated energy meter with a current transformer", "kind": "module", "price_usd": 7.0,
+        "pins": ["VCC", "RX", "TX", "GND"], "connect": "header", "mount": "cable",
+        "body": [73.0, 40.0, 25.0], "cable_d": 5.0, "supply": "5V", "current_ma": 10,
+        "sim": {"type": "bus", "channel": 5, "rest": 0.0, "values": [0.0, 1000.0]},
+        "note": "Volts, amps, watts and kWh of a mains circuit over an isolated serial link (PZEM004Tv30): its mains side stays outside this case and is wired by an electrician.",
+    },
+    # strips and distance
+    "led_strip_ws2812": {
+        "name": "WS2812B LED strip, 1 m of 60 LEDs", "kind": "module", "price_usd": 5.0,
+        "pins": ["VCC", "DIN", "GND"], "connect": "header", "mount": "cable",
+        "body": [1000.0, 10.0, 3.0], "cable_d": 5.0, "supply": "5V", "current_ma": 1800,
+        "note": "LEDs along a stair, a shelf, a board's whole length, cut to length. Up to 60 mA a LED at full white: limit brightness, and state its current on the supply net (0.5 to 3 A). 330R in DIN, 1000 uF across the supply, data above 0.7 x VDD (a level shifter, or VDD through a diode).",
+    },
+    "sonar_hcsr04": {
+        "name": "HC-SR04 ultrasonic distance sensor", "kind": "sensor", "price_usd": 1.2,
+        "pins": ["VCC", "TRIG", "ECHO", "GND"], "connect": "header", "mount": "cable",
+        "body": [45.0, 20.0, 15.0], "cable_d": 5.0, "supply": "5V", "current_ma": 15,
+        "note": "2 cm to 4 m. ECHO is 5 V: divide it (1k and 2k) before a 3.3 V GPIO. Its two cans look out of the case.",
+    },
+    "vibration_coin": {
+        "name": "Coin vibration motor, 10 mm, on leads", "kind": "module", "price_usd": 0.5,
+        "pins": ["P", "N"], "connect": "header", "mount": "inside",
+        "body": [10.0, 10.0, 3.0], "supply": "3V3", "current_ma": 80,
+        "note": "Low-side transistor with a flyback diode. Stuck to the inside of the case near the skin.",
     },
 }
 

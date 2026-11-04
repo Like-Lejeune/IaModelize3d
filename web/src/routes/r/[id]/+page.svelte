@@ -26,12 +26,12 @@
     return () => s.dispose();
   });
 
-  // a case around a board or a PCB has views this page lacks (the PCB tab, the check against the board, its rays);
-  // the studio shows them read-only to a visitor, so a shared link to one opens there
+  // a device, a case around a board or a PCB has views this page lacks (the PCB tab, the check against the board, its
+  // rays); the studio shows them read-only to a visitor, so a shared link to one opens there
   $effect(() => {
     const s = store;
     if (!s?.detail) return;
-    if (s.detail.pack === 'pcb' || s.detail.pack === 'enclosure' || s.pcb.versions.length > 0 || /lib\.elec|\bE\.enclosure\(|inputs\.boards/.test(s.source ?? ''))
+    if (s.detail.pack === 'device' || s.detail.pack === 'pcb' || s.detail.pack === 'enclosure' || s.pcb.versions.length > 0 || /lib\.elec|\bE\.enclosure\(|inputs\.boards/.test(s.source ?? ''))
       goto(`/p/${s.id}`, { replaceState: true });
   });
 
@@ -52,19 +52,6 @@
     return () => es.close();
   });
 
-  let watching = $state(false);
-  async function watch() {
-    if (!store) return;
-    watching = true;
-    try {
-      const p = await api.replay(store.id, 8);
-      goto(`/p/${p.id}`);
-    } catch (e) {
-      error = errorText(e);
-      watching = false;
-    }
-  }
-
   async function fork() {
     if (!store) return;
     try {
@@ -84,14 +71,19 @@
 
 {#if store?.loadError}
   <!-- a private project the visitor cannot read: said plainly, as on /p (no remix offer) -->
-  <div class="center"><p class="err">{isText(store.loadError, 'forbidden') ? t('private_project') : store.loadError}</p><a class="btn" href="/">{t('back')}</a></div>
+  <div class="center" role="alert">
+    <p class="err">{isText(store.loadError, 'forbidden') ? t('private_project') : store.loadError}</p>
+    {#if store.loadRetrying}<p class="xs muted">{t('load_retrying')}</p><button class="btn primary" onclick={() => store?.retryLoad()}>{t('retry')}</button>{/if}
+    <a class="btn" href="/">{t('back')}</a>
+  </div>
 {:else if !store?.detail}
   <div class="center"><i class="ti ti-loader-2 spin" aria-hidden="true"></i></div>
 {:else}
   <main class="recipe">
     <section class="view card">
+      {#if store.buildError}<p class="err small" role="alert">{t('model_error')} {store.buildError}</p>{/if}
       <Viewer
-        loading={!!store.source && !store.build}
+        loading={!!store.source && !store.build && !store.buildError}
         build={store.build}
         issues={store.checks?.issues ?? []}
         highlight={selectedIssue}
@@ -107,7 +99,7 @@
         <p class="muted small">{t('readonly_hint')}</p>
         <div class="row">
           <button class="btn primary" onclick={fork}><Icon name="gitfork" size={15} /> {t('fork')}</button>
-          <button class="btn" onclick={watch} disabled={watching}>{#if watching}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name="play" size={14} />{/if} {t('watch')}</button>
+          <a class="btn" href="/w/{store.id}"><Icon name="play" size={14} /> {t('watch')}</a>
           <a class="btn ghost" href="/">{t('make_your_own')}</a>
         </div>
         {#if error}<p class="err small">{error}</p>{/if}
@@ -133,7 +125,7 @@
 
 <style>
   .ttl {
-    font-size: var(--text-product-lead);
+    font-size: var(--text-lg);
     font-weight: var(--font-weight-semibold);
   }
   .center {

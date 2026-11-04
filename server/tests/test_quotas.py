@@ -28,9 +28,8 @@ async def _user(db, uid: str, tier: str = "anon", ip: str | None = "1.2.3.4") ->
     return await db.one("SELECT * FROM users WHERE id = ?", uid)
 
 
-async def _job(db, jid: str, uid: str, status: str = "running", kind: str = "design", project_id: str = "p_a", reserved: float = 0.6) -> None:
-    await db.insert("jobs", {"id": jid, "project_id": project_id, "user_id": uid, "kind": kind, "status": status, "reserved_usd": reserved,
-                             "created_at": dbmod.now()})
+async def _job(db, jid: str, uid: str, status: str = "running", kind: str = "design", project_id: str = "p_a") -> None:
+    await db.insert("jobs", {"id": jid, "project_id": project_id, "user_id": uid, "kind": kind, "status": status, "created_at": dbmod.now()})
 
 
 def test_quota_exceeded_takes_a_message_alone():
@@ -44,23 +43,24 @@ async def test_orphaned_and_waiting_jobs_do_not_block(fresh_db):
     user = await _user(fresh_db, "u_orphan")
     await _job(fresh_db, "j_orphan", "u_orphan")  # a restart killed its task
     await _job(fresh_db, "j_ask", "u_orphan", status="waiting", project_id="p_b")  # waits for an answer
-    allowed = await quotas.reserve(user, 0.6, live={"j_ask"})
-    # the orphan's reservation is ignored, the waiting job's is not
-    assert allowed == pytest.approx(0.4)
-    assert await quotas.reserve(user, 0.3, live=set()) == pytest.approx(0.3)
+    # neither blocks a start, and a job has no cap but what is left today
+    assert await quotas.headroom(user, live={"j_ask"}) == pytest.approx(1.0)
+    assert await quotas.headroom(user, live=set()) == pytest.approx(1.0)
+    await quotas.settle("u_orphan", 0.3)
+    assert await quotas.headroom(user, live=set()) == pytest.approx(0.7)
 
 
 async def test_a_running_job_blocks_and_names_itself(fresh_db):
     user = await _user(fresh_db, "u_busy")
-    await _job(fresh_db, "j_live", "u_busy", project_id="p_live", reserved=0.2)
+    await _job(fresh_db, "j_live", "u_busy", project_id="p_live")
     with pytest.raises(quotas.QuotaExceeded) as e:
-        await quotas.reserve(user, 0.6, live={"j_live"})
+        await quotas.headroom(user, live={"j_live"})
     assert e.value.code == "job_running" and e.value.info == {"project_id": "p_live", "job_id": "j_live"}
     # a slice may run next to it
-    assert await quotas.reserve(user, 0.08, live={"j_live"}, concurrency=False) == pytest.approx(0.08)
+    assert await quotas.headroom(user, live={"j_live"}, concurrency=False) == pytest.approx(1.0)
     # and a running slice does not hold a design job up
     await fresh_db.execute("UPDATE jobs SET kind = 'slice' WHERE id = 'j_live'")
-    assert await quotas.reserve(user, 0.6, live={"j_live"}) == pytest.approx(0.6)
+    assert await quotas.headroom(user, live={"j_live"}) == pytest.approx(1.0)
 
 
 async def test_limits_carry_codes(fresh_db, monkeypatch):
@@ -70,7 +70,7 @@ async def test_limits_carry_codes(fresh_db, monkeypatch):
     await quotas.settle(other["id"], 1.0)
     await quotas.settle(user["id"], 0.48)
     with pytest.raises(quotas.QuotaExceeded) as e:
-        await quotas.reserve(user, 0.6, live=set())
+        await quotas.headroom(user, live=set())
     # the address cap bites first; the message no longer quotes the $1.00 plan limit
     assert e.value.code == "ip_daily_cap" and "1.00" not in str(e.value)
     no_ip = await _user(fresh_db, "u_noip", ip=None)
@@ -96,7 +96,7 @@ async def test_two_starts_at_once_run_one_job(fresh_db):
     user = await _user(fresh_db, "u_race")
     a = {"id": "p_race_a", "user_id": "u_race"}
     b = {"id": "p_race_b", "user_id": "u_race"}
-    out = await asyncio.gather(runner._create(user, a, "design", {"text": "x"}, 0.6), runner._create(user, b, "design", {"text": "y"}, 0.6),
+    out = await asyncio.gather(runner._create(user, a, "design", {"text": "x"}), runner._create(user, b, "design", {"text": "y"}),
                                return_exceptions=True)
     ok = [o for o in out if isinstance(o, runner.JobContext)]
     refused = [o for o in out if isinstance(o, quotas.QuotaExceeded)]
@@ -113,13 +113,13 @@ async def test_two_starts_at_once_run_one_job(fresh_db):
 async def test_one_agent_per_project(fresh_db):
     user = await _user(fresh_db, "u_pro", tier="pro")
     p = {"id": "p_busy", "user_id": "u_pro"}
-    first = await runner._create(user, p, "design", {"text": "x"}, 0.6)
+    first = await runner._create(user, p, "design", {"text": "x"})
     try:
         with pytest.raises(quotas.QuotaExceeded) as e:
-            await runner._create(user, p, "design", {"text": "again"}, 0.6)
+            await runner._create(user, p, "design", {"text": "again"})
         assert e.value.code == "project_busy" and e.value.info == {"project_id": "p_busy", "job_id": first.job_id}
         # a slice of the same project is fine
-        side = await runner._create(user, p, "slice", {}, 0.08, concurrency=False)
+        side = await runner._create(user, p, "slice", {}, concurrency=False)
         runner._jobs.pop(side.job_id, None)
     finally:
         runner._jobs.pop(first.job_id, None)
@@ -147,13 +147,11 @@ async def test_every_plan_picks_every_designer(fresh_db, monkeypatch):
     assert SendMessage(text="x", model="spark_open").model == "spark_open"
 
 
-async def test_the_bigger_budget_only_when_wonder_runs(fresh_db, monkeypatch):
+async def test_a_job_has_no_cap_but_what_is_left_today(fresh_db, monkeypatch):
     from formwright.agent import loop
 
     s = settings()
-    monkeypatch.setattr(s, "model_designer_hard", "muse-wonder-1.0")
-    monkeypatch.setattr(s, "model_designer", "muse-spark-1.3")
-    monkeypatch.setattr(s, "job_budget_usd", 0.1)
+    monkeypatch.setattr(s, "daily_budget_usd", 4.0)
     gate = asyncio.Event()
 
     async def fake_design(ctx, body):
@@ -162,16 +160,19 @@ async def test_the_bigger_budget_only_when_wonder_runs(fresh_db, monkeypatch):
 
     monkeypatch.setattr(loop, "design", fake_design)
     user = await _user(fresh_db, "u_budget", tier="admin")
-    anon = await _user(fresh_db, "u_budget_anon")
-    free = await _user(fresh_db, "u_budget_free", tier="free", ip="5.6.7.8")
-    jobs = [await runner.start_design_job(user, {"id": "p_w1", "user_id": "u_budget"}, SendMessage(text="x", model="wonder")),
-            await runner.start_design_job(anon, {"id": "p_w2", "user_id": "u_budget_anon"}, SendMessage(text="x", model="wonder")),
-            await runner.start_design_job(free, {"id": "p_w3", "user_id": "u_budget_free"}, SendMessage(text="x", model="spark"))]
-    reserved = [(await fresh_db.one("SELECT reserved_usd FROM jobs WHERE id = ?", j))["reserved_usd"] for j in jobs]
+    # whatever model or reasoning the run picks, its cap is the global budget left, and a running job holds none back
+    jobs = [await runner.start_design_job(user, {"id": "p_w1", "user_id": "u_budget"}, SendMessage(text="x", model="wonder", reasoning="max")),
+            await runner.start_design_job(user, {"id": "p_w2", "user_id": "u_budget"}, SendMessage(text="x", model="spark", reasoning="minimal"))]
+    caps = [runner._jobs[j].meter.budget_usd for j in jobs]
     gate.set()
     await asyncio.gather(*[t for j in jobs if (t := runner._tasks.get(j))])
-    # Wonder is on every plan, and so is its bigger budget; a Spark run keeps the usual one
-    assert reserved == [pytest.approx(0.25), pytest.approx(0.25), pytest.approx(0.1)]
+    assert caps == [pytest.approx(4.0), pytest.approx(4.0)]
+    await quotas.settle("u_budget", 1.5)
+    job = await runner._create(user, {"id": "p_w3", "user_id": "u_budget"}, "design", {"text": "x"})
+    try:
+        assert job.meter.budget_usd == pytest.approx(2.5)
+    finally:
+        runner._jobs.pop(job.job_id, None)
 
 
 async def test_live_jobs_skip_stopped_ones():
