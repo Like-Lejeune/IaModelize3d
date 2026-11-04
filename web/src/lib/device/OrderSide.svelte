@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The price stage's side: how many, the order, the fab files, past orders. The total stands in the main view. The order is
+  // The price stage's side: how many, the order, the fab files. The total stands in the main view. The order is
   // the Axo shop's: the whole device goes to its cart as one batch and the buyer pays there, delivery included.
   import Icon from '$lib/components/Icon.svelte';
   import { ApiError, errorText } from '$lib/api';
@@ -8,7 +8,7 @@
   import { session } from '$lib/session.svelte';
   import { deviceApi } from './api';
   import type { QuoteState } from './quote.svelte';
-  import { dt, usd } from './i18n';
+  import { dt } from './i18n';
 
   let { q, built, stale = false, readonly = false, files, projectId }: { q: QuoteState; built: boolean; stale?: boolean; readonly?: boolean; files: Record<string, string>; projectId: string } = $props();
 
@@ -87,18 +87,6 @@
 
   {#if !readonly && built && !shop}<p class="soon">{dt('order_soon')}</p>{/if}
   {#if q.error}<p class="err small" role="alert">{q.error} <button class="btn small" onclick={() => q.retry()} disabled={q.busy}>{t('retry')}</button></p>{/if}
-  {#if q.ordersError}<p class="err small" role="alert">{q.ordersError} <button class="btn small" onclick={() => q.loadOrders()}>{t('retry')}</button></p>{/if}
-
-  {#if q.orders.length}
-    <section class="sec">
-      <h4 class="cap">{dt('orders')}</h4>
-      <ul class="orders">
-        {#each q.orders as o (o.id)}
-          <li><span class="mono">{o.ref}</span><span class="small">{o.quantity} × · {usd(o.quote.total_usd)}</span><span class="chip xs">{dt(`status_${o.status}`)}</span></li>
-        {/each}
-      </ul>
-    </section>
-  {/if}
 </div>
 
 <style>
@@ -157,18 +145,5 @@
   .sec p,
   .soon {
     margin: 0;
-  }
-  .orders {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 6px;
-  }
-  .orders li {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 8px;
-    align-items: center;
   }
 </style>

@@ -485,8 +485,7 @@ def test_never_raises_on_odd_documents():
 
 # ---------------------------------------------------------------- the devices that shipped broken
 def raw(code):
-    p = FIX / "easyeda" / f"{code}.json" if code != "C92489" else Path(__file__).parent / "fixtures" / "device" / "C92489.easyeda.json"
-    return json.loads(p.read_text(encoding="utf-8"))
+    return json.loads((FIX.parent / "easyeda" / f"{code}.json").read_text(encoding="utf-8"))
 
 
 def stored(doc):

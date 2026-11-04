@@ -133,10 +133,6 @@ export type Quote = {
   /** What the Axo shop sells the batch for: every group but delivery, which the shop adds. */
   cart?: { price_kzt: number; lines: { key: string; kzt: number }[] };
 };
-export type DeviceOrder = {
-  id: string; ref: string; project_id: string; pcb_version: number | null; program_version: number | null; quantity: number; status: string;
-  quote: Quote; timeline: Quote['timeline']; created_at: number; files: Record<string, string>;
-};
 
 const P = (id: string) => `/api/projects/${encodeURIComponent(id)}/device`;
 
@@ -146,9 +142,6 @@ export const deviceApi = {
   put: (id: string, doc: DeviceDoc, summary = '') => req<DeviceState>('PUT', P(id), { doc, summary }),
   build: (id: string) => req<{ started: boolean; building?: boolean }>('POST', `${P(id)}/build`),
   quote: (id: string, qty: number) => req<Quote>('GET', `${P(id)}/quote?qty=${qty}`),
-  order: (id: string, body: { qty: number; name?: string; contact?: string; city?: string; note?: string }, key?: string) =>
-    req<DeviceOrder>('POST', `${P(id)}/order`, body, key ? { headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key } } : {}),
-  orders: (id: string) => req<DeviceOrder[]>('GET', `${P(id)}/orders`),
   /** The whole device for the workshop, one ZIP. */
   packageUrl: (id: string, qty: number) => `${P(id)}/package?qty=${qty}`,
   /** The whole device as a batch in the Axo shop: `url` takes the buyer to their cart. */

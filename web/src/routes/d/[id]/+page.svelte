@@ -146,7 +146,6 @@
       }
       s.device.refresh();
       if (first && s.detail) s.sendFiles(first.text, first.files);
-      quote?.loadOrders();
       p?.start();
     });
     return () => {

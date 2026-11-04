@@ -22,7 +22,6 @@ const en: Dict = {
   reasoning_max: 'Max',
   attach_photos: 'Add photos',
   take_photo: 'Take a photo',
-  my_projects: 'Your projects',
   empty_projects: 'Nothing here yet — your projects will appear after you start one.',
   'tmpl.copy': 'Copy the part in my photo exactly.',
   ago_min: '{n} min ago',
@@ -72,7 +71,6 @@ const en: Dict = {
   versions: 'Versions',
   get_it: 'Get it',
   publish: 'Publish recipe',
-  unpublish: 'Make private',
   recipe: 'Open recipe',
   fork: 'Make a copy',
   share: 'Share',
@@ -239,9 +237,7 @@ const en: Dict = {
   how_to_fix: 'How to fix',
   ask_fix: 'Ask the agent to fix',
   ask_fix_msg: 'Please fix: {t}',
-  no_issues: 'No issues',
   layers: 'Layers',
-  first_layer: 'First layer',
   est: 'estimate',
 
   // print
@@ -360,7 +356,6 @@ const en: Dict = {
   'field.edge': 'Edge',
   'field.tolerance': 'Tolerance',
   refining: 'Refining…',
-  unsupported_ar: 'Live AR works in Chrome on Android; use "On photo" instead.',
 
   // ideas / versions (kept)
   generate: 'Sketch ideas',
@@ -736,7 +731,6 @@ const ru: Dict = {
   reasoning_max: 'Максимальное',
   attach_photos: 'Добавить фото',
   take_photo: 'Снять фото',
-  my_projects: 'Ваши проекты',
   empty_projects: 'Пока пусто — проекты появятся здесь после первого запуска.',
   'tmpl.copy': 'Сделай точную копию детали с фото.',
   ago_min: '{n} мин назад',
@@ -784,7 +778,6 @@ const ru: Dict = {
   versions: 'Версии',
   get_it: 'Получить',
   publish: 'Опубликовать рецепт',
-  unpublish: 'Сделать приватным',
   recipe: 'Открыть рецепт',
   fork: 'Сделать копию',
   share: 'Поделиться',
@@ -944,9 +937,7 @@ const ru: Dict = {
   how_to_fix: 'Как исправить',
   ask_fix: 'Попросить агента исправить',
   ask_fix_msg: 'Исправь, пожалуйста: {t}',
-  no_issues: 'Проблем нет',
   layers: 'Слоёв',
-  first_layer: 'Первый слой',
   est: 'оценка',
 
   slice: 'Подготовить печать',
@@ -1060,7 +1051,6 @@ const ru: Dict = {
   'field.edge': 'Ребро',
   'field.tolerance': 'Допуск',
   refining: 'Уточняю…',
-  unsupported_ar: 'Живой AR работает в Chrome на Android; используйте «На фото».',
 
   generate: 'Набросать идеи',
   concepts_hint: 'Эскизы от Muse Image; выберите облик, к которому стремиться.',

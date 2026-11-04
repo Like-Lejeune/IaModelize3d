@@ -19,7 +19,6 @@ from formwright import device, pcb
 from formwright.config import REPO_DIR
 
 FIX = Path(__file__).parent / "fixtures" / "device_shapes"
-RAW.update({p.name.split(".")[0]: json.loads(p.read_text(encoding="utf-8")) for p in FIX.glob("C*.easyeda.json")})
 GRAPHS = {k: v for k, v in json.loads((FIX / "graphs.json").read_text(encoding="utf-8")).items() if not k.startswith("_")}
 XIAO = {"id": "U1", "kind": "module", "module": "113991054"}
 

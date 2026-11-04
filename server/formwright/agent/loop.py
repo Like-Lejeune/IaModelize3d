@@ -17,7 +17,6 @@ from .. import storage
 from ..config import settings
 from ..db import get_db, now
 from ..geom import GeomError
-from ..knowledge.facts import lookup_standard
 from ..llm.english import english, remember as remember_english
 from ..llm.client import BudgetExceeded, meta, service_outage
 from ..memory import store as memory
@@ -886,5 +885,3 @@ def result_card(ctx: JobContext, state: DesignState) -> dict[str, Any]:
     return card
 
 
-def standards_hint(query: str) -> str:
-    return json.dumps(lookup_standard(query), ensure_ascii=False)

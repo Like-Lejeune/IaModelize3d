@@ -2,7 +2,7 @@
 roles from its package's standard pinout, what a part is (kind_hint) and draws (current_ma), heights a case can trust, and
 a search that finds parts by their function. Nothing goes online: JLCPCB answers from recorded responses
 (fixtures/catalog/jlc.json, keyword -> the listing's items) through an httpx MockTransport, EasyEDA from its recorded
-entries (fixtures/catalog/easyeda), and the cache lives in a temporary folder."""
+entries (fixtures/easyeda), and the cache lives in a temporary folder."""
 from __future__ import annotations
 
 import json
@@ -17,11 +17,11 @@ from formwright import catalog
 
 FIX = Path(__file__).parent / "fixtures" / "catalog"
 JLC = json.loads((FIX / "jlc.json").read_text(encoding="utf-8"))
-BME = json.loads((Path(__file__).parent / "fixtures" / "device" / "C92489.easyeda.json").read_text(encoding="utf-8"))
+BME = json.loads((FIX.parent / "easyeda" / "C92489.json").read_text(encoding="utf-8"))
 
 
 def ee(code: str) -> dict | None:
-    p = FIX / "easyeda" / f"{code}.json"
+    p = FIX.parent / "easyeda" / f"{code}.json"
     return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
 
 

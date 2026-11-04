@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
 
@@ -185,8 +185,3 @@ def manual(grams: float, minutes: float, **kw: Any) -> dict[str, Any]:
     return {"source": "operator", "binding": True, **price(grams=grams, minutes=minutes, **kw)}
 
 
-def tariff_dict(t: Tariff = DEFAULT) -> dict[str, Any]:
-    d = asdict(t)
-    d["materials"] = {k: asdict(v) for k, v in t.materials.items()}
-    d["usd_kzt"] = shop_settings().usd_kzt
-    return d

@@ -105,14 +105,6 @@ async def remember_interface(user_id: str, name: str, values: dict[str, Any], so
     return {"id": item_id, "name": name, **body}
 
 
-async def remember_pref(user_id: str, text: str) -> None:
-    db = await get_db()
-    item_id = new_id("m_")
-    await db.insert("memory", {"id": item_id, "kind": "pref", "name": text[:60], "scope": "user", "user_id": user_id,
-                               "body": {"text": text}, "tags": "preference", "status": "active", "created_at": now()})
-    await _index(item_id, text[:60], "preference", text)
-
-
 async def observe_fix(code: str, fix_text: str, pack: str | None, job_id: str) -> None:
     """A check failed and the next edit fixed it. Repeated evidence turns it into a lesson.
     `fix_text` must be English: lessons go into every later prompt."""

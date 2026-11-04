@@ -272,14 +272,6 @@ def pixels_to_plane(cal: PlaneCalibration, px: np.ndarray, height_mm: float = 0.
     return world[:, :2]
 
 
-def project_world(cal: PlaneCalibration, pts_mm: np.ndarray) -> np.ndarray:
-    pts = np.asarray(pts_mm, dtype=float)
-    if pts.shape[1] == 2:
-        pts = np.hstack([pts, np.zeros((len(pts), 1))])
-    proj, _ = cv2.projectPoints(pts, cal.rvec, cal.t, cal.K, None)
-    return proj.reshape(-1, 2)
-
-
 # ------------------------------------------------------------------ scale-only references
 def scale_from_circle(mask: np.ndarray, diameter_mm: float) -> dict[str, Any] | None:
     """Coins: under perspective a circle becomes an ellipse; its major axis keeps the

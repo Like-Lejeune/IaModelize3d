@@ -1,7 +1,7 @@
 """Device documents of a project (fw.device/1, see device.py): one row per saved version in device_docs. The latest row
 is what the node editor shows and what the next build compiles; every PCB version built from one carries a copy as
 device.json. Edits by the person in one sitting update one version (like slider edits of a program), so dragging nodes
-around does not add a version per drop. Orders of finished devices live in device_orders.
+around does not add a version per drop.
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import json
 import weakref
 from typing import Any
 
-from .db import get_db, new_id, now
+from .db import get_db, now
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS device_docs (
@@ -23,22 +23,6 @@ CREATE TABLE IF NOT EXISTS device_docs (
   updated_at REAL NOT NULL,
   PRIMARY KEY (project_id, version)
 );
-CREATE TABLE IF NOT EXISTS device_orders (
-  id TEXT PRIMARY KEY,
-  ref TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  project_id TEXT NOT NULL,
-  pcb_version INTEGER,
-  program_version INTEGER,
-  quantity INTEGER NOT NULL,
-  status TEXT NOT NULL,
-  quote TEXT NOT NULL,
-  contact TEXT NOT NULL DEFAULT '{}',
-  timeline TEXT NOT NULL DEFAULT '[]',
-  created_at REAL NOT NULL,
-  updated_at REAL NOT NULL
-);
-CREATE INDEX IF NOT EXISTS device_orders_user ON device_orders(user_id, created_at);
 """
 EDIT_WINDOW_S = 20 * 60
 
@@ -136,32 +120,3 @@ async def copy_one(src: str, version: int, dst: str) -> None:
 async def versions(project_id: str) -> list[dict[str, Any]]:
     db = await _db()
     return await db.all("SELECT version, author, summary, created_at, updated_at FROM device_docs WHERE project_id = ? ORDER BY version", project_id)
-
-
-# ------------------------------------------------------------------ orders
-async def add_order(*, user_id: str, project_id: str, pcb_version: int | None, program_version: int | None, quantity: int,
-                    quote: dict[str, Any], contact: dict[str, Any], timeline: list[dict[str, Any]]) -> dict[str, Any]:
-    db = await _db()
-    oid = new_id("do")
-    t = now()
-    n = (await db.one("SELECT COUNT(*) AS n FROM device_orders"))["n"]  # type: ignore[index]
-    ref = f"FW-D{1001 + int(n)}"
-    await db.execute(
-        "INSERT INTO device_orders (id, ref, user_id, project_id, pcb_version, program_version, quantity, status, quote, contact, timeline, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        oid, ref, user_id, project_id, pcb_version, program_version, quantity, "placed", _dump(quote), _dump(contact), _dump(timeline), t, t)
-    return await order(oid)  # type: ignore[return-value]
-
-
-async def order(order_id: str) -> dict[str, Any] | None:
-    db = await _db()
-    return _row(await db.one("SELECT * FROM device_orders WHERE id = ?", order_id))
-
-
-async def orders_of(user_id: str, project_id: str | None = None) -> list[dict[str, Any]]:
-    db = await _db()
-    if project_id:
-        rows = await db.all("SELECT * FROM device_orders WHERE user_id = ? AND project_id = ? ORDER BY created_at DESC", user_id, project_id)
-    else:
-        rows = await db.all("SELECT * FROM device_orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 50", user_id)
-    return [_row(r) for r in rows]  # type: ignore[misc]

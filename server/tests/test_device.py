@@ -16,7 +16,7 @@ from formwright.config import REPO_DIR
 from formwright.pcb import PcbPool
 
 FIX = Path(__file__).parent / "fixtures" / "device"
-BME = json.loads((FIX / "C92489.easyeda.json").read_text(encoding="utf-8"))
+BME = json.loads((FIX.parent / "easyeda" / "C92489.json").read_text(encoding="utf-8"))
 DOC = device_prompt.EXAMPLE_DOC
 
 

@@ -4,7 +4,7 @@ connector on the carrier and their body into board.json and the quote, connector
 is asked of ICs only, and pin names saved before the catalogue renamed pins still wire. The 2026-11-03 night light and
 leak sensor graphs, whose bodies were packed onto each other, build clean through the real bundle.
 
-The catalogue is stubbed from the EasyEDA entries in tests/fixtures/device; nothing goes online."""
+The catalogue is stubbed from the EasyEDA entries in tests/fixtures/easyeda; nothing goes online."""
 from __future__ import annotations
 
 import copy
@@ -20,7 +20,7 @@ from formwright.deviceapi import bom_of, pad_count
 from formwright.pcb import PcbPool
 
 FIX = Path(__file__).parent / "fixtures" / "device"
-RAW = {p.name.split(".")[0]: json.loads(p.read_text(encoding="utf-8")) for p in FIX.glob("C*.easyeda.json")}
+RAW = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in (FIX.parent / "easyeda").glob("C*.json")}
 GRAPHS = {k: v for k, v in json.loads((FIX / "regressions.json").read_text(encoding="utf-8")).items() if not k.startswith("_")}
 
 

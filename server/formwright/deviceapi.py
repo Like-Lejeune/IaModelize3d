@@ -9,8 +9,6 @@
   GET  /api/projects/{id}/device/quote?qty=  what the finished devices cost: parts, PCB, assembly, case, delivery
   GET  /api/projects/{id}/device/package?qty=  the whole device for the workshop, one ZIP (device_package)
   POST /api/projects/{id}/device/axo-cart    the whole device as a batch in the Axo shop's cart
-  POST /api/projects/{id}/device/order       order them (device_orders)
-  GET  /api/device-orders/{id}
   GET  /api/projects/{id}/device/firmware/{name}
 
 build_device() is shared with the designer's build_device tool (agent/device_tools.py): the compiler's placer puts the free
@@ -32,7 +30,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
-from . import accessories, catalog, device, device_package, device_store, events, idempotency, pcb_store, pcbapi
+from . import accessories, catalog, device, device_package, device_store, events, pcb_store, pcbapi
 from .db import new_id
 
 log = logging.getLogger(__name__)
@@ -667,54 +665,3 @@ async def device_axo_cart(project_id: str, body: DeviceCart, user=Depends(_user)
 
     project = await _app().load_project(project_id, user, write=True)
     return await axo.add_device_to_cart(project, body.qty, body.replace)
-
-
-class DeviceOrder(BaseModel):
-    qty: int = 5
-    name: str = ""
-    contact: str = ""
-    city: str = ""
-    note: str = ""
-
-
-@router.post("/api/projects/{project_id}/device/order")
-async def device_order(project_id: str, body: DeviceOrder, request: Request, user=Depends(_user)) -> dict[str, Any]:
-    """An Idempotency-Key answers a retry with the first order."""
-    await _app().load_project(project_id, user, write=True)
-
-    async def place() -> dict[str, Any]:
-        q = await quote_for(project_id, body.qty)
-        if not q["drc_ok"]:
-            raise HTTPException(400, "the board still has DRC errors: build a clean version first")
-        if not pcb_store.artifact_path(project_id, q["pcb_version"], "gerbers.zip"):
-            raise HTTPException(409, {"detail": "this board has no fab files yet: build it again", "code": "no_gerbers"})
-        contact = {k: str(getattr(body, k))[:200] for k in ("name", "contact", "city", "note") if getattr(body, k)}
-        order = await device_store.add_order(user_id=user["id"], project_id=project_id, pcb_version=q["pcb_version"],
-                                             program_version=q["program_version"], quantity=q["qty"], quote=q, contact=contact,
-                                             timeline=q["timeline"])
-        await events.emit(project_id, "device.order", {"id": order["id"], "ref": order["ref"]})
-        return order
-
-    return _order_out(await idempotency.once(user["id"], f"device:{project_id}", idempotency.key_of(request), place, device_store.order))
-
-
-def _order_out(o: dict[str, Any]) -> dict[str, Any]:
-    pid, v = o["project_id"], o.get("pcb_version")
-    files = {n: pcb_store.artifact_url(pid, v, n) for n in ("gerbers.zip", "bom.csv", "cpl.csv", "board.glb", "pcb_top.svg")
-             if v and pcb_store.artifact_path(pid, v, n)}
-    return {k: o[k] for k in ("id", "ref", "project_id", "pcb_version", "program_version", "quantity", "status", "quote", "timeline", "created_at")} | {
-        "files": files}
-
-
-@router.get("/api/device-orders/{order_id}")
-async def get_order(order_id: str, user=Depends(_user)) -> dict[str, Any]:
-    o = await device_store.order(order_id)
-    if not o or o["user_id"] != user["id"]:
-        raise HTTPException(404, "no such order")
-    return _order_out(o)
-
-
-@router.get("/api/projects/{project_id}/device/orders")
-async def project_orders(project_id: str, user=Depends(_user)) -> list[dict[str, Any]]:
-    await _app().load_project(project_id, user)
-    return [_order_out(o) for o in await device_store.orders_of(user["id"], project_id)]

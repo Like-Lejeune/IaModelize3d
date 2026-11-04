@@ -27,7 +27,7 @@ from formwright.llm.client import CostMeter
 from formwright.llm.english import is_english
 
 FIX = Path(__file__).parent / "fixtures" / "device"
-BME = json.loads((FIX / "C92489.easyeda.json").read_text(encoding="utf-8"))
+BME = json.loads((FIX.parent / "easyeda" / "C92489.json").read_text(encoding="utf-8"))
 PID = "p_dev"
 REQS = [{"id": "R1", "text": "measure the climate", "parts": ["U2"], "firmware": True},
         {"id": "R2", "text": "status light", "parts": ["LED1"], "firmware": True}]
