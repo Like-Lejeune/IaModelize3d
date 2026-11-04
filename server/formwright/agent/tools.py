@@ -94,6 +94,10 @@ class DesignState:
     # every picture the designer was shown, by its name (agent/pictures.py), and what tools know of those not named yet
     pictures: dict[str, dict[str, Any]] = field(default_factory=dict)
     picture_notes: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # 'print', or 'machined' for a part made in a workshop: then printing rules neither judge it nor stop its finish
+    process: str = "print"
+    # sliders the person moved by hand, {param: {was, now}}: their decision, newer than anything said before (hand_edits)
+    hand_params: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def fn(name: str, description: str, properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -118,6 +122,9 @@ EDIT = fn("edit_program", "Replace snippets of the current program, then build a
            "summary": SUMMARY})
 SET_PARAMS = fn("set_params", "Change parameter values (no code change), then build and check.",
                 {"values": {"type": "object", "description": "{param name: value}; values outside a param's min..max are clamped"}, "summary": SUMMARY})
+SET_PROCESS = fn("set_process", "Say how this part is made, when the person says so or it turns out that way: 'machined' (lathe, mill, welding, a workshop) "
+                 "or 'print'. Machined: the printability checks stop applying, the model stays assembled at its real size.",
+                 {"process": {"type": "string", "enum": ["print", "machined"]}})
 INSPECT = fn("inspect_model", "Measure the current model exactly (several ops per call). section {z}: the cut at height z, its area and pieces | "
              "outline {z?}: the footprint polygons (or the cut at z) | parts: name, role and box of every part | gap {a, b}: the smallest "
              "distance between two named parts | ray {from:[x,y,z], to:[x,y,z]}: where a line enters and leaves the model (wall thickness, "
@@ -228,6 +235,8 @@ def tools_for(pack: str, *, photos: bool, prints: bool, engine: str = "cad") -> 
         return device_tools.TOOLS[:4] + [pcb_tools.MAKE_ENCLOSURE, pcb_tools.EXPORT_FAB] + device_tools.TOOLS[4:] + [pcb_tools.LOOK] + (
             device_inspect.TOOLS if device_inspect else []) + [*pictures.TOOLS, DIMENSIONS, ASK, getattr(device_tools, "FINISH", FINISH)]
     tools = [WRITE, EDIT, SET_PARAMS, INSPECT, LOOK, *pictures.TOOLS, DIMENSIONS, ASK]
+    if pack != "enclosure":  # a case is printed; so is everything of a device or a board
+        tools.append(SET_PROCESS)
     if engine == "mesh":
         tools = [MESH_WRITE, MESH_EDIT] + tools
     if photos:
@@ -429,13 +438,13 @@ async def commit_build(ctx: JobContext, state: DesignState, source: str, params:
     state.build_args = {"params": params, **extra}
     event = {"version": state.version, "source": source, "inputs": inputs, "params": built["params"], "paramSpecs": built["paramSpecs"],
              "handles": built.get("handles", []), "checks": checks, "render": storage.url(rel), "cover": storage.url(cover),
-             "summary": summary, "author": author}
+             "summary": summary, "author": author, "process": state.process}
     if len(json.dumps(inputs)) > 100_000:
         # big heightmaps stay out of the event stream; the client fetches the version instead
         event.pop("source")
         event.pop("inputs")
     await ctx.emit("program.updated", event)
-    if fixed and summary.strip():
+    if fixed and summary.strip() and state.process != "machined":
         # a model call (the translation): in the background, so a Stop or the deadline meanwhile never hides this version
         _background(_learn(ctx, fixed, summary, state.pack))
     stats = checks.get("stats", {})
@@ -451,6 +460,11 @@ async def commit_build(ctx: JobContext, state: DesignState, source: str, params:
         "params": built["params"],
         "parts": [{"name": p["name"], "role": p["role"]} for p in built.get("parts", [])],
     }
+    if state.process == "machined":
+        # the checks are all about a printer: a 1 m shaft was cut in five glued pieces to answer "does not fit the bed"
+        for k in ("est_grams", "printable", "score", "issues"):
+            result.pop(k, None)
+        result = {"process": "machined", **result}  # first: the page reads it from a cut summary
     if is_mesh_doc(source):
         result["ops"] = _ops_brief(json.loads(source))
     images = [rel]
@@ -607,8 +621,108 @@ async def _look(ctx: JobContext, state: DesignState, args: dict[str, Any]) -> tu
     return {"ok": True}, [shot]
 
 
+async def hand_edits(project_id: str) -> dict[str, dict[str, Any]]:
+    """The sliders the person moved since the designer's last version, {param: {was, now}}; {} when the latest version is the
+    designer's own or there is none of theirs to compare with."""
+    db = await get_db()
+    rows = await db.all("SELECT params, author FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 40", project_id)
+    if not rows or rows[0]["author"] != "user":
+        return {}
+    base = next((r for r in rows if r["author"] != "user"), None)
+    if base is None:
+        return {}
+    was = base["params"] or {}
+    return {k: {"was": was.get(k), "now": v} for k, v in (rows[0]["params"] or {}).items() if was.get(k) != v}
+
+
+async def _take_hand_edits(ctx: JobContext, state: DesignState) -> dict[str, dict[str, Any]]:
+    """A slider moved while the designer works makes a version of its own: the next tool goes on from it, not from the
+    designer's stale copy (a keyway set to 11 mm mid-run went back to 6 with the next rewrite)."""
+    if not state.source or state.pack in ("pcb", "device"):
+        return {}
+    db = await get_db()
+    row = await db.one("SELECT version, params, author FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", ctx.project_id)
+    if not row or row["version"] <= state.version or row["author"] != "user":
+        return {}
+    now = row["params"] or {}
+    moved = {k: {"was": state.params.get(k), "now": v} for k, v in now.items() if state.params.get(k) != v}
+    state.params, state.version = now, row["version"]
+    state.build_args = {**state.build_args, "params": now}
+    state.hand_params.update(moved)
+    return moved
+
+
+def _source_value(source: str, name: str) -> Any:
+    """The value a program's params block gives `name`: a number or a word, None when it has no such param."""
+    m = re.search(rf"""\b{re.escape(name)}\s*:\s*\{{[^}}]*?\bvalue\s*:\s*(-?[\d.]+|'[^']*'|"[^"]*"|true|false)""", source)
+    if not m:
+        return None
+    raw = m.group(1)
+    try:
+        return float(raw)
+    except ValueError:
+        return raw.strip("'\"")
+
+
+def _same(a: Any, b: Any) -> bool:
+    try:
+        return float(a) == float(b)
+    except (TypeError, ValueError):
+        return a == b
+
+
+def _hand_values(state: DesignState, source: str) -> dict[str, Any]:
+    """What a rewrite keeps of the person's sliders: a param it writes with the value from before they moved it is a copy, so
+    their value stays; one written with a third value is a decision of this request, and theirs no longer holds."""
+    out: dict[str, Any] = {}
+    for name, h in list(state.hand_params.items()):
+        v = _source_value(source, name)
+        if v is None or _same(v, h.get("now")):
+            continue
+        if _same(v, h.get("was")):
+            out[name] = h["now"]
+        else:
+            del state.hand_params[name]
+    return out
+
+
+async def _set_process(ctx: JobContext, state: DesignState, process: Any) -> dict[str, Any]:
+    if process not in ("print", "machined"):
+        return {"ok": False, "error": "process is 'print' or 'machined'"}
+    state.process = process
+    db = await get_db()
+    fresh = (await db.one("SELECT brief FROM projects WHERE id = ?", ctx.project_id) or {}).get("brief") or {}
+    await db.update("projects", "id", ctx.project_id, {"brief": {**fresh, "process": process}})
+    ctx.project["brief"] = {**(ctx.project.get("brief") or {}), "process": process}
+    await ctx.emit("project.process", {"process": process})
+    return {"ok": True, "process": process}
+
+
+def _unstrung(args: dict[str, Any]) -> dict[str, Any]:
+    """Arguments with the objects and lists some models send as JSON strings parsed (look's zoom crashed on one). Text stays text."""
+    out = dict(args)
+    for k, v in args.items():
+        if k not in ("source", "summary") and isinstance(v, str) and v.lstrip()[:1] in ("{", "["):
+            try:
+                parsed = json.loads(v)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, (dict, list)):
+                out[k] = parsed
+    return out
+
+
 async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """Returns (result for the model, image refs). Image refs are relative file paths or data URLs."""
+    moved = await _take_hand_edits(ctx, state)
+    result, images = await _run_tool(ctx, state, name, _unstrung(args))
+    if moved:
+        result = {**result, "person_moved": {k: h["now"] for k, h in moved.items()},
+                  "person_moved_note": "the person moved these sliders by hand just now: keep these values unless their request says otherwise"}
+    return result, images
+
+
+async def _run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     ctx.check_cancelled()
     if state.pack == "device":
         # what the designer looked at since the board or the case last changed: its self-check waits for a close look
@@ -630,7 +744,7 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
     if name == "write_program":
         if not str(args.get("source") or "").strip():
             return {"ok": False, "error": "source is empty: pass the complete program"}, []
-        return await _checked(ctx, state, await commit_build(ctx, state, args["source"], {}, args.get("summary", "")))
+        return await _checked(ctx, state, await commit_build(ctx, state, args["source"], _hand_values(state, args["source"]), args.get("summary", "")))
     if name == "edit_program":
         if not state.source:
             return {"ok": False, "error": "no program yet; use write_program"}, []
@@ -653,7 +767,16 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
                 values = None
         if not isinstance(values, dict):
             return {"ok": False, "error": "values must be an object: {param name: value}"}, []
-        return await _checked(ctx, state, await commit_build(ctx, state, state.source, {**state.params, **values}, args.get("summary", "params")))
+        # a reviewer once read a tube the person had set to 60 as "not the 80 they confirmed", twice: the model hears whose value it overrides
+        over = {k: h["now"] for k, h in state.hand_params.items() if k in values and not _same(values[k], h["now"])}
+        for k in over:
+            del state.hand_params[k]
+        result, images = await _checked(ctx, state, await commit_build(ctx, state, state.source, {**state.params, **values}, args.get("summary", "params")))
+        if over:
+            result = {**result, "note": f"{', '.join(f'{k} was {v}' for k, v in over.items())}, set by hand by the person: change it only if their request asks for that, otherwise set it back"}
+        return result, images
+    if name == "set_process":
+        return await _set_process(ctx, state, args.get("process")), []
     if name == "inspect_model":
         if not state.source:
             return {"ok": False, "error": "no program yet"}, []
@@ -902,7 +1025,7 @@ async def _finish(ctx: JobContext, state: DesignState, summary: str, checked: An
 
     state.finish_attempts += 1
     out: dict[str, Any] = {"accepted": True}
-    if state.source and state.last_build:
+    if state.source and state.last_build and state.process != "machined":
         errors = [i for i in (state.last_build.get("checks") or {}).get("issues", []) if i["severity"] == "error"]
         if errors and state.finish_attempts <= 3:
             return {"accepted": False, "reason": "printability errors remain", "issues": _checks_brief({"issues": errors})}

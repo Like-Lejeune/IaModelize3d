@@ -74,8 +74,9 @@ WRITE_DEVICE = _fn(
     {"doc": {"type": "object", "description": "the whole document {schema:'fw.device/1', title, summary, board, concept, requirements, nodes, "
                                               "nets, layouts}"},
      "edits": {"type": "array", "description": "instead of doc, in order: {op:'add', node:{...}} | {op:'remove', id} | {op:'set', id, "
-                                               "fields:{...}} (place, face too) | {op:'connect', pins:[...], name?} | {op:'disconnect', "
-                                               "pins:[...]} | {op:'amps', net or pins, amps} | {op:'zones', zones:[...]} | {op:'requirements', requirements:[...]} | {op:'layouts', layouts:[...]} | "
+                                               "fields:{...}} (place, face too) | {op:'connect', pins:[...], name?} (joins the pins; refused when that would join two nets) | "
+                                               "{op:'move', pin, to} (the pin leaves its net for the net of the pin `to`) | {op:'disconnect', pins:[...]} (each "
+                                               "pin leaves whatever net it is on: name only the pins to free, not the other end) | {op:'amps', net or pins, amps} | {op:'zones', zones:[...]} | {op:'requirements', requirements:[...]} | {op:'layouts', layouts:[...]} | "
                                                "{op:'concept', concept:{...}} | {op:'compact'} (the smaller arrangement a board_too_large "
                                                "warning names: applied, the concept's board with it)",
                "items": {"type": "object"}},
@@ -260,6 +261,15 @@ def apply_edits(doc: dict[str, Any], edits: list[Any]) -> tuple[dict[str, Any], 
                 errors.append(f"edit {i}: no node {e['id']}")
             else:
                 node.update({k: v for k, v in e["fields"].items() if k not in ("id",)})
+        elif op == "move" and e.get("pin") and e.get("to"):
+            pin, to = str(e["pin"]), str(e["to"])
+            target = next((net for net in doc["nets"] if to in net["pins"]), None)
+            if target is None:
+                errors.append(f"edit {i}: {to} is on no net: connect it first")
+                continue
+            for net in doc["nets"]:
+                net["pins"] = [p for p in net["pins"] if p != pin]
+            target["pins"].append(pin)
         elif op == "connect" and isinstance(e.get("pins"), list):
             pins = [str(p) for p in e["pins"]]
             if e.get("name"):
@@ -268,6 +278,13 @@ def apply_edits(doc: dict[str, Any], edits: list[Any]) -> tuple[dict[str, Any], 
                 for net in doc["nets"]:
                     if net.get("name") != name:
                         net["pins"] = [p for p in net["pins"] if p not in pins]
+            else:
+                # nets sharing a pin merge: moving a flyback diode this way joined the buzzer's switch to GND
+                hit = [net for net in doc["nets"] if set(pins) & set(net["pins"])]
+                if len(hit) > 1:
+                    errors.append(f"edit {i}: {', '.join(pins)} are on {len(hit)} different nets and connect would join them all into one. To move one pin "
+                                  "use {op:'move', pin, to}; to free a pin use {op:'disconnect', pins:[pin]}. Nothing was connected")
+                    continue
             doc["nets"].append({"pins": pins, **({"name": str(e["name"])} if e.get("name") else {}), **({"amps": e["amps"]} if e.get("amps") else {})})
         elif op == "amps" and (e.get("net") or e.get("pins")):
             # the current of a net that is there: by its name or any pin on it
@@ -402,6 +419,11 @@ async def _write(ctx: Any, state: Any, args: dict[str, Any]) -> dict[str, Any]:
     await events.emit(ctx.project_id, "device.version", {"version": version, "author": "agent"}, ctx.job_id)
     state.device = {"version": version, "built": False}
     out: dict[str, Any] = {"ok": not issues and not design_errors, "version": version, "nodes": len(norm["nodes"]), "nets": len(norm["nets"])}
+    placed = {n.get("id") for n in doc.get("nodes") or [] if isinstance(n, dict) and n.get("place")}
+    unplaced = sorted(n["id"] for n in norm["nodes"] if n["id"] in placed and n.get("kind") == "accessory" and not n.get("place") and not n.get("edge"))
+    if unplaced:
+        out["place_ignored"] = (f"{', '.join(unplaced)}: a cell on the module's BAT pads is loose in the case, so `place` means nothing for it. The case puts it under the "
+                                "board or beside it; nothing on the board collides with it and the board needs no room for it")
     if errors:
         out["edit_errors"] = errors
     if issues:
@@ -621,7 +643,7 @@ async def finish_note(ctx: Any, state: Any, summary: str) -> str:
     doc, _ = await current(ctx.project_id)
     fw = (doc or {}).get("firmware") or {}
     if not fw.get("files"):
-        return summary
+        return summary.rstrip() + kept_note(state, summary)
     norm, _ = device.normalize(doc)
     keep_requirements(norm, doc)
     note = sim_note(await sim_now(state, norm, fw), summary)
@@ -629,14 +651,26 @@ async def finish_note(ctx: Any, state: Any, summary: str) -> str:
     if changed:
         note += (f" Сценарии проверки {', '.join(changed)} менялись после провала." if re.search(r"[А-Яа-яЁё]", summary or "")
                  else f" The tests of {', '.join(changed)} were changed after they failed.")
-    return f"{summary.rstrip()}\n\n{note}"
+    return f"{summary.rstrip()}\n\n{note}{kept_note(state, summary)}"
+
+
+def kept_note(state: Any, summary: str) -> str:
+    """The warnings of the checks still open when the device shipped: the person hears them from the run, not from the designer's mood."""
+    kept = (state.self_check if isinstance(getattr(state, "self_check", None), dict) else {}).get("kept_warnings") or []
+    if not kept:
+        return ""
+    return (f" Замечания проверок, оставленные как есть: {', '.join(kept[:6])}." if re.search(r"[А-Яа-яЁё]", summary or "")
+            else f" Warnings of the checks left as they are: {', '.join(kept[:6])}.")
 
 
 def sim_note(sim: dict[str, Any] | None, summary: str) -> str:
     """What the run really covered and measured, in the summary's language: the part of the message no model wrote."""
     ru = bool(re.search(r"[А-Яа-яЁё]", summary or ""))
     if not sim or not sim.get("ran"):
+        # a compiler's output is for the designer: a keypad's message ended in "unknown type name 'USBHIDKeyboard' ... 1 error generated"
         why = (sim or {}).get("why") or ""
+        if why.startswith(("build failed", "the simulator failed")):
+            why = "симулятор не смог её собрать" if ru else "the simulator could not build it"
         return ("Прошивка не запускалась в симуляции" if ru else "The firmware was not simulated") + (f" ({why})." if why else ".")
     cov, power = sim.get("coverage") or {}, sim.get("power") or {}
     hours = float(cov.get("simulated_s") or 0) / 3600.0
@@ -789,6 +823,17 @@ def requirement_problems(doc: dict[str, Any]) -> list[str]:
                        "requirement at the part that does it; a requested function is never dropped")
         elif not r["parts"] and not r.get("firmware"):
             out.append(f"requirement {r['id']} ({r['text'][:80]}) names no part: say which parts do it")
+    # a 2.4 GHz meter shipped with its RF input wired to nothing: the part a requirement relies on has to reach the circuit
+    wired = {p for net in doc.get("nets") or [] for p in net.get("pins") or []}
+    by_id = {n.get("id"): n for n in doc.get("nodes") or []}
+    for r in reqs:
+        for pid in r["parts"]:
+            n = by_id.get(pid)
+            if n and n.get("kind") == "header":
+                dead = device.open_pins(n, wired)
+                if dead:
+                    out.append(f"requirement {r['id']} ({r['text'][:80]}) relies on {pid}, and {', '.join(f'{pid}.{p}' for p in dead)} is wired to nothing: connect it, "
+                               "or take the pin off the header if nothing goes there")
     return out
 
 
@@ -896,6 +941,12 @@ async def simulation_problems(state: Any, doc: dict[str, Any], fw: dict[str, Any
         mine["tests_asked"] = True
         out.append(f"{', '.join(untested)} have firmware work and no test. Add `test` to each with write_device edits [{{op:'requirements', requirements:[...]}}] (the whole "
                    "list, texts unchanged): the steps a person takes and what must follow, for what only a sequence shows. The next finish plays them.")
+    why = str((sim or {}).get("why") or "")
+    if sim and not sim.get("ran") and why.startswith("build failed") and not mine.get("build_asked"):
+        # firmware nobody ran, passed on as "library unchecked": a keypad's keys never fired, its debounce timer reset on every loop
+        mine["build_asked"] = True
+        out.append(f"the simulator could not build this firmware, so none of it was run: {why[:300]}. Write it with a library the check knows if one does the job. "
+                   "If none does, finish again and say in the summary that it was not run.")
     return out
 
 
@@ -924,10 +975,14 @@ def weakened_tests(state: Any, doc: dict[str, Any]) -> list[str]:
 
     pins = (state.self_check if isinstance(getattr(state, "self_check", None), dict) else {}).get("test_pins") or {}
     nodes = {n.get("id") for n in doc.get("nodes") or []}
+    # a test of a screen the device never had is a wrong test, not a weakened one: told to "put that back", a connector board got an OLED it did not need
+    screens = any((device.acc.ACCESSORIES.get(str(n.get("accessory"))) or {}).get("kind") == "display" or re.search(r"oled|lcd|display|screen|экран|диспле", str(n.get("label") or ""), re.I)
+                  for n in doc.get("nodes") or [])
     out = []
     for r in requirements_of(doc):
         now = firmware_sim.test_targets(r.get("test"))
-        lost = [t for t in pins.get(r["id"]) or [] if t not in now and (not t.endswith((" on", " off")) or t.rsplit(" ", 1)[0] in nodes)]
+        lost = [t for t in pins.get(r["id"]) or [] if t not in now and (not t.endswith((" on", " off")) or t.rsplit(" ", 1)[0] in nodes)
+                and (screens or "screen" not in t)]
         if lost:
             out.append(f"the test of {r['id']} no longer checks {', '.join(lost)}, as it did when it was first played. A test may move in time but keeps what it checks: "
                        "put that back and fix the device so it passes")
@@ -1104,6 +1159,19 @@ async def _claim_problem(state: Any, doc: dict[str, Any], norm: dict[str, Any]) 
                        f"({sim['power'].get('idle_avg_ma')} mA on average). Use that number, or fix what draws the current, and finish again."]}
 
 
+OPEN_WARNINGS_HOW = ("The checks still warn about these. Fix each one (it then disappears), or add an entry to `checked` naming it and why it is right for this "
+                     "device: {item: '<code> <ref>', verdict: 'ok', where: 'why'}. What stays is told to the person with the summary.")
+UNJUDGED = ("unused_requirement", "board_too_large")  # the first is a part of requirement_problems, the other has its own round at finish
+
+
+async def open_warnings(norm: dict[str, Any], parts: dict[str, dict[str, Any]]) -> list[dict[str, str]]:
+    """The warnings of the design rules and the lint that the current device still has: {key: 'code ref', line}."""
+    rules = await design_checks(norm, parts)
+    seen = {(r.get("code"), r.get("ref")) for r in rules}
+    found = [r for r in rules if r.get("severity") != "error"] + [w for w in device.lint(norm, parts) if (w.get("code"), w.get("ref")) not in seen]
+    return [{"key": f"{w.get('code')} {w.get('ref') or ''}".strip(), "line": _line(w)} for w in found if w.get("code") not in UNJUDGED]
+
+
 async def self_check(ctx: Any, state: Any, checked: Any) -> dict[str, Any] | None:
     """The designer's own check against device_checklists, in place of the device reviewer: once the gate passes, a finish
     without `checked` gets the checklist of the kinds in its graph (plus the case and device-level items) and is not
@@ -1134,9 +1202,14 @@ async def self_check(ctx: Any, state: Any, checked: Any) -> dict[str, Any] | Non
     left = getattr(state, "turns_left", None)
     # in ~20 runs the designer never looked at what it built: the self-check counts once it has, at the latest board and case
     unseen = [t for t in LOOKS if t not in (mine.get("looked") or [])]
-    faces = [n["id"] for n in norm["nodes"] if n.get("kind") in ("led", "button", "accessory") or n.get("place") or n.get("face")
-             or str((parts.get(n["id"]) or {}).get("kind_hint") or "") in ("sensor", "display", "led", "rgb_led", "buzzer_active", "buzzer_passive", "buzzer")]
-    if checked and not missing and not bad:
+    faces = [n["id"] for n in norm["nodes"] if (n.get("kind") in ("led", "button", "accessory") or n.get("place") or n.get("face")
+             or str((parts.get(n["id"]) or {}).get("kind_hint") or "") in ("sensor", "display", "led", "rgb_led", "buzzer_active", "buzzer_passive", "buzzer"))
+             and not (n.get("kind") == "accessory" and (device.acc.ACCESSORIES.get(n.get("accessory")) or {}).get("mount") == "inside")]
+    # warnings were "yours to judge", and nobody judged: a diode across the rail "that never conducts" shipped described as a flyback diode
+    warnings = await open_warnings(norm, parts)
+    unanswered = [w for w in warnings if w["key"] not in json.dumps(checked or [], ensure_ascii=False)]
+    mine["kept_warnings"] = [w["key"] for w in warnings]
+    if checked and not missing and not bad and not unanswered:
         if unseen and (left is None or left >= 3) and not mine.get("look_asked") and _can_look():
             mine["look_asked"] = True
             state.finish_attempts -= 1
@@ -1156,8 +1229,11 @@ async def self_check(ctx: Any, state: Any, checked: Any) -> dict[str, Any] | Non
     text = dc.for_kinds(kinds)
     if len(text) > SELF_CHECK_FULL:
         text = dc.for_kinds(kinds, only_yours=True)
-    out: dict[str, Any] = {"accepted": False, "reason": "the self-check leaves part kinds out" if checked else "self-check against the checklist",
+    out: dict[str, Any] = {"accepted": False, "reason": "the self-check leaves part kinds out" if checked and missing else
+                           "warnings of the checks are not answered" if checked and unanswered else "self-check against the checklist",
                            "self_check": {"kinds": kinds, "checklist": text, "how": SELF_CHECK_HOW}}
+    if unanswered:
+        out["open_warnings"] = {"warnings": [w["line"] for w in unanswered][:12], "how": OPEN_WARNINGS_HOW}
     if checked:
         out["missing"] = missing
         if bad:

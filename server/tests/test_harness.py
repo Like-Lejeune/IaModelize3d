@@ -24,7 +24,7 @@ def test_tools_fit_the_job():
     copy = names(tools_for("copy", photos=True, prints=True))
     assert {"measure", "fit_to_photo", "compare_print"} <= set(copy)
     assert "load_terrain" in names(tools_for("terrain", photos=False, prints=False))
-    assert len(text) <= 12 and len(copy) <= 15
+    assert len(text) <= 13 and len(copy) <= 16
 
 
 def test_silhouette_agreement_is_scale_free():

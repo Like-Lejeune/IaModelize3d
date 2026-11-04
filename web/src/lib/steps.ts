@@ -83,6 +83,7 @@ export function parseSummary(summary?: string): Record<string, any> | null {
     const fit = caseFit(summary);
     if (fit) out.case_fit = fit;
     if (/"printable":\s*false/.test(summary)) out.printable = false;
+    if (/"process":\s*"machined"/.test(summary)) out.process = 'machined';
     if (/"accepted":\s*true/.test(summary)) out.accepted = true;
     if (/"accepted":\s*false/.test(summary)) out.accepted = false;
     const err = /"error":\s*"([^"]*)/.exec(summary);
@@ -202,6 +203,7 @@ function ruResult(name: string, a: any, r: Record<string, any>): string {
     case 'mesh_edit':
     case 'set_params':
     case 'fit_to_photo': {
+      if (r.process === 'machined') return `Версия ${r.version ?? ''} — ${size(r.size_mm)}`;
       const state = r.printable === false ? 'есть ошибки печати' : 'печатается';
       const like = likeness(r);
       return `Версия ${r.version ?? ''} — ${size(r.size_mm)}${size(r.size_mm) ? ', ' : ''}${state}${like}${caseSuffix(buildCase(r), true)}`;
@@ -278,6 +280,7 @@ function enResult(name: string, r: Record<string, any>): string {
     case 'mesh_edit':
     case 'set_params':
     case 'fit_to_photo': {
+      if (r.process === 'machined') return `Version ${r.version ?? ''} — ${sz(r.size_mm)}`;
       const like = likePct(r) !== undefined ? `, silhouette match ${likePct(r)}%` : '';
       return `Version ${r.version ?? ''} — ${sz(r.size_mm)}${sz(r.size_mm) ? ', ' : ''}${r.printable === false ? 'problems to fix' : 'printable'}${like}${caseSuffix(buildCase(r), false)}`;
     }

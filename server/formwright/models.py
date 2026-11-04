@@ -70,6 +70,7 @@ class ProjectDetail(ProjectOut):
     job: dict[str, Any] | None = None
     printer: str | None = None  # brief.printer: the printer the agent checks this project for (a probe sets it)
     material: str | None = None  # brief.material: what it is meant to print in (a ready example's: PETG for the dishwasher wheel)
+    process: str | None = None  # brief.process: 'machined' for a part made in a workshop, which the page shows without its printing panels
     # whether this browser may change the project (send messages, save edits): the rule the write routes' 403 follows;
     # a visitor's studio opens read-only with a Remix offer
     can_edit: bool = False

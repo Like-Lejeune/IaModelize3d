@@ -14,6 +14,7 @@ import httpx
 import numpy as np
 from PIL import Image
 
+from ..config import settings
 from ..llm.client import CostMeter, meta
 
 TILE_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
@@ -34,7 +35,7 @@ def _tile_xy(lat: float, lon: float, z: int) -> tuple[float, float]:
 
 async def geocode(meter: CostMeter, place: str, model: str | None = None) -> dict[str, Any]:
     found = await meta().search(meter, f"Latitude and longitude (decimal degrees) of: {place}", model=model)
-    return await meta().json(meter, model=model or "muse-spark-1.3", system="Extract the coordinates of the place.",
+    return await meta().json(meter, model=model or settings().model_fast, system="Extract the coordinates of the place.",
                              content=[{"type": "input_text", "text": f"Place: {place}\n{found['text']}"}], schema=GEO_SCHEMA, name="geo", effort="minimal")
 
 

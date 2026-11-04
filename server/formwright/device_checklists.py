@@ -205,6 +205,8 @@ SECTIONS: dict[str, tuple[str, list[tuple[str, str]]]] = {
         ("A missing sensor or Wi-Fi never stops the device (timeouts, fallbacks); no long delay() under buttons or a web page",
          "blocking_delay (web only)"),
         ("Every summary claim is true (parts, LCSC numbers, pins, sizes, price, computed battery hours), nothing the code lacks", ""),
+        ("Everything the request names is in the device, in its own terms (a wireless dongle, a frequency sweep, a kind of connector); what was left out or "
+         "replaced was asked about, or is said first in the summary in plain words", ""),
         ("Each of the concept's uses is served: where it lives, how it is seen, heard and touched there, how it is powered", ""),
         ("What was built is the chosen concept: board shape and size, the module's edge, the panel as placed, the case's form, "
          "stance and mounting", "concept warnings of the build and the case; the panel is yours"),

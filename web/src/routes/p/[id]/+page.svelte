@@ -146,7 +146,9 @@
 
   // the PCB tab: a board project, or one that has a routed board (or is routing one now)
   const pcbTab = $derived(!!store && (store.detail?.pack === 'pcb' || store.pcb.versions.length > 0 || !!store.pcb.live));
-  const tabs = $derived<Tab[]>([...(wide ? [] : ['chat' as Tab]), 'model', ...(pcbTab ? ['pcb' as Tab] : []), 'checks', 'print', 'more']);
+  // a part for a workshop: every check and setting of those tabs is about a printer
+  const machined = $derived(store?.detail?.process === 'machined');
+  const tabs = $derived<Tab[]>([...(wide ? [] : ['chat' as Tab]), 'model', ...(pcbTab ? ['pcb' as Tab] : []), ...(machined ? [] : ['checks' as Tab, 'print' as Tab]), 'more']);
   const encErrors = $derived(store?.enclosure?.check.findings?.filter((f) => f.severity === 'error').length ?? 0);
   const errCount = $derived(store?.checks?.issues.filter((i) => i.severity === 'error').length ?? 0);
   const warnCount = $derived(store?.checks?.issues.filter((i) => i.severity === 'warn').length ?? 0);
@@ -161,7 +163,7 @@
     return [
       `v${store?.version}`,
       size ? `${plate ? `${t('size_plate')} ` : ''}${size.map((v) => +v.toFixed(1)).join(' × ')} ${unitLabel('mm')}` : '',
-      grams ? `${Math.round(grams)} ${dt('g')}` : '',
+      grams && !machined ? `${Math.round(grams)} ${dt('g')}` : '',
     ].filter(Boolean).join(' · ');
   });
   const job = $derived(store?.currentJob ?? null);
@@ -397,7 +399,7 @@
       <span class="busy"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {t('building_model')}</span>
     {:else if store.checking}
       <span class="busy"><i class="ti ti-loader-2 spin" aria-hidden="true"></i> {t('refining')}</span>
-    {:else if store.checks}
+    {:else if store.checks && !machined}
       <button class="hb verdict {errCount ? 'err' : warnCount ? 'warn' : 'ok'}" onclick={() => open('checks')} title={errCount ? t('checks_err') : warnCount ? t('checks_warn') : t('checks_ok')}>
         <Icon name={errCount ? 'alert' : 'check'} size={13} />
         {errCount ? t('checks_err') : warnCount ? t('checks_warn') : t('checks_ok')}
@@ -405,7 +407,7 @@
     {/if}
     <span class="spacer"></span>
     <button class="hb" onclick={download3mf} disabled={!store.source}><i class="ti ti-download" aria-hidden="true"></i> 3MF</button>
-    {#if !store.readonly}
+    {#if !store.readonly && !machined}
       <button class="hb primary" onclick={() => (getIt = true)} disabled={!store.source} title={t('order')} aria-label={t('order')}><i class="ti ti-package" aria-hidden="true"></i>{#if wide} {t('order')}{/if}</button>
     {/if}
   {/if}
@@ -494,6 +496,7 @@
             bind:this={viewer}
             loading={!!store.source && !store.build && !progress}
             build={store.build}
+            {machined}
             issues={shownIssues}
             highlight={selectedIssue}
             values={store.values}

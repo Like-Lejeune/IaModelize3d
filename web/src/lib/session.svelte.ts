@@ -20,7 +20,6 @@ export const REASONING: Reasoning[] = ['minimal', 'low', 'medium', 'high', 'xhig
 // Shown until /api/me answers; the server sends the real ids from its config (Spark Open only when it is configured).
 const FALLBACK_MODELS: ModelOption[] = [
   { key: 'contributor', id: 'muse-spark-1.3-contributor', available: true },
-  { key: 'spark', id: 'muse-spark-1.3', available: true },
   { key: 'wonder', id: 'muse-wonder-1.0', available: true },
   { key: 'spark_open', id: 'meta-models/muse-spark-open-1026', available: true },
 ];

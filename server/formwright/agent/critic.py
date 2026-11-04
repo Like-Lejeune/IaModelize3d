@@ -179,8 +179,9 @@ async def review(ctx: JobContext, state: Any, *, bar: float | None = None) -> di
     configured reviewer ('primary'), the fast model standing in ('fallback') or nobody ('unavailable', no verdict).
     bar: the match_score a pass needs (look tasks), stated to the reviewer so verdict and score agree."""
     db = await get_db()
-    msgs = list(reversed(await db.all("SELECT text, data FROM messages WHERE project_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 3",
-                                      ctx.project_id)))
+    said = await db.all("SELECT text, data FROM messages WHERE project_id = ? AND role = 'user' ORDER BY created_at", ctx.project_id)
+    # the first message is the specification; from the fourth on the review had lost it, and with it the sizes it judges
+    msgs = said if len(said) <= 4 else [said[0], *said[-3:]]
     photos = await db.all("SELECT * FROM assets WHERE project_id = ? AND kind IN ('photo','sketch','concept') ORDER BY created_at DESC LIMIT 3", ctx.project_id)
     stats = (state.last_build or {}).get("checks", {}).get("stats", {})
     params = {k: v for k, v in (state.params or {}).items()}
@@ -201,11 +202,17 @@ async def review(ctx: JobContext, state: Any, *, bar: float | None = None) -> di
     ]
     checks = (state.last_build or {}).get("checks", {})
     groups = checks.get("groups") or []
-    lines.append(
-        f"Measured printability: ok={checks.get('ok', True)}, first-layer contact {stats.get('firstLayerArea', 0):.0f} mm² "
-        f"(the base sits flat on the bed at z=0), bodies={stats.get('bodies', 1)}, "
-        f"issues: {', '.join(g['code'] + ' x' + str(g['count']) for g in groups) or 'none'}"
-    )
+    if getattr(state, "process", "print") == "machined":
+        lines.append("Made by machining (lathe, mill, welding), not printed: printability does not apply.")
+    else:
+        lines.append(
+            f"Measured printability: ok={checks.get('ok', True)}, first-layer contact {stats.get('firstLayerArea', 0):.0f} mm² "
+            f"(the base sits flat on the bed at z=0), bodies={stats.get('bodies', 1)}, "
+            f"issues: {', '.join(g['code'] + ' x' + str(g['count']) for g in groups) or 'none'}"
+        )
+    hand = {k: h["now"] for k, h in (getattr(state, "hand_params", None) or {}).items() if params.get(k) == h["now"]}
+    if hand:
+        lines.append("Sliders the person moved by hand, newer than the answers above, so these values are what they want: " + json.dumps(hand, ensure_ascii=False))
     if state.facts:
         lines.append("Facts used: " + json.dumps(state.facts[:12], ensure_ascii=False)[:1500])
     refs = {((p.get("meta") or {}).get("calibration") or {}).get("reference") for p in photos} - {None}

@@ -178,6 +178,7 @@ const en: Dict = {
   // result card
   result_title: 'Ready to print',
   result_not_ok: 'Model ready — check the warnings',
+  result_machined: 'Model for the workshop',
   size: 'Size',
   weight: 'Weight',
   time: 'Print time',
@@ -886,6 +887,7 @@ const ru: Dict = {
 
   result_title: 'Готово к печати',
   result_not_ok: 'Модель готова — посмотрите предупреждения',
+  result_machined: 'Модель для мастерской',
   size: 'Размер',
   weight: 'Вес',
   time: 'Время печати',

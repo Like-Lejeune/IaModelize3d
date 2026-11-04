@@ -45,9 +45,9 @@ class Settings(BaseSettings):
     web_dev_port: int = 0
 
     # model routing
-    model_designer: str = "muse-spark-1.3"
+    model_designer: str = "muse-spark-1.3-contributor"
     model_designer_hard: str = "muse-wonder-1.0"
-    model_fast: str = "muse-spark-1.3"
+    model_fast: str = "muse-spark-1.3-contributor"
     model_free: str = "muse-spark-1.3-contributor"
     model_audio: str = "muse-spark-1.2"
     model_sam: str = "sam-3.1"

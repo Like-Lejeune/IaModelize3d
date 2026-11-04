@@ -33,6 +33,7 @@
     boardGlb = null,
     checking = false,
     annotations = true,
+    machined = false,
   }: {
     build?: BuildResult | null;
     issues?: Issue[];
@@ -67,6 +68,8 @@
     checking?: boolean;
     /** The plug rays and their labels over the model (false: the model alone; the checks stay in the side panel). */
     annotations?: boolean;
+    /** A part for a workshop: overhangs mean nothing on it. */
+    machined?: boolean;
   } = $props();
 
   let host: HTMLDivElement;
@@ -1084,7 +1087,7 @@
   });
 
   $effect(() => {
-    heatOn.value = showHeat ? 1 : 0;
+    heatOn.value = showHeat && !machined ? 1 : 0;
   });
 
   $effect(() => {
@@ -1222,7 +1225,7 @@
     {#if build?.display?.reference?.length && !photoMode}
       <button class="btn small" class:on={xray} onclick={() => (xray = !xray)} aria-pressed={xray} title={t('xray')}><Icon name="eye" size={14} /> <span class="tl">{t('xray')}</span></button>
     {/if}
-    <button class="btn small" class:on={showHeat} onclick={() => (showHeat = !showHeat)} aria-pressed={showHeat} title={t('heat')}><Icon name="flame" size={14} /> <span class="tl">{t('heat')}</span></button>
+    {#if !machined}<button class="btn small" class:on={showHeat} onclick={() => (showHeat = !showHeat)} aria-pressed={showHeat} title={t('heat')}><Icon name="flame" size={14} /> <span class="tl">{t('heat')}</span></button>{/if}
     {#if build?.display?.ghost?.length}
       <button class="btn small" class:on={showModifiers} onclick={() => (showModifiers = !showModifiers)} aria-pressed={showModifiers} title={t('modifiers')}><Icon name="layers" size={14} /> <span class="tl">{t('modifiers')}</span></button>
     {/if}

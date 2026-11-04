@@ -183,9 +183,13 @@ HANDOVER = {
 }
 
 
-def handover(reason: str, version: int, printable: bool, reviewed: bool, language: str | None) -> str:
-    """'Stopped at the spending cap. Version 7 is the latest: printable, not reviewed. ...' in the person's language."""
+def handover(reason: str, version: int, printable: bool, reviewed: bool, language: str | None, machined: bool = False) -> str:
+    """'Stopped at the spending cap. Version 7 is the latest: printable, not reviewed. ...' in the person's language; a part
+    for a workshop has nothing to say about printing."""
     en, ru = HANDOVER.get(reason, HANDOVER["turns"])
+    if machined:
+        return (f"{ru} Последняя версия — {version}, {'проверена' if reviewed else 'не проверена'}. Напишите сообщение, чтобы продолжить." if _ru(language) else
+                f"{en} Version {version} is the latest, {'reviewed' if reviewed else 'not reviewed'}. Send a message to keep improving it.")
     if _ru(language):
         return (f"{ru} Последняя версия — {version}: {'печатается' if printable else 'есть проблемы печатаемости'}, "
                 f"{'проверена' if reviewed else 'не проверена'}. Напишите сообщение, чтобы продолжить.")
@@ -663,6 +667,8 @@ def result_title(name: str, args: dict[str, Any], r: dict[str, Any]) -> str:
         issues = r.get("issues") or []
         errors = sum(1 for i in issues if i.get("severity") == "error")
         warns = sum(1 for i in issues if i.get("severity") == "warn")
+        if r.get("process") == "machined":
+            return f"Version {r.get('version')} — {_size(r.get('size_mm'))}"
         state = "printable" if r.get("printable", True) and not errors else f"problems to fix: {errors}"
         extra = f", notes: {warns}" if warns else ""
         fit = r.get("fit")

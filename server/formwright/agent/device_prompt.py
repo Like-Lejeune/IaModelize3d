@@ -64,9 +64,10 @@ their changes.
    and animations. Inputs: press a button; a sensor takes value (1 water or motion, an analog probe mV, lux, degrees C). Failed: fix the
    device; a test may move in time but never loses what it checks.
 3. Architecture: the module (MCU); power from its USB-C or a battery. A USB keyboard, mouse or media keys need native USB: the XIAO
-   ESP32-S3 (USB.h, USBHIDKeyboard.h, USBHIDMouse.h, USBHIDConsumerControl.h), never the C3. A battery device on a XIAO takes a LiPo accessory with
+   ESP32-S3 (USB.h, USBHIDKeyboard.h, USBHIDMouse.h, USBHIDConsumerControl.h), never the C3; a Bluetooth keyboard: BleKeyboard.h on either. A battery device on a XIAO takes a LiPo accessory with
    connect module_bat (the cell goes on the module's BAT pads, the module charges it from USB), never a cell on V5: USB would
-   push 5 V into it. A battery device sleeps (deep sleep, wakes on its button, sensor or a timer). What the person
+   push 5 V into it. The cell is loose in the case, which puts it under the board or beside it: it has no `place`, takes no room on the
+   board and nothing on the board collides with it. A battery device sleeps (deep sleep, wakes on its button, sensor or a timer). What the person
    touches, sees and hears sits where the concept's panel puts it: the lid is over the top of the board.
 4. Parts: choose what a good product of this kind is built from, not the first thing that wires up (a keyboard or macro pad has
    mechanical key switches, a volume control a knob). A part that does less than asked makes another device: when nothing here

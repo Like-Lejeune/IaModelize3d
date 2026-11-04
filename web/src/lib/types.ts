@@ -116,6 +116,8 @@ export interface ResultCard {
   version?: number;
   title?: string;
   size_mm?: number[];
+  /** 'machined': a part for a workshop, nothing about it is printed. */
+  process?: string;
   est_grams?: number;
   est_minutes?: number;
   params_with_sources?: { name: string; label?: string; value: any; unit?: string | null; source?: string }[];
@@ -146,6 +148,8 @@ export interface ProjectDetail extends ProjectOut {
   can_edit?: boolean;
   /** What it is meant to print in (its brief.material, e.g. a ready example's PETG), when the brief says. */
   material?: string | null;
+  /** How it is made (its brief.process): 'machined' for a workshop part, which has no printing panels. */
+  process?: string | null;
 }
 
 export interface Usage {

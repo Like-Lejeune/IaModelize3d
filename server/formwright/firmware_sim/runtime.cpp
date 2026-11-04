@@ -1617,6 +1617,16 @@ IPAddress WiFiClass::softAPIP() { return IPAddress(); }
 String WiFiClass::macAddress() { return String("00:00:00:00:00:00"); }
 String WiFiClass::SSID() const { return String(""); }
 int8_t WiFiClass::RSSI() { return 0; }
+// a scan hears one network per channel, weaker the higher the channel, so firmware that shows or acts on a level has one; begin() still joins none
+int16_t WiFiClass::scanNetworks(bool, bool, bool, uint32_t, uint8_t, const char *, const uint8_t *) { return 13; }
+int16_t WiFiClass::scanComplete() { return 13; }
+void WiFiClass::scanDelete() {}
+String WiFiClass::SSID(uint8_t i) { return String("net") + String((int)i + 1); }
+wifi_auth_mode_t WiFiClass::encryptionType(uint8_t) { return wifi_auth_mode_t(); }
+int32_t WiFiClass::RSSI(uint8_t i) { return -40 - 3 * (int32_t)i; }
+uint8_t *WiFiClass::BSSID(uint8_t) { return nullptr; }
+String WiFiClass::BSSIDstr(uint8_t) { return String("00:00:00:00:00:00"); }
+int32_t WiFiClass::channel(uint8_t i) { return (int32_t)i + 1; }
 bool WiFiClass::setHostname(const char *) { return true; }
 bool WiFiClass::mode(wifi_mode_t m) {
   radio_set(m != WIFI_MODE_NULL);

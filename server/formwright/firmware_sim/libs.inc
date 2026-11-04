@@ -25,6 +25,7 @@
 #include <PubSubClient.h>
 #include <ESPmDNS.h>
 #include <fw_sim_api.h>
+#include <BleKeyboard.h>
 #if !defined(CONFIG_IDF_TARGET_ESP32C3)
 #include <USBHIDKeyboard.h>
 #include <USBHIDMouse.h>
@@ -398,6 +399,28 @@ size_t USBHIDConsumerControl::press(uint16_t k) {
 void USBHIDMouse::click(uint8_t b) { said("USB mouse click " + std::to_string(b)); }
 void USBHIDMouse::move(int8_t x, int8_t y, int8_t, int8_t) { said("USB mouse moves"); }
 #endif
+
+// ---------------------------------------------------------------- Bluetooth: what is typed
+size_t BleKeyboard::press(uint8_t k) {
+  said("BLE key " + std::to_string(k));
+  return 1;
+}
+size_t BleKeyboard::press(const MediaKeyReport k) {
+  said("BLE media key " + std::to_string(k[0]));
+  return 1;
+}
+size_t BleKeyboard::write(uint8_t k) {
+  said("BLE key " + std::to_string(k));
+  return 1;
+}
+size_t BleKeyboard::write(const MediaKeyReport k) {
+  said("BLE media key " + std::to_string(k[0]));
+  return 1;
+}
+size_t BleKeyboard::write(const uint8_t *b, size_t n) {
+  said("BLE types " + std::string((const char *)b, n));
+  return n;
+}
 
 // ---------------------------------------------------------------- what the stubs with inline bodies call
 float fw_env_value(int ch) { return ch == 3 ? (float)sim_env(3, now_us) : env_value(ch); }

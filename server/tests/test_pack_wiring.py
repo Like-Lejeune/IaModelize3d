@@ -12,7 +12,7 @@ from formwright.agent import device_inspect, device_tools, elec_tools, examples,
 from formwright.config import REPO_DIR
 from formwright.llm.english import is_english
 
-HUB = {t["name"] for t in (tools.WRITE, tools.EDIT, tools.SET_PARAMS, tools.INSPECT, tools.LOOK, tools.DIMENSIONS, tools.ASK, tools.FINISH,
+HUB = {t["name"] for t in (tools.WRITE, tools.EDIT, tools.SET_PARAMS, tools.SET_PROCESS, tools.INSPECT, tools.LOOK, tools.DIMENSIONS, tools.ASK, tools.FINISH,
                             tools.MEASURE, tools.FIT, tools.REMEMBER, tools.PROBE, tools.CONCEPTS, tools.TERRAIN, tools.COMPARE_PRINT,
                             tools.MESH_WRITE, tools.MESH_EDIT)}
 COMBOS = [(photos, prints, engine) for photos in (False, True) for prints in (False, True) for engine in ("cad", "mesh")]
@@ -34,7 +34,7 @@ def test_every_pack_gets_a_stable_well_formed_tool_list(pack):
 
 def test_the_electronics_packs_and_the_others_keep_their_lists():
     names = lambda pack, **kw: [t["name"] for t in tools.tools_for(pack, **{"photos": False, "prints": False, **kw})]  # noqa: E731
-    assert names("household") == ["write_program", "edit_program", "set_params", "inspect_model", "look", "grid", "collage", "dimensions", "ask_user",
+    assert names("household") == ["write_program", "edit_program", "set_params", "inspect_model", "look", "grid", "collage", "dimensions", "ask_user", "set_process",
                                    "remember_interface", "propose_probe", "finish"]
     assert names("enclosure") == ["write_program", "edit_program", "set_params", "inspect_model", "look", "grid", "collage", "dimensions", "ask_user",
                                   "use_board", "check_enclosure", "remember_interface", "propose_probe", "finish"]

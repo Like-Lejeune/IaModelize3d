@@ -28,7 +28,7 @@ from .runner import JobContext, add_message
 from . import narrate, pictures
 from . import compare
 from .side import GENERATED
-from .tools import DesignState, _crop_data_url, device_tools, is_mesh_doc, pcb_tools, run_tool, tools_for
+from .tools import DesignState, _crop_data_url, device_tools, hand_edits, is_mesh_doc, pcb_tools, run_tool, tools_for
 
 log = logging.getLogger(__name__)
 
@@ -49,17 +49,23 @@ CLASSIFY_SCHEMA = {
                                       "style: the look inspires a new design; none: no photos"},
         "engine": {"type": "string", "enum": ["cad", "mesh"],
                    "description": "mesh: sculpt a surface (living and free-form subjects); cad: a parametric program (everything exact)"},
+        "made_by": {"type": "string", "enum": ["print", "machined"],
+                    "description": "machined: made in a workshop from the real material (lathe, mill, welding); print: everything else"},
     },
-    "required": ["pack", "title", "refuse", "reason", "language", "subject", "subject_en", "photo_role", "engine"],
+    "required": ["pack", "title", "refuse", "reason", "language", "subject", "subject_en", "photo_role", "engine", "made_by"],
 }
 
 PHOTO_KINDS = ("photo", "sketch", "print")
+TURN_CHARS = 1500  # of one request, in the brief's list of earlier ones
 HEARTBEAT_S = 15.0
 # How long a run outlasts a model service that is down: a shorter outage costs it nothing, and only a longer one needs "Continue".
 OUTAGE_PATIENCE_S = 180.0
 # what ends a run early without making its versions worthless: those get a handover instead of a bare failure
 STOPS = (BudgetExceeded, APIStatusError, APIConnectionError, APITimeoutError, httpx.HTTPError, TimeoutError, GeomError)
 WRAP_UP = "You are close to the {} limit. Fix only blocking problems and call finish with an honest summary."
+LAST_WORD = ("The step limit is reached and no more tools can run. Write the message for the person, in language {}, without tool calls: what "
+             "exists now and what it does, then everything they asked for that is not done or done differently, then what was not checked. "
+             "At most five plain sentences, no internal names.")
 CUT_OFF = "Your last answer was cut off at the output limit; use edit_program/mesh_edit or a shorter program."
 CUT_OFF_PCB = "Your last answer was cut off at the output limit; use write_circuit with edits on the current file, or a shorter file."
 CUT_OFF_DEVICE = "Your last answer was cut off at the output limit; use write_device with edits on the current device, or fewer parts."
@@ -76,11 +82,15 @@ PACK_TURNS = {"device": 28}
 CYRILLIC = re.compile(r"[Ѐ-ӿ]")
 LATIN_WORD = re.compile(r"\b[A-Za-z]{2,}\b")
 CYRILLIC_LANGS = ("ru", "kk", "uk", "be", "bg", "sr", "mk", "ky", "tg", "mn")
+# the page's "Continue" button (i18n continue_msg) speaks the page's language, not the person's: a Russian run went on in English
+BUTTON_WORDS = {"Continue from where you stopped.", "Продолжи с того места, где остановился."}
 
 
 def _script(text: str | None) -> str | None:
     """The script a message is written in: any Cyrillic (a Russian request names its 'Pico W' in Latin letters),
-    else two Latin words; None for photos only, a number or a bare 'ok'."""
+    else two Latin words; None for photos only, a number, a bare 'ok' or the page's own button."""
+    if (text or "").strip() in BUTTON_WORDS:
+        return None
     if len(CYRILLIC.findall(text or "")) >= 2:
         return "cyrillic"
     return "latin" if len(LATIN_WORD.findall(text or "")) >= 2 else None
@@ -377,6 +387,21 @@ async def _respond(ctx: JobContext, stage: str | None, **kwargs: Any) -> Any:
     return await _model_call(ctx, stage, lambda: meta().respond(ctx.meter, **kwargs))
 
 
+async def _last_word(ctx: JobContext, stage: str | None, model: str, instructions: str, history: list[dict[str, Any]], language: str) -> str:
+    """A run out of steps still owes the person a description: two runs of a keypad and a leak alarm ended in "steps ran out,
+    send a message" with nothing on what was built, nor that the wireless dongle asked for had been dropped."""
+    history.append({"type": "message", "role": "user", "content": [{"type": "input_text", "text": LAST_WORD.format(language)}]})
+    try:
+        resp = await _respond(ctx, stage, model=model, instructions=instructions, input=history, tools=[], effort="low", max_output_tokens=4000,
+                              cache_key=f"fw-agent-last-{ctx.project_id}")
+    except Exception as e:  # noqa: BLE001 - the hand-over below stands without it
+        log.info("job %s: no closing word: %s: %s", ctx.job_id, type(e).__name__, e)
+        return ""
+    texts = [c.get("text", "") for item in resp.output or [] for d in [_item_dict(item)] if d.get("type") == "message"
+             for c in d.get("content", []) if isinstance(c, dict)]
+    return " ".join(t for t in texts if t.strip()).strip()
+
+
 async def _keep_brief(ctx: JobContext, **fields: Any) -> dict[str, Any]:
     """Fields into the brief, here and in the database, as soon as they are known: the tools, the reviewer, the runner's
     own lines and a "Continue" after a crash read them there. Returns the brief with them."""
@@ -486,10 +511,14 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         subject, photo_role = _concept_subject(concept) or subject, "copy"
         # the intake looked at the picture: its English noun phrase is what the segmenter gets for the prompt's words
         remember_english(subject, cls.get("subject_en") or "")
+    # how it is made: said once at intake, and later by the designer (set_process); a case or a device is printed whatever it says
+    process = brief.get("process") or ("machined" if cls.get("made_by") == "machined" else "print")
+    if pack in ("enclosure", "pcb", "device"):
+        process = "print"
     # not only when the run ends: a "Continue" after a crash from here on still knows what the photos are for
-    await _keep_brief(ctx, subject=subject, photo_role=photo_role, engine=engine)
+    await _keep_brief(ctx, subject=subject, photo_role=photo_role, engine=engine, process=process)
 
-    state = DesignState(pack=pack, copies_photo=photo_role == "copy")
+    state = DesignState(pack=pack, copies_photo=photo_role == "copy", process=process, hand_params=dict(brief.get("hand_params") or {}))
     current = await db.one("SELECT * FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", ctx.project_id)
     if current and sticker:
         state.version = current["version"]
@@ -524,7 +553,10 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     if brief.get("summary"):
         ctx_lines.append(f"Previous result: {brief['summary']}")
     if brief.get("turns"):
-        ctx_lines.append("Earlier requests: " + " | ".join(brief["turns"][-5:]))
+        said_before = brief["turns"]
+        ctx_lines.append("Earlier requests: " + " | ".join(said_before if len(said_before) <= 6 else [said_before[0], *said_before[-5:]]))
+    if process == "machined":
+        ctx_lines.append("Made by: machining, not printing (see 'Not everything is printed').")
     if brief.get("interrupted"):
         ctx_lines.append("# Interrupted request\nAn earlier run stopped before finishing this, quoted in full. Unless the request below replaces it, "
                          "this is the work to finish:\n" + str(brief["interrupted"]))
@@ -586,10 +618,17 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
             text = (f"Учитываю ваши правки в устройстве: {n} {narrate._ru_form(n, ('изменение', 'изменения', 'изменений'))}."
                     if narrate._ru(language) else f"Taking your {n} edit{'s' if n != 1 else ''} to the device into account.")
             await ctx.emit("agent.status", {"text": text, "say": True})
-    elif state.source and is_mesh_doc(state.source):
-        ctx_lines.append(f"# Current mesh document (version {state.version}); params {json.dumps(state.params, ensure_ascii=False)}\n```json\n{state.source}\n```")
-    elif state.source:
-        ctx_lines.append(f"# Current program (version {state.version}); params {json.dumps(state.params, ensure_ascii=False)}\n```js\n{state.source}\n```")
+    else:
+        # the person's sliders first: the program below shows the values it was written with, the params what they set
+        state.hand_params.update(await hand_edits(ctx.project_id))
+        by_hand = {k: h["now"] for k, h in state.hand_params.items() if state.params.get(k) == h["now"]}
+        if by_hand:
+            ctx_lines.append("# Sliders the person moved by hand: " + json.dumps(by_hand, ensure_ascii=False) + ". These values are their decision, newer than anything said "
+                             "or answered before: keep them unless this request says otherwise. The params below already have them.")
+        if state.source and is_mesh_doc(state.source):
+            ctx_lines.append(f"# Current mesh document (version {state.version}); params {json.dumps(state.params, ensure_ascii=False)}\n```json\n{state.source}\n```")
+        elif state.source:
+            ctx_lines.append(f"# Current program (version {state.version}); params {json.dumps(state.params, ensure_ascii=False)}\n```js\n{state.source}\n```")
     ctx_lines.append("# Request\n" + (body.text or "(see photos)"))
     content: list[dict[str, Any]] = [{"type": "input_text", "text": "\n".join(ctx_lines)}]
     for a in (new_assets or all_assets)[:6]:
@@ -616,6 +655,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         ctx.deadline = ctx.started + settings().device_deadline_s
         ctx._arm()
     final_text: str | None = None
+    final_words = ""
     # why the run ended before an accepted finish: budget, failed, engine (errors), time, turns
     ending: str | None = None
     wrapped = chained = False
@@ -727,6 +767,8 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
                 history.append({"type": "message", "role": "user", "content": [{"type": "input_text", "text": WRAP_UP.format(closing)}]})
         else:
             ending = "turns"
+        if ending in ("turns", "time") and not state.done and not state.summary:
+            final_words = await _last_word(ctx, stage["current"], model, instructions, history, language)
     except STOPS as e:
         # the versions made so far are still the person's (a board counts too): hand the latest one over honestly
         if not state.last_build and not state.pcb.get("made"):
@@ -745,11 +787,13 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     elif state.last_build and not state.done:
         # never the last mid-work line ("removing the sharp nose…"): say where it stopped and what is there
         reviewed = (state.critic or {}).get("version") == state.version
-        text = narrate.handover(ending or "unfinished", state.version, (state.last_build.get("checks") or {}).get("ok", True), reviewed, language)
+        text = narrate.handover(ending or "unfinished", state.version, (state.last_build.get("checks") or {}).get("ok", True), reviewed, language, machined=state.process == "machined")
     elif state.pcb.get("made") and not state.done and pcb_tools:
         text = pcb_tools.handover(ending or "unfinished", state, language)
     else:
         text = final_text or narrate.localize("I ran out of steps before finishing; the latest version is in the viewer." if state.source else "No model yet.", language)
+    if final_words:
+        text = f"{final_words}\n\n{text}"
     await add_message(ctx.project_id, "agent", text, {"version": state.version, "critic": state.critic})
     await ctx.emit("agent.message", {"text": text, "version": state.version})
     if state.source and state.last_build:
@@ -760,9 +804,11 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
             card["pcb"] = await pcb_tools.card(ctx.project_id, state)
         await ctx.emit("result", card)
     # a run that ends as budget/failed has its request kept by the runner, marked as interrupted
-    turns = (brief.get("turns") or []) + ([] if ctx.final_status else [body.text[:200]])
+    # a request is a specification: cut at 200 characters, a 5-turn chat lost the shaft, the keyway and the chamfers of its first message
+    turns = (brief.get("turns") or []) + ([] if ctx.final_status else [body.text[:TURN_CHARS]])
     fresh = (await db.one("SELECT brief FROM projects WHERE id = ?", ctx.project_id) or {}).get("brief") or {}
-    kept = {**fresh, **brief, "turns": turns[-10:], "summary": text[:800], "language": language, "subject": subject, "photo_role": photo_role, "engine": engine}
+    kept = {**fresh, **brief, "turns": turns if len(turns) <= 10 else [turns[0], *turns[-9:]], "summary": text[:800], "language": language, "subject": subject,
+            "photo_role": photo_role, "engine": engine, "process": state.process, "hand_params": state.hand_params}
     if not ctx.final_status:
         kept.pop("interrupted", None)  # this run got through it
     await db.update("projects", "id", ctx.project_id, {"brief": kept, "updated_at": now()})
@@ -801,10 +847,14 @@ def result_card(ctx: JobContext, state: DesignState) -> dict[str, Any]:
         for k, s in specs.items() if not s.get("hidden")
     ]
     errors = sum(1 for i in issues if i["severity"] == "error")
-    nxt = [{"action": "download", "label": "Download 3MF"}, {"action": "slice", "label": "Prepare print settings"}]
-    if any(p["source"] in ("photo", "assumed") for p in params):
-        nxt.append({"action": "probe", "label": "Print a 5-minute test piece"})
-    nxt += [{"action": "order", "label": "Order a print"}, {"action": "share", "label": "Share as a recipe"}]
+    machined = state.process == "machined"
+    nxt = [{"action": "download", "label": "Download 3MF"}]
+    if not machined:
+        nxt.append({"action": "slice", "label": "Prepare print settings"})
+        if any(p["source"] in ("photo", "assumed") for p in params):
+            nxt.append({"action": "probe", "label": "Print a 5-minute test piece"})
+        nxt.append({"action": "order", "label": "Order a print"})
+    nxt.append({"action": "share", "label": "Share as a recipe"})
     iso = storage.url(f"{ctx.project_id}/renders/v{state.version}_iso.png")
     # the model next to the photo or concept it copies, as seen for this version (the newest view if it was looked at again)
     panels = sorted(storage.abs_path(f"{ctx.project_id}/renders").glob(f"v{state.version}_compare_*.jpg"), key=lambda p: p.stat().st_mtime)
@@ -812,10 +862,12 @@ def result_card(ctx: JobContext, state: DesignState) -> dict[str, Any]:
         "version": state.version,
         "title": ctx.project["title"],
         "size_mm": [round(v, 1) for v in stats.get("size", [])],
-        "est_grams": round(stats.get("estGrams", 0), 1),
-        "est_minutes": round(stats.get("estMinutes", 0)),
+        "process": state.process,
+        "est_grams": 0 if machined else round(stats.get("estGrams", 0), 1),
+        "est_minutes": 0 if machined else round(stats.get("estMinutes", 0)),
         "params_with_sources": params,
-        "checks": {"ok": checks.get("ok", True), "errors": errors, "warnings": sum(1 for i in issues if i["severity"] == "warn"), "score": checks.get("score")},
+        "checks": ({"ok": True, "errors": 0, "warnings": 0, "score": None} if machined else
+                   {"ok": checks.get("ok", True), "errors": errors, "warnings": sum(1 for i in issues if i["severity"] == "warn"), "score": checks.get("score")}),
         "critic": state.critic or {},
         # which version the reviewer saw: older than `version` means the shipped one was not reviewed
         "reviewed_version": (state.critic or {}).get("version"),

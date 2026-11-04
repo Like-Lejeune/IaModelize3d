@@ -42,7 +42,7 @@ export type TimelineItem =
 export interface JobInfo {
   id: string;
   kind: string;
-  status: string; // running | waiting | done | failed | cancelled | budget | refused
+  status: string; // running | waiting | done | failed | cancelled | budget | refused | past (an old run, its history still coming in)
   stage: string | null;
   reached: string[];
   started: number;
@@ -673,7 +673,10 @@ export class ProjectStore {
     // what the project's newest state would bring, which a replay's moment must not get
     const latest = live && !this.replayMode;
     // the history of a finished replay copy is not a playback
-    if (d.replay && !this.replayMode && (live || this.detail?.status === 'working')) this.markReplay();
+    const playing = !!d.replay && !this.replayMode && (live || this.detail?.status === 'working');
+    if (playing) this.markReplay();
+    // the history of a run that is over must not look like a run going on: load() has said which one is
+    const current = live || this.replayMode || playing || (!!jid && jid === this.jobId);
     // anything the job does ends the wait for the model
     if (jid && e.type !== 'job.heartbeat' && e.type !== 'cost' && this.jobs[jid]?.wait) this.jobs[jid].wait = null;
     switch (e.type) {
@@ -684,9 +687,11 @@ export class ProjectStore {
           j.model = d.model;
           j.status = 'running';
         }
-        this.jobId = jid;
-        this.jobKind = d.kind ?? null;
-        this.status = null;
+        if (current) {
+          this.jobId = jid;
+          this.jobKind = d.kind ?? null;
+          this.status = null;
+        }
         break;
       }
       case 'job.stage':
@@ -728,7 +733,7 @@ export class ProjectStore {
         this.push({ kind: 'agent', key, ts, job: jid, text: d.text ?? '' });
         break;
       case 'agent.status':
-        this.status = d.text ?? null;
+        if (current) this.status = d.text ?? null;
         this.push({ kind: 'status', key, ts, job: jid, text: d.text ?? '', say: d.say });
         break;
       case 'agent.thinking': {
@@ -781,8 +786,12 @@ export class ProjectStore {
       case 'device.build':
         if (live || this.replayMode) this.device.onEvent(e.type, d, jid, !live);
         break;
+      case 'project.process':
+        if (this.detail) this.detail.process = d.process;
+        break;
       case 'program.updated':
         // history: load() already applied the program it ended with
+        if (d.process && this.detail) this.detail.process = d.process;
         if (live) this.onProgram(d);
         else if (this.replayMode) this.caught.program = d;
         this.push({ kind: 'program', key, ts, job: jid, version: d.version, summary: d.summary, render: d.render, author: d.author });
@@ -863,6 +872,8 @@ export class ProjectStore {
       default:
         break;
     }
+    const old = !current && jid ? this.jobs[jid] : null;
+    if (old && !old.finished) old.status = 'past';
   }
 
   private onEnclosure(d: any) {

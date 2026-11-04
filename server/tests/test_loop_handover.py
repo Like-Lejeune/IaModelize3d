@@ -166,6 +166,18 @@ async def test_out_of_turns_gives_a_localized_handover_not_the_last_mid_work_lin
     assert notes == [loop.WRAP_UP.format("turn")]
 
 
+async def test_out_of_turns_still_tells_the_person_what_was_built(fresh_db, offline, monkeypatch):
+    """A keypad's and a leak alarm's runs ended in "steps ran out, send a message": nothing on what exists or what was dropped."""
+    monkeypatch.setattr(settings(), "max_iterations", 1)
+    ctx = await _project(fresh_db, language="ru")
+    steps = [[call("edit_program" if i else "write_program", {"source": "x"}, f"c{i}")] for i in range(3)]
+    fake = _use(monkeypatch, FakeMeta([*steps, [say("Кронштейн готов, полка 18 мм. Проверку не успел.")]]))
+    await loop.design(ctx, SendMessage(text="кронштейн для полки"))
+    msg = next(e for e in await _events() if e["type"] == "agent.message")["data"]["text"]
+    assert msg.startswith("Кронштейн готов, полка 18 мм.") and "Шаги закончились" in msg
+    assert fake.calls[-1]["tools"] == []  # the closing word can call nothing
+
+
 async def test_stage_reads_design_while_the_first_turn_thinks_and_heartbeats_arrive(fresh_db, offline, monkeypatch):
     monkeypatch.setattr(loop, "HEARTBEAT_S", 0.02)
     ctx = await _project(fresh_db)

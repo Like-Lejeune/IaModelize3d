@@ -115,6 +115,30 @@ def _item(code: str, file: str, line: int | None, msg: str, hint: str | None = N
     return out
 
 
+_CONTROLLER = re.compile(r"(?<![A-Za-z0-9])(SSD\d{4}|SH\d{4}|ST\d{4}|ILI\d{4}|UC\d{4})")
+_COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/|#[^\n]*", re.S)
+
+
+def _display_controller(doc: dict, files: dict[str, str]) -> list[dict]:
+    """The firmware drives the controller the device's display has: the controller is in the accessory's own name. An analyzer's
+    1.3" SH1106 shipped driven as an SH1107, which compiles and shows garbage. A display whose name names none is not judged."""
+    from . import accessories
+
+    names = [accessories.ACCESSORIES[n["accessory"]]["name"] for n in doc.get("nodes") or []
+             if isinstance(n, dict) and accessories.ACCESSORIES.get(str(n.get("accessory")), {}).get("kind") == "display"]
+    have = {c for name in names for c in _CONTROLLER.findall(name)}
+    if not have or not all(_CONTROLLER.search(n) for n in names):
+        return []
+    out = []
+    for fname, text in files.items():
+        for m in _CONTROLLER.finditer(_COMMENT.sub(" ", text)):
+            if m.group(1) not in have:
+                out.append(_item("display_controller", fname, 0, f"the code drives a {m.group(1)}, and the device's display is {', '.join(names)}",
+                                 f"use the driver of the {', '.join(sorted(have))}: Adafruit_SH1106G for an SH1106, Adafruit_SSD1306 for an SSD1306, or the matching U8g2 constructor"))
+                break
+    return out
+
+
 async def _check(doc: dict, files: dict[str, str], lang: str) -> dict:
     clean: dict[str, str] = {}
     errors: list[dict] = []
@@ -127,6 +151,7 @@ async def _check(doc: dict, files: dict[str, str], lang: str) -> dict:
         clean[base] = text.replace("\r\n", "\n")
     if not clean:
         return {"ok": False, "tool": "none", "errors": [_item("no_firmware", "", 0, "no firmware files to check")], "warnings": warnings}
+    errors += _display_controller(doc, clean)
     py = [n for n in clean if n.endswith(".py")]
     cc = [n for n in clean if n.endswith(CPP_EXT)]
     if not py and not cc:

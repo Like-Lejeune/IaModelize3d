@@ -439,6 +439,8 @@ def normalize(doc: Any) -> tuple[dict[str, Any], list[dict[str, str]]]:
             # an edge part (the module's USB, a connector) is laid out along its edge; moving it inwards breaks its port
             issues.append({"code": "place_on_edge_part", "ref": nid, "msg": f"{nid} sits on the {node['edge']} edge, so its place is "
                            f"ignored: move the parts that collide with it instead (or drop its edge)"})
+        elif at and kind == "accessory" and acc.ACCESSORIES[node["accessory"]]["connect"] == "module_bat":
+            pass  # a cell on the module's BAT pads is loose in the case, which puts it under the board or beside it: agent's _write says so
         elif at and kind != "hole":
             # placed by the designer (a part people see or touch): compiled as a fixed position, the person's pcb wins
             node["place"] = at
@@ -957,6 +959,11 @@ def face_of(node: dict[str, Any], part: dict[str, Any] | None = None) -> str:
     return "none"
 
 
+def open_pins(node: dict[str, Any], on_net: Any) -> list[str]:
+    """The pins a header declares that no net has: the designer named them, so something was meant to go there."""
+    return [str(p) for p in node.get("pins") or [] if f"{node['id']}.{p}" not in on_net]
+
+
 def lint(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> list[dict[str, str]]:
     """Design checks a netlist can answer before any routing: unconnected parts, a USB-C without CC pull-downs, an LED
     without a resistor, chips without decoupling, single-pin nets; and a board far larger than its parts when a smaller
@@ -978,6 +985,9 @@ def lint(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> list[dict[str
         if k != "hole" and not mine:
             out.append({"code": "unconnected", "ref": nid, "msg": f"{nid} is not connected to anything"})
             continue
+        if k == "header":
+            for pin in open_pins(node, net_of):
+                out.append({"code": "open_pin", "ref": f"{nid}.{pin}", "msg": f"{nid}.{pin} is wired to nothing: whatever plugs in there reaches no part"})
         if k == "usb_c":
             for cc in ("CC1", "CC2"):
                 if f"{nid}.{cc}" not in net_of:

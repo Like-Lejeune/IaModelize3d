@@ -76,7 +76,7 @@
     </div>
   {/if}
   <div class="body">
-    <div class="xs muted head">{printable ? t('result_title') : t('result_not_ok')}{result.version ? ` · v${result.version}` : ''}</div>
+    <div class="xs muted head">{result.process === 'machined' ? t('result_machined') : printable ? t('result_title') : t('result_not_ok')}{result.version ? ` · v${result.version}` : ''}</div>
     {#if result.title}<h3>{result.title}</h3>{/if}
     <div class="facts small">
       <!-- a case's size is its print plate (base and lid side by side), as the viewer's chip says in that layout: the
@@ -87,10 +87,12 @@
       {#if result.est_minutes}<span>≈{fmtMinutes(result.est_minutes)}</span>{/if}
     </div>
     <div class="chips">
-      <span class="chip" class:ok={printable} class:err={!printable}>
-        <Icon name={printable ? 'check' : 'alert'} size={12} />
-        {printable ? t('printable') : t('not_printable')}{result.checks?.score != null ? ` · ${result.checks.score}` : ''}
-      </span>
+      {#if result.process !== 'machined'}
+        <span class="chip" class:ok={printable} class:err={!printable}>
+          <Icon name={printable ? 'check' : 'alert'} size={12} />
+          {printable ? t('printable') : t('not_printable')}{result.checks?.score != null ? ` · ${result.checks.score}` : ''}
+        </span>
+      {/if}
       {#if reviewed}
         {@const forced = !!critic?.forced_by && score != null}
         <span class="chip" class:ok={critic?.verdict === 'pass' && !forced && !stale} class:warn={critic?.verdict !== 'pass' || forced || stale}>

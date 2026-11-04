@@ -560,6 +560,7 @@ async def project_detail(project_id: str, user=Depends(current_user)) -> Project
         job=job,
         printer=p["brief"].get("printer") if isinstance(p["brief"], dict) and isinstance(p["brief"].get("printer"), str) else None,
         material=p["brief"].get("material") if isinstance(p["brief"], dict) and isinstance(p["brief"].get("material"), str) else None,
+        process=p["brief"].get("process") if isinstance(p["brief"], dict) and isinstance(p["brief"].get("process"), str) else None,
         # load_project(write=True)'s rule, the one send_message answers 403 by
         can_edit=p["user_id"] == user["id"],
     )

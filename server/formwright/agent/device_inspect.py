@@ -384,6 +384,12 @@ def _things(board: dict[str, Any]) -> dict[str, dict[str, Any]]:
             out[str(c["id"])] = {**c, "_acc": False}
     for a in board.get("accessories") or []:
         if isinstance(a, dict) and a.get("id"):
+            if a.get("mount") == "inside":
+                # loose in the case, not on the board: its x, y are only the board's centre. Shown there, a cell "covered" keys and LEDs,
+                # and designers grew a keypad's board from 56 to 100 mm and ran out of steps moving parts away from it
+                keep = {k: v for k, v in a.items() if k not in ("x", "y", "w", "d", "h", "z0")}
+                out[str(a["id"])] = {**out.get(str(a["id"]), {}), **keep, "_acc": False, "_loose": True}
+                continue
             out[str(a["id"])] = {**out.get(str(a["id"]), {}), **a, "_acc": True, "access": a.get("kind") if a.get("kind") in ACCESS_COLOR
                                  else out.get(str(a["id"]), {}).get("access")}
     return out
@@ -421,6 +427,12 @@ def part_facts(pid: str, board: dict[str, Any], circ: Circuit | None, doc: dict[
         out["label"] = node["label"]
     out["kind"] = node.get("kind") or t.get("type")
     b = _box(t)
+    if t.get("_loose"):
+        out["accessory"] = str(t.get("name") or t.get("key"))
+        out["note"] = ("Loose in the case, not on the board: make_enclosure puts it under the board or beside it (its battery_space finding says where and "
+                       "how much room is left, inspect_case shows it). No part on the board collides with it, and it needs no room on the board.")
+        if b is None:
+            return out
     if t.get("edge") and b is None:
         out["edge"] = t["edge"]
         out["note"] = "an edge part of its module: it sits at the module's own edge"

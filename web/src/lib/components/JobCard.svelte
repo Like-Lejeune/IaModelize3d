@@ -94,7 +94,7 @@
           label: dt(k), text: dt(`${k}_t`), send: hasModel,
         }))
       : hasModel
-      ? [t('suggest_stronger'), t('suggest_lighter'), t('suggest_round'), t('suggest_explain')].map((s) => ({ label: s, text: s, send: true }))
+      ? [t('suggest_stronger'), ...(store.detail?.process === 'machined' ? [] : [t('suggest_lighter')]), t('suggest_round'), t('suggest_explain')].map((s) => ({ label: s, text: s, send: true }))
       : [
           { label: t('suggest_size'), text: t('suggest_size_t'), send: false },
           { label: t('suggest_mount'), text: t('suggest_mount_t'), send: false },
