@@ -7,11 +7,12 @@ firmware — then order it built. The same agent prints the spare part nobody st
 Under it is an agent that turns descriptions, photos, caliper readings, sketches and voice notes into things that can
 be made (whole devices, spare parts, cases for electronics boards) and checks each one against reality before
 anything is ordered. Dimensions come from measurement, standards tables and official specs, not from guessing: the
-agent writes a short parametric program, a geometry kernel builds it, and every version passes a slicer-like
-printability check and an independent reviewer.
+agent writes a short parametric program, a geometry kernel builds it, and a slicer-like check goes over every version.
+A printed part also passes an independent critic. A device has to pass electrical and design rules, and its firmware
+runs against its own circuit on a virtual board; the model's "done" is not accepted until those checks are.
 
-**[Live app](LIVE_URL)** · **[3-minute video](VIDEO_URL)** · Startups track · Built 27 Oct – 4 Nov 2026 for the Meta
-Global AI Developer Hackathon
+**[Live app](https://formwright.axo.kz)** · **[Watch real runs](https://formwright.axo.kz/replays)** · Startups track ·
+Push the Frontier · Built 27 Oct – 4 Nov 2026 for the Meta Global AI Developer Hackathon
 
 ![The XIAO ESP32-C3 carrier example in the studio: the routed board inside a translucent case, green rays through each port, labels with the clearances](docs/img/xiao-case-rays.jpg)
 
@@ -19,12 +20,29 @@ Global AI Developer Hackathon
 
 - **Devices from a description.** “A weather station with an OLED display and Wi-Fi” becomes a device graph: the
   agent searches the live LCSC catalogue (JLCPCB's parts search: stock, price breaks, basic/extended), reads every
-  chip's real pinout and footprint from EasyEDA, picks a module (XIAO ESP32-C3/S3, Pico, Pico W) or bare chips, and
-  wires parts and nets with pull-ups and decoupling. No coordinates are written by the model: a deterministic compiler
-  places connectors and the module's USB on their edges, lets tscircuit pack the rest next to the pins it connects,
-  autoroutes two layers, runs DRC and intent checks and grows the board until it routes. Then the snap-fit case,
-  firmware for the exact pins, a BOM with LCSC numbers and a price for N finished devices (parts, PCB, SMT assembly,
-  case, hand assembly, delivery) with dates, and an order.
+  chip's real pinout and footprint from EasyEDA, picks a module (XIAO ESP32-C3/S3, Pico, Pico W) and the chips around
+  it, and wires parts and nets with pull-ups and decoupling. No coordinates are written by the model: a deterministic
+  compiler places connectors and the module's USB on their edges, lets tscircuit pack the rest next to the pins it
+  connects, autoroutes two layers, runs DRC and intent checks and grows the board until it routes. Then the snap-fit
+  case and firmware for the exact pins.
+- **Order it from one page.** A BOM with LCSC numbers and a price for a batch of N: parts, ready-made modules, PCB, SMT
+  assembly, shipping by weight on JLCPCB's real lines to Kazakhstan, the printed case and hand assembly, with dates.
+  The batch goes to the [Axo](https://axo.kz) shop's cart at that price; delivery and payment are the shop's, and the
+  workshop's order carries the fab files, the case, the firmware and a work order as one archive. A device with DRC
+  errors, a changed schematic, an old case or no firmware is refused before it gets there. A person at the workshop
+  orders the boards: this step is not automated.
+- **Firmware on a virtual board.** An Arduino sketch for the XIAO compiles to WebAssembly and runs against a DC model
+  of the device's own circuit, on a virtual clock. Each requirement can carry a scenario (what the person does, what
+  must happen). A test that passes without its steps is refused, one changed after failing is named in the result, and
+  a call the board does not model stops the run as "not simulated", never as a pass.
+- **Electrical rules.** Current on each net sets trace widths (IPC-2221) and is checked against connector and part
+  ratings; unwired measuring inputs, modules on the wrong supply and mains on the board are errors. About 25 ready-made
+  modules (e-paper, TFT, I2S speaker, RTC, RFID, GPS, LoRa, stepper driver and more), MX and Choc key switches with
+  printed keycaps, screw terminals and panel connectors.
+- **Cases that stand somewhere.** Tilted stands, wall ears, straps, lanyards, stakes and magnets from the same engine;
+  every port and button is checked against the real board.
+- **Replays.** A finished run plays back in the browser with nothing spent: pause, speed up, seek, link to a moment,
+  with the chat, schematic, board and case as they were then. Owners choose private, link or gallery.
 - **Node editor.** The device is a graph you can see and change: parts as nodes with their pins, signal nets as wires,
   supplies as labels; drag a wire between two pins, add any LCSC part by number or function, change values, edges and
   nets in the inspector, then rebuild the board without the agent. The agent and the editor edit the same document
@@ -47,16 +65,29 @@ Global AI Developer Hackathon
   outlines and holes come out in millimetres with an uncertainty. Caliper displays are read directly.
 - **Parametric programs and a mesh engine.** Each model is a JavaScript program with sliders, or a mesh document for
   organic shapes. The same code runs in the browser for live editing and in a sandboxed server worker.
-- **Checks.** A layer-by-layer mini-slicer reports islands, bridges, overhangs and thin features; the critic sees
-  renders and the model over the photo, never the code.
-- **Output.** STL and 3MF with print settings, orders through Formwright Parts, and a Telegram bot.
+- **Checks.** A layer-by-layer mini-slicer reports islands, bridges, overhangs and thin features; for printed parts the
+  critic sees renders and the model over the photo, never the code. The agent reads its own pictures with a labelled
+  grid in real millimetres and collages of what it made.
+- **Output.** STL and 3MF with print settings, Gerber, BOM and pick-and-place files, one archive for a whole device,
+  orders through Formwright Parts and the Axo cart, and a Telegram bot.
+
+## What it does not do yet
+
+- The devices here were checked by rules and on the virtual board. **The firmware has not run on these boards in
+  hardware**, which the example runs say in their own words; simulation has no real analog behaviour, RF or library
+  internals, and covers Arduino on the XIAO only.
+- The tests a model writes for its own firmware can be shallow. The checks make them hard to fake, not deep.
+- The case is a box with the right openings: no rails, gears, load-cell mounts, heatsinks or vents, so a device that
+  needs them comes back as electronics only. One board per project.
+- Modules on headers keep wearable devices large: the agent has not chosen a bare MCU in our runs.
+- Prices are estimates from JLCPCB's public calculator and today's part prices; the fab's checkout price is binding.
 
 ## Meta models
 
 | Model | Role |
 |---|---|
 | Muse Spark 1.3 | designer (devices from a description, their parts, nets and firmware), spare-part intake and refusals, circuits, board identification, caliper reading, dimension search |
-| Muse Spark Open (open weights, Baseten) | independent critic, classification, the English layer, second opinion on spare-part requests |
+| Muse Spark Open (open weights, Baseten) | independent critic of printed parts, classification, the English layer, second opinion on spare-part requests; can also design whole devices, picked in the composer |
 | Muse Wonder | designer for hard parts |
 | SAM 3.1 | measurement, board scan, Snap stickers, face blur, QC of printed parts |
 | Muse Spark 1.2 | video understanding |
@@ -70,14 +101,15 @@ instead of Baseten: Muse Glimmer on Modal, `infra/modal_glimmer.py`.
 
 All code in this repository was written during the building period; the first commit is `bd5ab1b` (27 Oct 2026,
 11:01 ET). What existed before is Axo ([axo.kz](https://axo.kz)), the founder's 3D-printing business in Kazakhstan:
-its farm, its customers and its own code, none of which is here. `integrations/axo.py` can call Axo's external order
-API.
+its farm, its customers and its own code, none of which is here. `integrations/axo.py` sends designs to Axo's shop. The
+small part of Axo's shop that receives them (a partner route and a cart page, in Axo's own private repository) was
+written during the event too; the rest of that shop is older.
 
 Not ours: the open-source libraries in the `package.json` files and `server/pyproject.toml` (among them tscircuit with
 its EasyEDA converter, and Svelte Flow for the node editor); part data, stock and prices read live from JLCPCB's parts
-search and EasyEDA's component library; OrcaSlicer, run as an
-external CLI; the Archivo font and Tabler Icons (`web/static/fonts/NOTICE.md`); the board dimensions in
-`packages/geom/src/boards.json`, taken from the manufacturers' published drawings (each board links its source).
+search and EasyEDA's component library; OrcaSlicer, run as an external CLI; the IBM Plex fonts and Tabler Icons
+(`web/static/fonts/NOTICE.md`); the board dimensions in `packages/geom/src/boards.json`, taken from the manufacturers'
+published drawings (each board links its source).
 
 ## Architecture
 
@@ -87,10 +119,10 @@ external CLI; the Archivo font and Tabler Icons (`web/static/fonts/NOTICE.md`); 
  │ studio: chat, 3D view, sliders, │◄──────│ agent loop (Muse Spark / Wonder, tools)     │
  │ device node editor (Svelte Flow)│       │  ├ packs: household … enclosure, pcb, device│
  │ handles, photo AR, PCB tab,     │       │  ├ device graph -> compiler -> board, quote │
- │                                 │       │  ├ catalogue: LCSC (JLCPCB search, EasyEDA) │
- │ board ghost and port rays       │       │  ├ vision: SAM 3.1, calibration, board scan │
- │ /parts /orders /ops (Axo farm)  │       │  ├ knowledge: standards, web search         │
- │ /snap /collection               │       │  ├ critic: renders + photos, no code        │
+ │ board editor, replay player     │       │  ├ catalogue: LCSC (JLCPCB search, EasyEDA) │
+ │ board ghost and port rays       │       │  ├ firmware: checks, virtual board (WASM)   │
+ │ /parts /orders /ops (Axo farm)  │       │  ├ vision: SAM 3.1, calibration, board scan │
+ │ /snap /collection /replays      │       │  ├ critic: renders + photos, no code        │
  │ geometry workers (same code) ───┼──┐    │  ├ memory: interfaces, lessons, skills      │
  └─────────────────────────────────┘  │    │  └ printing: Orca CLI, profiles, probes     │
                                       │    │ shop: intake, quotes, orders, QC, catalog   │
@@ -102,8 +134,8 @@ external CLI; the Archivo font and Tabler Icons (`web/static/fonts/NOTICE.md`); 
 
 ## Running locally
 
-Requirements: Node 24, Python 3.12+, a Meta Model API key; OrcaSlicer (quotes and slicing) and ffmpeg (audio and
-video) are optional. Copy `.env.example` to `.env` and set `META_API_KEY`; the other settings are listed there.
+Requirements: Node 24, Python 3.12+, a Meta Model API key; g++ (the firmware check), OrcaSlicer (quotes and slicing) and
+ffmpeg (audio and video) are optional. Copy `.env.example` to `.env` and set `META_API_KEY`; the other settings are listed there.
 
 Windows, API on port 8400 and the web app on http://localhost:5400:
 
