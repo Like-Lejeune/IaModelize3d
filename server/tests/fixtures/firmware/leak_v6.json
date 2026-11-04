@@ -1,0 +1,249 @@
+{
+ "project": "p_979fb77173044e39",
+ "version": 6,
+ "doc": {
+  "schema": "fw.device/1",
+  "title": "Датчик протечки воды",
+  "summary": "Выносной зонд на проводе, громкая сирена, красный LED, кнопка теста/сброса, Wi-Fi оповещение, питание от LiPo с зарядкой от USB-C",
+  "board": {
+   "holes": true,
+   "w": 52.0,
+   "h": 58.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU XIAO ESP32-C3",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "SENS1",
+    "kind": "accessory",
+    "label": "зонд протечки",
+    "accessory": "leak_probe",
+    "edge": "-y"
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "buzzer 3V active",
+    "lcsc": "C417385"
+   },
+   {
+    "id": "Q1",
+    "kind": "chip",
+    "label": "NPN S8050",
+    "lcsc": "C2146"
+   },
+   {
+    "id": "R_B",
+    "kind": "resistor",
+    "label": "base resistor",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "flyback diode"
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "тревога",
+    "color": "red"
+   },
+   {
+    "id": "R_LED",
+    "kind": "resistor",
+    "label": "LED resistor",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "тест/сброс",
+    "place": {
+     "x": -12.0,
+     "y": -10.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "LiPo 500mAh",
+    "accessory": "lipo_1s_500"
+   },
+   {
+    "id": "C_BT",
+    "kind": "capacitor",
+    "label": "bulk cap",
+    "value": "10uF",
+    "package": "0603"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "SENS1.GND",
+     "Q1.E",
+     "LED1.K",
+     "SW1.B",
+     "C_BT.2"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "C_BT.1",
+     "BZ1.POS"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "R_LED.1"
+    ]
+   },
+   {
+    "pins": [
+     "R_LED.2",
+     "LED1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "R_B.1"
+    ]
+   },
+   {
+    "pins": [
+     "R_B.2",
+     "Q1.B"
+    ]
+   },
+   {
+    "pins": [
+     "BZ1.NEG",
+     "Q1.C",
+     "D1.A"
+    ]
+   },
+   {
+    "pins": [
+     "SENS1.SENSE",
+     "U1.MOSI"
+    ]
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "Обнаружение воды выносным зондом",
+    "parts": [
+     "SENS1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "Звуковая тревога при протечке",
+    "parts": [
+     "BZ1",
+     "Q1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "Световая индикация статуса/тревоги",
+    "parts": [
+     "LED1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "Кнопка тест/сброс на крышке",
+    "parts": [
+     "SW1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "Wi-Fi оповещение и веб-страница статуса",
+    "parts": [
+     "U1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R6",
+    "text": "Автономное питание LiPo с зарядкой от USB-C, глубокий сон",
+    "parts": [
+     "U1",
+     "BT1"
+    ],
+    "firmware": true
+   }
+  ],
+  "firmware": {
+   "lang": "arduino",
+   "files": {
+    "leak_detector.ino": "#include <WiFi.h>\n#include <WebServer.h>\n#define PIN_LEAK D10\n#define PIN_BUTTON D1\n#define PIN_LED D2\n#define PIN_BUZZER D3\nconst char* WIFI_SSID=\"YOUR_SSID\";\nconst char* WIFI_PASS=\"YOUR_PASSWORD\";\nWebServer server(80);\nbool leakDetected=false,muted=false;\nunsigned long muteUntil=0;\nRTC_DATA_ATTR int bootCount=0;\nRTC_DATA_ATTR unsigned long rtcMuteUntil=0;\nvoid handleRoot(){String h=\"<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Датчик протечки</title></head><body style='font-family:sans-serif;text-align:center;padding:20px'><h1>Датчик протечки воды</h1>\"; if(leakDetected) h+=\"<h2 style='color:red'>⚠️ ПРОТЕЧКА!</h2>\"; else h+=\"<h2 style='color:green'>Сухо</h2>\"; if(muted) h+=\"<p>Звук приглушен</p>\"; h+=\"<p><a href='/mute'><button>Приглушить 5мин</button></a> <a href='/test'><button>Тест</button></a></p><script>setTimeout(()=>location.reload(),3000)</script></body></html>\"; server.send(200,\"text/html; charset=utf-8\",h);}\nvoid handleMute(){muted=true; muteUntil=millis()+5*60*1000; rtcMuteUntil=muteUntil+millis(); server.sendHeader(\"Location\",\"/\"); server.send(303);}\nvoid handleTest(){digitalWrite(PIN_LED,HIGH); digitalWrite(PIN_BUZZER,HIGH); delay(500); digitalWrite(PIN_BUZZER,LOW); digitalWrite(PIN_LED,LOW); server.sendHeader(\"Location\",\"/\"); server.send(303);}\nvoid setup(){\n  pinMode(PIN_LEAK,INPUT_PULLUP); pinMode(PIN_BUTTON,INPUT_PULLUP); pinMode(PIN_LED,OUTPUT); pinMode(PIN_BUZZER,OUTPUT);\n  bootCount++;\n  // проверка протечки сразу после пробуждения\n  leakDetected=(digitalRead(PIN_LEAK)==LOW);\n  if(rtcMuteUntil>millis()) {muted=true; muteUntil=rtcMuteUntil-millis();}\n  // если сухо и не тревога - мигнем и уйдем спать\n  if(!leakDetected){\n    // WiFi только для страницы - быстрое подключение\n    WiFi.begin(WIFI_SSID,WIFI_PASS);\n    unsigned long t0=millis(); while(WiFi.status()!=WL_CONNECTED && millis()-t0<6000) delay(200);\n    server.on(\"/\",handleRoot); server.on(\"/mute\",handleMute); server.on(\"/test\",handleTest); server.begin();\n    unsigned long start=millis();\n    // даем 15с на просмотр страницы, затем сон\n    while(millis()-start<15000){\n      server.handleClient();\n      if(digitalRead(PIN_BUTTON)==LOW){ digitalWrite(PIN_BUZZER,HIGH); digitalWrite(PIN_LED,HIGH); delay(300); digitalWrite(PIN_BUZZER,LOW); digitalWrite(PIN_LED,LOW); start=millis(); }\n      if(digitalRead(PIN_LEAK)==LOW){ leakDetected=true; break; }\n      digitalWrite(PIN_LED,(millis()%3000)<100);\n      delay(10);\n    }\n    if(!leakDetected){\n      // глубокий сон 10с, просыпаемся по таймеру или кнопке D1 (GPIO3)\n      esp_sleep_enable_timer_wakeup(10*1000000ULL);\n      esp_sleep_enable_ext0_wakeup((gpio_num_t)3, 0);\n      Serial.println(\"sleep\"); Serial.flush();\n      esp_deep_sleep_start();\n    }\n  }\n  // режим тревоги - остаемся включенными\n  WiFi.begin(WIFI_SSID,WIFI_PASS);\n  unsigned long t0=millis(); while(WiFi.status()!=WL_CONNECTED && millis()-t0<8000) delay(200);\n  server.on(\"/\",handleRoot); server.on(\"/mute\",handleMute); server.on(\"/test\",handleTest); server.begin();\n  digitalWrite(PIN_BUZZER,HIGH); delay(100); digitalWrite(PIN_BUZZER,LOW);\n}\nvoid loop(){\n  server.handleClient();\n  static unsigned long lastBtn=0;\n  if(digitalRead(PIN_BUTTON)==LOW && millis()-lastBtn>500){lastBtn=millis(); if(leakDetected){muted=true; muteUntil=millis()+5*60000; rtcMuteUntil=millis()+5*60000;} else {digitalWrite(PIN_BUZZER,HIGH); digitalWrite(PIN_LED,HIGH); delay(300); digitalWrite(PIN_BUZZER,LOW); digitalWrite(PIN_LED,LOW);}}\n  if(muted && millis()>muteUntil){muted=false; rtcMuteUntil=0;}\n  static unsigned long lastCheck=0;\n  if(millis()-lastCheck>200){lastCheck=millis(); leakDetected=(digitalRead(PIN_LEAK)==LOW);}\n  if(leakDetected && !muted){bool on=(millis()%800)<400; digitalWrite(PIN_BUZZER,on); digitalWrite(PIN_LED,on);} else if(!leakDetected){ digitalWrite(PIN_BUZZER,LOW); digitalWrite(PIN_LED,(millis()%3000)<100); } else {digitalWrite(PIN_BUZZER,LOW); digitalWrite(PIN_LED,HIGH);}\n  // если высохло - уйти в сон через 10с\n  static unsigned long drySince=0;\n  if(!leakDetected && !muted){ if(drySince==0) drySince=millis(); if(millis()-drySince>10000){ esp_sleep_enable_timer_wakeup(10*1000000ULL); esp_sleep_enable_ext0_wakeup((gpio_num_t)3,0); esp_deep_sleep_start(); }} else drySince=0;\n}\n"
+   },
+   "notes": "Arduino для XIAO ESP32-C3. Глубокий сон 10с когда сухо, пробуждение по таймеру и по кнопке D1 (GPIO3). При протечке сон отключен — сирена и Wi-Fi активны.",
+   "check": {
+    "ok": false,
+    "tool": "g++ 13.2.0 compile, no link (arduino-esp32 3.x stubs, Seeed ",
+    "errors": [
+     {
+      "code": "compile",
+      "file": "leak_detector.ino",
+      "line": 40,
+      "msg": "'esp_sleep_enable_timer_wakeup' was not declared in this scope",
+      "hint": "esp_sleep_enable_timer_wakeup exists, but not on the ESP32-C3"
+     },
+     {
+      "code": "compile",
+      "file": "leak_detector.ino",
+      "line": 41,
+      "msg": "'esp_sleep_enable_ext0_wakeup' was not declared in this scope",
+      "hint": "the ESP32-C3 wakes from deep sleep on a GPIO with esp_deep_sleep_enable_gpio_wakeup(1ULL << gpio, ESP_GPIO_WAKEUP_GPIO_LOW), and only on GPIO0-5 (D0-D3)"
+     },
+     {
+      "code": "compile",
+      "file": "leak_detector.ino",
+      "line": 43,
+      "msg": "'esp_deep_sleep_start' was not declared in this scope",
+      "hint": "esp_deep_sleep_start exists, but not on the ESP32-C3"
+     },
+     {
+      "code": "compile",
+      "file": "leak_detector.ino",
+      "line": 62,
+      "msg": "'esp_sleep_enable_timer_wakeup' was not declared in this scope",
+      "hint": "esp_sleep_enable_timer_wakeup exists, but not on the ESP32-C3"
+     }
+    ],
+    "warnings": [],
+    "wiring": "7cb37939b2f9b568"
+   }
+  }
+ }
+}

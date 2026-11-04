@@ -1,7 +1,33 @@
+<script lang="ts" module>
+  // The Axo shop's cart "Edit" sends the buyer back to the studio as /p/<id>?axo=<design id>: that cart line is what
+  // "Update in Axo cart" replaces, remembered per project for this tab (the studio page takes it off the URL)
+  const AXO_DESIGN = /^[0-9a-f]{32}$/;
+  const axoKey = (projectId: string) => `fw_axo:${projectId}`;
+
+  export function rememberAxoDesign(projectId: string, design: string | null | undefined) {
+    if (!design || !AXO_DESIGN.test(design)) return;
+    try {
+      sessionStorage.setItem(axoKey(projectId), design);
+    } catch {
+      /* storage unavailable: the button adds a new line instead */
+    }
+  }
+
+  function axoDesign(projectId: string): string | null {
+    try {
+      const d = sessionStorage.getItem(axoKey(projectId));
+      return d && AXO_DESIGN.test(d) ? d : null;
+    } catch {
+      return null;
+    }
+  }
+</script>
+
 <script lang="ts">
   import Icon from './Icon.svelte';
-  import { api, download, errorText } from '$lib/api';
+  import { api, ApiError, download, errorText } from '$lib/api';
   import { t, projectTitle } from '$lib/i18n.svelte';
+  import { session } from '$lib/session.svelte';
   import type { ProjectStore } from '$lib/project.svelte';
   import { shop } from '$lib/shop/api';
   import { moneyRange, st } from '$lib/shop/i18n';
@@ -95,7 +121,41 @@
   function postX() {
     ensurePublic().catch((e) => (error = errorText(e)));
   }
+
+  // The Axo shop (axo.kz) when the server has it connected (/api/me): the version goes into its cart as a design. Not for
+  // a device, whose order is the whole device, not one printed part
+  let axoOff = $state(false);
+  const axoShown = $derived(!!session.me?.axo_cart && !axoOff && store.detail?.pack !== 'device');
+  let axoReplace = $state<string | null>(null);
+  $effect(() => {
+    axoReplace = axoDesign(store.id);
+  });
+  const AXO_ERR: Record<string, string> = {
+    not_configured: 'err_axo_off',
+    axo_unavailable: 'err_axo_down',
+    axo_auth: 'err_axo_auth',
+    axo_too_large: 'err_axo_large',
+  };
+
+  async function toAxo() {
+    busy = 'axo';
+    error = null;
+    try {
+      const r = await api.axoCart(store.id, { version: store.version || undefined, ...(axoReplace ? { replace: axoReplace } : {}) });
+      // the cart line holds the new design now: a second update replaces that one
+      if (axoReplace && r.design_id) rememberAxoDesign(store.id, (axoReplace = r.design_id));
+      window.location.href = r.url;
+    } catch (e) {
+      busy = null;
+      const code = e instanceof ApiError ? e.code : undefined;
+      if (code === 'not_configured') axoOff = true;
+      error = code === 'axo_rejected' ? t('err_axo_rejected', { d: (e as ApiError).message }) : code && AXO_ERR[code] ? t(AXO_ERR[code]) : errorText(e);
+    }
+  }
 </script>
+
+<!-- back from the shop with the browser's Back button: the page comes from the cache with the spinner still on -->
+<svelte:window onpageshow={(e) => e.persisted && busy === 'axo' && (busy = null)} />
 
 <div class="getit">
   <section class="stack">
@@ -118,6 +178,15 @@
         </a>
         {#if instant?.range}<span class="range small">≈ {moneyRange(instant.range.total, instant.range.total_usd)}</span>{/if}
       </div>
+      {#if axoShown}
+        <div class="axo">
+          <button class="btn" onclick={toAxo} disabled={!store.source || !store.version || busy === 'axo'}>
+            {#if busy === 'axo'}<i class="ti ti-loader-2 spin" aria-hidden="true"></i>{:else}<Icon name={axoReplace ? 'refresh' : 'external'} size={15} />{/if}
+            {axoReplace ? t('axo_update') : t('axo_add')}
+          </button>
+          <span class="muted xs">{t('axo_note')}</span>
+        </div>
+      {/if}
     </section>
 
     <section class="stack">
@@ -155,6 +224,12 @@
   }
   .quote select {
     width: auto;
+  }
+  .axo {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
   .range {
     font-weight: var(--font-weight-semibold);

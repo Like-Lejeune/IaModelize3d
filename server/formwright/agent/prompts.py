@@ -337,7 +337,9 @@ def _electronics() -> list[str]:
         except Exception:  # noqa: BLE001 - the pack is off, the rest works
             log.exception("prompts: device_prompt did not import, pack 'device' is off")
         else:
-            PACKS["device"] = "\n" + device_prompt.PACK_TEXT + "\n"
+            # the method, then the typical mistakes per part kind the designer checks itself against at finish
+            checklist = getattr(device_prompt, "CHECKLIST", "")
+            PACKS["device"] = "\n" + device_prompt.PACK_TEXT + "\n" + (f"\n{checklist}\n" if checklist else "")
             hints.append(device_prompt.CLASSIFY_HINT)
     return hints
 

@@ -2,19 +2,21 @@
 // an assembled build (base, lid and the board ghost as a 'reference' part from lib.elec.parts) and the
 // fw.board/1 JSON. Plug paths are a grid of rays over the plug's rounded section (the clearance is found
 // by bisection on how far that section can grow), then part and PCB collisions, supports, hold-downs
-// (can the board tip up or slide: board_retained), button reach, LED windows, lid fit, snap strain and
+// (can the board tip up or slide: board_retained), button reach, LED windows, display and sensor windows (and what
+// holds a display module down), sound grilles, cable exits, room for a loose cell, lid fit, snap strain and
 // keep-outs. Manifold.rayCast returns `distance` as a fraction of
 // the segment, so everything here works with hit positions.
 import type { Manifold, Wasm } from './kernel.ts';
 import { withArena } from './kernel.ts';
-import { boardGhost, boardModel, type BoardModel, type BoardPart, type BoardSpec, type EnclosureReport } from './lib/elec.ts';
+import { boardGhost, boardModel, coveredBy, EDGE_NORMAL, type BoardEdge, type BoardModel, type BoardPart, type BoardSpec, type Box3, type EnclosureReport } from './lib/elec.ts';
 import type { Part } from './program.ts';
 
 type V3 = [number, number, number];
 
 export type FindingCode =
   | 'port_clear' | 'port_blocked' | 'component_clear' | 'board_collision' | 'pcb_seated' | 'board_retained' | 'button_reach'
-  | 'button_unreachable' | 'light_window' | 'lid_fit' | 'snap_strain' | 'metal_in_keepout' | 'keepout_ok';
+  | 'button_unreachable' | 'light_window' | 'lid_fit' | 'snap_strain' | 'metal_in_keepout' | 'keepout_ok'
+  | 'display_window' | 'sound_grille' | 'sensor_window' | 'cable_exit' | 'battery_space' | 'mounting';
 
 export interface Finding {
   code: FindingCode;
@@ -103,7 +105,9 @@ export function checkEnclosure(wasm: Wasm, parts: Part[], spec: BoardSpec, pose?
       push('pcb_seated', 'error', 'cannot check: the assembled layout has no board ghost; return lib.elec.parts(enc, { layout: p.layout, ghost: p.show_board }) and expose the layout and show_board params', 'pcb', null);
       return done();
     }
-    const shell = models.length === 1 ? models[0].solid : M.union(models.map((p) => p.solid));
+    // the case itself: a stand beside it holds the case in use and is no part of what the board and the plugs meet
+    const cased = models.filter((p) => p.name !== 'stand');
+    const shell = cased.length === 1 ? cased[0].solid : M.union(cased.map((p) => p.solid));
     const sb = shell.boundingBox();
     size = [0, 1, 2].map((i) => +(sb.max[i] - sb.min[i]).toFixed(2)) as V3;
     const at = (p: V3): V3 => [p[0] + P[0], p[1] + P[1], p[2] + P[2]];
@@ -211,14 +215,21 @@ export function checkEnclosure(wasm: Wasm, parts: Part[], spec: BoardSpec, pose?
         c.id, clearance[c.id], 'mm');
     }
 
-    // --- collisions: every component box and the PCB against the case
-    for (const c of b.comps.filter((c) => c.box.max[2] - c.box.min[2] > 0.05)) {
+    // --- collisions: every component box, every module on the board and the PCB against the case
+    const boxed: { id: string; box: Box3 }[] = [...b.comps, ...b.accs.flatMap((a) => (a.box ? [{ id: a.id, box: a.box }] : []))];
+    for (const c of boxed.filter((c) => c.box.max[2] - c.box.min[2] > 0.05)) {
       const box = M.cube([c.box.max[0] - c.box.min[0], c.box.max[1] - c.box.min[1], c.box.max[2] - c.box.min[2]]).translate(at(c.box.min));
       const inside = vol(box.intersect(shell));
       const gap = box.minGap(shell, 3);
       if (inside > 0.01) push('board_collision', 'error', `${c.id}: ${inside.toFixed(2)} mm3 of it is inside the case`, c.id, r3(inside), 'mm3');
       else push('component_clear', gap < 0.15 ? 'warn' : 'info', `${c.id}: nearest wall ${gap.toFixed(2)} mm`, c.id, r3(gap), 'mm');
     }
+    // a module on its header must clear the parts under and beside it (a tall buzzer under an OLED)
+    for (const a of b.accs.filter((a) => a.box))
+      for (const c of b.comps) {
+        const q = a.box!, d = [0, 1, 2].map((i) => Math.min(q.max[i], c.box.max[i]) - Math.max(q.min[i], c.box.min[i]));
+        if (d.every((v) => v > 0.05)) push('board_collision', 'error', `${a.id}: the module runs into ${c.id} (${r2(d[0])} x ${r2(d[1])} x ${r2(d[2])} mm); move one of them or raise the module (z0)`, a.id, r3(d[0] * d[1] * d[2]), 'mm3');
+      }
     let pcb: Manifold = b.outline.extrude(b.T);
     if (b.holes.length) pcb = pcb.subtract(M.union(b.holes.map((h) => M.cylinder(b.T + 2, h.d / 2, h.d / 2, 32).translate([h.x, h.y, -1]))));
     const pcbVol = vol(pcb.translate(P).intersect(shell));
@@ -301,6 +312,11 @@ export function checkEnclosure(wasm: Wasm, parts: Part[], spec: BoardSpec, pose?
 
     // --- buttons: a ray straight up from the actuator must meet the plunger within a small gap
     for (const c of b.comps.filter((c) => c.access === 'press')) {
+      const over = coveredBy(b, c);
+      if (over) {
+        push('button_unreachable', 'error', `${c.id}: under ${over.id}: the module covers the button, nothing in the lid reaches it; move the button or the module`, c.id, null);
+        continue;
+      }
       if (c.side === 'bottom' || (c.normal?.[2] ?? 1) <= 0.5) {
         push('button_unreachable', 'warn', `${c.id}: a ${c.side === 'bottom' ? 'bottom' : 'side'} button has no actuator through the case yet; it stays reachable only with the lid off`, c.id, null);
         continue;
@@ -333,13 +349,127 @@ export function checkEnclosure(wasm: Wasm, parts: Part[], spec: BoardSpec, pose?
     }
 
     // --- lights: open window, or a skin thin enough to glow through
+    const featFor = (type: string, id: string) => features.find((f) => f.type === type && f.for === id);
     for (const c of b.comps.filter((c) => c.access === 'light' && c.side !== 'bottom')) {
+      const blocked = featFor('light', c.id)?.blocked, over = coveredBy(b, c);
+      if (over) {
+        push('light_window', 'error', `${c.id}: under ${over.id}: the module hides the LED; move the LED or the module`, c.id, null);
+        continue;
+      }
+      if (blocked) {
+        push('light_window', 'error', `${c.id}: no light window: ${blocked} is over the LED; move the LED or that feature`, c.id, null);
+        continue;
+      }
       const [cx, cy] = centre(c);
       const top = at([cx, cy, c.box.max[2] + 0.01]);
       const hits = shell.rayCast(top, [top[0], top[1], sb.max[2] + 5]) as { position: V3 }[];
       const skin = hits.length >= 2 ? hits[1].position[2] - hits[0].position[2] : hits.length ? 99 : 0;
       push('light_window', !hits.length || skin <= 0.6 ? 'info' : 'warn', `${c.id}: ${hits.length ? `skin ${skin.toFixed(2)} mm over the LED${skin > 0.6 ? ' (too thick to see it)' : ''}` : 'open window'}`, c.id, r2(skin), 'mm');
     }
+
+    // --- sensor and display windows: rays straight up from the part (or the module's top) at the window's centre and a
+    // third of the way to its sides must leave the case; a display module must also be held down onto its header (the
+    // lid or a rim from it within 0.8 mm over the module where lib.elec says it presses)
+    const upHits = (x: number, y: number, z: number) => shell.rayCast(at([x, y, z]), [x + P[0], y + P[1], sb.max[2] + 5]) as { position: V3 }[];
+    const openUp = (x: number, y: number, z: number) => !upHits(x, y, z).length;
+    const windowCheck = (code: FindingCode, id: string, what: string, c: { box: Box3 }, display: boolean) => {
+      const f = featFor(code, id);
+      if (f?.blocked) return push(code, 'error', `${id}: no ${what} window: ${f.blocked} is in the way; move the part or that feature`, id, 0, 'mm');
+      const [cx, cy] = [(c.box.min[0] + c.box.max[0]) / 2, (c.box.min[1] + c.box.max[1]) / 2];
+      const [wx, wy] = f?.at ?? [cx, cy], ww = f?.w ?? c.box.max[0] - c.box.min[0], wd = f?.d ?? c.box.max[1] - c.box.min[1], z = c.box.max[2] + 0.01;
+      const pts = [[wx, wy], [wx - ww / 3, wy], [wx + ww / 3, wy], [wx, wy - wd / 3], [wx, wy + wd / 3]];
+      const shut = pts.filter(([x, y]) => !openUp(x, y, z)).length;
+      const size = f?.shape === 'round' ? `round ${what} window ${r2(ww)} mm` : `${what} window ${r2(ww)} x ${r2(wd)} mm`;
+      if (shut) return push(code, 'error', `${id}: ${shut === pts.length ? `no ${what} window in the lid over it` : `the ${what} window over it is partly covered (${shut} of ${pts.length} rays blocked)`}`, id, shut === pts.length ? 0 : r2(Math.min(ww, wd)), 'mm');
+      let held = '', sev: Finding['severity'] = f?.shrunk ? 'warn' : 'info';
+      if (display) {
+        const press = (f?.press ?? []) as [number, number][];
+        const on = press.filter(([x, y]) => {
+          const h = upHits(x, y, z)[0];
+          return !!h && h.position[2] - at([x, y, z])[2] <= 0.8;
+        }).length;
+        held = on ? `; held down onto its header by the lid${f?.rim ? ` rim (${f.rim.h} mm)` : ''} at ${on} of ${press.length} sides` : '; nothing holds it down but its header';
+        if (!on) sev = 'warn';
+      }
+      push(code, sev, `${id}: ${size} open${f?.shrunk ? `, made smaller to keep off ${f.shrunk}` : ''}${held}`, id, r2(Math.min(ww, wd)), 'mm');
+    };
+    for (const c of b.comps.filter((c) => c.access === 'sensor' || c.access === 'display')) {
+      const code: FindingCode = c.access === 'sensor' ? 'sensor_window' : 'display_window', over = coveredBy(b, c);
+      if (c.side === 'bottom') push(code, 'warn', `${c.id}: a ${c.access} on the bottom side gets no opening in the case`, c.id, null);
+      else if (over) push(code, 'error', `${c.id}: under ${over.id}: the module covers the ${c.access}; move one of them`, c.id, 0, 'mm');
+      else windowCheck(code, c.id, c.access, c, false);
+    }
+    for (const a of b.accs.filter((a) => a.box && (a.window || a.kind === 'display')))
+      windowCheck(a.kind === 'display' ? 'display_window' : 'sensor_window', a.id, a.kind === 'display' ? 'display' : 'sensor', { box: a.box! }, a.kind === 'display');
+
+    // --- sound grilles: the holes lib.elec reports (else a 1 mm grid over the part), each open straight up from its top
+    for (const c of b.comps.filter((c) => c.access === 'sound')) {
+      if (c.side === 'bottom') {
+        push('sound_grille', 'warn', `${c.id}: a buzzer on the bottom side gets no grille in the case`, c.id, null);
+        continue;
+      }
+      const f = featFor('sound_grille', c.id), over = coveredBy(b, c);
+      if (over) {
+        push('sound_grille', 'warn', `${c.id}: under ${over.id}: no grille over the buzzer, its sound leaves round the module`, c.id, 0);
+        continue;
+      }
+      if (f?.blocked) {
+        push('sound_grille', 'error', `${c.id}: no sound grille: ${f.blocked} is over the buzzer; move it or that feature`, c.id, 0);
+        continue;
+      }
+      const z = c.box.max[2] + 0.01, grid: [number, number][] = [];
+      if (!f) for (let x = c.box.min[0] + 0.5; x < c.box.max[0]; x += 1) for (let y = c.box.min[1] + 0.5; y < c.box.max[1]; y += 1) grid.push([x, y]);
+      const holes = (f?.holes ?? grid) as [number, number][];
+      const open = holes.filter(([x, y]) => openUp(x, y, z)).length;
+      push('sound_grille', open >= 5 ? (f?.shrunk ? 'warn' : 'info') : 'error',
+        f ? `${c.id}: ${open} of ${holes.length} grille holes (${f.d} mm, ${f.pitch} mm pitch) open over it${f.shrunk ? `; the ones over ${f.shrunk} left out` : ''}`
+          : `${c.id}: ${open ? `only ${open} open points of a 1 mm grid over it` : 'no sound grille over it'}${open >= 5 ? '' : '; the buzzer is muffled'}`, c.id, open);
+    }
+
+    // --- cable exits: rays along the cable from inside the tie block out through the wall, at its axis and its rim
+    for (const a of b.accs.filter((a) => a.mount === 'cable')) {
+      const f = featFor('cable_exit', a.id);
+      if (!f?.inside) {
+        push('cable_exit', 'error', `${a.id}: no cable exit for it${f?.blocked ? `: ${f.blocked}` : ' in the case'}; the cable must leave through a wall`, a.id, null);
+        continue;
+      }
+      const n = EDGE_NORMAL[f.edge as BoardEdge], u: V3 = n[0] !== 0 ? [0, 1, 0] : [1, 0, 0], from = at(f.inside as V3), rc = Math.max(0.3, (a.cable_d ?? 4) / 2 - 0.05);
+      const shut = [[0, 0], [rc, 0], [-rc, 0], [0, rc], [0, -rc]].filter(([s, zz]) => {
+        const p = add(add(from, s, u), zz, [0, 0, 1]);
+        return !!firstHit(p, add(p, RAY_LEN, n));
+      }).length;
+      push('cable_exit', shut ? 'error' : 'info', shut
+        ? `${a.id}: a ${a.cable_d ?? 4} mm cable does not pass the ${f.d} mm exit in the ${f.edge} wall (${shut} of 5 rays blocked)`
+        : `${a.id}: ${f.d} mm cable exit in the ${f.edge} wall at ${f.at} mm, ${f.z} mm over the board bottom${f.relief === 'tie slot' ? ', a zip-tie slot behind it takes the pull' : ', no strain relief'}${f.moved ? `; moved ${f.moved} mm along the wall off a port window` : ''}`,
+        a.id, f.d, 'mm');
+    }
+
+    // --- loose cells: the box lib.elec reserved must be clear of the case and of the board (its header pins under it)
+    for (const a of b.accs.filter((a) => a.mount === 'inside')) {
+      const f = featFor('battery', a.id);
+      if (!f?.box) {
+        push('battery_space', 'error', `${a.id}: no room for it in the case${f?.blocked ? `: ${f.blocked}` : ''}`, a.id, null);
+        continue;
+      }
+      const q = f.box as Box3, box = M.cube([q.max[0] - q.min[0], q.max[1] - q.min[1], q.max[2] - q.min[2]]).translate(at(q.min));
+      const pins = boardGhost(wasm, b, { bottomPins: true }).translate(P);
+      const inCase = vol(box.intersect(shell)), inBoard = vol(box.intersect(pins));
+      // room over it (the header pins of the board above, or the lid bars): rays up from its top, centre and quarters
+      const above = Math.min(...[[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]].map(([fx, fy]) => {
+        const p = at([q.min[0] + fx * (q.max[0] - q.min[0]), q.min[1] + fy * (q.max[1] - q.min[1]), q.max[2] + 0.001]), top: V3 = [p[0], p[1], sb.max[2] + 5];
+        const hits = [...(shell.rayCast(p, top) as { position: V3 }[]), ...(pins.rayCast(p, top) as { position: V3 }[])];
+        return hits.length ? Math.min(...hits.map((h) => h.position[2])) - p[2] : 99;
+      }));
+      const [w, d, h] = f.size ?? [0, 0, 0];
+      if (inCase > 0.05 || inBoard > 0.05)
+        push('battery_space', 'error', `${a.id}: the ${w} x ${d} x ${h} mm cell runs ${r2(inCase)} mm3 into the case and ${r2(inBoard)} mm3 into the board`, a.id, r3(inCase + inBoard), 'mm3');
+      else
+        push('battery_space', 'info', `${a.id}: ${w} x ${d} x ${h} mm cell ${f.placement === 'under' ? 'under the board' : `beside the board (${f.side} side)`}, in ${f.ribs} floor ribs; ${r2(above)} mm over it to ${f.placement === 'under' ? 'the header pins' : f.hold === 'lid bars' ? 'the lid bars' : 'the lid'}`, a.id, r2(above), 'mm');
+    }
+
+    // --- how it is held and how it sits: what the case could not build (the check's only word on them)
+    for (const f of features.filter((f) => (f.type === 'mounting' || f.type === 'stand') && f.blocked))
+      push('mounting', 'warn', `${f.type === 'stand' ? 'stand' : `mounting ${f.kind}`}: ${f.blocked}`, 'case', null);
 
     // --- lid fit: the printed parts must not overlap each other
     let overlap = 0;

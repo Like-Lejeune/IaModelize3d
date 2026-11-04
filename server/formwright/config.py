@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     open_price_out_per_m: float = 0.0
     # route the independent critic to another model, e.g. the open-weights one
     model_critic: str = ""
+    # the LLM device reviewer (agent/device_review.py) gating a device's finish: off since 2026-11-03 (it passed broken
+    # devices and raised false majors); the designer checks itself against device_checklists instead. FW_DEVICE_REVIEWER=1
+    device_reviewer: bool = False
 
     # budgets (USD)
     job_budget_usd: float = 0.60

@@ -93,18 +93,18 @@ export function makeMech(wasm: Wasm, fit: (kind: any) => number, lineWidth = 0.4
   // Cantilever snap hook in the XZ plane, extruded along Y. Hook tip at x = length.
   // The lead-in ramp stops where it is still tipMin thick (default two lines): a knife-edge tip
   // prints as a sliver the slicer drops (too_thin).
-  const snapHook = (o: { length: number; thickness: number; width: number; overhang?: number; lead?: number; tipMin?: number }) => {
+  // Its profile alone ([along the hook, across it]), for a hook revolved round a curved wall.
+  const snapHookProfile = (o: { length: number; thickness: number; overhang?: number; lead?: number; tipMin?: number }): V2[] => {
     const L = o.length;
     const t = o.thickness;
     const h = o.overhang ?? t * 0.8;
     const lead = o.lead ?? h * 1.5;
     const tip = Math.max(0.01, Math.min(o.tipMin ?? 2 * lineWidth, 0.6 * (t + h)));
     const xTip = L + lead * (1 - tip / (t + h));
-    const profile: V2[] = [
-      [0, 0], [L, 0], [xTip, 0], [xTip, tip], [L, t + h], [L - h * 0.6, t + h], [L - h * 0.6, t], [0, t],
-    ];
-    return new CS([profile], 'NonZero').extrude(o.width).rotate([90, 0, 0]).translate([0, o.width / 2, 0]);
+    return [[0, 0], [L, 0], [xTip, 0], [xTip, tip], [L, t + h], [L - h * 0.6, t + h], [L - h * 0.6, t], [0, t]];
   };
+  const snapHook = (o: { length: number; thickness: number; width: number; overhang?: number; lead?: number; tipMin?: number }) =>
+    new CS([snapHookProfile(o)], 'NonZero').extrude(o.width).rotate([90, 0, 0]).translate([0, o.width / 2, 0]);
 
   const dovetail2d = (o: { width: number; depth: number; angle?: number; gap?: number }): CrossSection => {
     const a = ((o.angle ?? 15) * Math.PI) / 180;
@@ -114,5 +114,5 @@ export function makeMech(wasm: Wasm, fit: (kind: any) => number, lineWidth = 0.4
     return new CS([[[-w, 0], [w, 0], [w + spread, o.depth + g], [-w - spread, o.depth + g]]], 'NonZero');
   };
 
-  return { gear2d, gear, hinge, snapHook, dovetail2d };
+  return { gear2d, gear, hinge, snapHook, snapHookProfile, dovetail2d };
 }

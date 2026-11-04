@@ -16,6 +16,7 @@
   const fw = $derived(ds?.doc.firmware ?? null);
   const GROUPS: { key: string; kinds: string[] }[] = [
     { key: 'g_mcu', kinds: ['module'] },
+    { key: 'lib_accessories', kinds: ['accessory'] },
     { key: 'g_chips', kinds: ['chip'] },
     { key: 'g_io', kinds: ['led', 'button'] },
     { key: 'g_conn', kinds: ['usb_c', 'header', 'jst'] },
@@ -23,16 +24,16 @@
   ];
   const ICON: Record<string, string> = {
     module: 'ti-cpu', chip: 'ti-cpu-2', resistor: 'ti-wave-square', capacitor: 'ti-battery-2', led: 'ti-bulb', diode: 'ti-chevrons-right',
-    button: 'ti-hand-click', header: 'ti-plug-connected', usb_c: 'ti-usb', jst: 'ti-battery-charging', hole: 'ti-circle-dashed',
+    button: 'ti-hand-click', header: 'ti-plug-connected', usb_c: 'ti-usb', jst: 'ti-battery-charging', hole: 'ti-circle-dashed', accessory: 'ti-puzzle',
   };
   let folded = $state<Record<string, boolean>>({});
   const groups = $derived(GROUPS.map((g) => ({ ...g, nodes: (ds?.doc.nodes ?? []).filter((n) => g.kinds.includes(n.kind)) })).filter((g) => g.nodes.length));
   const name = (n: DevNode) => n.label || ds?.view.nodes[n.id]?.part.mpn || (n.value ? `${n.value} ${n.package ?? ''}` : dt(`k_${n.kind}`));
-  const issues = $derived(new Set([...(ds?.issues ?? []), ...(ds?.lint ?? [])].map((i) => String(i.ref).split('.')[0])));
+  const issues = $derived(new Set([...(ds?.issues ?? []), ...(ds?.lint ?? []), ...(ds?.rules ?? [])].filter((i) => i.severity !== 'info').map((i) => String(i.ref).split('.')[0])));
   const stages = $derived<{ id: Stage; icon: string; meta: string; state: string }[]>([
     { id: 'board', icon: 'ti-cpu', meta: pcb ? `v${pcb.version}` : '—', state: !pcb ? '' : pcb.drc.errors ? 'err' : dev.stale ? 'warn' : 'ok' },
     { id: 'case', icon: 'ti-box', meta: store.casePcbVersion != null ? `v${store.version}` : '—', state: store.casePcbVersion != null ? 'ok' : '' },
-    { id: 'firmware', icon: 'ti-code', meta: fw ? Object.keys(fw.files)[0] : '—', state: fw ? 'ok' : '' },
+    { id: 'firmware', icon: 'ti-code', meta: fw ? Object.keys(fw.files)[0] : '—', state: fw ? (fw.check?.ok === false ? 'err' : 'ok') : '' },
     { id: 'bom', icon: 'ti-list-details', meta: ds ? `${ds.doc.nodes.filter((n) => n.kind !== 'hole').length}` : '—', state: '' },
   ]);
 

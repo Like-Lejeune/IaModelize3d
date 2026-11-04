@@ -100,6 +100,14 @@ async def save(project_id: str, doc: dict[str, Any], *, author: str, summary: st
         return version
 
 
+async def add_version(project_id: str, version: int, doc: dict[str, Any], *, author: str, summary: str = "") -> None:
+    """A document under a number of its own (a device example opens with the numbers its run ended on)."""
+    db = await _db()
+    t = now()
+    await db.execute("INSERT INTO device_docs (project_id, version, doc, author, summary, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     project_id, int(version), _dump(doc), author, summary[:200], t, t)
+
+
 async def copy_all(src: str, dst: str) -> int:
     """Every device version of a project into another (a remix), same numbers; returns how many."""
     db = await _db()

@@ -152,6 +152,8 @@ export interface Usage {
   jobs_today: number;
   contributor_consent: boolean;
   models: ModelOption[];
+  /** The Axo shop is connected on this server: the studio offers "Add to Axo cart". */
+  axo_cart?: boolean;
 }
 
 export interface ModelOption {
@@ -214,7 +216,8 @@ export interface CheckReport {
 // ---- electronics: a case around a board (packages/geom/src/enclosure.ts, server/formwright/agent/elec_tools.py)
 export type EnclosureCode =
   | 'port_clear' | 'port_blocked' | 'component_clear' | 'board_collision' | 'pcb_seated' | 'button_reach' | 'button_unreachable'
-  | 'light_window' | 'lid_fit' | 'snap_strain' | 'metal_in_keepout' | 'keepout_ok' | 'board_retained';
+  | 'light_window' | 'lid_fit' | 'snap_strain' | 'metal_in_keepout' | 'keepout_ok' | 'board_retained'
+  | 'display_window' | 'sound_grille' | 'sensor_window' | 'cable_exit' | 'battery_space';
 
 export interface EnclosureFinding {
   code: EnclosureCode | string;

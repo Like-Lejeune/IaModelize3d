@@ -1,0 +1,295 @@
+{
+ "project": "p_ac00b2ed65ca4ac0",
+ "version": 3,
+ "doc": {
+  "schema": "fw.device/1",
+  "title": "Электронный игральный кубик",
+  "summary": "Нажми кнопку — 7 светодиодов показывают случайную грань 1–6 с анимацией броска, работает от LiPo и засыпает через 30с",
+  "board": {
+   "holes": true,
+   "w": 46.0,
+   "h": 50.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "-y"
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "pip центр",
+    "color": "red"
+   },
+   {
+    "id": "LED2",
+    "kind": "led",
+    "label": "pip левый-верх",
+    "color": "red"
+   },
+   {
+    "id": "LED3",
+    "kind": "led",
+    "label": "pip правый-верх",
+    "color": "red"
+   },
+   {
+    "id": "LED4",
+    "kind": "led",
+    "label": "pip левый-сред",
+    "color": "red"
+   },
+   {
+    "id": "LED5",
+    "kind": "led",
+    "label": "pip правый-сред",
+    "color": "red"
+   },
+   {
+    "id": "LED6",
+    "kind": "led",
+    "label": "pip левый-низ",
+    "color": "red"
+   },
+   {
+    "id": "LED7",
+    "kind": "led",
+    "label": "pip правый-низ",
+    "color": "red"
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "LED1 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "LED2 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "LED3 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R4",
+    "kind": "resistor",
+    "label": "LED4 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R5",
+    "kind": "resistor",
+    "label": "LED5 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R6",
+    "kind": "resistor",
+    "label": "LED6 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R7",
+    "kind": "resistor",
+    "label": "LED7 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "бросок",
+    "place": {
+     "x": 14.0,
+     "y": -12.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "батарея",
+    "accessory": "lipo_1s_500"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "LED1.K",
+     "LED2.K",
+     "LED3.K",
+     "LED4.K",
+     "LED5.K",
+     "LED6.K",
+     "LED7.K",
+     "SW1.B"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "R1.1"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "R2.1",
+     "R7.1"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R3.1",
+     "R6.1"
+    ]
+   },
+   {
+    "pins": [
+     "U1.RX",
+     "R4.1",
+     "R5.1"
+    ]
+   },
+   {
+    "pins": [
+     "R1.2",
+     "LED1.A"
+    ]
+   },
+   {
+    "pins": [
+     "R2.2",
+     "LED2.A"
+    ]
+   },
+   {
+    "pins": [
+     "R3.2",
+     "LED3.A"
+    ]
+   },
+   {
+    "pins": [
+     "R4.2",
+     "LED4.A"
+    ]
+   },
+   {
+    "pins": [
+     "R5.2",
+     "LED5.A"
+    ]
+   },
+   {
+    "pins": [
+     "R6.2",
+     "LED6.A"
+    ]
+   },
+   {
+    "pins": [
+     "R7.2",
+     "LED7.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW1.A"
+    ]
+   }
+  ],
+  "layouts": [
+   {
+    "pattern": "dice",
+    "nodes": [
+     "LED1",
+     "LED2",
+     "LED3",
+     "LED4",
+     "LED5",
+     "LED6",
+     "LED7"
+    ],
+    "center": [
+     0.0,
+     9.0
+    ],
+    "pitch": 8.0,
+    "rot": 0.0
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "Семь светодиодов-пипсов в раскладке игрального кубика, видны через крышку",
+    "parts": [
+     "LED1",
+     "LED2",
+     "LED3",
+     "LED4",
+     "LED5",
+     "LED6",
+     "LED7"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "Кнопка на крышке запускает бросок кубика",
+    "parts": [
+     "SW1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "Анимация броска и случайный результат 1-6",
+    "parts": [
+     "LED1",
+     "LED2",
+     "LED3",
+     "LED4",
+     "LED5",
+     "LED6",
+     "LED7"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "Питание от LiPo, зарядка через USB-C модуля, глубокий сон после 30с, пробуждение кнопкой",
+    "parts": [
+     "U1",
+     "BT1"
+    ],
+    "firmware": true
+   }
+  ],
+  "firmware": {
+   "lang": "arduino",
+   "files": {
+    "electronic_dice.ino": "#include <esp_sleep.h>\n#define PIN_LED_CENTER 4\n#define PIN_LED_TL_TR 5\n#define PIN_LED_TRT_BL 10\n#define PIN_LED_ML_MR 20\n#define PIN_BUTTON 3\nconst uint8_t diceFaces[7][4]={{0,0,0,0},{1,0,0,0},{0,1,0,0},{1,1,0,0},{0,1,1,0},{1,1,1,0},{0,1,1,1}};\nvoid showFace(int n){auto f=diceFaces[n];digitalWrite(PIN_LED_CENTER,f[0]);digitalWrite(PIN_LED_TL_TR,f[1]);digitalWrite(PIN_LED_TRT_BL,f[2]);digitalWrite(PIN_LED_ML_MR,f[3]);}\nvoid allOff(){showFace(0);}\nunsigned long lastAction=0;\nconst unsigned long SLEEP_TIMEOUT=30000;\nvoid rollAnimation(){for(int i=0;i<12;i++){int r=random(1,7);showFace(r);delay(60+i*15);}int result=random(1,7);showFace(result);lastAction=millis();}\nvoid setup(){pinMode(PIN_LED_CENTER,OUTPUT);pinMode(PIN_LED_TL_TR,OUTPUT);pinMode(PIN_LED_TRT_BL,OUTPUT);pinMode(PIN_LED_ML_MR,OUTPUT);pinMode(PIN_BUTTON,INPUT_PULLUP);randomSeed(esp_random()+analogRead(0));lastAction=millis();for(int i=1;i<=6;i++){showFace(i);delay(120);}allOff();delay(200);rollAnimation();}\nvoid loop(){static bool lastBtn=HIGH;bool btn=digitalRead(PIN_BUTTON);if(lastBtn==HIGH&&btn==LOW){delay(20);if(digitalRead(PIN_BUTTON)==LOW){rollAnimation();while(digitalRead(PIN_BUTTON)==LOW)delay(10);}}lastBtn=btn;if(millis()-lastAction>SLEEP_TIMEOUT){allOff();esp_deep_sleep_enable_gpio_wakeup(1ULL<<PIN_BUTTON,ESP_GPIO_WAKEUP_GPIO_LOW);esp_deep_sleep_start();}delay(10);}\n"
+   },
+   "notes": "XIAO ESP32-C3 Arduino"
+  }
+ }
+}

@@ -7,9 +7,12 @@
   import Icon from '$lib/components/Icon.svelte';
   import PartNode, { netColor, type PartData } from './PartNode.svelte';
   import FlowBridge from './FlowBridge.svelte';
+  import { loadLibrary } from './PartLibrary.svelte';
+  import type { Accessory } from './api';
+  import { accessoriesOf, faceOf, layoutOf, refNode } from './facets';
   import { autoLayout } from './layout';
   import { POWER_NET, type DeviceStore } from './store.svelte';
-  import { dt } from './i18n';
+  import { dt, patternName } from './i18n';
 
   let {
     device, readonly = false, onOpen, onAddPart, onDescribe, buildBar = true, toolbar = true, powerWires = $bindable(false), busy = false,
@@ -32,16 +35,20 @@
   const nodeTypes = { part: PartNode };
   let nodes = $state.raw<Node<PartData>[]>([]);
   let edges = $state.raw<FlowEdge[]>([]);
-  let bridge = $state<{ fit: () => void; centre: () => [number, number] }>();
+  let bridge = $state<{ fit: () => void; fitTo: (ids: string[]) => void; centre: () => [number, number] }>();
 
   const issuesBy = $derived.by(() => {
     const out: Record<string, number> = {};
-    for (const i of [...(device.state?.issues ?? []), ...(device.state?.lint ?? [])]) {
-      const id = String(i.ref ?? '').split('.')[0];
+    for (const i of [...(device.state?.issues ?? []), ...(device.state?.lint ?? []), ...(device.state?.rules ?? [])]) {
+      if (i.severity === 'info') continue;
+      const id = refNode(i.ref);
       out[id] = (out[id] ?? 0) + 1;
     }
     return out;
   });
+  // the accessories' cards: their names, pins and prices before the server's view of a new node arrives
+  let accs = $state<Record<string, Accessory>>({});
+  loadLibrary().then((l) => (accs = Object.fromEntries(accessoriesOf(l).map((a) => [a.key, a])))).catch(() => {});
 
   $effect(() => {
     const s = device.state;
@@ -54,12 +61,20 @@
     const auto = s.doc.nodes.some((n) => !n.ui) ? autoLayout(s.doc, views) : {};
     const sel = device.selected;
     const hl = device.selectedNet;
+    const lit = new Set(device.lit?.ids ?? []);
     // never read `nodes` here: the flow writes it back (measured sizes), which would run this again
     const list: Node<PartData>[] = s.doc.nodes
       .filter((n) => n.kind !== 'hole')
       .map((n) => {
         const at = n.ui ?? auto[n.id] ?? [0, 0];
-        return { id: n.id, type: 'part', position: { x: at[0], y: at[1] }, data: { node: n, view: views[n.id], issues: issuesBy[n.id] ?? 0, power: powerWires, hl }, selected: sel === n.id };
+        const acc = n.kind === 'accessory' ? (accs[n.accessory ?? ''] ?? null) : null;
+        const lay = layoutOf(s.doc, n.id);
+        const placed = n.pcb ? null : lay ? dt('placed_layout', { p: patternName(lay.layout.pattern) }) : n.place ? dt('placed_designer') : null;
+        return {
+          id: n.id, type: 'part', position: { x: at[0], y: at[1] },
+          data: { node: n, view: views[n.id], issues: issuesBy[n.id] ?? 0, power: powerWires, hl, acc, lit: lit.has(n.id), face: faceOf(n, views[n.id]?.part, acc, views[n.id]?.face), placed },
+          selected: sel === n.id,
+        };
       });
     nodes = list;
     const ids = new Set(list.map((n) => n.id));
@@ -137,8 +152,15 @@
     return [x, y];
   }
 
+  // a group lit from a requirement or a layout: the view goes to its parts
+  $effect(() => {
+    const ids = device.lit?.ids;
+    if (ids?.length) setTimeout(() => bridge?.fitTo(ids), 200);
+  });
+
   const b = $derived(device.build);
   const pcb = $derived(device.state?.pcb ?? null);
+  const layouts = $derived(device.state?.doc.layouts ?? []);
 </script>
 
 <div class="device-editor">
@@ -204,6 +226,17 @@
         {/if}
       </div>{/if}
     </Panel>{/if}
+    {#if layouts.length}
+      <!-- the designer's patterns (the dice pips, a row of keys): each lights its parts -->
+      <Panel position="bottom-left" class="layouts">
+        {#each layouts as l, i (i)}
+          <button class="lay" class:on={device.lit?.key === `layout:${i}`} onclick={() => device.light(`layout:${i}`, l.nodes ?? [])}
+            title={dt('layout_note_d')}>
+            <i class="ti ti-map-pin" aria-hidden="true"></i>{patternName(l.pattern)} · <span class="mono">{(l.nodes ?? []).join(', ')}</span>
+          </button>
+        {/each}
+      </Panel>
+    {/if}
   </SvelteFlow>
 
   {#if device.loaded && device.empty}
@@ -335,6 +368,38 @@
   }
   .buildbar {
     justify-content: flex-end;
+  }
+  .device-editor :global(.layouts) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: calc(100% - 20px);
+  }
+  .lay {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 6px;
+    border: 1px solid var(--outline-variant);
+    background: color-mix(in srgb, var(--surface-container) 90%, transparent);
+    color: var(--on-surface-var);
+    font: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+    max-width: 360px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lay.on {
+    border-color: var(--primary);
+    color: var(--on-surface);
+    background: color-mix(in srgb, var(--primary) 16%, var(--surface-container));
+  }
+  .lay .mono {
+    font-size: 11px;
   }
   .toggle {
     display: inline-flex;

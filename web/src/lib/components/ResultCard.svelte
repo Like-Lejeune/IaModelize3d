@@ -46,6 +46,9 @@
     const c = studio?.current;
     return c && (result.version == null || c.version === result.version) ? c : null;
   });
+  // a case for a board: the closed case's own size (case_fit.case_mm, in the check's summary), the plate after it
+  const caseMm = $derived((enc?.summary as { case_mm?: number[] } | undefined)?.case_mm ?? null);
+  const caseSize = $derived(caseMm?.length ? `${caseMm.map(mm).join(' × ')} ${unitLabel('mm')}` : '');
   // "checked against the board: USB 0.27 mm · BOOTSEL 0.3 mm · snaps 1.7 %"
   const encLine = $derived.by(() => {
     const sm = enc?.summary;
@@ -76,8 +79,10 @@
     <div class="xs muted head">{printable ? t('result_title') : t('result_not_ok')}{result.version ? ` · v${result.version}` : ''}</div>
     {#if result.title}<h3>{result.title}</h3>{/if}
     <div class="facts small">
-      <!-- a case's size is its print plate (base and lid side by side), as the viewer's chip says in that layout -->
-      {#if size}<span class="mono">{enc ? `${t('size_plate')} ` : ''}{size}</span>{/if}
+      <!-- a case's size is its print plate (base and lid side by side), as the viewer's chip says in that layout: the
+           closed case's own size goes first -->
+      {#if caseSize}<span class="mono">{t('size_case')} {caseSize}</span>{/if}
+      {#if size}<span class="mono" class:muted={!!caseSize}>{enc ? `${t('size_plate')} ` : ''}{size}</span>{/if}
       {#if result.est_grams}<span>≈{mm(result.est_grams)} {t('grams')}</span>{/if}
       {#if result.est_minutes}<span>≈{fmtMinutes(result.est_minutes)}</span>{/if}
     </div>

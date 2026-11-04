@@ -37,6 +37,8 @@
   const metaModels = $derived(['SAM 3.1', 'Muse Spark', 'Muse Image', 'Muse Voice Transcribe', ...(session.me?.models?.some((m) => isOpenWeights(m.id)) ? ['Muse Spark Open'] : [])]);
 
   let examples = $state<ExampleOut[] | null>(null);
+  // the examples of what the prompt above makes: finished devices, or printed parts
+  const shownExamples = $derived(examples?.filter((ex) => (ex.pack === 'device') === (mode === 'device')) ?? null);
   let opening = $state<string | null>(null);
   let exampleError = $state<string | null>(null);
   let mine = $state<ProjectOut[] | null>(null);
@@ -73,7 +75,7 @@
     exampleError = null;
     try {
       const p = await api.openExample(ex.key, i18n.lang);
-      goto(`/p/${p.id}`);
+      goto(ex.pack === 'device' ? `/d/${p.id}` : `/p/${p.id}`);
     } catch (e) {
       exampleError = errorText(e);
       opening = null;
@@ -227,16 +229,16 @@
 
     <FeaturedRuns />
 
-    {#if examples === null || examples.length}
+    {#if shownExamples === null || shownExamples.length}
       <section class="block" aria-labelledby="examples-title">
         <div class="bhead">
           <div>
             <h2 id="examples-title">{t('examples')}</h2>
-            <p class="muted small">{t('examples_hint')}</p>
+            <p class="muted small">{mode === 'device' ? dt('examples_hint') : t('examples_hint')}</p>
           </div>
         </div>
         <div class="grid three">
-          {#if examples === null}
+          {#if shownExamples === null}
             {#each [0, 1, 2, 3, 4, 5] as i (i)}
               <div class="card tile sk" aria-hidden="true">
                 <span class="pic skeleton"></span>
@@ -244,11 +246,11 @@
               </div>
             {/each}
           {:else}
-            {#each examples as ex (ex.key)}
+            {#each shownExamples as ex (ex.key)}
               <button class="card tile" onclick={() => openExample(ex)} disabled={!!opening && opening !== ex.key} aria-busy={opening === ex.key}>
                 <span class="pic">
                   <img src={ex.cover} alt="" loading="lazy" />
-                  {#if ex.pack === 'pcb'}<span class="kind" aria-hidden="true"><Icon name="cpu" size={15} /></span>
+                  {#if ex.pack === 'pcb' || ex.pack === 'device'}<span class="kind" aria-hidden="true"><Icon name="cpu" size={15} /></span>
                   {:else if ex.kind === 'part' || SPARE_PARTS.has(ex.key)}<span class="kind spare"><Icon name="package" size={14} />{t('example_spare')}</span>{/if}
                   <span class="go" aria-hidden="true">
                     {#if opening === ex.key}<i class="ti ti-loader-2 spin"></i>{:else}<Icon name="arrow-right" size={16} />{/if}

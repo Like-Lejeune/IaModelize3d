@@ -140,11 +140,12 @@ async def save(project_id: str, *, source: str, intent: dict | None, build: dict
     return version
 
 
-async def add(project_id: str, packed: dict[str, Any]) -> int:
+async def add(project_id: str, packed: dict[str, Any], *, version: int | None = None) -> int:
     """A version packed elsewhere (pack(), e.g. the home page's PCB example, routed once and kept) as the next version
-    of this project; its board.json is stamped with the version it gets here. Returns the version number."""
+    of this project, or under the number given (a device example, whose case names its board by number); its board.json
+    is stamped with the version it gets here. Returns the version number."""
     async with _lock:
-        version = await _next(project_id)
+        version = version or await _next(project_id)
         files = dict(packed["files"])
         if "board.json" in files:
             board = json.loads(files["board.json"])

@@ -1,0 +1,310 @@
+{
+ "project": "p_36eb603922624d4e",
+ "version": 2,
+ "doc": {
+  "schema": "fw.device/1",
+  "title": "Электронный игральный кубик",
+  "summary": "Бросок кнопкой или встряхиванием (акселерометр), 7 светодиодов в раскладке кубика, звук броска, анимация",
+  "board": {
+   "holes": true
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU ESP32-C3",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "U2",
+    "kind": "chip",
+    "label": "QMA6100P акселерометр",
+    "lcsc": "C2887190"
+   },
+   {
+    "id": "C1",
+    "kind": "capacitor",
+    "label": "U2 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C2",
+    "kind": "capacitor",
+    "label": "U2 bulk",
+    "value": "4.7uF",
+    "package": "0603"
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "SDA pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "SCL pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "LED1 resistor",
+    "value": "330R",
+    "package": "0603"
+   },
+   {
+    "id": "R4",
+    "kind": "resistor",
+    "label": "LED2 resistor",
+    "value": "330R",
+    "package": "0603"
+   },
+   {
+    "id": "R5",
+    "kind": "resistor",
+    "label": "LED3 resistor",
+    "value": "330R",
+    "package": "0603"
+   },
+   {
+    "id": "R6",
+    "kind": "resistor",
+    "label": "LED4 resistor",
+    "value": "330R",
+    "package": "0603"
+   },
+   {
+    "id": "R7",
+    "kind": "resistor",
+    "label": "LED5 resistor",
+    "value": "330R",
+    "package": "0603"
+   },
+   {
+    "id": "R8",
+    "kind": "resistor",
+    "label": "LED6 resistor",
+    "value": "330R",
+    "package": "0603"
+   },
+   {
+    "id": "R9",
+    "kind": "resistor",
+    "label": "LED7 resistor",
+    "value": "330R",
+    "package": "0603"
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "Точка 1 центр",
+    "color": "white"
+   },
+   {
+    "id": "LED2",
+    "kind": "led",
+    "label": "Точка 2",
+    "color": "white"
+   },
+   {
+    "id": "LED3",
+    "kind": "led",
+    "label": "Точка 3",
+    "color": "white"
+   },
+   {
+    "id": "LED4",
+    "kind": "led",
+    "label": "Точка 4",
+    "color": "white"
+   },
+   {
+    "id": "LED5",
+    "kind": "led",
+    "label": "Точка 5",
+    "color": "white"
+   },
+   {
+    "id": "LED6",
+    "kind": "led",
+    "label": "Точка 6",
+    "color": "white"
+   },
+   {
+    "id": "LED7",
+    "kind": "led",
+    "label": "Точка 7",
+    "color": "white"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "Бросок"
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "Пьезо-пищалка",
+    "lcsc": "C76871"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "U2.GND",
+     "U2.GNDIO",
+     "C1.2",
+     "C2.2",
+     "LED1.K",
+     "LED2.K",
+     "LED3.K",
+     "LED4.K",
+     "LED5.K",
+     "LED6.K",
+     "LED7.K",
+     "SW1.B",
+     "BZ1.P2",
+     "U2.AD0"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "U2.VDD",
+     "C1.1",
+     "C2.1",
+     "R1.1",
+     "R2.1",
+     "U2.SENB"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.SDA",
+     "U2.SDX",
+     "R1.2"
+    ],
+    "name": "SDA"
+   },
+   {
+    "pins": [
+     "U1.SCL",
+     "U2.SCX",
+     "R2.2"
+    ],
+    "name": "SCL"
+   },
+   {
+    "pins": [
+     "U1.D0",
+     "R3.1"
+    ]
+   },
+   {
+    "pins": [
+     "R3.2",
+     "LED1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "R4.1"
+    ]
+   },
+   {
+    "pins": [
+     "R4.2",
+     "LED2.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "R5.1"
+    ]
+   },
+   {
+    "pins": [
+     "R5.2",
+     "LED3.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "R6.1"
+    ]
+   },
+   {
+    "pins": [
+     "R6.2",
+     "LED4.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.TX",
+     "R7.1"
+    ]
+   },
+   {
+    "pins": [
+     "R7.2",
+     "LED5.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.RX",
+     "R8.1"
+    ]
+   },
+   {
+    "pins": [
+     "R8.2",
+     "LED6.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R9.1"
+    ]
+   },
+   {
+    "pins": [
+     "R9.2",
+     "LED7.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.SCK",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MISO",
+     "BZ1.P1"
+    ]
+   }
+  ],
+  "firmware": {
+   "lang": "arduino",
+   "files": {
+    "dice.ino": "#include <Wire.h>\n// Электронный игральный кубик: 7 светодиодов, кнопка, пьезо, QMA6100P\n// Плата: XIAO ESP32-C3\n// Пины:\n#define PIN_LED1 2  // D0 - центр\n#define PIN_LED2 3  // D1\n#define PIN_LED3 4  // D2\n#define PIN_LED4 5  // D3\n#define PIN_LED5 6  // D6 (TX)\n#define PIN_LED6 7  // D7 (RX)\n#define PIN_LED7 10 // D10 (MOSI)\n#define PIN_BTN 8   // D8/SCK - кнопка на GND (внутр. подтяжка)\n#define PIN_BUZZ 9  // D9/MISO - пьезо\n#define PIN_SDA 4 // XIAO SDA=D4\n#define PIN_SCL 5 // XIAO SCL=D5\n// Для XIAO ESP32-C3 фактические GPIO: SDA=6, SCL=7 но Wire использует D4/D5 алиасы\n// Используем Wire по умолчанию (D4=SDA, D5=SCL)\n\nconst int leds[7] = {PIN_LED1,PIN_LED2,PIN_LED3,PIN_LED4,PIN_LED5,PIN_LED6,PIN_LED7};\n\n// Раскладка точек как на кубике:\n// 6 2\n// 7 1 3\n// 5 4\n// LED1=center, LED2=top-left, LED3=top-right, LED4=bottom-right, LED5=bottom-left, LED6=middle-left, LED7=middle-right? Упростим mapping\n// Зададим faces битмаской 7 бит (bit0=LED1 center etc)\n// Классические грани:\n// 1: center\n// 2: диагональ 2 точки\n// 3: 2+center\n// 4: 4 угла\n// 5: 4 угла+center\n// 6: 6 точек (углы + средние боковые)\n// Подгоним под нашу разводку: LED1 центр, LED2/3/4/5 углы, LED6/7 средние\nconst uint8_t faces[7] = {\n  0,\n  0b0000001, // 1 - центр\n  0b0001010, // 2 - два противоположных угла (LED2+LED4)\n  0b0001011, // 3 - 2 + центр\n  0b0011110, // 4 - 4 угла LED2+LED3+LED4+LED5\n  0b0011111, // 5 - 4 угла + центр\n  0b0111111  // 6 - все кроме центра? + добавим средние -> 6 точек\n};\n// Для 6 используем углы+середины: LED2,LED3,LED4,LED5,LED6,LED7 = 0b1111110 = 0x7E\nconst uint8_t face6 = 0b1111110;\n\nQMA6100P via I2C: addr 0x12 (AD0=GND) или 0x13\n#define QMA_ADDR 0x12\nbool hasAccel=false;\n\nvoid ledsOff(){ for(int i=0;i<7;i++) digitalWrite(leds[i], LOW); }\nvoid showFace(int n){\n  uint8_t m = (n==6) ? face6 : faces[n];\n  for(int i=0;i<7;i++) digitalWrite(leds[i], (m>>i)&1 ? HIGH : LOW);\n}\nvoid buzz(int freq, int ms){\n  tone(PIN_BUZZ, freq, ms);\n}\nvoid rollAnimation(){\n  for(int i=0;i<12;i++){\n    int f = random(1,7);\n    showFace(f);\n    buzz(800 + f*200, 40);\n    delay(60);\n  }\n}\nvoid doRoll(){\n  rollAnimation();\n  int result = random(1,7);\n  showFace(result);\n  // победный звук\n  buzz(1200,120);\n  delay(150);\n  buzz(1600,200);\n  Serial.printf(\"Выпало: %d\\n\", result);\n}\n\n// QMA6100P helpers\nbool qmaRead(int16_t &x,int16_t &y,int16_t &z){\n  Wire.beginTransmission(QMA_ADDR);\n  Wire.write(0x00); // chip_id reg?\n  // Просто читаем регистры данных 0x01..0x06\n  Wire.endTransmission(false);\n  Wire.requestFrom(QMA_ADDR, 6);\n  if(Wire.available()<6) return false;\n  uint8_t d[6]; for(int i=0;i<6;i++) d[i]=Wire.read();\n  x = (int16_t)((d[1]<<8)|d[0]) >> 2;\n  y = (int16_t)((d[3]<<8)|d[2]) >> 2;\n  z = (int16_t)((d[5]<<8)|d[4]) >> 2;\n  return true;\n}\nvoid initQMA(){\n  Wire.begin();\n  delay(100);\n  // Проверяем ID\n  Wire.beginTransmission(QMA_ADDR);\n  Wire.write(0x00);\n  Wire.endTransmission(false);\n  Wire.requestFrom(QMA_ADDR,1);\n  if(Wire.available()){\n    uint8_t id = Wire.read();\n    Serial.printf(\"QMA ID=0x%02X\\n\", id);\n    hasAccel = true;\n    // Включаем активный режим: регистр 0x11 = 0x80? По даташиту PowerMode\n    Wire.beginTransmission(QMA_ADDR);\n    Wire.write(0x11); Wire.write(0x80);\n    Wire.endTransmission();\n    // bandwidth\n    Wire.beginTransmission(QMA_ADDR);\n    Wire.write(0x10); Wire.write(0x0A);\n    Wire.endTransmission();\n  } else {\n    Serial.println(\"QMA не найден - бросок только кнопкой\");\n  }\n}\n\nunsigned long lastShake=0;\nvoid setup(){\n  Serial.begin(115200);\n  for(int i=0;i<7;i++){ pinMode(leds[i], OUTPUT); digitalWrite(leds[i], LOW); }\n  pinMode(PIN_BTN, INPUT_PULLUP);\n  pinMode(PIN_BUZZ, OUTPUT);\n  randomSeed(analogRead(0) + micros());\n  initQMA();\n  showFace(1);\n  buzz(1000,100);\n  Serial.println(\"Электронный кубик готов: нажмите кнопку или встряхните!\");\n}\n\nvoid loop(){\n  // Кнопка (с антидребезгом)\n  static unsigned long lastPress=0;\n  if(digitalRead(PIN_BTN)==LOW && millis()-lastPress>500){\n    lastPress=millis();\n    Serial.println(\"Бросок кнопкой\");\n    doRoll();\n  }\n  // Встряхивание по акселерометру\n  if(hasAccel && millis()-lastShake>800){\n    int16_t x,y,z;\n    if(qmaRead(x,y,z)){\n      long mag = abs((long)x)+abs((long)y)+abs((long)z);\n      // порог встряхивания ~ 2000 LSB, подбирается\n      if(mag > 3000){\n        lastShake=millis();\n        Serial.printf(\"Shake mag=%ld x=%d y=%d z=%d\\n\", mag,x,y,z);\n        doRoll();\n      }\n    }\n  }\n  delay(20);\n}\n"
+   },
+   "notes": "Плата: Seeed XIAO ESP32-C3. В Arduino IDE выберите Board = XIAO_ESP32C3, установите библиотеку Wire (встроена). Загрузите через USB-C на модуле. Пины: D0-D3,D6,D7,D10 к 7 светодиодам через 330 Ом, D8 кнопка на GND, D9 пьезо. I2C акселерометр QMA6100P адрес 0x12 (AD0=GND). При отсутствии датчика бросок работает кнопкой. Порог встряхивания mag>3000 — подстройте в коде."
+  }
+ }
+}

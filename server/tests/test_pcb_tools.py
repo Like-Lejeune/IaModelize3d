@@ -14,7 +14,7 @@ import pytest
 from formwright import db as dbmod
 from formwright import geom as geommod
 from formwright import pcb, pcb_store, pcbapi, showcase
-from formwright.agent import critic, elec_tools, pcb_prompt, pcb_tools, tools
+from formwright.agent import critic, device_tools, elec_tools, pcb_prompt, pcb_tools, tools
 from formwright.agent.tools import DesignState
 from formwright.config import REPO_DIR, settings
 from formwright.geom import GeomPool
@@ -156,7 +156,7 @@ async def test_a_drc_error_comes_back_with_its_hint_and_blocks_finish(fresh_db, 
     fake_pcb(monkeypatch, FAILED)
     ctx, state = FakeCtx(), DesignState(pack="pcb")
     r, images = await write(ctx, state)
-    assert r["ok"] is False and r["version"] == 1 and r["error"].startswith("26 DRC error(s): a 100nF capacitor")
+    assert r["ok"] is False and r["version"] == 1 and r["error"].startswith("1 DRC error(s): a 100nF capacitor") and r["drc_errors"] == 1
     assert r["errors"] == [DECOUPLING] and "follow from these" in r["suppressed"] and r["fab"].startswith("none")
     assert r["next"].startswith("apply the hints") and r["ports"] == ["J1 (usb_c) on -y"] and r["board_mm"] == [44, 36]
     # the routing animation and the version went out as project events (C8)
@@ -324,6 +324,66 @@ def test_the_reference_board_is_not_the_home_page_board():
     # each is the engine's own tested fixture, apart from the comments for the model
     assert code(pcb_prompt.EXAMPLE) == code((fixtures / "carrier.tsx").read_text(encoding="utf-8"))
     assert code(showcase.XIAO_CARRIER) == code((fixtures / "xiao_carrier.tsx").read_text(encoding="utf-8"))
+
+
+CONCEPT = {"uses": ["by the bed", "in a hand"], "chosen": "Tilted puck", "why": "reads from the pillow",
+           "options": [{"name": "Plain box", "form": "box", "stance": "desk", "mounting": "none"},
+                       {"name": "Tilted puck", "form": "round", "stance": "tilt", "mounting": "magnets"}]}
+
+
+async def _case(monkeypatch, pack, concept, options=None):
+    """make_enclosure on a saved board, with the device doc's concept; the program's own lines say what it was built with."""
+    fake_pcb(monkeypatch, CLEAN)
+    g = FakeGeom()
+    monkeypatch.setattr(tools, "geom", lambda: g)
+    monkeypatch.setattr(elec_tools, "geom", lambda: g)
+
+    async def current(project_id):
+        return ({"schema": "fw.device/1", **({"concept": concept} if concept else {})}, 1)
+
+    monkeypatch.setattr(device_tools, "current", current)
+    ctx, state = FakeCtx(), DesignState(pack=pack)
+    await write(ctx, state)
+    r, _ = await pcb_tools.run(ctx, state, "make_enclosure", {"options": options or {}})
+    return r, elec_tools.case_options(state.source)
+
+
+async def test_a_device_case_takes_form_stance_and_mounting_from_the_chosen_concept(fresh_db, monkeypatch, emitted):
+    r, opts = await _case(monkeypatch, "device", CONCEPT)
+    assert r["ok"] and r["from_concept"] == {"option": "Tilted puck", "form": "round", "stance": "tilt", "mounting": "magnets"}
+    assert (opts["form"], opts["stance"], opts["mounting"]) == ("round", "tilt", "magnets")
+    assert "concept_warnings" not in r  # it is what the concept chose
+
+
+async def test_explicit_case_options_win_over_the_concept_and_only_the_rest_is_named(fresh_db, monkeypatch, emitted):
+    r, opts = await _case(monkeypatch, "device", CONCEPT, {"form": "box", "mounting": "none", "port_fit": 0.4})
+    assert r["from_concept"] == {"option": "Tilted puck", "stance": "tilt"}
+    assert (opts["form"], opts["stance"], opts["mounting"], opts["port_fit"]) == ("box", "tilt", "none", 0.4)
+    # 'auto' asks for nothing: the concept's stance still comes
+    r, opts = await _case(monkeypatch, "device", CONCEPT, {"stance": "auto", "form": "round", "mounting": "magnets"})
+    assert r["from_concept"] == {"option": "Tilted puck", "stance": "tilt"} and opts["stance"] == "tilt"
+
+
+async def test_no_concept_a_bad_one_or_another_pack_keep_the_plain_defaults(fresh_db, monkeypatch, emitted):
+    for pack, concept in (("device", None), ("device", {"options": CONCEPT["options"]}), ("pcb", CONCEPT),
+                          ("device", {**CONCEPT, "chosen": "nothing like this"})):
+        r, opts = await _case(monkeypatch, pack, concept)
+        assert r["ok"] and "from_concept" not in r, (pack, concept)
+        assert (opts["form"], opts["stance"], opts["mounting"]) == ("soft", "auto", "none")
+    # a value the case does not know is left out, the rest still comes; a stance of auto follows the mounting
+    odd = {**CONCEPT, "options": [{"name": "Tilted puck", "form": "hexagon", "stance": "auto", "mounting": "ears"}]}
+    r, opts = await _case(monkeypatch, "device", odd)
+    assert r["from_concept"] == {"option": "Tilted puck", "mounting": "ears"}
+    assert (opts["form"], opts["stance"], opts["mounting"]) == ("soft", "auto", "ears")
+
+
+def test_the_tool_says_what_each_stance_form_and_mounting_looks_like():
+    text = pcb_tools.MAKE_ENCLOSURE["parameters"]["properties"]["options"]["description"]
+    assert is_english(pcb_tools.MAKE_ENCLOSURE["description"] + text)
+    for k, choices in (("form", ("soft", "round", "box")), ("stance", ("desk", "tilt", "upright", "wall", "hand")),
+                       ("mounting", ("ears", "strap", "lanyard", "stake", "magnets", "contacts"))):
+        assert k + "," in text and all(f"'{c}'" in text for c in choices), k
+    assert "chosen concept" in text
 
 
 # ---------------------------------------------------------------- the real bundle and engine

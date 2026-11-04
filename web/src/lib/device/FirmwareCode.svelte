@@ -1,13 +1,15 @@
 <script lang="ts">
   // The firmware files of the device, one tab per file, with line numbers and syntax colours; empty until the agent
   // writes them. The colours are a <pre> laid exactly under a textarea whose own text is transparent: same font, same
-  // metrics, the same scroll (both sit in one scrolling box), so typing stays a plain textarea.
+  // metrics, the same scroll (both sit in one scrolling box), so typing stays a plain textarea. The server's check of the
+  // code (firmware.check: compiled, or read by a checker) shows over it: a badge, and its errors and warnings below the
+  // code, each opening its file at its line, which is marked in the text.
   import Icon from '$lib/components/Icon.svelte';
-  import { deviceApi } from './api';
+  import { deviceApi, type FwDiag } from './api';
   import type { DeviceStore } from './store.svelte';
   import { dt } from './i18n';
   import { codeLang, highlight } from './highlight';
-  import { untrack } from 'svelte';
+  import { untrack, tick } from 'svelte';
 
   let { device, projectId, onSend, readonly = false }: { device: DeviceStore; projectId: string; onSend?: (msg: string) => void; readonly?: boolean } = $props();
   const fw = $derived(device.state?.doc.firmware ?? null);
@@ -25,15 +27,59 @@
   const html = $derived(highlight(src, codeLang(name ?? '', fw?.lang)) + '\n');
   let area = $state<HTMLTextAreaElement>();
   let under = $state<HTMLPreElement>();
+  let box = $state<HTMLDivElement>();
+
+  // ---- the server's check: errors and warnings, each with its file and line
+  const check = $derived(fw?.check ?? null);
+  type Diag = FwDiag & { sev: 'error' | 'warning' };
+  const diags = $derived<Diag[]>([
+    ...(check?.errors ?? []).map((d) => ({ ...d, sev: 'error' as const })),
+    ...(check?.warnings ?? []).map((d) => ({ ...d, sev: 'warning' as const })),
+  ]);
+  const nErr = $derived(check?.errors?.length ?? 0);
+  // a diagnostic names its file as the compiler did ('/tmp/x/sketch/dice.ino'): match it to a tab by its base name
+  const fileOf = (d: FwDiag) => {
+    const base = (d.file ?? '').split(/[\\/]/).pop() ?? '';
+    return files.find(([n]) => n === d.file || n === base)?.[0] ?? (files.length === 1 ? files[0][0] : null);
+  };
+  const marks = $derived(diags.filter((d) => d.line && fileOf(d) === name).map((d) => ({ line: d.line!, sev: d.sev, msg: d.msg })));
+  // typed after the check: its lines may have moved (a new check, not a copy of the document, clears it)
+  let typedSince = $state(false);
+  const checkKey = $derived(JSON.stringify(check));
+  $effect(() => {
+    void checkKey;
+    untrack(() => (typedSince = false));
+  });
+  let showDiags = $state(true);
+
+  /** Open a diagnostic's file and put the caret on its line, scrolled into the middle of the view. */
+  async function go(d: FwDiag) {
+    const f = fileOf(d);
+    if (f) picked = f;
+    await tick();
+    if (!d.line || !area || !box) return;
+    const at = src.split('\n').slice(0, d.line - 1).reduce((n, l) => n + l.length + 1, 0);
+    const end = at + (src.split('\n')[d.line - 1]?.length ?? 0);
+    const lh = parseFloat(getComputedStyle(area).lineHeight) || 19;
+    box.scrollTo({ top: Math.max(0, 12 + (d.line - 1) * lh - box.clientHeight / 3), behavior: 'smooth' });
+    area.focus({ preventScroll: true });
+    area.setSelectionRange(at, end);
+  }
 
   // typing edits the file in place; the save goes with the next pause (DeviceStore.edit)
   function typed(text: string) {
     src = text;
+    typedSince = true;
     if (!name) return;
     const file = name;
     device.edit((d) => {
       if (d.firmware) d.firmware.files[file] = text;
     }, `firmware ${file} edited`);
+  }
+  const where = (d: FwDiag) => `${fileOf(d) ?? d.file ?? ''}${d.line ? `:${d.line}` : ''}`;
+  function askFix() {
+    const list = (check?.errors ?? []).slice(0, 8).map((d) => `${where(d)} ${d.msg}`).join('; ');
+    onSend?.(dt('fw_fix_msg', { e: list }));
   }
   // the textarea is as big as its text, so it should never scroll itself; if the caret nudges it, the colours follow
   function sync() {
@@ -65,17 +111,44 @@
         {/each}
       </div>
       <span class="spacer"></span>
+      {#if check}
+        <button class="chk" class:ok={check.ok && !nErr} class:err={!check.ok || nErr > 0} class:stale={typedSince} onclick={() => (showDiags = !showDiags)}
+          title={`${check.tool ?? ''}${typedSince ? ` · ${dt('fw_check_stale')}` : ''}`} aria-expanded={showDiags}>
+          <i class="ti {check.ok && !nErr ? 'ti-circle-check' : 'ti-alert-triangle'}" aria-hidden="true"></i>
+          {check.ok && !nErr ? dt('fw_check_ok') : dt('fw_check_bad', { n: nErr })}{#if check.warnings?.length}{' · '}{dt('fw_check_warn', { n: check.warnings.length })}{/if}
+        </button>
+      {:else}
+        <span class="chk none" title={dt('fw_unchecked_d')}><i class="ti ti-help-circle" aria-hidden="true"></i> {dt('fw_unchecked')}</span>
+      {/if}
       <button class="btn small ghost" onclick={copy}><Icon name={copied ? 'check' : 'copy'} size={14} /> {copied ? dt('copied') : dt('copy')}</button>
       <a class="btn small" href={deviceApi.firmwareUrl(projectId, name)} download={name}><Icon name="download" size={14} /> {dt('download')}</a>
     </div>
-    <div class="code" role="region" aria-label={name}>
+    <div class="code" role="region" aria-label={name} bind:this={box}>
       <pre class="nums" aria-hidden="true">{lines.map((_, i) => i + 1).join('\n')}</pre>
       <div class="ed">
+        {#each marks as m, i (i)}<div class="mark {m.sev}" style="top: calc(12px + {m.line - 1} * 1.55em)" title={m.msg}></div>{/each}
         <pre class="hl" aria-hidden="true" bind:this={under}>{@html html}</pre>
         <textarea class="src" bind:this={area} spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off" readonly={readonly} value={src} rows="1"
           oninput={(e) => typed(e.currentTarget.value)} onscroll={sync} aria-label={name}></textarea>
       </div>
     </div>
+    {#if diags.length && showDiags}
+      <div class="diags" role="region" aria-label={dt('fw_problems')}>
+        <div class="dh">
+          <strong>{dt('fw_problems')}</strong>
+          {#if typedSince}<span class="muted">{dt('fw_check_stale')}</span>{/if}
+          <span class="spacer"></span>
+          {#if onSend && nErr && !readonly}<button class="btn small" onclick={askFix}><Icon name="wand" size={13} /> {dt('ask_agent_fix')}</button>{/if}
+        </div>
+        {#each diags as d, i (i)}
+          <button class="dg {d.sev}" onclick={() => go(d)}>
+            <i class="ti {d.sev === 'error' ? 'ti-alert-triangle' : 'ti-info-circle'}" aria-hidden="true"></i>
+            <span class="mono at">{where(d)}</span>
+            <span class="msg">{d.msg}{#if d.hint}<span class="hint">{d.hint}</span>{/if}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
   {:else}
     <div class="empty">
       <i class="ti ti-code big" aria-hidden="true"></i>
@@ -155,6 +228,109 @@
   /* the colours and the textarea in one grid cell: the <pre> sets the size, the textarea fills it */
   .ed {
     display: grid;
+    position: relative;
+    z-index: 0;
+  }
+  /* a line the check complains about: a band under its text, as wide as the code */
+  .mark {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1.55em;
+    z-index: -1;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--warn) 16%, transparent);
+    border-left: 3px solid var(--warn);
+  }
+  .mark.error {
+    background: color-mix(in srgb, var(--error) 18%, transparent);
+    border-left-color: var(--error);
+  }
+  .chk {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 9px;
+    border-radius: 12px;
+    border: 1px solid var(--outline-variant);
+    background: transparent;
+    color: var(--on-surface-var);
+    font: inherit;
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .chk.ok {
+    color: var(--ok);
+    border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+    background: color-mix(in srgb, var(--ok) 10%, transparent);
+  }
+  .chk.err {
+    color: var(--error);
+    border-color: color-mix(in srgb, var(--error) 45%, transparent);
+    background: color-mix(in srgb, var(--error) 10%, transparent);
+  }
+  .chk.stale {
+    opacity: 0.65;
+  }
+  .chk.none {
+    cursor: default;
+  }
+  .diags {
+    flex: none;
+    max-height: 34%;
+    overflow: auto;
+    border-top: 1px solid var(--divider);
+    background: var(--surface-container-low);
+    font-size: 12.5px;
+  }
+  .dh {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    position: sticky;
+    top: 0;
+    background: var(--surface-container-low);
+    font-size: 12px;
+  }
+  .dg {
+    display: grid;
+    grid-template-columns: 16px auto 1fr;
+    gap: 8px;
+    align-items: baseline;
+    width: 100%;
+    padding: 4px 10px;
+    border: none;
+    background: none;
+    color: var(--on-surface);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .dg:hover {
+    background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+  }
+  .dg i {
+    color: var(--warn-text);
+  }
+  .dg.error i {
+    color: var(--error);
+  }
+  .dg .at {
+    font-size: 11.5px;
+    color: var(--on-surface-var);
+    white-space: nowrap;
+  }
+  .dg .msg {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .hint {
+    display: block;
+    color: var(--on-surface-var);
+    font-size: 11.5px;
   }
   .hl,
   textarea.src {

@@ -1,0 +1,4792 @@
+{
+ "night_light": {
+  "project": "p_8d9ba4afe72448ba",
+  "version": 8,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Ночник с датчиком движения",
+   "summary": "Включается в темноте при движении, тёплый свет WS2812, настройка кнопкой",
+   "board": {
+    "holes": true,
+    "w": 50.0,
+    "h": 50.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU ESP32-C3",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "J2",
+     "kind": "header",
+     "label": "PIR AM312 модуль",
+     "pins": [
+      "V3V3",
+      "GND",
+      "OUT"
+     ],
+     "edge": "-y"
+    },
+    {
+     "id": "U3",
+     "kind": "chip",
+     "label": "BH1750",
+     "lcsc": "C78960"
+    },
+    {
+     "id": "LED1",
+     "kind": "chip",
+     "label": "WS2812",
+     "lcsc": "C2843785"
+    },
+    {
+     "id": "C2",
+     "kind": "capacitor",
+     "label": "U3 decoupling",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "режим"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "J2.GND",
+      "U3.GND",
+      "U3.ADDR",
+      "LED1.GND",
+      "C2.2",
+      "SW1.B"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "J2.V3V3",
+      "U3.VCC",
+      "U3.DVI",
+      "C2.1",
+      "R1.1",
+      "R2.1"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.V5",
+      "LED1.VDD"
+     ],
+     "name": "V5"
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "U3.SDA",
+      "R1.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "U3.SCL",
+      "R2.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.D0",
+      "J2.OUT"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "LED1.DIN"
+     ]
+    }
+   ]
+  }
+ },
+ "kitchen_timer": {
+  "project": "p_a04813e3e1c74f6a",
+  "version": 2,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Кухонный таймер",
+   "summary": "Таймер обратного отсчёта до 99:59 на OLED 0.96\" I2C, 3 кнопки управления, громкий звуковой сигнал",
+   "board": {
+    "holes": true
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU ESP32-C3",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "J2",
+     "kind": "header",
+     "label": "OLED SSD1306 0.96\" I2C",
+     "pins": [
+      "V3V3",
+      "GND",
+      "SCL",
+      "SDA"
+     ],
+     "edge": "-y"
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "Буззер активный 3В",
+     "lcsc": "C2878"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "SET +"
+    },
+    {
+     "id": "SW2",
+     "kind": "button",
+     "label": "SET -"
+    },
+    {
+     "id": "SW3",
+     "kind": "button",
+     "label": "START/STOP"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "LED резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "Сигнал",
+     "color": "red"
+    },
+    {
+     "id": "C1",
+     "kind": "capacitor",
+     "label": "BZ декуплирование",
+     "value": "100nF",
+     "package": "0603"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "J2.GND",
+      "SW1.B",
+      "SW2.B",
+      "SW3.B",
+      "BZ1.P2",
+      "LED1.K",
+      "C1.2"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "J2.V3V3",
+      "R1.1",
+      "R2.1",
+      "C1.1"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "J2.SDA",
+      "R1.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "J2.SCL",
+      "R2.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.D0",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW2.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "SW3.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "BZ1.P"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D3",
+      "R3.1"
+     ]
+    },
+    {
+     "pins": [
+      "R3.2",
+      "LED1.A"
+     ]
+    }
+   ]
+  }
+ },
+ "soil_moisture": {
+  "project": "p_6ad352d4b96f47f8",
+  "version": 3,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Датчик влажности почвы",
+   "summary": "Ёмкостной датчик влажности для комнатного цветка, OLED 0.96\" I2C, индикация сухости светодиодом и зуммером, кнопка, Wi-Fi веб-страница",
+   "board": {
+    "holes": true
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU ESP32-C3",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "J1",
+     "kind": "header",
+     "label": "Soil sensor (capacitive)",
+     "pins": [
+      "V3V3",
+      "GND",
+      "AO"
+     ],
+     "edge": "-x"
+    },
+    {
+     "id": "J2",
+     "kind": "header",
+     "label": "OLED SSD1306 I2C 0.96\"",
+     "pins": [
+      "V3V3",
+      "GND",
+      "SCL",
+      "SDA"
+     ],
+     "edge": "-y"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "OK",
+     "color": "green"
+    },
+    {
+     "id": "LED2",
+     "kind": "led",
+     "label": "Dry alarm",
+     "color": "red"
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "LED1 resistor",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "LED2 resistor",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "Калибровка / страница"
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "Buzzer 5x5mm passive",
+     "lcsc": "C94598"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "NPN S8050 for buzzer",
+     "lcsc": "C181158"
+    },
+    {
+     "id": "R5",
+     "kind": "resistor",
+     "label": "Base resistor buzzer",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "J1.GND",
+      "J2.GND",
+      "LED1.K",
+      "LED2.K",
+      "SW1.B",
+      "Q1.P3"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "J1.V3V3",
+      "J2.V3V3",
+      "R1.1",
+      "R2.1",
+      "Q1.P2",
+      "BZ1.P",
+      "BZ1.NC"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "J2.SDA",
+      "R1.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "J2.SCL",
+      "R2.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.D0",
+      "J1.AO"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "R3.1"
+     ]
+    },
+    {
+     "pins": [
+      "R3.2",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D3",
+      "R4.1"
+     ]
+    },
+    {
+     "pins": [
+      "R4.2",
+      "LED2.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R5.1"
+     ]
+    },
+    {
+     "pins": [
+      "R5.2",
+      "Q1.P1"
+     ]
+    }
+   ]
+  }
+ },
+ "dice": {
+  "project": "p_36eb603922624d4e",
+  "version": 2,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Электронный игральный кубик",
+   "summary": "Бросок кнопкой или встряхиванием (акселерометр), 7 светодиодов в раскладке кубика, звук броска, анимация",
+   "board": {
+    "holes": true
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU ESP32-C3",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "U2",
+     "kind": "chip",
+     "label": "QMA6100P акселерометр",
+     "lcsc": "C2887190"
+    },
+    {
+     "id": "C1",
+     "kind": "capacitor",
+     "label": "U2 decoupling",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "C2",
+     "kind": "capacitor",
+     "label": "U2 bulk",
+     "value": "4.7uF",
+     "package": "0603"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "LED1 resistor",
+     "value": "330R",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "LED2 resistor",
+     "value": "330R",
+     "package": "0603"
+    },
+    {
+     "id": "R5",
+     "kind": "resistor",
+     "label": "LED3 resistor",
+     "value": "330R",
+     "package": "0603"
+    },
+    {
+     "id": "R6",
+     "kind": "resistor",
+     "label": "LED4 resistor",
+     "value": "330R",
+     "package": "0603"
+    },
+    {
+     "id": "R7",
+     "kind": "resistor",
+     "label": "LED5 resistor",
+     "value": "330R",
+     "package": "0603"
+    },
+    {
+     "id": "R8",
+     "kind": "resistor",
+     "label": "LED6 resistor",
+     "value": "330R",
+     "package": "0603"
+    },
+    {
+     "id": "R9",
+     "kind": "resistor",
+     "label": "LED7 resistor",
+     "value": "330R",
+     "package": "0603"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "Точка 1 центр",
+     "color": "white"
+    },
+    {
+     "id": "LED2",
+     "kind": "led",
+     "label": "Точка 2",
+     "color": "white"
+    },
+    {
+     "id": "LED3",
+     "kind": "led",
+     "label": "Точка 3",
+     "color": "white"
+    },
+    {
+     "id": "LED4",
+     "kind": "led",
+     "label": "Точка 4",
+     "color": "white"
+    },
+    {
+     "id": "LED5",
+     "kind": "led",
+     "label": "Точка 5",
+     "color": "white"
+    },
+    {
+     "id": "LED6",
+     "kind": "led",
+     "label": "Точка 6",
+     "color": "white"
+    },
+    {
+     "id": "LED7",
+     "kind": "led",
+     "label": "Точка 7",
+     "color": "white"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "Бросок"
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "Пьезо-пищалка",
+     "lcsc": "C76871"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "U2.GND",
+      "U2.GNDIO",
+      "C1.2",
+      "C2.2",
+      "LED1.K",
+      "LED2.K",
+      "LED3.K",
+      "LED4.K",
+      "LED5.K",
+      "LED6.K",
+      "LED7.K",
+      "SW1.B",
+      "BZ1.P2",
+      "U2.AD0"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "U2.VDD",
+      "C1.1",
+      "C2.1",
+      "R1.1",
+      "R2.1",
+      "U2.SENB"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "U2.SDX",
+      "R1.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "U2.SCX",
+      "R2.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.D0",
+      "R3.1"
+     ]
+    },
+    {
+     "pins": [
+      "R3.2",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "R4.1"
+     ]
+    },
+    {
+     "pins": [
+      "R4.2",
+      "LED2.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "R5.1"
+     ]
+    },
+    {
+     "pins": [
+      "R5.2",
+      "LED3.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D3",
+      "R6.1"
+     ]
+    },
+    {
+     "pins": [
+      "R6.2",
+      "LED4.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.TX",
+      "R7.1"
+     ]
+    },
+    {
+     "pins": [
+      "R7.2",
+      "LED5.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.RX",
+      "R8.1"
+     ]
+    },
+    {
+     "pins": [
+      "R8.2",
+      "LED6.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R9.1"
+     ]
+    },
+    {
+     "pins": [
+      "R9.2",
+      "LED7.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.SCK",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MISO",
+      "BZ1.P1"
+     ]
+    }
+   ]
+  }
+ },
+ "leak_sensor": {
+  "project": "p_5753a2f9f1a64e37",
+  "version": 8,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Датчик протечки воды",
+   "summary": "WiFi датчик протечки: контакты на полу, сирена, LED и оповещение в web-интерфейсе",
+   "board": {
+    "holes": true,
+    "w": 52.0,
+    "h": 46.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU ESP32-C3",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "Зуммер активный 3V",
+     "lcsc": "C96127"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "Тревога LED",
+     "color": "red"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "LED резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "Подтяжка щупов",
+     "value": "100k",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "Ограничитель щупов",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "Сброс/Тест"
+    },
+    {
+     "id": "J_PROBE",
+     "kind": "header",
+     "label": "Щупы воды",
+     "pins": [
+      "SENSE",
+      "GND"
+     ],
+     "edge": "-y"
+    },
+    {
+     "id": "J_BAT",
+     "kind": "jst",
+     "label": "Батарея 3.7В",
+     "edge": "+x"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "LED1.K",
+      "SW1.B",
+      "J_PROBE.GND",
+      "J_BAT.P2"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "BZ1.P1",
+      "R3.1"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.V5",
+      "J_BAT.P1"
+     ],
+     "name": "VBAT"
+    },
+    {
+     "pins": [
+      "U1.D0",
+      "R3.2",
+      "R4.1"
+     ],
+     "name": "SENSE"
+    },
+    {
+     "pins": [
+      "R4.2",
+      "J_PROBE.SENSE"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "BZ1.P2"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "R1.1"
+     ]
+    },
+    {
+     "pins": [
+      "R1.2",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "SW1.A"
+     ]
+    }
+   ]
+  }
+ },
+ "leak_sensor_2": {
+  "project": "p_979fb77173044e39",
+  "version": 7,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Датчик протечки воды",
+   "summary": "Выносной зонд на проводе, громкая сирена, красный LED, кнопка теста/сброса, Wi-Fi оповещение, питание от LiPo с зарядкой от USB-C",
+   "board": {
+    "holes": true,
+    "w": 52.0,
+    "h": 58.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU XIAO ESP32-C3",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "SENS1",
+     "kind": "accessory",
+     "label": "зонд протечки",
+     "accessory": "leak_probe",
+     "edge": "-y"
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "buzzer 3V active",
+     "lcsc": "C417385"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "NPN S8050",
+     "lcsc": "C2146"
+    },
+    {
+     "id": "R_B",
+     "kind": "resistor",
+     "label": "base resistor",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "D1",
+     "kind": "diode",
+     "label": "flyback diode"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "тревога",
+     "color": "red"
+    },
+    {
+     "id": "R_LED",
+     "kind": "resistor",
+     "label": "LED resistor",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "тест/сброс",
+     "place": {
+      "x": -12.0,
+      "y": -10.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "BT1",
+     "kind": "accessory",
+     "label": "LiPo 500mAh",
+     "accessory": "lipo_1s_500"
+    },
+    {
+     "id": "C_BT",
+     "kind": "capacitor",
+     "label": "bulk cap",
+     "value": "10uF",
+     "package": "0603"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "SENS1.GND",
+      "Q1.E",
+      "LED1.K",
+      "SW1.B",
+      "C_BT.2"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "C_BT.1",
+      "BZ1.POS"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "R_LED.1"
+     ]
+    },
+    {
+     "pins": [
+      "R_LED.2",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D3",
+      "R_B.1"
+     ]
+    },
+    {
+     "pins": [
+      "R_B.2",
+      "Q1.B"
+     ]
+    },
+    {
+     "pins": [
+      "BZ1.NEG",
+      "Q1.C",
+      "D1.A"
+     ]
+    },
+    {
+     "pins": [
+      "SENS1.SENSE",
+      "U1.MOSI"
+     ]
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "Обнаружение воды выносным зондом",
+     "parts": [
+      "SENS1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "Звуковая тревога при протечке",
+     "parts": [
+      "BZ1",
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "Световая индикация статуса/тревоги",
+     "parts": [
+      "LED1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "Кнопка тест/сброс на крышке",
+     "parts": [
+      "SW1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "Wi-Fi оповещение и веб-страница статуса",
+     "parts": [
+      "U1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R6",
+     "text": "Автономное питание LiPo с зарядкой от USB-C, глубокий сон",
+     "parts": [
+      "U1",
+      "BT1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ },
+ "night_light_2": {
+  "project": "p_c05072e060b04ac5",
+  "version": 7,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Ночник с датчиком движения",
+   "summary": "Включает тёплый свет при движении в темноте, автоотключение через 30с, 4 адресуемых светодиода",
+   "board": {
+    "holes": true,
+    "w": 52.0,
+    "h": 62.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "U2",
+     "kind": "chip",
+     "label": "PIR AM312",
+     "lcsc": "C114881",
+     "place": {
+      "x": 0.0,
+      "y": -12.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "C1",
+     "kind": "capacitor",
+     "label": "U2 decoupling",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "ALS1",
+     "kind": "chip",
+     "label": "Фоторезистор GL5516",
+     "lcsc": "C10077",
+     "place": {
+      "x": 16.0,
+      "y": -14.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "R_ALS",
+     "kind": "resistor",
+     "label": "Делитель ALS",
+     "value": "10k",
+     "package": "0603"
+    },
+    {
+     "id": "LED1",
+     "kind": "chip",
+     "label": "WS2812B 1",
+     "lcsc": "C52917433"
+    },
+    {
+     "id": "LED2",
+     "kind": "chip",
+     "label": "WS2812B 2",
+     "lcsc": "C52917433"
+    },
+    {
+     "id": "LED3",
+     "kind": "chip",
+     "label": "WS2812B 3",
+     "lcsc": "C52917433"
+    },
+    {
+     "id": "LED4",
+     "kind": "chip",
+     "label": "WS2812B 4",
+     "lcsc": "C52917433"
+    },
+    {
+     "id": "C2",
+     "kind": "capacitor",
+     "label": "LED1 decoupling",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "C3",
+     "kind": "capacitor",
+     "label": "LED2 decoupling",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "C4",
+     "kind": "capacitor",
+     "label": "LED3 decoupling",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "C5",
+     "kind": "capacitor",
+     "label": "LED4 decoupling",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "C6",
+     "kind": "capacitor",
+     "label": "LED chain bulk",
+     "value": "10uF",
+     "package": "0603"
+    },
+    {
+     "id": "D1",
+     "kind": "diode",
+     "label": "диод питания ленты"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "DIN резистор",
+     "value": "330R",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "Режим",
+     "place": {
+      "x": -16.0,
+      "y": -18.0,
+      "rot": 0.0
+     }
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "U2.GND",
+      "C1.2",
+      "C2.2",
+      "C3.2",
+      "C4.2",
+      "C5.2",
+      "C6.2",
+      "LED1.VSS",
+      "LED2.VSS",
+      "LED3.VSS",
+      "LED4.VSS",
+      "R_ALS.2",
+      "SW1.B"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "U2.VCC",
+      "C1.1",
+      "ALS1.P1"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.V5",
+      "D1.A"
+     ],
+     "name": "V5"
+    },
+    {
+     "pins": [
+      "D1.K",
+      "LED1.VDD",
+      "LED2.VDD",
+      "LED3.VDD",
+      "LED4.VDD",
+      "C2.1",
+      "C3.1",
+      "C4.1",
+      "C5.1",
+      "C6.1"
+     ],
+     "name": "VLED"
+    },
+    {
+     "pins": [
+      "U1.D3",
+      "U2.OUT"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "ALS1.P2",
+      "R_ALS.1"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R1.1"
+     ]
+    },
+    {
+     "pins": [
+      "R1.2",
+      "LED1.DIN"
+     ]
+    },
+    {
+     "pins": [
+      "LED1.DOUT",
+      "LED2.DIN"
+     ]
+    },
+    {
+     "pins": [
+      "LED2.DOUT",
+      "LED3.DIN"
+     ]
+    },
+    {
+     "pins": [
+      "LED3.DOUT",
+      "LED4.DIN"
+     ]
+    }
+   ],
+   "layouts": [
+    {
+     "pattern": "row",
+     "nodes": [
+      "LED1",
+      "LED2",
+      "LED3",
+      "LED4"
+     ],
+     "center": [
+      0.0,
+      0.0
+     ],
+     "pitch": 10.0,
+     "rot": 0.0
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "Обнаружение движения человека (PIR)",
+     "parts": [
+      "U2"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "Измерение освещённости (темно/светло) для включения только в темноте",
+     "parts": [
+      "ALS1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "Тёплая подсветка, видимая через крышку корпуса",
+     "parts": [
+      "LED1",
+      "LED2",
+      "LED3",
+      "LED4"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "Автовыключение по таймеру и плавное затухание",
+     "parts": [
+      "U1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "Кнопка смены режима (авто/всегда вкл/выкл)",
+     "parts": [
+      "SW1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ },
+ "night_light_3_v1": {
+  "project": "p_e09652612ee046f8",
+  "version": 1,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Ночник с датчиком движения",
+   "summary": "Включает теплый свет при движении в темноте, регулировка яркости кнопкой, USB-C питание",
+   "board": {
+    "holes": true,
+    "w": 52.0,
+    "h": 52.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "PIR1",
+     "kind": "accessory",
+     "label": "PIR датчик",
+     "accessory": "hc_sr501_pir",
+     "place": {
+      "x": 0.0,
+      "y": -10.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "U2",
+     "kind": "chip",
+     "label": "BH1750 датчик света",
+     "lcsc": "C78960"
+    },
+    {
+     "id": "C1",
+     "kind": "capacitor",
+     "label": "U2 decoupling",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "тёплый LED 1",
+     "color": "white",
+     "place": {
+      "x": -12.0,
+      "y": 8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED2",
+     "kind": "led",
+     "label": "тёплый LED 2",
+     "color": "white",
+     "place": {
+      "x": 12.0,
+      "y": 8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED3",
+     "kind": "led",
+     "label": "тёплый LED 3",
+     "color": "white",
+     "place": {
+      "x": -12.0,
+      "y": 14.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED4",
+     "kind": "led",
+     "label": "тёплый LED 4",
+     "color": "white",
+     "place": {
+      "x": 12.0,
+      "y": 14.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "LED1 resistor",
+     "value": "22R",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "LED2 resistor",
+     "value": "22R",
+     "package": "0603"
+    },
+    {
+     "id": "R5",
+     "kind": "resistor",
+     "label": "LED3 resistor",
+     "value": "22R",
+     "package": "0603"
+    },
+    {
+     "id": "R6",
+     "kind": "resistor",
+     "label": "LED4 resistor",
+     "value": "22R",
+     "package": "0603"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "MOSFET AO3400",
+     "lcsc": "C181090"
+    },
+    {
+     "id": "R7",
+     "kind": "resistor",
+     "label": "MOS gate",
+     "value": "100R",
+     "package": "0603"
+    },
+    {
+     "id": "R8",
+     "kind": "resistor",
+     "label": "MOS pulldown",
+     "value": "100k",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "режим",
+     "place": {
+      "x": 16.0,
+      "y": -18.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "C2",
+     "kind": "capacitor",
+     "label": "bulk 10uF",
+     "value": "10uF",
+     "package": "0603"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "U2.GND",
+      "C1.2",
+      "C2.2",
+      "Q1.S",
+      "R8.2",
+      "SW1.B",
+      "PIR1.GND",
+      "LED1.K",
+      "LED2.K",
+      "LED3.K",
+      "LED4.K",
+      "U2.ADDR"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "U2.VCC",
+      "U2.DVI",
+      "C1.1",
+      "C2.1",
+      "R1.1",
+      "R2.1",
+      "PIR1.VCC"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "U2.SDA",
+      "R1.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "U2.SCL",
+      "R2.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.D0",
+      "PIR1.OUT"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R7.1"
+     ]
+    },
+    {
+     "pins": [
+      "R7.2",
+      "Q1.G",
+      "R8.1"
+     ]
+    },
+    {
+     "pins": [
+      "Q1.D",
+      "R3.2",
+      "R4.2",
+      "R5.2",
+      "R6.2"
+     ]
+    },
+    {
+     "pins": [
+      "R3.1",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "R4.1",
+      "LED2.A"
+     ]
+    },
+    {
+     "pins": [
+      "R5.1",
+      "LED3.A"
+     ]
+    },
+    {
+     "pins": [
+      "R6.1",
+      "LED4.A"
+     ]
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "Обнаруживать движение человека (PIR)",
+     "parts": [
+      "PIR1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "Измерять освещенность и включать только в темноте",
+     "parts": [
+      "U2"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "Мягкий теплый свет ночника (4 LED)",
+     "parts": [
+      "LED1",
+      "LED2",
+      "LED3",
+      "LED4",
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "Кнопка для переключения режимов/яркости",
+     "parts": [
+      "SW1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "Питание от USB-C модуля, ночной режим с таймером выключения",
+     "parts": [
+      "U1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ },
+ "night_light_3_v2": {
+  "project": "p_e09652612ee046f8",
+  "version": 2,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Ночник с датчиком движения",
+   "summary": "Включает теплый свет при движении в темноте, регулировка яркости кнопкой, USB-C питание",
+   "board": {
+    "holes": true,
+    "w": 52.0,
+    "h": 52.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "PIR1",
+     "kind": "accessory",
+     "label": "PIR датчик",
+     "accessory": "hc_sr501_pir",
+     "place": {
+      "x": -8.0,
+      "y": -8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "U2",
+     "kind": "chip",
+     "label": "BH1750 датчик света",
+     "lcsc": "C78960"
+    },
+    {
+     "id": "C1",
+     "kind": "capacitor",
+     "label": "U2 decoupling",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "тёплый LED 1",
+     "color": "white",
+     "place": {
+      "x": -12.0,
+      "y": 8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED2",
+     "kind": "led",
+     "label": "тёплый LED 2",
+     "color": "white",
+     "place": {
+      "x": 12.0,
+      "y": 8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED3",
+     "kind": "led",
+     "label": "тёплый LED 3",
+     "color": "white",
+     "place": {
+      "x": -12.0,
+      "y": 14.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED4",
+     "kind": "led",
+     "label": "тёплый LED 4",
+     "color": "white",
+     "place": {
+      "x": 12.0,
+      "y": 14.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "LED1 resistor",
+     "value": "22R",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "LED2 resistor",
+     "value": "22R",
+     "package": "0603"
+    },
+    {
+     "id": "R5",
+     "kind": "resistor",
+     "label": "LED3 resistor",
+     "value": "22R",
+     "package": "0603"
+    },
+    {
+     "id": "R6",
+     "kind": "resistor",
+     "label": "LED4 resistor",
+     "value": "22R",
+     "package": "0603"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "MOSFET AO3400",
+     "lcsc": "C181090"
+    },
+    {
+     "id": "R7",
+     "kind": "resistor",
+     "label": "MOS gate",
+     "value": "100R",
+     "package": "0603"
+    },
+    {
+     "id": "R8",
+     "kind": "resistor",
+     "label": "MOS pulldown",
+     "value": "100k",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "режим",
+     "place": {
+      "x": 18.0,
+      "y": -18.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "C2",
+     "kind": "capacitor",
+     "label": "bulk 10uF",
+     "value": "10uF",
+     "package": "0603"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "U2.GND",
+      "C1.2",
+      "C2.2",
+      "Q1.S",
+      "R8.2",
+      "SW1.B",
+      "PIR1.GND",
+      "LED1.K",
+      "LED2.K",
+      "LED3.K",
+      "LED4.K",
+      "U2.ADDR"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U2.VCC",
+      "U2.DVI",
+      "C1.1",
+      "C2.1",
+      "R1.1",
+      "R2.1"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "U2.SDA",
+      "R1.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "U2.SCL",
+      "R2.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R7.1"
+     ]
+    },
+    {
+     "pins": [
+      "R7.2",
+      "Q1.G",
+      "R8.1"
+     ]
+    },
+    {
+     "pins": [
+      "Q1.D",
+      "R3.2",
+      "R4.2",
+      "R5.2",
+      "R6.2"
+     ]
+    },
+    {
+     "pins": [
+      "R3.1",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "R4.1",
+      "LED2.A"
+     ]
+    },
+    {
+     "pins": [
+      "R5.1",
+      "LED3.A"
+     ]
+    },
+    {
+     "pins": [
+      "R6.1",
+      "LED4.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "PIR1.OUT"
+     ]
+    },
+    {
+     "pins": [
+      "U1.V5",
+      "PIR1.VCC"
+     ],
+     "name": "V5"
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "Обнаруживать движение человека (PIR)",
+     "parts": [
+      "PIR1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "Измерять освещенность и включать только в темноте",
+     "parts": [
+      "U2"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "Мягкий теплый свет ночника (4 LED)",
+     "parts": [
+      "LED1",
+      "LED2",
+      "LED3",
+      "LED4",
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "Кнопка для переключения режимов/яркости",
+     "parts": [
+      "SW1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "Питание от USB-C модуля, ночной режим с таймером выключения",
+     "parts": [
+      "U1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ },
+ "night_light_3_fixed": {
+  "project": "p_e09652612ee046f8",
+  "version": 16,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Ночник с датчиком движения",
+   "summary": "Включает теплый свет при движении в темноте, регулировка яркости кнопкой, USB-C питание",
+   "board": {
+    "holes": true,
+    "w": 52.0,
+    "h": 52.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "PIR1",
+     "kind": "accessory",
+     "label": "PIR датчик",
+     "accessory": "hc_sr501_pir",
+     "place": {
+      "x": 0.0,
+      "y": -14.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "U2",
+     "kind": "chip",
+     "label": "BH1750 датчик света",
+     "lcsc": "C78960"
+    },
+    {
+     "id": "C1",
+     "kind": "capacitor",
+     "label": "U2 decoupling",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "тёплый LED 1",
+     "color": "white",
+     "place": {
+      "x": -5.0,
+      "y": 8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED2",
+     "kind": "led",
+     "label": "тёплый LED 2",
+     "color": "white",
+     "place": {
+      "x": 5.0,
+      "y": 8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "LED1 resistor",
+     "value": "100R",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "LED2 resistor",
+     "value": "100R",
+     "package": "0603"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "MOSFET AO3400",
+     "lcsc": "C181090"
+    },
+    {
+     "id": "R7",
+     "kind": "resistor",
+     "label": "MOS gate",
+     "value": "100R",
+     "package": "0603"
+    },
+    {
+     "id": "R8",
+     "kind": "resistor",
+     "label": "MOS pulldown",
+     "value": "100k",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "режим",
+     "place": {
+      "x": 18.0,
+      "y": 5.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "C2",
+     "kind": "capacitor",
+     "label": "bulk 10uF",
+     "value": "10uF",
+     "package": "0603"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U2.GND",
+      "C1.2",
+      "C2.2",
+      "Q1.S",
+      "R8.2",
+      "SW1.B",
+      "PIR1.GND",
+      "U2.ADDR"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U2.VCC",
+      "U2.DVI",
+      "C1.1",
+      "C2.1",
+      "R1.1",
+      "R2.1",
+      "U1.V3V3",
+      "R3.1",
+      "R4.1"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "U2.SDA",
+      "R1.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "U2.SCL",
+      "R2.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R7.1"
+     ]
+    },
+    {
+     "pins": [
+      "R7.2",
+      "Q1.G",
+      "R8.1"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "PIR1.OUT"
+     ]
+    },
+    {
+     "pins": [
+      "U1.V5",
+      "PIR1.VCC"
+     ],
+     "name": "V5"
+    },
+    {
+     "pins": [
+      "R3.2",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "R4.2",
+      "LED2.A"
+     ]
+    },
+    {
+     "pins": [
+      "LED1.K",
+      "LED2.K",
+      "Q1.D"
+     ]
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "Обнаруживать движение человека (PIR)",
+     "parts": [
+      "PIR1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "Измерять освещенность и включать только в темноте",
+     "parts": [
+      "U2"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "Мягкий теплый свет ночника (2 LED)",
+     "parts": [
+      "LED1",
+      "LED2",
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "Кнопка для переключения режимов/яркости",
+     "parts": [
+      "SW1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "Питание от USB-C модуля, ночной режим с таймером выключения",
+     "parts": [
+      "U1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ },
+ "timer_3_v5": {
+  "project": "p_508ad624512242fb",
+  "version": 5,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Кухонный таймер",
+   "summary": "Таймер с OLED 0.96\", 3 кнопками (+/-/Старт) и громким зуммером, на аккумуляторе",
+   "board": {
+    "holes": true,
+    "w": 58.0,
+    "h": 68.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "DS1",
+     "kind": "accessory",
+     "label": "OLED 0.96\"",
+     "accessory": "oled_096_i2c",
+     "place": {
+      "x": 0.0,
+      "y": -6.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "Плюс",
+     "place": {
+      "x": -18.0,
+      "y": -24.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "SW2",
+     "kind": "button",
+     "label": "Старт/Стоп",
+     "place": {
+      "x": 0.0,
+      "y": -28.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "SW3",
+     "kind": "button",
+     "label": "Минус",
+     "place": {
+      "x": 18.0,
+      "y": -24.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "зуммер 3В",
+     "lcsc": "C781847"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "драйвер зуммера",
+     "lcsc": "C2146"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "база зуммера",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "D1",
+     "kind": "diode",
+     "label": "защита зуммера"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "LED резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "статус",
+     "color": "red",
+     "place": {
+      "x": 22.0,
+      "y": -8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "C1",
+     "kind": "capacitor",
+     "label": "декаплинг OLED",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "BT1",
+     "kind": "accessory",
+     "label": "батарея 500мАч",
+     "accessory": "lipo_1s_500"
+    },
+    {
+     "id": "R5",
+     "kind": "resistor",
+     "label": "pull-up кнопки+",
+     "value": "10k",
+     "package": "0603"
+    },
+    {
+     "id": "R6",
+     "kind": "resistor",
+     "label": "pull-up кнопки старт",
+     "value": "10k",
+     "package": "0603"
+    },
+    {
+     "id": "R7",
+     "kind": "resistor",
+     "label": "pull-up кнопки -",
+     "value": "10k",
+     "package": "0603"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "DS1.GND",
+      "SW1.B",
+      "SW2.B",
+      "SW3.B",
+      "Q1.E",
+      "D1.K",
+      "LED1.K",
+      "C1.2"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "DS1.SDA",
+      "R2.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "DS1.SCL",
+      "R3.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.TX",
+      "SW1.A",
+      "R5.2"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW2.A",
+      "R6.2"
+     ]
+    },
+    {
+     "pins": [
+      "U1.RX",
+      "SW3.A",
+      "R7.2"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D3",
+      "R1.1"
+     ]
+    },
+    {
+     "pins": [
+      "R1.2",
+      "Q1.B"
+     ]
+    },
+    {
+     "pins": [
+      "Q1.C",
+      "BZ1.P1",
+      "D1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R4.1"
+     ]
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "DS1.VCC",
+      "C1.1",
+      "R2.1",
+      "R3.1",
+      "R5.1",
+      "R6.1",
+      "R7.1",
+      "BZ1.P2"
+     ]
+    },
+    {
+     "pins": [
+      "R4.2",
+      "LED1.A"
+     ]
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "Отображение обратного отсчёта на OLED",
+     "parts": [
+      "DS1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "Громкий звуковой сигнал по окончании",
+     "parts": [
+      "BZ1",
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "Кнопки: + минута, - минута, Старт/Стоп/Сброс",
+     "parts": [
+      "SW1",
+      "SW2",
+      "SW3"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "Работа от аккумулятора LiPo с зарядкой по USB-C модуля",
+     "parts": [
+      "U1",
+      "BT1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "Светодиод состояния (идёт отсчёт)",
+     "parts": [
+      "LED1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ },
+ "timer_3_fixed": {
+  "project": "p_508ad624512242fb",
+  "version": 8,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Кухонный таймер",
+   "summary": "Таймер с OLED 0.96\", 3 кнопками (+/-/Старт) и громким зуммером, на аккумуляторе",
+   "board": {
+    "holes": true,
+    "w": 58.0,
+    "h": 68.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "DS1",
+     "kind": "accessory",
+     "label": "OLED 0.96\"",
+     "accessory": "oled_096_i2c",
+     "place": {
+      "x": 0.0,
+      "y": -6.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "Плюс",
+     "place": {
+      "x": -18.0,
+      "y": -24.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "SW2",
+     "kind": "button",
+     "label": "Старт/Стоп",
+     "place": {
+      "x": 0.0,
+      "y": -28.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "SW3",
+     "kind": "button",
+     "label": "Минус",
+     "place": {
+      "x": 18.0,
+      "y": -24.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "зуммер 3В",
+     "lcsc": "C781847"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "драйвер зуммера",
+     "lcsc": "C2146"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "база зуммера",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "D1",
+     "kind": "diode",
+     "label": "защита зуммера"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "LED резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "статус",
+     "color": "red",
+     "place": {
+      "x": 22.0,
+      "y": -8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "C1",
+     "kind": "capacitor",
+     "label": "декаплинг OLED",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "BT1",
+     "kind": "accessory",
+     "label": "батарея 500мАч",
+     "accessory": "lipo_1s_500"
+    },
+    {
+     "id": "R5",
+     "kind": "resistor",
+     "label": "pull-up кнопки+",
+     "value": "10k",
+     "package": "0603"
+    },
+    {
+     "id": "R6",
+     "kind": "resistor",
+     "label": "pull-up кнопки старт",
+     "value": "10k",
+     "package": "0603"
+    },
+    {
+     "id": "R7",
+     "kind": "resistor",
+     "label": "pull-up кнопки -",
+     "value": "10k",
+     "package": "0603"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.SDA",
+      "DS1.SDA",
+      "R2.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "DS1.SCL",
+      "R3.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.TX",
+      "SW1.A",
+      "R5.2"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW2.A",
+      "R6.2"
+     ]
+    },
+    {
+     "pins": [
+      "U1.RX",
+      "SW3.A",
+      "R7.2"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D3",
+      "R1.1"
+     ]
+    },
+    {
+     "pins": [
+      "R1.2",
+      "Q1.B"
+     ]
+    },
+    {
+     "pins": [
+      "Q1.C",
+      "BZ1.P1",
+      "D1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R4.1"
+     ]
+    },
+    {
+     "pins": [
+      "R4.2",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.GND",
+      "DS1.GND",
+      "SW1.B",
+      "SW2.B",
+      "SW3.B",
+      "Q1.E",
+      "LED1.K",
+      "C1.2"
+     ]
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "DS1.VCC",
+      "C1.1",
+      "R2.1",
+      "R3.1",
+      "R5.1",
+      "R6.1",
+      "R7.1",
+      "BZ1.P2",
+      "D1.K"
+     ]
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "Отображение обратного отсчёта на OLED",
+     "parts": [
+      "DS1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "Громкий звуковой сигнал по окончании",
+     "parts": [
+      "BZ1",
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "Кнопки: + минута, - минута, Старт/Стоп/Сброс",
+     "parts": [
+      "SW1",
+      "SW2",
+      "SW3"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "Работа от аккумулятора LiPo с зарядкой по USB-C модуля",
+     "parts": [
+      "U1",
+      "BT1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "Светодиод состояния (идёт отсчёт)",
+     "parts": [
+      "LED1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ },
+ "leak_3_v4": {
+  "project": "p_8fe5f26654f34db2",
+  "version": 4,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Датчик протечки воды",
+   "summary": "Щуп на проводе детектирует воду, включает громкий зуммер и красный LED, кнопка тест/сброс, питание от USB-C и LiPo с зарядкой",
+   "board": {
+    "holes": true,
+    "w": 48.0,
+    "h": 50.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "PR1",
+     "kind": "accessory",
+     "label": "щуп протечки",
+     "accessory": "leak_probe",
+     "edge": "-y"
+    },
+    {
+     "id": "BT1",
+     "kind": "accessory",
+     "label": "LiPo 500 мАч",
+     "accessory": "lipo_1s_500"
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "зуммер 3В",
+     "lcsc": "C417385",
+     "place": {
+      "x": 14.0,
+      "y": -10.0,
+      "rot": 0.0
+     },
+     "face": "sound"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "NPN для зуммера",
+     "lcsc": "C2150"
+    },
+    {
+     "id": "R10",
+     "kind": "resistor",
+     "label": "база зуммера",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R11",
+     "kind": "resistor",
+     "label": "подтяжка щупа",
+     "value": "100k",
+     "package": "0603"
+    },
+    {
+     "id": "D1",
+     "kind": "diode",
+     "label": "защита зуммера"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "тревога",
+     "color": "red",
+     "place": {
+      "x": -14.0,
+      "y": -10.0,
+      "rot": 0.0
+     },
+     "face": "light"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "LED резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "тест/сброс",
+     "place": {
+      "x": 0.0,
+      "y": -10.0,
+      "rot": 0.0
+     }
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "PR1.GND",
+      "Q1.E",
+      "D1.A",
+      "LED1.K",
+      "SW1.B"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "R11.1",
+      "BZ1.POS",
+      "D1.K"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "R10.1"
+     ]
+    },
+    {
+     "pins": [
+      "R10.2",
+      "Q1.B"
+     ]
+    },
+    {
+     "pins": [
+      "Q1.C",
+      "BZ1.NEG"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R1.1"
+     ]
+    },
+    {
+     "pins": [
+      "R1.2",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "PR1.SENSE",
+      "R11.2",
+      "U1.D3"
+     ]
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "детектировать протечку выносным щупом с двумя контактами",
+     "parts": [
+      "PR1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "звуковая тревога громким активным зуммером",
+     "parts": [
+      "BZ1",
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "световая индикация красным LED",
+     "parts": [
+      "LED1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "кнопка тест/сброс тревоги на крышке",
+     "parts": [
+      "SW1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "питание от USB-C, работа от LiPo 500 мАч с зарядкой от модуля",
+     "parts": [
+      "U1",
+      "BT1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ },
+ "leak_3_fixed": {
+  "project": "p_8fe5f26654f34db2",
+  "version": 7,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Датчик протечки воды",
+   "summary": "Щуп на проводе детектирует воду, включает громкий зуммер и красный LED, кнопка тест/сброс, питание от USB-C и LiPo с зарядкой",
+   "board": {
+    "holes": true,
+    "w": 48.0,
+    "h": 50.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "PR1",
+     "kind": "accessory",
+     "label": "щуп протечки",
+     "accessory": "leak_probe",
+     "edge": "-y"
+    },
+    {
+     "id": "BT1",
+     "kind": "accessory",
+     "label": "LiPo 500 мАч",
+     "accessory": "lipo_1s_500"
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "зуммер 3В",
+     "lcsc": "C417385",
+     "place": {
+      "x": 14.0,
+      "y": -10.0,
+      "rot": 0.0
+     },
+     "face": "sound"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "NPN для зуммера",
+     "lcsc": "C2150"
+    },
+    {
+     "id": "R10",
+     "kind": "resistor",
+     "label": "база зуммера",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R11",
+     "kind": "resistor",
+     "label": "подтяжка щупа",
+     "value": "100k",
+     "package": "0603"
+    },
+    {
+     "id": "D1",
+     "kind": "diode",
+     "label": "защита зуммера"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "тревога",
+     "color": "red",
+     "place": {
+      "x": -14.0,
+      "y": -10.0,
+      "rot": 0.0
+     },
+     "face": "light"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "LED резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "тест/сброс",
+     "place": {
+      "x": 0.0,
+      "y": -10.0,
+      "rot": 0.0
+     }
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "PR1.GND",
+      "LED1.K",
+      "SW1.B"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "R11.1",
+      "BZ1.POS",
+      "D1.K"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "R10.1"
+     ]
+    },
+    {
+     "pins": [
+      "R10.2",
+      "Q1.B"
+     ]
+    },
+    {
+     "pins": [
+      "Q1.C",
+      "BZ1.NEG",
+      "D1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R1.1"
+     ]
+    },
+    {
+     "pins": [
+      "R1.2",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "PR1.SENSE",
+      "R11.2",
+      "U1.D3"
+     ]
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "детектировать протечку выносным щупом с двумя контактами",
+     "parts": [
+      "PR1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "звуковая тревога громким активным зуммером",
+     "parts": [
+      "BZ1",
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "световая индикация красным LED",
+     "parts": [
+      "LED1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "кнопка тест/сброс тревоги на крышке",
+     "parts": [
+      "SW1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "питание от USB-C, работа от LiPo 500 мАч с зарядкой от модуля",
+     "parts": [
+      "U1",
+      "BT1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ },
+ "night_light_4": {
+  "project": "p_871b9d8d70f743d3",
+  "version": 4,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Ночник с датчиком движения",
+   "summary": "Включает теплый свет только в темноте при движении, плавное затухание, питание от USB-C",
+   "board": {
+    "holes": true,
+    "w": 58.0,
+    "h": 62.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "PIR1",
+     "kind": "accessory",
+     "label": "датчик движения",
+     "accessory": "hc_sr501_pir",
+     "place": {
+      "x": 0.0,
+      "y": -18.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "U2",
+     "kind": "chip",
+     "label": "BH1750 датчик света",
+     "lcsc": "C78960"
+    },
+    {
+     "id": "C1",
+     "kind": "capacitor",
+     "label": "U2 decoupling",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "C2",
+     "kind": "capacitor",
+     "label": "bulk",
+     "value": "10uF",
+     "package": "0603"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "LED1",
+     "kind": "chip",
+     "label": "теплый LED 1",
+     "lcsc": "C210315",
+     "place": {
+      "x": -12.0,
+      "y": 6.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED2",
+     "kind": "chip",
+     "label": "теплый LED 2",
+     "lcsc": "C210315",
+     "place": {
+      "x": 0.0,
+      "y": 10.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED3",
+     "kind": "chip",
+     "label": "теплый LED 3",
+     "lcsc": "C210315",
+     "place": {
+      "x": 12.0,
+      "y": 6.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "LED1 resistor",
+     "value": "33R",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "LED2 resistor",
+     "value": "33R",
+     "package": "0603"
+    },
+    {
+     "id": "R5",
+     "kind": "resistor",
+     "label": "LED3 resistor",
+     "value": "33R",
+     "package": "0603"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "MOSFET N",
+     "lcsc": "C181090"
+    },
+    {
+     "id": "R6",
+     "kind": "resistor",
+     "label": "gate",
+     "value": "100R",
+     "package": "0603"
+    },
+    {
+     "id": "R7",
+     "kind": "resistor",
+     "label": "gate pull-down",
+     "value": "100k",
+     "package": "0603"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "U2.GND",
+      "U2.EP",
+      "C1.2",
+      "C2.2",
+      "R7.2",
+      "Q1.S",
+      "PIR1.GND"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "U2.VCC",
+      "U2.DVI",
+      "U2.ADDR",
+      "C1.1",
+      "C2.1",
+      "R1.1",
+      "R2.1"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.V5",
+      "PIR1.VCC",
+      "LED1.P2",
+      "LED2.P2",
+      "LED3.P2"
+     ],
+     "name": "V5"
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "U2.SDA",
+      "R1.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "U2.SCL",
+      "R2.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "PIR1.OUT"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "R6.1"
+     ]
+    },
+    {
+     "pins": [
+      "R6.2",
+      "Q1.G",
+      "R7.1"
+     ]
+    },
+    {
+     "pins": [
+      "Q1.D",
+      "R3.2",
+      "R4.2",
+      "R5.2"
+     ]
+    },
+    {
+     "pins": [
+      "R3.1",
+      "LED1.P1"
+     ]
+    },
+    {
+     "pins": [
+      "R4.1",
+      "LED2.P1"
+     ]
+    },
+    {
+     "pins": [
+      "R5.1",
+      "LED3.P1"
+     ]
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "обнаруживает движение человека",
+     "parts": [
+      "PIR1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "измеряет освещенность и определяет темноту",
+     "parts": [
+      "U2"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "включает теплый свет только в темноте при движении",
+     "parts": [
+      "LED1",
+      "LED2",
+      "LED3",
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "плавное включение/выключение и автовыключение",
+     "parts": [
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "питание от USB-C модуля",
+     "parts": [
+      "U1"
+     ],
+     "firmware": false
+    }
+   ]
+  }
+ },
+ "timer_4": {
+  "project": "p_e4256911dad74fb1",
+  "version": 8,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Кухонный таймер",
+   "summary": "Установка времени кнопками +/-, старт/пауза, обратный отсчёт на OLED 0.96\", громкий сигнал зуммера",
+   "board": {
+    "holes": true,
+    "w": 58.0,
+    "h": 60.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "-y"
+    },
+    {
+     "id": "DS1",
+     "kind": "accessory",
+     "label": "дисплей",
+     "accessory": "oled_096_i2c",
+     "place": {
+      "x": 0.0,
+      "y": 16.7,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "Старт/Пауза",
+     "place": {
+      "x": 0.0,
+      "y": -2.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "SW2",
+     "kind": "button",
+     "label": "+ (вверх)",
+     "place": {
+      "x": -18.0,
+      "y": -2.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "SW3",
+     "kind": "button",
+     "label": "- (вниз)",
+     "place": {
+      "x": 18.0,
+      "y": -2.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "зуммер 3В",
+     "lcsc": "C49246934"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "NPN драйвер",
+     "lcsc": "C2146"
+    },
+    {
+     "id": "D1",
+     "kind": "diode",
+     "label": "диод зуммера"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "база Q1",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "G pull-down",
+     "value": "100k",
+     "package": "0603"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "DS1.GND",
+      "SW1.B",
+      "SW2.B",
+      "SW3.B",
+      "Q1.E",
+      "R4.2"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "DS1.VCC",
+      "BZ1.P1",
+      "D1.K",
+      "R2.1",
+      "R3.1"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "DS1.SDA",
+      "R2.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "DS1.SCL",
+      "R3.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.D3",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW2.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "SW3.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R1.1"
+     ]
+    },
+    {
+     "pins": [
+      "R1.2",
+      "Q1.B",
+      "R4.1"
+     ]
+    },
+    {
+     "pins": [
+      "Q1.C",
+      "BZ1.P2",
+      "D1.A"
+     ]
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "Задание времени кнопками +/- и отображение на OLED",
+     "parts": [
+      "DS1",
+      "SW2",
+      "SW3"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "Старт/пауза и сброс отсчёта",
+     "parts": [
+      "SW1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "Громкий звуковой сигнал по окончании",
+     "parts": [
+      "BZ1",
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "Питание от USB-C модуля, корпус с окнами под дисплей, кнопки и звук",
+     "parts": [
+      "U1"
+     ],
+     "firmware": false
+    }
+   ]
+  }
+ },
+ "soil_4": {
+  "project": "p_81425bc28f294ce3",
+  "version": 6,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Датчик влажности почвы",
+   "summary": "Измеряет влажность почвы емкостным датчиком, показывает на OLED, светодиодами и звуком подсказывает когда поливать",
+   "board": {
+    "holes": true,
+    "w": 58.0,
+    "h": 58.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "P1",
+     "kind": "accessory",
+     "label": "датчик почвы",
+     "accessory": "soil_capacitive_v12",
+     "edge": "-y"
+    },
+    {
+     "id": "DS1",
+     "kind": "accessory",
+     "label": "OLED 0.96\"",
+     "accessory": "oled_096_i2c",
+     "place": {
+      "x": 0.0,
+      "y": -8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "сухо",
+     "color": "red",
+     "place": {
+      "x": -14.0,
+      "y": 8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED2",
+     "kind": "led",
+     "label": "норма",
+     "color": "green",
+     "place": {
+      "x": 0.0,
+      "y": 8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED3",
+     "kind": "led",
+     "label": "влажно",
+     "color": "blue",
+     "place": {
+      "x": 14.0,
+      "y": 8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "LED1 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "LED2 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "LED3 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "buzzer 3V",
+     "lcsc": "C781847"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "NPN для зуммера",
+     "lcsc": "C2146"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "база Q1",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "D1",
+     "kind": "diode",
+     "label": "диод зуммера"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "проверка",
+     "place": {
+      "x": 18.0,
+      "y": -18.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "BT1",
+     "kind": "accessory",
+     "label": "батарея",
+     "accessory": "lipo_1s_500"
+    },
+    {
+     "id": "R5",
+     "kind": "resistor",
+     "label": "SDA pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "R6",
+     "kind": "resistor",
+     "label": "SCL pull-up",
+     "value": "4.7k",
+     "package": "0603"
+    },
+    {
+     "id": "C1",
+     "kind": "capacitor",
+     "label": "декаплинг OLED",
+     "value": "100nF",
+     "package": "0603"
+    },
+    {
+     "id": "C2",
+     "kind": "capacitor",
+     "label": "декаплинг датчика",
+     "value": "100nF",
+     "package": "0603"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "DS1.GND",
+      "P1.GND",
+      "LED1.K",
+      "LED2.K",
+      "LED3.K",
+      "Q1.E",
+      "SW1.B",
+      "C1.2",
+      "C2.2"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "DS1.VCC",
+      "P1.VCC",
+      "R5.1",
+      "R6.1",
+      "C1.1",
+      "C2.1",
+      "BZ1.P1",
+      "D1.K"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "DS1.SDA",
+      "R5.2"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "DS1.SCL",
+      "R6.2"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "P1.AOUT"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R1.1"
+     ]
+    },
+    {
+     "pins": [
+      "R1.2",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D3",
+      "R2.1"
+     ]
+    },
+    {
+     "pins": [
+      "R2.2",
+      "LED2.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.TX",
+      "R3.1"
+     ]
+    },
+    {
+     "pins": [
+      "R3.2",
+      "LED3.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.RX",
+      "R4.1"
+     ]
+    },
+    {
+     "pins": [
+      "R4.2",
+      "Q1.B"
+     ]
+    },
+    {
+     "pins": [
+      "Q1.C",
+      "BZ1.P2",
+      "D1.A"
+     ]
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "измерять влажность почвы емкостным датчиком",
+     "parts": [
+      "P1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "показывать влажность в % на OLED экране",
+     "parts": [
+      "DS1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "3 светодиода: сухо / норма / влажно",
+     "parts": [
+      "LED1",
+      "LED2",
+      "LED3"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "звуковой сигнал когда почва слишком сухая",
+     "parts": [
+      "BZ1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "кнопка для проверки и сброса сигнала",
+     "parts": [
+      "SW1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R6",
+     "text": "питание от LiPo с зарядкой через USB-C модуля, сон для экономии",
+     "parts": [
+      "U1",
+      "BT1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ },
+ "dice_4": {
+  "project": "p_ac00b2ed65ca4ac0",
+  "version": 3,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Электронный игральный кубик",
+   "summary": "Нажми кнопку — 7 светодиодов показывают случайную грань 1–6 с анимацией броска, работает от LiPo и засыпает через 30с",
+   "board": {
+    "holes": true,
+    "w": 46.0,
+    "h": 50.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "-y"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "pip центр",
+     "color": "red"
+    },
+    {
+     "id": "LED2",
+     "kind": "led",
+     "label": "pip левый-верх",
+     "color": "red"
+    },
+    {
+     "id": "LED3",
+     "kind": "led",
+     "label": "pip правый-верх",
+     "color": "red"
+    },
+    {
+     "id": "LED4",
+     "kind": "led",
+     "label": "pip левый-сред",
+     "color": "red"
+    },
+    {
+     "id": "LED5",
+     "kind": "led",
+     "label": "pip правый-сред",
+     "color": "red"
+    },
+    {
+     "id": "LED6",
+     "kind": "led",
+     "label": "pip левый-низ",
+     "color": "red"
+    },
+    {
+     "id": "LED7",
+     "kind": "led",
+     "label": "pip правый-низ",
+     "color": "red"
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "LED1 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "LED2 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "LED3 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "LED4 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R5",
+     "kind": "resistor",
+     "label": "LED5 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R6",
+     "kind": "resistor",
+     "label": "LED6 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R7",
+     "kind": "resistor",
+     "label": "LED7 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "бросок",
+     "place": {
+      "x": 14.0,
+      "y": -12.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "BT1",
+     "kind": "accessory",
+     "label": "батарея",
+     "accessory": "lipo_1s_500"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "LED1.K",
+      "LED2.K",
+      "LED3.K",
+      "LED4.K",
+      "LED5.K",
+      "LED6.K",
+      "LED7.K",
+      "SW1.B"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "R1.1"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D3",
+      "R2.1",
+      "R7.1"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R3.1",
+      "R6.1"
+     ]
+    },
+    {
+     "pins": [
+      "U1.RX",
+      "R4.1",
+      "R5.1"
+     ]
+    },
+    {
+     "pins": [
+      "R1.2",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "R2.2",
+      "LED2.A"
+     ]
+    },
+    {
+     "pins": [
+      "R3.2",
+      "LED3.A"
+     ]
+    },
+    {
+     "pins": [
+      "R4.2",
+      "LED4.A"
+     ]
+    },
+    {
+     "pins": [
+      "R5.2",
+      "LED5.A"
+     ]
+    },
+    {
+     "pins": [
+      "R6.2",
+      "LED6.A"
+     ]
+    },
+    {
+     "pins": [
+      "R7.2",
+      "LED7.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW1.A"
+     ]
+    }
+   ],
+   "layouts": [
+    {
+     "pattern": "dice",
+     "nodes": [
+      "LED1",
+      "LED2",
+      "LED3",
+      "LED4",
+      "LED5",
+      "LED6",
+      "LED7"
+     ],
+     "center": [
+      0.0,
+      9.0
+     ],
+     "pitch": 8.0,
+     "rot": 0.0
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "Семь светодиодов-пипсов в раскладке игрального кубика, видны через крышку",
+     "parts": [
+      "LED1",
+      "LED2",
+      "LED3",
+      "LED4",
+      "LED5",
+      "LED6",
+      "LED7"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "Кнопка на крышке запускает бросок кубика",
+     "parts": [
+      "SW1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "Анимация броска и случайный результат 1-6",
+     "parts": [
+      "LED1",
+      "LED2",
+      "LED3",
+      "LED4",
+      "LED5",
+      "LED6",
+      "LED7"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "Питание от LiPo, зарядка через USB-C модуля, глубокий сон после 30с, пробуждение кнопкой",
+     "parts": [
+      "U1",
+      "BT1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ },
+ "leak_4": {
+  "project": "p_a2ce967444654e54",
+  "version": 4,
+  "doc": {
+   "schema": "fw.device/1",
+   "title": "Датчик протечки воды",
+   "summary": "Выносной щуп на пол, громкая сирена, красный/зелёный статус, кнопка тест/сброс, Wi-Fi оповещение",
+   "board": {
+    "holes": true,
+    "w": 48.0,
+    "h": 52.0
+   },
+   "nodes": [
+    {
+     "id": "U1",
+     "kind": "module",
+     "label": "MCU",
+     "module": "113991054",
+     "edge": "+y"
+    },
+    {
+     "id": "PR1",
+     "kind": "accessory",
+     "label": "щуп протечки",
+     "accessory": "leak_probe",
+     "edge": "-y"
+    },
+    {
+     "id": "BZ1",
+     "kind": "chip",
+     "label": "сирена 3V",
+     "lcsc": "C49246934"
+    },
+    {
+     "id": "Q1",
+     "kind": "chip",
+     "label": "NPN драйвер сирены",
+     "lcsc": "C2146"
+    },
+    {
+     "id": "R3",
+     "kind": "resistor",
+     "label": "база Q1",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R4",
+     "kind": "resistor",
+     "label": "стяжка базы",
+     "value": "100k",
+     "package": "0603"
+    },
+    {
+     "id": "LED1",
+     "kind": "led",
+     "label": "норма",
+     "color": "green",
+     "place": {
+      "x": -10.0,
+      "y": -8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "LED2",
+     "kind": "led",
+     "label": "тревога",
+     "color": "red",
+     "place": {
+      "x": 0.0,
+      "y": -8.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "R1",
+     "kind": "resistor",
+     "label": "LED1 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "R2",
+     "kind": "resistor",
+     "label": "LED2 резистор",
+     "value": "1k",
+     "package": "0603"
+    },
+    {
+     "id": "SW1",
+     "kind": "button",
+     "label": "тест/сброс",
+     "place": {
+      "x": 14.0,
+      "y": -14.0,
+      "rot": 0.0
+     }
+    },
+    {
+     "id": "R5",
+     "kind": "resistor",
+     "label": "подтяжка щупа",
+     "value": "10k",
+     "package": "0603"
+    },
+    {
+     "id": "J1",
+     "kind": "header",
+     "label": "I2C",
+     "pins": [
+      "V3V3",
+      "GND",
+      "SDA",
+      "SCL"
+     ],
+     "edge": "-y"
+    }
+   ],
+   "nets": [
+    {
+     "pins": [
+      "U1.GND",
+      "PR1.GND",
+      "Q1.E",
+      "R4.2",
+      "LED1.K",
+      "LED2.K",
+      "SW1.B",
+      "J1.GND"
+     ],
+     "name": "GND"
+    },
+    {
+     "pins": [
+      "U1.V3V3",
+      "J1.V3V3",
+      "R5.1"
+     ],
+     "name": "V3V3"
+    },
+    {
+     "pins": [
+      "U1.D1",
+      "SW1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D2",
+      "R1.1"
+     ]
+    },
+    {
+     "pins": [
+      "R1.2",
+      "LED1.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.D3",
+      "R2.1"
+     ]
+    },
+    {
+     "pins": [
+      "R2.2",
+      "LED2.A"
+     ]
+    },
+    {
+     "pins": [
+      "U1.MOSI",
+      "R3.1"
+     ]
+    },
+    {
+     "pins": [
+      "R3.2",
+      "Q1.B",
+      "R4.1"
+     ]
+    },
+    {
+     "pins": [
+      "U1.SDA",
+      "J1.SDA"
+     ],
+     "name": "SDA"
+    },
+    {
+     "pins": [
+      "U1.SCL",
+      "J1.SCL"
+     ],
+     "name": "SCL"
+    },
+    {
+     "pins": [
+      "U1.V5",
+      "BZ1.P1"
+     ],
+     "name": "VBUS"
+    },
+    {
+     "pins": [
+      "BZ1.P2",
+      "Q1.C"
+     ]
+    },
+    {
+     "pins": [
+      "U1.TX",
+      "R5.2",
+      "PR1.SENSE"
+     ]
+    }
+   ],
+   "requirements": [
+    {
+     "id": "R1",
+     "text": "обнаружение воды выносным щупом",
+     "parts": [
+      "PR1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R2",
+     "text": "громкий звуковой сигнал при протечке",
+     "parts": [
+      "BZ1",
+      "Q1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R3",
+     "text": "световая индикация: зелёный норма, красный тревога",
+     "parts": [
+      "LED1",
+      "LED2"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R4",
+     "text": "кнопка тест/сброс на крышке",
+     "parts": [
+      "SW1"
+     ],
+     "firmware": true
+    },
+    {
+     "id": "R5",
+     "text": "Wi-Fi оповещение и веб-страница статуса",
+     "parts": [
+      "U1"
+     ],
+     "firmware": true
+    }
+   ]
+  }
+ }
+}

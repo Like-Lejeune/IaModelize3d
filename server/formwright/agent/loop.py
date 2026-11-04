@@ -64,6 +64,9 @@ CUT_OFF_DEVICE = "Your last answer was cut off at the output limit; use write_de
 MAX_OUTPUT = {"high": 20000, "xhigh": 28000, "max": 32000}  # tokens per designer turn by effort; 12000 for the rest
 # Per pack: a circuit file is long, and in the PCB spike medium effort twice spent all 12k tokens thinking and answered nothing.
 PACK_LLM: dict[str, dict[str, Any]] = {"pcb": {"effort": "low", "max_output_tokens": 24000}, "device": {"effort": "low", "max_output_tokens": 24000}}
+# Turns beyond the shared max_iterations * 3: a device is parts, graph, a few builds, case, firmware, price and a review
+# round; the soil sensor of 2026-11-03 spent all 24 on four failed builds and one review.
+PACK_TURNS = {"device": 8}
 
 
 CYRILLIC = re.compile(r"[Ѐ-ӿ]")
@@ -556,7 +559,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
     has_photos = any(a["kind"] in ("photo", "sketch") for a in all_assets)
     has_prints = any(a["kind"] == "print" for a in all_assets)
     tools = tools_for(pack, photos=has_photos, prints=has_prints, engine=engine)
-    max_turns = settings().max_iterations * 3
+    max_turns = settings().max_iterations * 3 + PACK_TURNS.get(pack, 0)
     final_text: str | None = None
     # why the run ended before an accepted finish: budget, failed, engine (errors), time, turns
     ending: str | None = None
@@ -604,6 +607,7 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
                     continue
                 break
             images: list[str] = []
+            state.turns_left = max_turns - turn - 1  # a finish that asks for one more round must leave a turn to answer it
             for call in calls:
                 name = call.get("name", "")
                 try:
@@ -679,6 +683,9 @@ async def design(ctx: JobContext, body: SendMessage) -> str | None:
         # the summary was written before the review: a hand-over the reviewer did not approve says so after it
         notes = narrate.review_notes(state.critic, state.version, language) if state.done else ""
         text = f"{state.summary}\n\n{notes}" if notes else state.summary
+    elif pack == "device" and device_tools and not state.done and (state.device or state.pcb.get("made")):
+        # the case program's version means nothing here: the device, its board, case and firmware are what the person has
+        text = await device_tools.handover(ctx.project_id, ending or "unfinished", state, language)
     elif state.last_build and not state.done:
         # never the last mid-work line ("removing the sharp nose…"): say where it stopped and what is there
         reviewed = (state.critic or {}).get("version") == state.version

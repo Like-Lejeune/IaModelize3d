@@ -1,42 +1,72 @@
 """Devices (fw.device/1): the node graph a whole device is designed in, and its deterministic compiler to a board.
 
 A device is parts (nodes) and the nets between their pins. The designer (agent pack 'device') and the node editor in
-the studio both edit this one document; neither writes coordinates. compile() turns it into a tscircuit TSX file:
+the studio both edit this one document. compile() turns it into a tscircuit TSX file:
   - parts on an edge (connectors, a module's own USB) get exact positions and rotations so their mouths face out,
-  - everything else is left without coordinates, so tscircuit packs it next to the pins it connects to,
+  - parts people see or touch may be placed by the designer (node.place, or a doc.layouts pattern such as a dice face)
+    and by the person (node.pcb, which wins): fixed positions,
+  - everything else gets its spot from the placer here (arrange(): greedy in connectivity order, next to the pins it
+    connects, inside the real outline); tscircuit's packer is only the fallback if the placer itself breaks,
   - nets become traces (named nets through net.NAME, 5 V paths pin to pin at 0.4 mm),
   - the intent (edge of every port, the pin that drives each LED and button) is stated for the build to check,
 and lists the LCSC footprints the PCB worker needs (catalog.easyeda), since the worker has no network.
-build() runs it through the PCB pipeline, growing the board until placement and routing succeed.
+deviceapi.build_device runs it through the PCB pipeline, growing the board until placement and routing succeed, and
+dress_board() tells board.json what the graph knows: faces (light, sound, sensor) and the accessories fitted by hand.
+The board is a rectangle, a rounded rectangle or a circle (board.shape, outline()); a curved one compiles to a polygon
+outline, and the holes, the edge parts, the placement checks and the growth all go by the real outline. A placed part
+running into an edge part hears the ways out with the board each gives (_ways: smallest first, growth last with its
+cost), a board far larger than its parts the smaller arrangement that exists (compaction), a build that grew by how much
+and why (growth_report).
 
 Document:
   {schema: 'fw.device/1', title, summary,
-   board: {w?, h?, holes: true},
-   nodes: [{id: 'U1', kind, label?, value?, package?, color?, lcsc?, module?, pins? (header labels), edge?, ui?: [x, y]}],
+   board: {w?, h?, holes: true, shape?: rect|rounded|round, r? (a rounded board's corner radius, mm; a round board is a
+           circle of diameter w, h = w)},
+   requirements?: [{id: 'R1', text, parts: [ids], firmware?: bool}],
+   concept?: {uses, options: [{name, look, form, stance, mounting, board, module_edge, panel}], chosen, why} (device_concept),
+   nodes: [{id: 'U1', kind, label?, value?, package?, color?, lcsc?, module?, accessory?, pins? (header labels), edge?,
+            place?: {x, y, rot} (mm from the board centre, +y up, degrees), face?: light|sound|sensor|display|none,
+            pcb?: {x, y, rot} (the person's), ui?: [x, y]}],
+   layouts?: [{pattern: dice|row|column|grid|ring, nodes: [ids], center?: [x, y], pitch?, cols?, radius?, rot?}],
    nets:  [{name?: 'GND', pins: ['U1.GND', 'U2.GND', 'C1.2']}],
    firmware?: {lang, files: {name: text}}}
-Kinds: module (by part number, MODULES), chip (any LCSC part with an EasyEDA footprint), resistor, capacitor, led, diode,
-button, header, usb_c, jst, hole. Pin references are '<node>.<pin>'; for a chip a duplicated pin name ('GND' twice) is
-one reference for all of them.
+Kinds: module (by part number, MODULES), chip (any LCSC part with an EasyEDA footprint), accessory (a ready-made module
+fitted by hand, accessories.ACCESSORIES: the carrier gets its connector), resistor, capacitor, led, diode, button,
+header, usb_c, jst, hole. Pin references are '<node>.<pin>'; for a chip a duplicated pin name ('GND' twice) is one
+reference for all of them.
 """
 from __future__ import annotations
 
 import asyncio
 import copy
+import json
+import logging
 import math
 import re
 from typing import Any
 
-from . import catalog
+from . import accessories as acc
+from . import catalog, device_concept
+
+log = logging.getLogger(__name__)
 
 SCHEMA = "fw.device/1"
 MAX_NODES = 40
 MAX_W = 100.0
 EDGES = ("-x", "+x", "-y", "+y")
 EDGE_ALIASES = {"left": "-x", "right": "+x", "bottom": "-y", "top": "+y", "-x": "-x", "+x": "+x", "-y": "-y", "+y": "+y"}
+# the board's outline (doc.board.shape): a rectangle, a rectangle with rounded corners (board.r), a circle of diameter w
+SHAPES = ("rect", "rounded", "round")
+ROUND_SEGMENTS = 72    # a round board as the polygon tscircuit and the case get: 0.06 mm inside the circle at 60 mm
+CORNER_SEGMENTS = 10   # each corner arc of a rounded board
+RIM_MM = 3.5           # a mounting hole's centre from the board's edge (both edges at a rectangle's corner)
 # nets shown as labels in the editor rather than wires, and the ones whose path is widened
 POWER_NET = re.compile(r"^(GND|AGND|V3V3|V3V|V1V8|V5|V5V|VBUS|VSYS|VBAT|VIN|VCC|VDD|V12|V9)$", re.I)
-WIDE_NET = re.compile(r"^(V5|V5V|VBUS|VSYS|VBAT|VIN|V12|V9)$", re.I)
+WIDE_NET = re.compile(r"^(V5|V5V|VBUS|VSYS|VBAT|VIN|V12|V9|V_?LED|V_?MOT(OR)?)$", re.I)
+# a rail the designer named in its own words (VLED behind a diode, V3V3_SENSOR, PWR_5V): supply capacitors on it decouple
+# the chips on it, as on V3V3. The names POWER_NET lists keep their meaning for shorts and the editor's power labels.
+SUPPLY_NAME = re.compile(r"^(V(?!REF|SENSE|SNS|OUT_?SENSE)[A-Z0-9_]*|\d+V\d*|PWR\w*|\w+_(VCC|VDD|PWR|V3V3|V5))$", re.I)
+SUPPLY_PIN = re.compile(r"^(VDD\w*|VCC\w*|AVDD|DVDD|VIN|VBUS|VSYS|V3V3|V5|VS|VM)$", re.I)
 GROUND = re.compile(r"^(GND|AGND|VSS)$", re.I)
 
 # development boards soldered on headers: their own USB faces the edge named in the node (default top)
@@ -75,6 +105,21 @@ MODULES: dict[str, dict[str, Any]] = {
 # GND pins of a module are one reference: 'U1.GND' reaches all of a Pico's eight
 for _m in MODULES.values():
     _m["groups"] = {"GND": [p for p in _m["pins"] if re.match(r"^A?GND\d*$", p) and p != "AGND"]}
+# GPIO number of each pin label (what the firmware writes, contract C5), the strapping pins a boot can trip over, the ADC
+# pins (ADC1 only on the ESP32s: ADC2 stops while Wi-Fi runs) and how a LiPo goes on: the XIAOs charge a cell on the
+# BAT pads under the module, so a raw cell on V5 or 3V3 is never right
+_XIAO_BAT = ("1S LiPo on the BAT+ / BAT- pads under the module: its own charger takes it from USB-C (about 100 mA); never "
+             "wire a cell to V5 or 3V3 (USB would push 5 V into it). The pads are not on the header: solder the leads there.")
+MODULES["113991054"].update({
+    "gpio": {"D0": 2, "D1": 3, "D2": 4, "D3": 5, "SDA": 6, "SCL": 7, "TX": 21, "RX": 20, "SCK": 8, "MISO": 9, "MOSI": 10},
+    "strapping": [2, 8, 9], "adc": ["D0", "D1", "D2"], "battery": _XIAO_BAT})
+MODULES["113991114"].update({
+    "gpio": {"D0": 1, "D1": 2, "D2": 3, "D3": 4, "SDA": 5, "SCL": 6, "TX": 43, "RX": 44, "SCK": 7, "MISO": 8, "MOSI": 9},
+    "strapping": [0, 3, 45, 46], "adc": ["D0", "D1", "D2", "D3", "SDA", "SCL", "SCK", "MISO", "MOSI"], "battery": _XIAO_BAT})
+for _k in ("SC0915", "SC0918"):
+    MODULES[_k].update({"gpio": {p: int(p[2:]) for p in MODULES[_k]["pins"] if re.match(r"^GP\d+$", p)}, "strapping": [],
+                        "adc": ["GP26", "GP27", "GP28"],
+                        "battery": "no charger on board: a cell needs its own charger module feeding VSYS through a Schottky diode"})
 
 USB_C_LABELS = {"pin1": "SH1", "pin2": "SH2", "pin3": "SH3", "pin4": "SH4", "pin5": "GND_A", "pin6": "VBUS_A", "pin7": "SBU2", "pin8": "CC1",
                 "pin9": "DN2", "pin10": "DP1", "pin11": "DN1", "pin12": "DP2", "pin13": "SBU1", "pin14": "CC2", "pin15": "VBUS_B", "pin16": "GND_B"}
@@ -89,14 +134,37 @@ PRIMS: dict[str, dict[str, Any]] = {
     "jst": {"prefix": "J", "pins": ["P1", "P2"], "tsx": {"P1": "pin1", "P2": "pin2"}},
     "hole": {"prefix": "H", "pins": [], "tsx": {}},
 }
-KINDS = ("module", "chip", "header", *PRIMS)
-EDGE_KINDS = ("usb_c", "header", "jst", "module")
+KINDS = ("module", "chip", "header", "accessory", *PRIMS)
+EDGE_KINDS = ("usb_c", "header", "jst", "module", "accessory")
+# what a part needs from the case above it (node.face, contract C1c) -> the access board.json gives it (C2a)
+FACES = ("light", "sound", "sensor", "display", "none")
+FACE_TEXT = (  # first match wins, on the part's kind hint, mpn, category, package and description
+    ("light", re.compile(r"\b(rgb_led|led)\b|WS28\d\d|SK68\d\d|APA10\d|addressable|\bRGB\b|\bLEDs?\b", re.I)),
+    ("sound", re.compile(r"buzzer|speaker|sounder|piezo|transducer|\bBUZ", re.I)),
+    ("sensor", re.compile(r"\bPIR\b|pyroelectric|motion sens|ambient light|light sens|illuminance|photo ?(diode|transistor|resistor)|"
+                          r"\bLDR\b|\bUV\b|colou?r sens|BH1750|VEML|TSL25|LTR-?\d|\bAPDS|gas sens|air quality|\bVOC\b|\bCO2\b|"
+                          r"humidity|\bSGP\d|\bSCD\d|\bCCS811|\bENS\d|\bBME\d|\bSHT\d|\bAHT\d|\bHDC\d|microphone|\bMEMS mic|\bMIC\b|AM312", re.I)),
+)
+# the kind hints a catalogue card carries (contract C6) that settle the face and the decoupling check without text
+HINT_FACE = {"led": "light", "rgb_led": "light", "buzzer_active": "sound", "buzzer_passive": "sound", "buzzer": "sound", "speaker": "sound",
+             "display": "display"}
+DISCRETE_HINTS = {"npn", "pnp", "transistor", "nmos", "pmos", "diode", "tvs", "led", "rgb_led", "buzzer_active", "buzzer_passive", "buzzer",
+                  "speaker", "motor", "resistor", "capacitor", "inductor", "crystal", "connector", "switch", "fuse", "button"}
+DISCRETE_TEXT = re.compile(r"transistor|MOSFET|\bBJT\b|diode|zener|schottky|\bTVS\b|buzzer|speaker|piezo|\bLEDs?\b|WS28\d\d|SK68\d\d|"
+                           r"connector|header|switch|button|resistor|capacitor|inductor|ferrite|crystal|oscillator|fuse|relay", re.I)
+ROUND_PACKAGE = re.compile(r"TO-?(5|18|39|46)\b|_BD\d|\bDIA\d|-D\d+(\.\d+)?-|PIR", re.I)
+LAYOUTS = ("dice", "row", "column", "grid", "ring")
+LAYOUT_MAX = 12
+REQ_MAX = 20
+# a dice face's pips in the order the layout lists its nodes: centre, then the corners and the middle row by rows
+DICE = ((0, 0), (-1, 1), (1, 1), (-1, 0), (1, 0), (-1, -1), (1, -1))
 PASSIVE_PKG = ("0402", "0603", "0805", "1206")
 # courtyard w x h at rotation 0, for the board-size estimate and the edge layout
 SIZE = {"0402": (1.6, 0.9), "0603": (2.2, 1.2), "0805": (2.8, 1.6), "1206": (3.8, 2.0), "led": (2.2, 1.2), "diode": (4.5, 2.0),
         "button": (7.0, 9.0), "usb_c": (10.4, 8.4), "jst": (7.0, 6.0), "hole": (7.2, 7.2)}
-# centre distance from the edge for a part whose body ends at the edge (usbcmidmount body spans -5.5..+2.9 around its origin)
-DEPTH = {"usb_c": 5.5, "header": 2.5, "jst": 3.6}
+# centre distance from the edge for a part whose body ends at the edge (usbcmidmount body spans -5.5..+2.9 around its origin;
+# a jst*_ph courtyard reaches 2.2 mm from its pin row towards its mouth and 3.3 mm behind it)
+DEPTH = {"usb_c": 5.5, "header": 2.5, "jst": 2.6}
 # traces the person drew on the board: pad to pad on one net, corners in mm from the board's centre (+y up)
 ROUTE_MAX = 200
 ROUTE_POINTS = 64
@@ -145,6 +213,28 @@ def normalize(doc: Any) -> tuple[dict[str, Any], list[dict[str, str]]]:
                 out["board"][k] = round(min(MAX_W, max(10.0, float(b[k]))), 1)
         except (TypeError, ValueError):
             issues.append({"code": "board_size", "ref": k, "msg": f"board.{k} must be a number in mm"})
+    shape = str(b.get("shape") or "rect").strip().lower()
+    if shape not in SHAPES:
+        issues.append({"code": "board_shape", "ref": "shape", "msg": f"board.shape {b.get('shape')!r} is not one of {', '.join(SHAPES)} "
+                       f"(rect; rounded: a rect with corner radius r mm; round: a circle of diameter w, h = w): kept rect"})
+        shape = "rect"
+    if shape != "rect":
+        out["board"]["shape"] = shape
+    if shape == "round" and (out["board"].get("w") or out["board"].get("h")):
+        out["board"]["w"] = out["board"]["h"] = out["board"].get("w") or out["board"]["h"]  # the diameter
+    if shape == "rounded" and b.get("r") is not None:
+        try:
+            r = float(b["r"])
+            if not math.isfinite(r) or r < 0.5:
+                raise ValueError
+            side = min(out["board"].get("w") or MAX_W, out["board"].get("h") or MAX_W)
+            out["board"]["r"] = round(min(r, side / 2), 1)
+        except (TypeError, ValueError):
+            issues.append({"code": "board_shape", "ref": "r", "msg": "board.r is a rounded board's corner radius in mm (0.5 up to half "
+                           "its shorter side); left out, it is a sixth of the shorter side"})
+    if b.get("locked") and out["board"].get("w") and out["board"].get("h"):
+        # the person fixed the size (deviceapi.put_device): a cage for the build, where the designer's is a minimum
+        out["board"]["locked"] = True
     seen: set[str] = set()
     for raw in doc.get("nodes") or []:
         if not isinstance(raw, dict):
@@ -155,7 +245,7 @@ def normalize(doc: Any) -> tuple[dict[str, Any], list[dict[str, str]]]:
             continue
         nid = ident(str(raw.get("id") or ""))
         if not raw.get("id") or nid in seen:
-            prefix = PRIMS.get(kind, {}).get("prefix") or ("J" if kind == "header" else "U")
+            prefix = PRIMS.get(kind, {}).get("prefix") or {"header": "J", "accessory": "A"}.get(kind, "U")
             n = 1
             while f"{prefix}{n}" in seen:
                 n += 1
@@ -204,8 +294,15 @@ def normalize(doc: Any) -> tuple[dict[str, Any], list[dict[str, str]]]:
                     q, i = f"{p}_{i}", i + 1
                 uniq.append(q)
             node["pins"] = uniq
+        if kind == "accessory":
+            key = acc.find(str(raw.get("accessory") or raw.get("key") or raw.get("module") or raw.get("label") or ""))
+            if not key:
+                issues.append({"code": "unknown_accessory", "ref": nid, "msg": f"accessory {raw.get('accessory')!r} is not known; use one of "
+                               + ", ".join(f"{k} ({a['name']})" for k, a in acc.ACCESSORIES.items())})
+                continue
+            node["accessory"] = key
         e = _edge(raw.get("edge"))
-        if e and kind in EDGE_KINDS:
+        if e and kind in EDGE_KINDS and not (kind == "accessory" and acc.ACCESSORIES[node["accessory"]]["mount"] != "cable"):
             node["edge"] = e
         elif kind == "module":
             node["edge"] = "+y"
@@ -217,6 +314,23 @@ def normalize(doc: Any) -> tuple[dict[str, Any], list[dict[str, str]]]:
             # placed by hand on the board: centre in mm from the board's centre, +y up, rotation in quarter turns
             node["pcb"] = {"x": round(float(pin["x"]), 2), "y": round(float(pin["y"]), 2),
                            "rot": int(round(float(pin.get("rot") or 0) / 90)) * 90 % 360}
+        at = _place(raw.get("place"))
+        if isinstance(at, str):
+            issues.append({"code": "bad_place", "ref": nid, "msg": at})
+        elif at and node.get("edge"):
+            # an edge part (the module's USB, a connector) is laid out along its edge; moving it inwards breaks its port
+            issues.append({"code": "place_on_edge_part", "ref": nid, "msg": f"{nid} sits on the {node['edge']} edge, so its place is "
+                           f"ignored: move the parts that collide with it instead (or drop its edge)"})
+        elif at and kind != "hole":
+            # placed by the designer (a part people see or touch): compiled as a fixed position, the person's pcb wins
+            node["place"] = at
+        if kind == "accessory" and acc.ACCESSORIES[node["accessory"]]["mount"] == "cable" and not (node.get("edge") or node.get("place") or node.get("pcb")):
+            node["edge"] = "-y"  # a lead leaves the case through a wall: its connector sits on an edge
+        face = str(raw.get("face") or "").strip().lower()
+        if face in FACES:
+            node["face"] = face
+        elif face:
+            issues.append({"code": "bad_face", "ref": nid, "msg": f"face {face!r} is not one of {', '.join(FACES)}"})
         out["nodes"].append(node)
     if len(out["nodes"]) > MAX_NODES:
         issues.append({"code": "too_many_parts", "ref": "", "msg": f"{len(out['nodes'])} parts: a board here holds at most {MAX_NODES}"})
@@ -259,13 +373,131 @@ def normalize(doc: Any) -> tuple[dict[str, Any], list[dict[str, str]]]:
             zones.append(z)
     if zones:
         out["zones"] = zones
+    layouts: list[dict[str, Any]] = []
+    for raw in (doc.get("layouts") or [])[:LAYOUT_MAX]:
+        lay = _layout(raw, by_id)
+        if isinstance(lay, str):
+            issues.append({"code": "bad_layout", "ref": "layouts", "msg": lay})
+        else:
+            taken = {nid for x in layouts for nid in x["nodes"]}
+            lay["nodes"] = [nid for nid in lay["nodes"] if nid not in taken]  # a node follows the first layout naming it
+            if lay["nodes"]:
+                layouts.append(lay)
+    if layouts:
+        out["layouts"] = layouts
+    reqs: list[dict[str, Any]] = []
+    for i, raw in enumerate((doc.get("requirements") or [])[:REQ_MAX]):
+        if isinstance(raw, str):
+            raw = {"text": raw}
+        if not isinstance(raw, dict) or not str(raw.get("text") or "").strip():
+            continue
+        rid = ident(str(raw.get("id") or f"R{i + 1}"))[:12]
+        req: dict[str, Any] = {"id": rid if rid not in {r["id"] for r in reqs} else f"R{i + 1}", "text": str(raw["text"]).strip()[:300],
+                               "parts": list(dict.fromkeys(ident(str(p)) for p in raw.get("parts") or [] if str(p).strip()))[:12]}
+        # a part the requirement names but the graph no longer has stays named: the requirement is not met without it
+        for p in req["parts"]:
+            if p not in by_id:
+                issues.append({"code": "requirement_part_missing", "ref": req["id"],
+                               "msg": f"requirement {req['id']} ({req['text'][:60]}) names {p}, which is not a part of the device"})
+        if raw.get("firmware") is not None:
+            req["firmware"] = bool(raw["firmware"])
+        reqs.append(req)
+    if reqs:
+        out["requirements"] = reqs
+    concept = device_concept.clean(doc.get("concept"))  # the uses and the chosen look (device_concept): valid values only
+    if concept:
+        out["concept"] = concept
     if isinstance(doc.get("firmware"), dict):
         fw = doc["firmware"]
         files = {str(k)[:60]: str(v)[:40000] for k, v in (fw.get("files") or {}).items() if isinstance(v, str)}
         if files:
             out["firmware"] = {"lang": str(fw.get("lang") or "arduino")[:30], "files": dict(list(files.items())[:6]),
-                               **({"notes": str(fw["notes"])[:1200]} if fw.get("notes") else {})}
+                               **({"notes": str(fw["notes"])[:1200]} if fw.get("notes") else {}),
+                               # the firmware check's result (firmware_check.check, C3) that write_firmware stores
+                               **({"check": fw["check"]} if isinstance(fw.get("check"), dict) else {})}
     return out, issues
+
+
+def _place(raw: Any) -> dict[str, float] | str | None:
+    """A designer's placement {x, y, rot} cleaned (mm from the board's centre, +y up, rot in degrees), None when absent,
+    or why it is not one."""
+    if raw is None:
+        return None
+    if isinstance(raw, (list, tuple)) and len(raw) in (2, 3):
+        raw = dict(zip(("x", "y", "rot"), raw))
+    if not isinstance(raw, dict) or not all(isinstance(raw.get(k), (int, float)) and math.isfinite(raw[k]) for k in ("x", "y")):
+        return "place is {x, y, rot?}: the part's centre in mm from the board's centre (+y up), rotation in degrees"
+    if max(abs(raw["x"]), abs(raw["y"])) > MAX_W / 2:
+        return f"place ({raw['x']:g}, {raw['y']:g}) is off any board here (|x|, |y| <= {MAX_W / 2:g} mm from the centre)"
+    rot = raw.get("rot") or 0
+    rot = float(rot) if isinstance(rot, (int, float)) and math.isfinite(rot) else 0.0
+    return {"x": round(float(raw["x"]), 2), "y": round(float(raw["y"]), 2), "rot": round(rot % 360, 1) + 0.0}
+
+
+def _layout(raw: Any, by_id: dict[str, dict[str, Any]]) -> dict[str, Any] | str:
+    """One layout cleaned ({pattern, nodes, center, pitch, cols?, radius?, rot}) or why not."""
+    if not isinstance(raw, dict) or raw.get("pattern") not in LAYOUTS:
+        return f"a layout is {{pattern: {' | '.join(LAYOUTS)}, nodes: [ids], center?: [x, y], pitch?: mm, cols?, radius?, rot?}}"
+    nodes = [nid for nid in dict.fromkeys(ident(str(n)) for n in raw.get("nodes") or []) if nid in by_id and by_id[nid]["kind"] != "hole"]
+    if not nodes:
+        return f"layout {raw['pattern']}: none of its nodes {raw.get('nodes')} is a part of the device"
+    if raw["pattern"] == "dice" and len(nodes) > 7:
+        return "a dice layout has 7 pips at most: centre, top-left, top-right, middle-left, middle-right, bottom-left, bottom-right"
+    out: dict[str, Any] = {"pattern": raw["pattern"], "nodes": nodes}
+    c = raw.get("center") or raw.get("centre") or [0, 0]
+    if isinstance(c, dict):
+        c = [c.get("x", 0), c.get("y", 0)]
+    ok = isinstance(c, (list, tuple)) and len(c) == 2 and all(isinstance(v, (int, float)) and math.isfinite(v) for v in c)
+    out["center"] = [round(float(c[0]), 2), round(float(c[1]), 2)] if ok else [0.0, 0.0]
+    num = lambda k, lo, hi, d: round(min(hi, max(lo, float(raw[k]))), 2) if isinstance(raw.get(k), (int, float)) and math.isfinite(raw[k]) else d  # noqa: E731
+    out["pitch"] = num("pitch", 1.0, 40.0, 8.0)
+    if raw["pattern"] == "grid" and isinstance(raw.get("cols"), (int, float)):
+        out["cols"] = int(min(len(nodes), max(1, raw["cols"])))
+    if raw["pattern"] == "ring" and raw.get("radius") is not None:
+        out["radius"] = num("radius", 2.0, 45.0, 8.0)
+    out["rot"] = round(num("rot", -360.0, 360.0, 0.0) % 360, 1) + 0.0
+    return out
+
+
+def layout_places(lay: dict[str, Any]) -> dict[str, dict[str, float]]:
+    """Where a layout puts its nodes: {id: {x, y, rot}}. dice: the pips at ±pitch in the order centre, top-left, top-right,
+    middle-left, middle-right, bottom-left, bottom-right; row left to right, column top down, grid by rows from the top
+    left (cols default to a square), ring clockwise from the top (radius default: the pitch apart along the circle).
+    The whole pattern turns by rot about its centre, and each part with it."""
+    nodes, p, n = lay["nodes"], float(lay.get("pitch") or 8.0), len(lay["nodes"])
+    pat = lay["pattern"]
+    if pat == "dice":
+        offs = [(dx * p, dy * p) for dx, dy in DICE[:n]]
+    elif pat == "row":
+        offs = [((i - (n - 1) / 2) * p, 0.0) for i in range(n)]
+    elif pat == "column":
+        offs = [(0.0, ((n - 1) / 2 - i) * p) for i in range(n)]
+    elif pat == "grid":
+        cols = int(lay.get("cols") or math.ceil(math.sqrt(n)))
+        rows = math.ceil(n / cols)
+        offs = [((i % cols - (cols - 1) / 2) * p, ((rows - 1) / 2 - i // cols) * p) for i in range(n)]
+    else:
+        r = float(lay.get("radius") or max(p, p * n / (2 * math.pi)))
+        offs = [(r * math.sin(2 * math.pi * i / n), r * math.cos(2 * math.pi * i / n)) for i in range(n)]
+    rot = float(lay.get("rot") or 0)
+    c, s = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+    cx, cy = lay.get("center") or [0, 0]
+    return {nid: {"x": round(cx + x * c - y * s, 2) + 0.0, "y": round(cy + x * s + y * c, 2) + 0.0, "rot": rot}
+            for nid, (x, y) in zip(nodes, offs)}
+
+
+def places(doc: dict[str, Any]) -> dict[str, dict[str, float]]:
+    """Every fixed position the compiler honours, {id: {x, y, rot}}: the person's pcb first, then the designer's own
+    place, then what the layouts give the nodes they list that have neither."""
+    out: dict[str, dict[str, float]] = {}
+    for lay in doc.get("layouts") or []:
+        out.update({k: v for k, v in layout_places(lay).items() if k not in out})
+    for n in doc["nodes"]:
+        if n.get("pcb"):
+            out[n["id"]] = n["pcb"]
+        elif n.get("place"):
+            out[n["id"]] = n["place"]
+    return {n["id"]: out[n["id"]] for n in doc["nodes"] if n["id"] in out}
 
 
 def _route(raw: Any, by_id: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
@@ -367,6 +599,8 @@ def pins_of(node: dict[str, Any], part: dict[str, Any] | None = None) -> list[st
         return list(node.get("pins") or [])
     if k == "module":
         return list(MODULES[node["module"]]["pins"])
+    if k == "accessory":
+        return list(acc.ACCESSORIES[node["accessory"]]["pins"])
     if k == "chip":
         labels = [p["label"] for p in (part or {}).get("pins") or []]
         return list(dict.fromkeys(catalog.base_label(lb) for lb in labels)) if labels else list(node.get("pin_names") or [])
@@ -399,6 +633,11 @@ def resolve_ref(by_id: dict[str, dict[str, Any]], ref: str) -> str | dict[str, s
     if k == "module":
         alias.update({a.upper(): t for a, t in MODULES[node["module"]]["aliases"].items()})
         alias.update({f"GPIO{n[2:]}": n for n in names if n.startswith("GP") and n[2:].isdigit()})
+        alias.update({f"GPIO{g}": lb for lb, g in MODULES[node["module"]].get("gpio", {}).items()})
+    if k == "accessory":
+        alias.update({"VDD": "VCC", "V3V3": "VCC", "3V3": "VCC", "5V": "VCC", "V5": "VCC", "VIN": "VCC", "+": "VCC" if "VCC" in up else "VBAT",
+                      "-": "GND", "OUT": "AOUT" if "AOUT" in up else "OUT", "AO": "AOUT", "DATA": "DQ" if "DQ" in up else "SIG",
+                      "SIGNAL": "SIG", "S": "SIG", "BAT": "VBAT", "BAT+": "VBAT", "BAT-": "GND", "BATP": "VBAT", "BATN": "GND"})
     if p in up:
         return f"{node['id']}.{up[p]}"
     if p in alias and alias[p].upper() in up:
@@ -479,6 +718,14 @@ async def resolve(doc: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[
             elif k == "module":
                 m = MODULES[node["module"]]
                 parts[nid] = {"mpn": m["name"], "module": True, "prices": [{"qty": 1, "usd": m["price_usd"]}], "stock": None, "url": m["url"]}
+            elif k == "accessory":
+                a = acc.ACCESSORIES[node["accessory"]]
+                # the module itself is bought finished and fitted by hand; the carrier gets only its connector
+                conn = None
+                if a["connect"] == "header" or (a["connect"] == "jst" and len(a["pins"]) == 2):
+                    conn = await catalog.resolve_basic("header" if a["connect"] == "header" else "jst2")
+                parts[nid] = {"mpn": a["name"], "accessory": node["accessory"], "prices": [{"qty": 1, "usd": a["price_usd"]}], "stock": None,
+                              "url": a.get("url"), **({"connector": conn} if conn else {})}
             else:
                 parts[nid] = {}
         except catalog.CatalogError as e:
@@ -486,7 +733,8 @@ async def resolve(doc: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[
             parts[nid] = {"error": str(e)}
 
     await asyncio.gather(*(one(n) for n in doc["nodes"]))
-    # chip pin references against the real pinout
+    # chip pin references against the real pinout; a graph saved before the catalogue renamed pins ('BZ1.P', 'Q1.P1')
+    # still finds them (chip_labels), and is told when an old name stood for several terminals
     by_id = {n["id"]: n for n in doc["nodes"]}
     for net in doc["nets"]:
         keep = []
@@ -494,23 +742,77 @@ async def resolve(doc: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[
             nid, pin = ref.split(".", 1)
             node = by_id.get(nid)
             if node and node["kind"] == "chip" and parts.get(nid, {}).get("pins"):
-                names = pins_of(node, parts[nid])
-                match = next((n for n in names if n.upper() == pin.upper()), None)
-                if match is None:
+                labels, how = chip_labels(parts[nid], pin)
+                if not labels:
+                    names = pins_of(node, parts[nid])
                     issues.append({"code": "bad_pin", "ref": ref, "msg": f"{ref}: {nid} ({parts[nid].get('mpn')}) has no pin {pin}; its pins are "
                                    + ", ".join(n for n in names if not n.upper().startswith("NC"))[:400]})
                     continue
-                ref = f"{nid}.{match}"
+                bases = list(dict.fromkeys(catalog.base_label(lb) for lb in labels))
+                if len(bases) == 1:
+                    ref = f"{nid}.{bases[0]}"
+                else:  # an old name of several terminals (the MLT-5020's '+' and '-' were both 'P'): wired as it was
+                    issues.append({"code": "legacy_pin", "ref": ref, "msg": f"{ref} is an old name that stands for {', '.join(labels)} of "
+                                   f"{nid} ({parts[nid].get('mpn')}): they stay on one net as before, which joins them; wire each "
+                                   f"terminal by its own label ({', '.join(f'{nid}.{lb}' for lb in labels)})"})
             keep.append(ref)
         net["pins"] = keep
     doc["nets"] = [n for n in doc["nets"] if len(n["pins"]) >= 2 or n.get("name")]
+    # fixed spots that collide (a display placed into the module's band): said now, not after a wasted build
+    try:
+        issues += place_issues(doc, parts)
+    except Exception:  # noqa: BLE001 - a geometry slip must not cost the editor its document
+        log.exception("placement check failed")
     return parts, issues
+
+
+def _part_text(part: dict[str, Any]) -> str:
+    return " ".join(str(part.get(k) or "") for k in ("kind_hint", "mpn", "category", "package", "footprint_name", "description"))
+
+
+def needs_decoupling(part: dict[str, Any]) -> bool:
+    """An IC with supply pins wants its own 100nF; a transistor, diode, buzzer, LED or connector does not. The catalogue's
+    kind hint settles it (C6); without one, three pins or fewer is a discrete, and the category (or the description when
+    the card has none) names the rest."""
+    hint = str(part.get("kind_hint") or "").lower()
+    if hint:
+        return hint not in DISCRETE_HINTS
+    if len(part.get("pins") or []) <= 3:
+        return False
+    return not DISCRETE_TEXT.search(str(part.get("category") or "") or f"{part.get('description') or ''} {part.get('package') or ''}")
+
+
+def face_of(node: dict[str, Any], part: dict[str, Any] | None = None) -> str:
+    """What a part needs from the case above it (C1c): the node's own face, else light for LEDs and addressable LED chips,
+    sound for buzzers and speakers, sensor for PIR, light/UV/colour, gas/air/humidity sensors and microphones, display for
+    a display accessory, none for the rest."""
+    if node.get("face") in FACES:
+        return node["face"]
+    k = node["kind"]
+    if k == "led":
+        return "light"
+    if k == "accessory":
+        return {"display": "display", "sensor": "sensor"}.get(acc.ACCESSORIES[node["accessory"]]["kind"], "none")
+    if k != "chip":
+        return "none"
+    part = part or {}
+    hint = str(part.get("kind_hint") or "").lower()
+    if hint in HINT_FACE:
+        return HINT_FACE[hint]
+    text = _part_text(part)
+    for face, rx in FACE_TEXT:
+        if rx.search(text) and not (face == "light" and re.search(r"driver|controller|dimmer|sensor", text, re.I)
+                                    and not re.search(r"WS28|SK68|APA10|addressable", text, re.I)):
+            return face
+    return "none"
 
 
 def lint(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> list[dict[str, str]]:
     """Design checks a netlist can answer before any routing: unconnected parts, a USB-C without CC pull-downs, an LED
-    without a resistor, chips without decoupling, single-pin nets. Warnings: the designer decides."""
+    without a resistor, chips without decoupling, single-pin nets; and a board far larger than its parts when a smaller
+    arrangement exists (compaction()). Warnings: the designer decides."""
     out: list[dict[str, str]] = []
+    by_id = {n["id"]: n for n in doc["nodes"]}
     net_of: dict[str, dict[str, Any]] = {}
     for net in doc["nets"]:
         for p in net["pins"]:
@@ -518,6 +820,11 @@ def lint(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> list[dict[str
     for node in doc["nodes"]:
         nid, k = node["id"], node["kind"]
         mine = [p for p in net_of if p.split(".", 1)[0] == nid]
+        if k == "accessory" and acc.ACCESSORIES[node["accessory"]]["connect"] == "module_bat":
+            if mine:
+                out.append({"code": "battery_wiring", "ref": nid, "msg": f"{nid} is a LiPo cell: it goes on the module's BAT pads, not on "
+                            f"the carrier's nets ({', '.join(mine)}); take it off them, the compiler leaves those wires out"})
+            continue
         if k != "hole" and not mine:
             out.append({"code": "unconnected", "ref": nid, "msg": f"{nid} is not connected to anything"})
             continue
@@ -530,22 +837,45 @@ def lint(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> list[dict[str
             pins = (a or {}).get("pins", []) + (kk or {}).get("pins", [])
             if not any(p.split(".")[0] in {n["id"] for n in doc["nodes"] if n["kind"] == "resistor"} for p in pins):
                 out.append({"code": "led_resistor", "ref": nid, "msg": f"{nid} has no series resistor (1k from the GPIO to its A pin)"})
-        if k == "chip":
-            supply = [p for p in mine if POWER_NET.match((net_of[p].get("name") or "")) and not GROUND.match(net_of[p].get("name") or "")]
+        if k == "chip" and needs_decoupling(parts.get(nid) or {}):
+            supply = [p for p in mine if is_supply(net_of[p], by_id, parts)]
             caps = {n["id"] for n in doc["nodes"] if n["kind"] == "capacitor"}
             if supply and not any(q.split(".")[0] in caps for p in supply for q in net_of[p]["pins"]):
                 out.append({"code": "decoupling", "ref": nid, "msg": f"{nid} has no capacitor on its supply: add 100nF from {supply[0].split('.')[1]} to GND"})
     for net in doc["nets"]:
         if len(net["pins"]) < 2:
             out.append({"code": "single_pin_net", "ref": net.get("name") or net["pins"][0], "msg": f"net {net.get('name') or net['pins'][0]} has only one pin"})
+    try:
+        roomy = compaction(doc, parts)
+    except Exception:  # noqa: BLE001 - a geometry slip must not cost the designer its other warnings
+        log.exception("compaction check failed")
+        roomy = None
+    if roomy:
+        out.append({"code": "board_too_large", "ref": "board", "msg": roomy["msg"]})
     return out + route_problems(doc, parts)
 
 
 # ------------------------------------------------------------------ geometry: size and edges
+def _conn_kind(node: dict[str, Any]) -> str:
+    """The kind of the part the compiler puts on the carrier for a node: an accessory's connector is a header or a JST."""
+    if node["kind"] != "accessory":
+        return node["kind"]
+    a = acc.ACCESSORIES[node["accessory"]]
+    return "jst" if a["connect"] == "jst" else "header"
+
+
 def _footprint_size(node: dict[str, Any], part: dict[str, Any]) -> tuple[float, float]:
     k = node["kind"]
     if k in ("resistor", "capacitor"):
         return SIZE[node.get("package", "0603")]
+    if k == "accessory":
+        a = acc.ACCESSORIES[node["accessory"]]
+        if a["connect"] == "module_bat":
+            return (0.0, 0.0)
+        if a["mount"] == "board":  # the module's body over its header: nothing else goes under it
+            return (a["body"][0], a["body"][1])
+        n = len(a["pins"])
+        return (2.0 * (n - 1) + 4.0, 6.0) if a["connect"] == "jst" else (2.54 * n + 0.8, 3.5)
     if k == "header":
         n = len(node.get("pins") or [])
         return (2.54 * n + 0.8, 3.5)
@@ -569,50 +899,1345 @@ def _along(node: dict[str, Any], part: dict[str, Any]) -> tuple[float, float]:
     return (max(w, h), min(w, h))
 
 
+def _board_mounted(doc: dict[str, Any]) -> list[dict[str, Any]]:
+    return [n for n in doc["nodes"] if n["kind"] == "accessory" and acc.ACCESSORIES[n["accessory"]]["mount"] == "board"]
+
+
 def estimate(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> tuple[float, float]:
-    """Board width and height (mm) with room to pack and route: edge parts must fit side by side, the free parts get about
-    three times their own area. Rounded up to whole millimetres."""
+    """The board size the build starts from: base_size() grown by fit() until every fixed spot clears the edge parts, the
+    outline and the corner holes, then by room() until the placer has a spot for every free part, a side nobody chose trimmed
+    (_trim) to what that takes; the person's size (board.locked) as it is."""
+    W, H = base_size(doc, parts)
+    return (W, H) if doc["board"].get("locked") else _trim(doc, parts, room(doc, parts, fit(doc, parts, (W, H))))
+
+
+def _floor(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> tuple[float, float, float]:
+    """(W, H) below which the edge parts and the modules on the board do not fit between the corner holes, and the area the
+    parts get, mm²."""
     holes = doc["board"].get("holes", True)
     corner = 8.0 if holes else 2.0
     need = {e: 0.0 for e in EDGES}
     depth = {e: 0.0 for e in EDGES}
     fixed = free = 0.0
+    at = places(doc)
+    stack, widest = 0.0, 0.0
     for n in doc["nodes"]:
         if n["kind"] == "hole":
             continue
         w, h = _footprint_size(n, parts.get(n["id"], {}))
-        if n.get("edge"):
+        if n.get("edge") and n["id"] not in at:
             a, d = _along(n, parts.get(n["id"], {}))
             need[n["edge"]] += a + 2.0
             depth[n["edge"]] = max(depth[n["edge"]], d)
             fixed += w * h * 1.25
+        elif n["kind"] == "accessory" or n["id"] in at:
+            fixed += w * h * 1.2
+            if n["kind"] == "accessory" and n["id"] not in at and w:
+                stack += h + 4.0  # its body, and a band above it for the parts packed between it and the top edge
+                widest = max(widest, w)
         else:
             free += w * h * (2.6 if n["kind"] in ("resistor", "capacitor", "led") else 3.0)
-    area = (fixed + free) * 1.15 + 60
     W = max(need["-y"], need["+y"]) + 2 * corner
     H = max(need["-x"], need["+x"]) + 2 * corner
     # a side edge part spans the depth of the top/bottom ones too
     W = max(W, depth["-x"] + depth["+x"] + 10)
     H = max(H, depth["-y"] + depth["+y"] + 10)
+    if stack:  # modules on the board stack up from the bottom edge parts (or the corner holes) to the top ones
+        W = max(W, widest + 2 * max(depth["-x"], depth["+x"]) + 2 * PACK_GAP_MM + 2.0)  # the module is centred across
+        H = max(H, depth["+y"] + stack + max(depth["-y"] + 1.0, corner if widest + 2 > W - 2 * corner else 1.5) + 2.0)
+    return W, H, (fixed + free) * 1.15 + 60
+
+
+def base_size(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> tuple[float, float]:
+    """Board width and height (mm) to start from: edge parts must fit side by side, the free parts get about three times
+    their own area, a module that sits on the board (an OLED) its body plus a margin, stacked between the top and bottom edge
+    parts; room() has the last word. board.w/h when given (the designer's are a minimum for estimate(), the person's a
+    cage). Whole millimetres."""
+    W, H, area = _floor(doc, parts)
     side = math.sqrt(area)
     W, H = max(W, side * 0.9, 24.0), max(H, side * 0.9, 24.0)
     if W * H < area:
         f = math.sqrt(area / (W * H))
         W, H = W * f, H * f
     b = doc["board"]
-    return float(min(MAX_W, b.get("w") or math.ceil(W))), float(min(MAX_W, b.get("h") or math.ceil(H)))
+    if b.get("w") and b.get("h"):
+        return float(b["w"]), float(b["h"])
+    W, H = float(min(MAX_W, b.get("w") or math.ceil(W))), float(min(MAX_W, b.get("h") or math.ceil(H)))
+    if b.get("shape") == "round":  # a circle as roomy as the rectangle: its area at least, and its longer side across
+        W = H = float(min(MAX_W, math.ceil(max(W, H, 1.13 * math.sqrt(W * H)))))
+    return W, H
+
+
+def accessory_places(doc: dict[str, Any], parts: dict[str, dict[str, Any]], W: float, H: float) -> dict[str, dict[str, float]]:
+    """Where a module that sits on the board goes when neither the designer nor the person placed it: its body centred
+    across the board, the first one just above the bottom edge parts (or above the corner holes when it is too wide to
+    pass between them), the next ones stacked above it. Unrotated, so a display reads upright."""
+    at = places(doc)
+    holes = doc["board"].get("holes", True)
+    low = max([_along(n, parts.get(n["id"], {}))[1] for n in doc["nodes"] if n.get("edge") == "-y" and n["id"] not in at] or [0.0])
+    y = -H / 2 + (low + 1.0 if low else 1.5)
+    out: dict[str, dict[str, float]] = {}
+    o = outline(doc, (W, H))
+    for n in _board_mounted(doc):
+        if n["id"] in at:
+            continue
+        w, d = _footprint_size(n, {})
+        if o["shape"] != "rect":  # a curved bottom edge: the body's lower corners inside it
+            rim = _rim(o, "-y", w / 2)
+            y = max(y, -(rim if rim is not None else 0.0) + 1.0)
+        if holes and o["shape"] != "round" and w / 2 + 1.0 > W / 2 - 7.5:
+            y = max(y, -H / 2 + 7.5)
+        out[n["id"]] = {"x": 0.0, "y": round(y + d / 2, 2), "rot": 0.0}
+        y += d + 2.0
+    return out
+
+
+def accessory_anchor(node: dict[str, Any], body: dict[str, float]) -> dict[str, float]:
+    """pcbX/pcbY/pcbRotation of a board-mounted module's connector from where its body is ({x, y, rot})."""
+    a = acc.ACCESSORIES[node["accessory"]]
+    dx, dy = a.get("header_offset") or (0.0, 0.0)
+    rot = float(body.get("rot") or 0)
+    c, s = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+    return {"pcbX": round(body["x"] + dx * c - dy * s, 2) + 0.0, "pcbY": round(body["y"] + dx * s + dy * c, 2) + 0.0, "pcbRotation": rot}
+
+
+# ------------------------------------------------------------------ the board's outline: rect, rounded, round
+def outline(doc: dict[str, Any], size: tuple[float, float]) -> dict[str, Any]:
+    """The board's outline on a W x H board: {shape, w, h, r}; r is a rounded board's corner radius (board.r, else a sixth
+    of the shorter side) and a round board's radius (a circle of diameter W: its h is W too), 0 for a rect."""
+    W, H = float(size[0]), float(size[1])
+    b = doc.get("board") or {}
+    shape = b.get("shape") if b.get("shape") in SHAPES else "rect"
+    if shape == "round":
+        return {"shape": "round", "w": W, "h": W, "r": W / 2}
+    if shape == "rounded":
+        return {"shape": "rounded", "w": W, "h": H, "r": min(float(b.get("r") or round(min(W, H) / 6, 1)), min(W, H) / 2)}
+    return {"shape": "rect", "w": W, "h": H, "r": 0.0}
+
+
+def _arc(o: dict[str, Any]) -> float:
+    """The radius the checks use for the outline's curve: the polygon it is built as lies this far in at its chords."""
+    n = ROUND_SEGMENTS if o["shape"] == "round" else 4 * CORNER_SEGMENTS
+    return o["r"] * math.cos(math.pi / n)
+
+
+def outline_points(o: dict[str, Any]) -> list[tuple[float, float]]:
+    """A curved outline as the polygon the board is built with (mm from the board's centre, counter-clockwise from +x);
+    [] for a rect, which stays tscircuit's width x height."""
+    if o["shape"] == "round":
+        R = o["r"]
+        return [(round(R * math.cos(2 * math.pi * i / ROUND_SEGMENTS), 3) + 0.0, round(R * math.sin(2 * math.pi * i / ROUND_SEGMENTS), 3) + 0.0)
+                for i in range(ROUND_SEGMENTS)]
+    if o["shape"] != "rounded":
+        return []
+    r, cx, cy = o["r"], o["w"] / 2 - o["r"], o["h"] / 2 - o["r"]
+    pts: list[tuple[float, float]] = []
+    for qx, qy, a0 in ((1, 1, 0), (-1, 1, 90), (-1, -1, 180), (1, -1, 270)):
+        for j in range(CORNER_SEGMENTS + 1):
+            a = math.radians(a0 + 90 * j / CORNER_SEGMENTS)
+            p = (round(qx * cx + r * math.cos(a), 3) + 0.0, round(qy * cy + r * math.sin(a), 3) + 0.0)
+            if not pts or (abs(p[0] - pts[-1][0]) > 1e-3 or abs(p[1] - pts[-1][1]) > 1e-3):
+                pts.append(p)
+    return pts if abs(pts[0][0] - pts[-1][0]) > 1e-3 or abs(pts[0][1] - pts[-1][1]) > 1e-3 else pts[:-1]
+
+
+def _rim(o: dict[str, Any], edge: str, u: float) -> float | None:
+    """How far the board's edge lies from the centre along the outward normal of `edge`, at u along that edge (x for the
+    ±y edges, y for ±x); None where the board does not reach u."""
+    along_x = edge in ("+y", "-y")
+    half_t, half_n = (o["w"] / 2, o["h"] / 2) if along_x else (o["h"] / 2, o["w"] / 2)
+    u = abs(u)
+    if u > half_t + 1e-9:
+        return None
+    if o["shape"] == "round":
+        R = _arc(o)
+        return math.sqrt(R * R - u * u) if u <= R else None
+    if o["shape"] == "rounded":
+        d = u - (half_t - o["r"])
+        if d <= 0:
+            return half_n
+        re = _arc(o)
+        return half_n - o["r"] + math.sqrt(re * re - d * d) if d <= re else None
+    return half_n
+
+
+def _outside(o: dict[str, Any], x: float, y: float) -> float:
+    """How far a point lies outside the outline, mm (0 or less: inside)."""
+    ax, ay = abs(x), abs(y)
+    if o["shape"] == "round":
+        return math.hypot(ax, ay) - _arc(o)
+    if o["shape"] == "rounded":
+        cx, cy = o["w"] / 2 - o["r"], o["h"] / 2 - o["r"]
+        if ax > cx and ay > cy:
+            return math.hypot(ax - cx, ay - cy) - _arc(o)
+    return max(ax - o["w"] / 2, ay - o["h"] / 2)
+
+
+def _corners(r: tuple[float, ...]) -> list[tuple[float, float]]:
+    return [(r[0], r[1]), (r[2], r[1]), (r[2], r[3]), (r[0], r[3])]
+
+
+def poking(o: dict[str, Any], rect: tuple[float, ...]) -> dict[str, float]:
+    """How far a courtyard has to come in from each side it crosses, or lies closer than EDGE_MARGIN_MM to: {side: mm}. A
+    curved stretch is charged to the side whose straight move in clears that corner soonest (a corner out at the upper
+    right of a round board: in from +x or from +y, whichever is less). The outline is convex, so the four corners inside
+    mean all inside."""
+    m = EDGE_MARGIN_MM
+    if o["shape"] == "rect":
+        W, H = o["w"], o["h"]
+        d = {"-x": -W / 2 - rect[0], "+x": rect[2] - W / 2, "-y": -H / 2 - rect[1], "+y": rect[3] - H / 2}
+        return {k: round(v + m, 2) for k, v in d.items() if v > -m + 0.005}
+    out: dict[str, float] = {}
+    for x, y in _corners(rect):
+        if _outside(o, x, y) <= -m + 0.005:
+            continue
+        best: tuple[str, float] | None = None
+        for side in EDGES:
+            t, n = (x, y) if side[1] == "y" else (y, x)
+            n = n if side[0] == "+" else -n
+            rim = _rim(o, side, t)
+            if rim is not None and n > 0 and n - rim > -m + 0.005 and (best is None or n - rim + m < best[1]):
+                best = (side, n - rim + m)
+        if best is None:  # beyond the outline along both axes: in from the side it is furthest out at
+            side = ("+x" if x > 0 else "-x") if abs(x) / o["w"] >= abs(y) / o["h"] else ("+y" if y > 0 else "-y")
+            best = (side, max(abs(x) - o["w"] / 2, abs(y) - o["h"] / 2, 0.0) + _outside(o, x, y) + m)
+        out[best[0]] = round(max(out.get(best[0], 0.0), best[1]), 2)
+    return out
+
+
+def _onto_rim(o: dict[str, Any], rect: tuple[float, ...], edge: str) -> float:
+    """How far an edge part moves in from `edge` so its courtyard's outer corners lie on a curved outline rather than past
+    it (its outer face becomes a chord of the circle, or of a rounded corner): 0 on a straight stretch."""
+    if o["shape"] == "rect":
+        return 0.0
+    sign = 1 if edge[0] == "+" else -1
+    t = 0.0
+    for x, y in _corners(rect):
+        tan, n = (x, y * sign) if edge[1] == "y" else (y, x * sign)
+        rim = _rim(o, edge, tan)
+        t = max(t, n - (rim if rim is not None else 0.0))
+    return math.ceil(t * 100) / 100 if t > 0.005 else 0.0
+
+
+def describe_outline(o: dict[str, Any]) -> str:
+    if o["shape"] == "round":
+        return f"{o['w']:g} mm round board"
+    return f"{o['w']:g} x {o['h']:g} mm board" + (f" with {o['r']:g} mm corners" if o["shape"] == "rounded" else "")
+
+
+# ------------------------------------------------------------------ placement: fixed spots, the free area, conflicts
+# courtyards w x h at rotation 0 as the PCB worker's footprints draw them (measured on built boards)
+COURTYARD = {"0402": (1.9, 1.0), "0603": (2.96, 1.46), "0805": (3.4, 1.9), "1206": (4.4, 2.3)}
+PLACE_GAP_MM = 0.3   # between fixed courtyards: the DRC wants them apart, the router a little room
+HOLE_KEEP_MM = 2.1   # a corner mounting hole's radius (3.2 mm) plus its copper clearance
+EDGE_MARGIN_MM = 0.1  # a placed courtyard inside the outline: tscircuit's check is strict and a catalogue footprint's model
+                      # outline carries a rounding (the MLT-5020 at x = 18 of a 48 mm board: 'outside by 0mm', a whole step lost)
+
+
+def local_box(node: dict[str, Any], part: dict[str, Any] | None = None) -> tuple[float, float, float, float] | None:
+    """A part's courtyard (x0, y0, x1, y1) around its origin at rotation 0, or None when it puts nothing on the carrier.
+    A board-mounted accessory's origin is its body's centre (its place); a chip's comes from the catalogue box and pads."""
+    k, part = node["kind"], part or {}
+    centred = lambda w, h: (-w / 2, -h / 2, w / 2, h / 2)  # noqa: E731
+    if k in ("resistor", "capacitor"):
+        return centred(*COURTYARD.get(node.get("package") or "0603", COURTYARD["0603"]))
+    if k == "led":
+        return centred(*COURTYARD["0603"])
+    if k == "diode":
+        return centred(4.7, 2.3)
+    if k == "button":
+        return centred(7.0, 9.0)
+    if k == "usb_c":
+        return (-5.2, -5.5, 5.2, 2.9)
+    if k == "module":
+        return centred(*MODULES[node["module"]]["size"])
+    if k == "hole":
+        return centred(7.2, 7.2)
+    if k == "accessory":
+        a = acc.ACCESSORIES[node["accessory"]]
+        if a["connect"] == "module_bat":
+            return None
+        if a["mount"] == "board":
+            return centred(a["body"][0], a["body"][1])
+        n = len(a["pins"])
+        return (-(n - 1) - 2.45, -3.3, (n - 1) + 2.45, 2.2) if a["connect"] == "jst" else centred(2.54 * n + 1.0, 3.54)
+    if k == "header":
+        return centred(2.54 * len(node.get("pins") or []) + 1.0, 3.54)
+    if k == "jst":
+        return (-3.45, -3.3, 3.45, 2.2)
+    if k == "chip":
+        # as the worker's EasyEDA converter draws it: the 3D model's outline and the pads, else the package's box; +0.25
+        pads, box = part.get("pads"), part.get("box")
+        xs: list[float] = []
+        ys: list[float] = []
+        model = _model_outline(part.get("raw") or {})
+        if model or not box:
+            for x, y, w, h in (pads.values() if isinstance(pads, dict) else []):
+                xs += [x - w / 2, x + w / 2]
+                ys += [y - h / 2, y + h / 2]
+        for b_ in (model or box,):
+            if b_:
+                xs += [b_[0], b_[2]]
+                ys += [b_[1], b_[3]]
+        if xs:
+            return (min(xs) - 0.25, min(ys) - 0.25, max(xs) + 0.25, max(ys) + 0.25)
+        s = part.get("size_mm") or [5.0, 5.0]
+        return centred(s[0] + 0.5, s[1] + 0.5)
+    return centred(3.0, 3.0)
+
+
+def _model_outline(raw: dict[str, Any]) -> tuple[float, float, float, float] | None:
+    """The footprint's 3D model outline (x0, y0, x1, y1) in the frame of catalog.pads_of, or None: what the converter
+    takes for the courtyard (its SVGNODE's polygon points, EasyEDA units of 10 mil)."""
+    d = (raw.get("packageDetail") or {}).get("dataStr") or {}
+    head = d.get("head") or {}
+    pts: list[tuple[float, float]] = []
+    try:
+        ox, oy = float(head["x"]), float(head["y"])
+        for s in d.get("shape") or []:
+            if isinstance(s, str) and s.startswith("SVGNODE~"):
+                for ch in (json.loads(s.split("~", 1)[1]).get("childNodes") or []):
+                    v = [float(t) for t in str(((ch or {}).get("attrs") or {}).get("points") or "").split()]
+                    pts += [((v[i] - ox) * catalog.EE_UNIT, (oy - v[i + 1]) * catalog.EE_UNIT) for i in range(0, len(v) - 1, 2)]
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+    if not pts:
+        return None
+    return (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts))
+
+
+def _turned(box: tuple[float, float, float, float], x: float, y: float, rot: float) -> tuple[float, float, float, float]:
+    c, s = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+    pts = [(px * c - py * s, px * s + py * c) for px, py in ((box[0], box[1]), (box[2], box[1]), (box[2], box[3]), (box[0], box[3]))]
+    return (round(x + min(p[0] for p in pts), 3), round(y + min(p[1] for p in pts), 3), round(x + max(p[0] for p in pts), 3), round(y + max(p[1] for p in pts), 3))
+
+
+def fixed_parts(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float]) -> list[dict[str, Any]]:
+    """Every part with a fixed spot on a W x H board, with its courtyard rect (mm from the board's centre): how it got
+    there ('edge': an edge part; 'place': the designer's place or layout; 'pcb': the person's; 'auto': a board-mounted
+    module's default spot; 'cap': a decoupling capacitor the compiler puts beside a fixed chip, `of` that chip)."""
+    W, H = size
+    by_id = {n["id"]: n for n in doc["nodes"]}
+    at = places(doc)
+    auto = accessory_places(doc, parts, W, H)
+    out: list[dict[str, Any]] = []
+    for nid, p in layout_edges(doc, parts, W, H).items():
+        if nid not in at:
+            box = local_box(by_id[nid], parts.get(nid))
+            if box:
+                out.append({"id": nid, "how": "edge", "edge": by_id[nid]["edge"], "x": p["pcbX"], "y": p["pcbY"], "rect": _turned(box, p["pcbX"], p["pcbY"], p["pcbRotation"])})
+    for nid, p in {**auto, **at}.items():
+        n = by_id[nid]
+        box = local_box(n, parts.get(nid))
+        if box:
+            out.append({"id": nid, "how": "pcb" if n.get("pcb") else "auto" if nid in auto and nid not in at else "place",
+                        "x": p["x"], "y": p["y"], "rect": _turned(box, p["x"], p["y"], float(p.get("rot") or 0))})
+    plan, _ = decoupling(doc, parts)
+    packages = {n["id"]: n.get("package", "0603") for n in doc["nodes"] if n["kind"] == "capacitor"}
+    for chip, caps in plan.items():
+        if chip not in at:
+            continue
+        turn = float(at[chip].get("rot") or 0)
+        c, s = math.cos(math.radians(turn)), math.sin(math.radians(turn))
+        for cap, sp in _cap_spots(parts[chip], caps, packages).items():
+            if cap in at:
+                continue
+            x, y = at[chip]["x"] + sp["pcbX"] * c - sp["pcbY"] * s, at[chip]["y"] + sp["pcbX"] * s + sp["pcbY"] * c
+            out.append({"id": cap, "how": "cap", "of": chip, "chip_at": (at[chip]["x"], at[chip]["y"]), "x": round(x, 2), "y": round(y, 2),
+                        "rect": _turned(local_box(by_id[cap]), x, y, sp["pcbRotation"] + turn)})  # type: ignore[arg-type]
+    return out
+
+
+def _holes(doc: dict[str, Any], W: float, H: float) -> list[tuple[float, float]]:
+    """The four mounting holes, RIM_MM in from the edge: at a rectangle's corners, on the diagonals of a round board
+    (45 degrees), at a rounded board's corners pulled in along the diagonal of each corner arc."""
+    if not (doc["board"].get("holes", True) and W >= 26 and H >= 26):
+        return []
+    o = outline(doc, (W, H))
+    if o["shape"] == "round":
+        kx = ky = (o["r"] - RIM_MM) / math.sqrt(2)
+    elif o["shape"] == "rounded" and o["r"] > RIM_MM:
+        kx, ky = (s / 2 - o["r"] + (o["r"] - RIM_MM) / math.sqrt(2) for s in (W, H))
+    else:
+        kx, ky = W / 2 - RIM_MM, H / 2 - RIM_MM
+    return [(round(sx * kx, 2) + 0.0, round(sy * ky, 2) + 0.0) for sx, sy in ((-1, 1), (1, 1), (-1, -1), (1, -1))]
+
+
+def _overlap(a: tuple[float, ...], b: tuple[float, ...], gap: float = 0.0) -> tuple[float, float] | None:
+    ox, oy = min(a[2], b[2]) - max(a[0], b[0]) + gap, min(a[3], b[3]) - max(a[1], b[1]) + gap
+    return (round(ox, 2), round(oy, 2)) if ox > 0.05 and oy > 0.05 else None
+
+
+def _clearing(r: tuple[float, ...], b: dict[str, Any]) -> float:
+    """How far a rect must go along an edge part's normal to come clear of it: a part held inside the module's band has to
+    leave by its far side, more than the overlap of the two says."""
+    br = b["rect"]
+    return round({"+y": r[3] - br[1], "-y": br[3] - r[1], "+x": r[2] - br[0], "-x": br[2] - r[0]}[b["edge"]], 2)
+
+
+def conflicts(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float]) -> list[dict[str, Any]]:
+    """Where fixed parts collide on a W x H board: a placed part ('place', 'pcb', 'auto', 'cap') with an edge part,
+    another placed part, the board outline or a corner hole. [{a, b?, kind: 'part'|'outline'|'hole', ox, oy, ...}]; a
+    pair of edge parts is the edge layout's to sort out and is left out, as is a chip with its own capacitor."""
+    W, H = size
+    fx = fixed_parts(doc, parts, size)
+    ol = outline(doc, size)
+    out: list[dict[str, Any]] = []
+    for i, a in enumerate(fx):
+        if a["how"] == "edge":
+            continue
+        r = a["rect"]
+        for side, d in poking(ol, r).items():  # the real outline: a round board's rim, a rounded board's corners
+            out.append({"a": a, "kind": "outline", "side": side, "by": d})
+        for hx, hy in _holes(doc, W, H):
+            o = _overlap(r, (hx - HOLE_KEEP_MM, hy - HOLE_KEEP_MM, hx + HOLE_KEEP_MM, hy + HOLE_KEEP_MM))
+            if o:
+                out.append({"a": a, "kind": "hole", "at": (round(hx, 2), round(hy, 2)), "ox": o[0], "oy": o[1]})
+        for j, b in enumerate(fx):
+            if (b["how"] != "edge" and j <= i) or a.get("of") == b["id"] or b.get("of") == a["id"] or (a.get("of") and a.get("of") == b.get("of")):
+                continue
+            o = _overlap(r, b["rect"])
+            if o:
+                out.append({"a": a, "b": b, "kind": "part", "ox": o[0], "oy": o[1]})
+    return out
+
+
+def fit(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float]) -> tuple[float, float]:
+    """The board grown until every placed part clears the edge parts, the outline and the corner holes. A place is from
+    the board's centre, so growing h by d moves the +y edge (and the module on it) up by d/2. Two placed parts that
+    overlap stay overlapped however large the board: conflicts() reports those. A round board grows as a circle (w = h)."""
+    W, H = size
+    round_ = doc["board"].get("shape") == "round"
+    for _ in range(12):
+        dw = dh = 0.0
+        for c in conflicts(doc, parts, (W, H)):
+            if c["kind"] == "outline":
+                if c["side"] in ("-x", "+x"):
+                    dw = max(dw, 2 * c["by"] + 2 * PLACE_GAP_MM)
+                else:
+                    dh = max(dh, 2 * c["by"] + 2 * PLACE_GAP_MM)
+            elif c["kind"] == "hole":
+                if c["ox"] <= c["oy"]:
+                    dw = max(dw, 2 * c["ox"] + 2 * PLACE_GAP_MM)
+                else:
+                    dh = max(dh, 2 * c["oy"] + 2 * PLACE_GAP_MM)
+            elif c["b"]["how"] == "edge":
+                if c["b"]["edge"] in ("-y", "+y"):
+                    dh = max(dh, 2 * (_clearing(c["a"]["rect"], c["b"]) + PLACE_GAP_MM))
+                else:
+                    dw = max(dw, 2 * (_clearing(c["a"]["rect"], c["b"]) + PLACE_GAP_MM))
+        if not (dw or dh) or (W >= MAX_W and H >= MAX_W):
+            break
+        if round_:
+            dw = dh = max(dw, dh)
+        W, H = min(MAX_W, float(math.ceil(W + dw))), min(MAX_W, float(math.ceil(H + dh)))
+    return W, H
+
+
+def free_area(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float] | None = None) -> dict[str, Any]:
+    """The rectangle left for placed parts on the board the build uses (or `size`): inside the outline, clear of what the
+    edge parts take on each side. {x: [x0, x1], y: [y0, y1], board: [W, H]}, mm from the board's centre (+y up)."""
+    W, H = size or estimate(doc, parts)
+    x0, y0, x1, y1 = -W / 2 + 0.5, -H / 2 + 0.5, W / 2 - 0.5, H / 2 - 0.5
+    for f in fixed_parts(doc, parts, (W, H)):
+        r, e = f["rect"], f.get("edge")
+        if f["how"] != "edge":
+            continue
+        if e == "+y":
+            y1 = min(y1, r[1] - PLACE_GAP_MM)
+        elif e == "-y":
+            y0 = max(y0, r[3] + PLACE_GAP_MM)
+        elif e == "+x":
+            x1 = min(x1, r[0] - PLACE_GAP_MM)
+        else:
+            x0 = max(x0, r[2] + PLACE_GAP_MM)
+    return {"x": [round(x0, 1), round(x1, 1)], "y": [round(y0, 1), round(y1, 1)], "board": [W, H]}
+
+
+# ------------------------------------------------------------------ the placer: a spot for every part nobody placed
+# between a free courtyard and any other part's, the widest that fits (device_bench, 17 documents: at 0.6 mm the router gave
+# up on the round night lights, 68 -> 100 mm; at 1.0 mm 40 of 42 boards took a first or second attempt; at 1.4 mm all and in
+# half the time, for a step more board where room is tight)
+ARRANGE_GAPS_MM = (1.4, 1.0)
+ARRANGE_RIM_MM = 1.0    # a free courtyard from the outline: a trace passes (at 0.5 mm a router's 'too close to the board edge', more vias)
+ARRANGE_RIM_TIGHT_MM = 0.5  # the same when nothing else gets everything down: a step of board saved (a round leak sensor, 50 -> 48 mm)
+ARRANGE_STEP_MM = 0.5   # the grid free parts sit on, from the board's centre
+ARRANGE_SLACK_MM = 3.0  # how much further from the ideal spot a candidate may lie and still be weighed by its pins
+BIG_MM2 = 20.0          # a unit at least this large goes first: small parts find room around a large one, not the reverse
+ROOM_STEP_MM = 2.0      # room(): how much a side grows at a time
+
+
+def _pin_pads(node: dict[str, Any], part: dict[str, Any], pin: str) -> list[tuple[float, float]]:
+    """Where a device pin's pads lie around the part's origin at rotation 0 (as the worker's footprints draw them, measured
+    on a built board); the origin itself when nothing says."""
+    k = node["kind"]
+    first = pin in ("1", "A", "P1")
+    if k in ("resistor", "capacitor"):
+        off = {"0402": 0.5, "0603": 0.82, "0805": 0.91, "1206": 1.4}.get(node.get("package") or "0603", 0.82)
+        return [(-off if first else off, 0.0)]
+    if k in ("led", "diode"):
+        off = 0.82 if k == "led" else 1.65
+        return [(-off if first else off, 0.0)]
+    if k == "button":  # its legs pair up inside: either of a pair will do
+        return [(-2.25, 3.25), (-2.25, -3.25)] if first else [(2.25, -3.25), (2.25, 3.25)]
+    if k == "jst":
+        return [(-1.0 if first else 1.0, 0.0)]
+    if k == "usb_c":
+        return [(0.0, 2.55)]
+    if k == "chip":
+        pads, num_of = part.get("pads"), {p["label"]: p["num"] for p in part.get("pins") or []}
+        got = [(pads[num_of[lb]][0], pads[num_of[lb]][1]) for lb in chip_labels(part, pin)[0] if isinstance(pads, dict) and num_of.get(lb) in pads]
+        return got or [(0.0, 0.0)]
+    if k == "module":
+        m = MODULES[node["module"]]
+        w = float(re.search(r"_w([\d.]+)mm", m["footprint"])[1])  # type: ignore[index]
+        half, got = len(m["pins"]) // 2, []
+        for lb in _tsx_pins(node, part, pin):
+            if lb in m["pins"]:  # a DIP: down the left column from pin 1, up the right one
+                i = m["pins"].index(lb)
+                got.append((-w / 2, ((half - 1) / 2 - i) * 2.54) if i < half else (w / 2, (i - half - (half - 1) / 2) * 2.54))
+        return got or [(0.0, 0.0)]
+    names = list(node.get("pins") or []) if k == "header" else list(acc.ACCESSORIES[node["accessory"]]["pins"]) if k == "accessory" else []
+    if pin not in names:
+        return [(0.0, 0.0)]
+    a = acc.ACCESSORIES[node["accessory"]] if k == "accessory" else {}
+    t = (names.index(pin) - (len(names) - 1) / 2) * (2.0 if a.get("connect") == "jst" else 2.54)
+    return [(0.0, -t) if a.get("mount") == "board" and a.get("header_axis", "x") != "x" else (t, 0.0)]
+
+
+def _turn(p: tuple[float, float], rot: float) -> tuple[float, float]:
+    c, s = round(math.cos(math.radians(rot)), 6), round(math.sin(math.radians(rot)), 6)
+    return (p[0] * c - p[1] * s, p[0] * s + p[1] * c)
+
+
+def _fixed_spot(node: dict[str, Any], pin: dict[str, float]) -> dict[str, float]:
+    """pcbX/pcbY/pcbRotation of a part from its place ({x, y, rot}; a board-mounted accessory's place is its body's centre)."""
+    if node["kind"] == "accessory" and node.get("edge") is None and acc.ACCESSORIES[node["accessory"]]["mount"] == "board":
+        return accessory_anchor(node, pin)
+    rot = float(pin.get("rot") or 0)
+    return {"pcbX": pin["x"], "pcbY": pin["y"], "pcbRotation": int(rot) if rot.is_integer() else rot}
+
+
+def _half_chord(o: dict[str, Any], y: float, rim: float) -> float | None:
+    """How far either side of the centre line a point at height y stays `rim` inside the outline; None above or below it."""
+    if o["shape"] == "round":
+        r = _arc(o) - rim
+        return math.sqrt(r * r - y * y) if abs(y) <= r else None
+    ay, half_h = abs(y), o["h"] / 2 - rim
+    if ay > half_h:
+        return None
+    if o["shape"] == "rounded":
+        d = ay - (o["h"] / 2 - o["r"])
+        if d > 0:
+            re_ = _arc(o) - rim
+            return o["w"] / 2 - o["r"] + math.sqrt(re_ * re_ - d * d) if d <= re_ else None
+    return o["w"] / 2 - rim
+
+
+def _free_mask(o: dict[str, Any], box: tuple[float, ...], rim: float, step: float, nx: int, ny: int) -> list[int]:
+    """Where a part's origin may lie for its box to stay inside the outline: one int per row of the grid, bit i the x index."""
+    rows: list[int] = []
+    for j in range(2 * ny + 1):
+        y = (j - ny) * step
+        c0, c1 = _half_chord(o, y + box[1], rim), _half_chord(o, y + box[3], rim)
+        if c0 is None or c1 is None:
+            rows.append(0)
+            continue
+        c = min(c0, c1)
+        i0, i1 = max(0, math.ceil((-c - box[0]) / step - 1e-9) + nx), min(2 * nx, math.floor((c - box[2]) / step + 1e-9) + nx)
+        rows.append(((1 << (i1 - i0 + 1)) - 1) << i0 if i1 >= i0 else 0)
+    return rows
+
+
+def _block(rows: list[int], box: tuple[float, ...], rect: tuple[float, ...], gap: float, step: float, nx: int, ny: int) -> None:
+    """Takes out of a mask the origins from which `box` would come closer than `gap` to `rect`."""
+    i0, i1 = max(0, math.floor((rect[0] - box[2] - gap) / step + 1e-9) + 1 + nx), min(2 * nx, math.ceil((rect[2] - box[0] + gap) / step - 1e-9) - 1 + nx)
+    j0, j1 = max(0, math.floor((rect[1] - box[3] - gap) / step + 1e-9) + 1 + ny), min(2 * ny, math.ceil((rect[3] - box[1] + gap) / step - 1e-9) - 1 + ny)
+    if i1 < i0:
+        return
+    keep = ~(((1 << (i1 - i0 + 1)) - 1) << i0)
+    for j in range(j0, j1 + 1):
+        rows[j] &= keep
+
+
+def _free_units(doc: dict[str, Any], parts: dict[str, dict[str, Any]], taken: set[str]) -> list[dict[str, Any]]:
+    """What the placer has to place: each part on the carrier without a spot, a chip with its decoupling capacitors as one
+    rigid unit, the capacitors at its supply pins (_cap_spots). [{id, members: [(node, dx, dy, rot)]}]; the chip comes first."""
+    plan, _ = decoupling(doc, parts)
+    packages = {n["id"]: n.get("package", "0603") for n in doc["nodes"] if n["kind"] == "capacitor"}
+    by_id = {n["id"]: n for n in doc["nodes"]}
+    free = {n["id"] for n in doc["nodes"] if n["id"] not in taken and n["kind"] != "hole" and _on_carrier(n) and local_box(n, parts.get(n["id"]))
+            and not (n["kind"] == "chip" and not parts.get(n["id"], {}).get("raw"))}
+    held: dict[str, list[tuple[dict[str, Any], float, float, float]]] = {}
+    for chip, caps in plan.items():
+        if chip in free:
+            for cap, sp in _cap_spots(parts[chip], caps, packages).items():
+                if cap in free:
+                    held.setdefault(chip, []).append((by_id[cap], sp["pcbX"], sp["pcbY"], sp["pcbRotation"]))
+    inside = {m[0]["id"] for ms in held.values() for m in ms}
+    return [{"id": n["id"], "members": [(n, 0.0, 0.0, 0.0), *held.get(n["id"], [])]} for n in doc["nodes"] if n["id"] in free and n["id"] not in inside]
+
+
+def arrange(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float], gap: float | None = None) -> dict[str, Any]:
+    """A spot for every part on the carrier nobody placed, on a W x H board: greedy in connectivity order (large units,
+    then chips, then the rest, each time the one most attached to what is already down), on a grid inside the real outline,
+    a gap clear of the other courtyards (`gap`, else the widest of ARRANGE_GAPS_MM that gets everything down) and clear of
+    the corner holes and keepouts, each at the spot and quarter turn where its pads lie nearest the pins they connect. A
+    resistor between a discrete and the MCU sits by the discrete. Fixed spots (fixed_parts) stay what they are. Deterministic:
+    no randomness, ties go by rotation and the document's order.
+    {place: {id: {pcbX, pcbY, pcbRotation}}, rects: {id: courtyard}, missing: [ids that found no spot], gap}."""
+    got: dict[str, Any] = {}
+    gaps = ARRANGE_GAPS_MM if gap is None else (gap,)
+    for g, rim in [(g, ARRANGE_RIM_MM) for g in gaps] + [(gaps[-1], ARRANGE_RIM_TIGHT_MM)]:
+        got = _arrange_at(doc, parts, size, g, rim)
+        if not got["missing"]:
+            break
+    return got
+
+
+def _arrange_at(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float], gap: float, rim: float) -> dict[str, Any]:
+    o = outline(doc, (float(size[0]), float(size[1])))
+    W, H = o["w"], o["h"]
+    by_id = {n["id"]: n for n in doc["nodes"]}
+    fx = fixed_parts(doc, parts, (W, H))
+    spots: dict[str, dict[str, float]] = dict(layout_edges(doc, parts, W, H))
+    spots.update({nid: _fixed_spot(by_id[nid], p) for nid, p in {**accessory_places(doc, parts, W, H), **places(doc)}.items()})
+    spots.update({f["id"]: {"pcbX": f["x"], "pcbY": f["y"], "pcbRotation": 0} for f in fx if f["how"] == "cap"})
+    # what is in the way: its rect and the gap it asks for
+    k = HOLE_KEEP_MM
+    blocks: list[tuple[tuple[float, ...], float]] = [(f["rect"], gap) for f in fx]
+    blocks += [((x - k, y - k, x + k, y + k), PLACE_GAP_MM) for x, y in _holes(doc, W, H)]
+    blocks += [(tuple(z["rect"]), PLACE_GAP_MM) for z in doc.get("zones") or [] if z["kind"] == "keepout" and "top" in z["layers"]]
+    for r in doc.get("routes") or []:  # the person's traces on the top side, and their vias: a free part's copper stays off them
+        layer, prev = r["layer"], None
+        for q in r["points"]:
+            if prev and layer == "top":
+                n = max(1, math.ceil(math.hypot(q["x"] - prev["x"], q["y"] - prev["y"])))
+                blocks += [((x - 0.2, y - 0.2, x + 0.2, y + 0.2), PLACE_GAP_MM) for x, y in
+                           ((prev["x"] + (q["x"] - prev["x"]) * i / n, prev["y"] + (q["y"] - prev["y"]) * i / n) for i in range(n + 1))]
+            if layer == "top" or q.get("via"):
+                blocks.append(((q["x"] - 0.4, q["y"] - 0.4, q["x"] + 0.4, q["y"] + 0.4), PLACE_GAP_MM))
+            layer, prev = ("bottom" if layer == "top" else "top") if q.get("via") else layer, q
+    # one mask per distinct box, kept up to date as parts go down
+    step, nx, ny = ARRANGE_STEP_MM, int(W / 2 / ARRANGE_STEP_MM), int(H / 2 / ARRANGE_STEP_MM)
+    masks: dict[tuple[float, ...], list[int]] = {}
+
+    def mask_of(box: tuple[float, ...]) -> list[int]:
+        if box not in masks:
+            masks[box] = _free_mask(o, box, rim, step, nx, ny)
+            for rect, g in blocks:
+                _block(masks[box], box, rect, g, step, nx, ny)
+        return masks[box]
+
+    # the pull of a pin towards the others on its net: rails pull less (they are everywhere), a discrete at the other end
+    # more (a resistor belongs by the LED or the transistor it serves; the long run is the one to the MCU)
+    def discrete(nid: str) -> bool:
+        n = by_id.get(nid) or {}
+        return n.get("kind") in ("led", "diode") or (n.get("kind") == "chip" and len(parts.get(nid, {}).get("pins") or []) <= 4)
+
+    pins_of_part: dict[str, list[tuple[str, float, list[str]]]] = {}
+    for net in doc["nets"]:
+        base = 0.2 if GROUND.match(net.get("name") or "") else 0.5 if is_supply(net, by_id, parts) else 1.0
+        for ref in net["pins"]:
+            nid, others = ref.split(".", 1)[0], [p for p in net["pins"] if p != ref]
+            pull = 1.5 if base == 1.0 and any(p.split(".", 1)[0] != nid and discrete(p.split(".", 1)[0]) for p in others) else base
+            pins_of_part.setdefault(nid, []).append((ref.split(".", 1)[1], pull, others))
+
+    def world(ref: str) -> list[tuple[float, float]]:
+        nid, pin = ref.split(".", 1)
+        s = spots.get(nid)
+        if s is None or nid not in by_id or not _on_carrier(by_id[nid]):
+            return []
+        rot = float(s.get("pcbRotation") or 0)
+        return [(s["pcbX"] + q[0], s["pcbY"] + q[1]) for q in (_turn(p, rot) for p in _pin_pads(by_id[nid], parts.get(nid, {}), pin))]
+
+    units = _free_units(doc, parts, {f["id"] for f in fx})
+    for i, u in enumerate(units):
+        u["order"], u["boxes"] = i, {}
+        for rot in (0, 90, 180, 270):
+            rects = [(n["id"], _turned(local_box(n, parts.get(n["id"])), *_turn((dx, dy), rot), r + rot)) for n, dx, dy, r in u["members"]]  # type: ignore[arg-type]
+            xs0, ys0, xs1, ys1 = zip(*(q[1] for q in rects))
+            u["boxes"][rot] = ((min(xs0), min(ys0), max(xs1), max(ys1)), rects)
+        b0 = u["boxes"][0][0]
+        u["area"] = (b0[2] - b0[0]) * (b0[3] - b0[1])
+        chip, ids = u["members"][0][0], {m[0]["id"] for m in u["members"]}
+        u["tier"] = 0 if u["area"] >= BIG_MM2 else 1 if chip["kind"] == "chip" else 2
+        # a chip's capacitors are held to it: only its own pins pull
+        u["pins"] = [(w, _pin_pads(chip, parts.get(chip["id"], {}), pin), [p for p in others if p.split(".", 1)[0] not in ids])
+                     for pin, w, others in pins_of_part.get(chip["id"], [])]
+
+    place: dict[str, dict[str, float]] = {}
+    rects_out: dict[str, tuple[float, ...]] = {}
+    missing: list[str] = []
+    todo = list(units)
+    while todo:
+        u = min(todo, key=lambda v: (v["tier"], -sum(w for w, _, peers in v["pins"] if any(world(p) for p in peers)), -v["area"], v["order"]))
+        todo.remove(u)
+        pulls = [(w, pads, [q for p in peers for q in world(p)]) for w, pads, peers in u["pins"]]
+        pulls = [t for t in pulls if t[2]]
+        total = sum(t[0] for t in pulls)
+        # where the pins pull: first the middle of their peers, which says which peer of a rail is the near one
+        cx = sum(w * sum(q[0] for q in qs) / len(qs) for w, _, qs in pulls) / total if total else 0.0
+        cy = sum(w * sum(q[1] for q in qs) / len(qs) for w, _, qs in pulls) / total if total else 0.0
+        best: tuple[float, float, float, int] | None = None
+        for rot in (0, 90, 180, 270):
+            rows = mask_of(u["boxes"][rot][0])
+            turned = [(w, [_turn(p, rot) for p in pads], qs) for w, pads, qs in pulls]
+            ax, ay = cx, cy  # the ideal spot at this turn: the weighted median of where each pin would have the part (Weiszfeld)
+            if total:
+                aims = []
+                for w, pads, qs in turned:
+                    p, q = min(((p, q) for p in pads for q in qs), key=lambda t: math.hypot(cx + t[0][0] - t[1][0], cy + t[0][1] - t[1][1]))
+                    aims.append((w, q[0] - p[0], q[1] - p[1]))
+                for _ in range(8):
+                    pulled = [(w / max(math.hypot(ax - x, ay - y), 0.05), x, y) for w, x, y in aims]
+                    norm = sum(t[0] for t in pulled)
+                    ax, ay = sum(t[0] * t[1] for t in pulled) / norm, sum(t[0] * t[2] for t in pulled) / norm
+            ix, iy = min(2 * nx, max(0, round(ax / step) + nx)), min(2 * ny, max(0, round(ay / step) + ny))
+            fee = {0: 0.0, 180: 0.05, 90: 0.2, 270: 0.25}[rot]  # upright unless the pads say otherwise
+            near = math.inf
+            for j in sorted(range(2 * ny + 1), key=lambda j: (abs(j - iy), j)):
+                if abs(j - iy) * step > near + ARRANGE_SLACK_MM:
+                    break
+                m = rows[j]
+                if not m:
+                    continue
+                hi, lo = m >> ix, m & ((1 << (ix + 1)) - 1)  # the nearest free spot on this row, either side
+                for i in dict.fromkeys(([ix + (hi & -hi).bit_length() - 1] if hi else []) + ([lo.bit_length() - 1] if lo else [])):
+                    x, y = (i - nx) * step, (j - ny) * step
+                    off = math.hypot(x - ax, y - ay)
+                    near = min(near, off)
+                    c = fee + 0.001 * off + sum(w * min(math.hypot(x + p[0] - q[0], y + p[1] - q[1]) for p in pads for q in qs) for w, pads, qs in turned)
+                    if best is None or c < best[0] - 1e-9:
+                        best = (c, x, y, rot)
+        if best is None:
+            missing += [m[0]["id"] for m in u["members"]]
+            continue
+        _, x, y, rot = best
+        for (n, dx, dy, r), (nid, rect) in zip(u["members"], u["boxes"][rot][1]):
+            ox, oy = _turn((dx, dy), rot)
+            turned_rot = (r + rot) % 360
+            place[nid] = spots[nid] = {"pcbX": round(x + ox, 2) + 0.0, "pcbY": round(y + oy, 2) + 0.0, "pcbRotation": int(turned_rot) if float(turned_rot).is_integer() else turned_rot}
+            rects_out[nid] = (round(rect[0] + x, 3), round(rect[1] + y, 3), round(rect[2] + x, 3), round(rect[3] + y, 3))
+            blocks.append((rects_out[nid], gap))
+            for box, rows in masks.items():
+                _block(rows, box, rects_out[nid], gap, step, nx, ny)
+    return {"place": place, "rects": rects_out, "missing": missing, "gap": gap, "rim": rim}
+
+
+def _arranged(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float], gap: float | None = None) -> dict[str, Any] | None:
+    """arrange(), or None when it broke: a slip in the placer must not kill a build, tscircuit's packer takes over."""
+    try:
+        return arrange(doc, parts, size, gap)
+    except Exception:  # noqa: BLE001
+        log.exception("the device placer failed on %s at %s", doc.get("title"), size)
+        return None
+
+
+def room(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float]) -> tuple[float, float]:
+    """The board from `size` up, ROOM_STEP_MM at a time, shorter side first, until arrange() has a spot for every free part
+    (a round board as a circle; MAX_W is the end of it). The person's size stays as it is."""
+    W, H = float(size[0]), float(size[1])
+    round_ = doc["board"].get("shape") == "round"
+    while not doc["board"].get("locked"):
+        got = _arranged(doc, parts, (W, H))
+        if got is None or not got["missing"] or (W >= MAX_W and H >= MAX_W):
+            break
+        if round_:
+            W = H = min(MAX_W, W + ROOM_STEP_MM)
+        elif W <= H:
+            W = min(MAX_W, W + ROOM_STEP_MM)
+        else:
+            H = min(MAX_W, H + ROOM_STEP_MM)
+    return W, H
+
+
+def _trim(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float]) -> tuple[float, float]:
+    """A side nobody chose (no board.w or board.h: the designer's is a minimum) comes in a millimetre at a time while the
+    fixed spots stay clear and the placer still gets everything down at its widest gap: what the board needs, not what an
+    estimate of its area said. Never below what the edge parts take between the corner holes (_floor), what keeps the holes
+    (_holes), or 24 mm."""
+    b, (W, H) = doc["board"], size
+    low = 26.0 if b.get("holes", True) else 24.0
+    low_w, low_h = (max(low, math.ceil(v)) for v in _floor(doc, parts)[:2])
+    wide = max(ARRANGE_GAPS_MM)
+
+    def fine(s: tuple[float, float]) -> bool:
+        if any(c["kind"] != "part" or c["b"]["how"] == "edge" for c in conflicts(doc, parts, s)):  # placed on placed: no size clears that
+            return False
+        got = _arranged(doc, parts, s)
+        return got is not None and not got["missing"] and got["gap"] == wide and got["rim"] == ARRANGE_RIM_MM
+
+    if b.get("shape") == "round":
+        while not b.get("w") and W - 1 >= max(low_w, low_h) and fine((W - 1, W - 1)):
+            W = H = W - 1
+        return W, H
+    can_w, can_h = not b.get("w"), not b.get("h")
+    while can_w or can_h:
+        if can_w and (W >= H or not can_h):  # the longer side first, while both may move
+            if W - 1 >= low_w and fine((W - 1, H)):
+                W -= 1
+            else:
+                can_w = False
+        elif H - 1 >= low_h and fine((W, H - 1)):
+            H -= 1
+        else:
+            can_h = False
+    return W, H
+
+
+def other_gap(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float], comp: dict[str, Any]) -> float | None:
+    """A gap that arranges this board's free parts differently from the build `comp` that failed: the router is deterministic and
+    trips over one spot (a via on a pad, two traces 0.08 mm apart), where another arrangement of the same board passes. None
+    when there is no other."""
+    if not comp.get("free"):
+        return None
+    for g in sorted({max(ARRANGE_GAPS_MM) + 0.6, *ARRANGE_GAPS_MM}, reverse=True):
+        got = _arranged(doc, parts, size, g)
+        if g != comp.get("gap") and got and not got["missing"] and any(comp["placed"].get(nid) != p for nid, p in got["place"].items()):
+            return g
+    return None
+
+
+def next_size(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float], comp: dict[str, Any], grow: float) -> tuple[float, float]:
+    """The board to try after this one failed to route: `grow` per side, or less when its free parts sat at the narrow gap and
+    a step or two more gives them the wide one (the same parts, far easier to route)."""
+    W, H = float(size[0]), float(size[1])
+    big = (min(MAX_W, float(math.ceil(W * grow))), min(MAX_W, float(math.ceil(H * grow))))
+    if comp.get("free") and comp.get("gap") != max(ARRANGE_GAPS_MM):
+        while W + 1 <= big[0] or H + 1 <= big[1]:
+            W, H = min(big[0], W + ROOM_STEP_MM), min(big[1], H + ROOM_STEP_MM)
+            got = _arranged(doc, parts, (W, H), max(ARRANGE_GAPS_MM))
+            if got and not got["missing"]:
+                return W, H
+    return big
+
+
+def no_room(doc: dict[str, Any], size: tuple[float, float], ids: list[str]) -> str:
+    """What the build says when the placer found no spot and the board cannot grow."""
+    why = "the person fixed the board" if doc["board"].get("locked") else "it is the largest board there is"
+    return (f"no room on the {describe_outline(outline(doc, size))} for {', '.join(ids)} ({why}): each part needs its courtyard, "
+            f"{min(ARRANGE_GAPS_MM):g} mm from the next and {ARRANGE_RIM_TIGHT_MM:g} mm from the edge; make the board larger, or move placed parts together")
+
+
+def _who(f: dict[str, Any]) -> str:
+    r = f["rect"]
+    what = {"cap": f"the capacitor the compiler puts beside {f.get('of')}", "edge": f"on the {f.get('edge')} edge",
+            "auto": "at its default spot", "pcb": "placed by the person"}.get(f["how"], "")
+    return f"{f['id']} ({r[2] - r[0]:.1f}x{r[3] - r[1]:.1f} mm at ({f['x']:g}, {f['y']:g}){', ' + what if what else ''})"
+
+
+GROW_SAFE_MM = 12.0  # how much the build grows a board by itself to clear placed parts (or a quarter of its side)
+
+
+def board_area(doc: dict[str, Any], size: tuple[float, float]) -> float:
+    """The board's own area, mm² (a round board's disc, a rounded one without its corners)."""
+    o = outline(doc, size)
+    if o["shape"] == "round":
+        return math.pi * o["r"] ** 2
+    return o["w"] * o["h"] - (4 - math.pi) * o["r"] ** 2
+
+
+def size_text(doc: dict[str, Any], size: tuple[float, float]) -> str:
+    return f"{size[0]:g} mm round" if doc["board"].get("shape") == "round" else f"{size[0]:g} x {size[1]:g} mm"
+
+
+def sized(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> tuple[tuple[float, float], list[dict[str, Any]]]:
+    """The board the build would start from for a document (estimate()) and the conflicts left on it: placed parts on
+    each other, which no growth clears (and anything still in the way of a board at MAX_W)."""
+    size = estimate(doc, parts)
+    return size, conflicts(doc, parts, size)
+
+
+def _node(doc: dict[str, Any], nid: str) -> dict[str, Any]:
+    return next(n for n in doc["nodes"] if n["id"] == nid)
+
+
+def _members(doc: dict[str, Any], spec: tuple[str, Any]) -> set[str]:
+    return set(doc["layouts"][spec[1]]["nodes"]) if spec[0] == "layout" else {spec[1]}
+
+
+def _spot(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float], spec: tuple[str, Any],
+          dx: float = 0.0, dy: float = 0.0, turn: float = 0.0) -> None:
+    """Moves a mover in (a copy of) the document: a layout's centre (and its turn), a part's pcb (the person's), else its
+    place; a part with neither (a layout member, a module at its default spot) gets a place where it was."""
+    if spec[0] == "layout":
+        lay = doc["layouts"][spec[1]]
+        lay["center"] = [round(lay["center"][0] + dx, 2) + 0.0, round(lay["center"][1] + dy, 2) + 0.0]
+        lay["rot"] = round((float(lay.get("rot") or 0) + turn) % 360, 1) + 0.0
+        return
+    node = _node(doc, spec[1])
+    key = "pcb" if node.get("pcb") else "place"
+    p = node.get(key) or places(doc).get(node["id"]) or accessory_places(doc, parts, *size).get(node["id"])
+    if p is None:
+        raise KeyError(spec[1])
+    rot = (float(p.get("rot") or 0) + turn) % 360
+    node[key] = {"x": round(p["x"] + dx, 2) + 0.0, "y": round(p["y"] + dy, 2) + 0.0,
+                 "rot": int(round(rot / 90)) * 90 % 360 if key == "pcb" else round(rot, 1) + 0.0}
+
+
+def _clear_of(doc: dict[str, Any], parts: dict[str, dict[str, Any]], spec: tuple[str, Any], b_id: str, name: str) -> str:
+    """Shifts the mover off edge part b_id along that edge's normal, on the board the variant starts from (base_size;
+    growing it only takes the edge part further out), and says where it went (' and DS1 at x >= 9.0'), '' when clear."""
+    size = base_size(doc, parts)
+    fx = fixed_parts(doc, parts, size)
+    ids = _members(doc, spec)
+    mine = [f["rect"] for f in fx if (f.get("of") or f["id"]) in ids and f["how"] != "edge"]
+    eb = next((f for f in fx if f["id"] == b_id and f["how"] == "edge"), None)
+    if not mine or eb is None:
+        return ""
+    m = (min(r[0] for r in mine), min(r[1] for r in mine), max(r[2] for r in mine), max(r[3] for r in mine))
+    if not _overlap(m, eb["rect"]):
+        return ""
+    r, g = eb["rect"], PLACE_GAP_MM
+    dx, dy = {"+y": (0.0, r[1] - g - m[3]), "-y": (0.0, r[3] + g - m[1]), "+x": (r[0] - g - m[2], 0.0), "-x": (r[2] + g - m[0], 0.0)}[eb["edge"]]
+    _spot(doc, parts, size, spec, dx=dx, dy=dy)
+    at = doc["layouts"][spec[1]]["center"] if spec[0] == "layout" else (places(doc)[spec[1]]["x"], places(doc)[spec[1]]["y"])
+    axis, v = ("x", at[0]) if dx else ("y", at[1])
+    return f" and {name} at {axis} {'>=' if (dx or dy) > 0 else '<='} {v:.1f}"
+
+
+def _clear_rest(doc: dict[str, Any], parts: dict[str, dict[str, Any]], skip: set[str], b_id: str) -> str:
+    """The other placed parts an edge part lands on after moving to another edge: each shifted off it the shortest way
+    that does not push it out past that edge (a layout as a whole). Says where they went (' and SW1 at y <= -13.7')."""
+    said = ""
+    done = set(skip)
+    for _ in range(8):
+        size = base_size(doc, parts)
+        fx = fixed_parts(doc, parts, size)
+        eb = next((f for f in fx if f["id"] == b_id and f["how"] == "edge"), None)
+        hit = next((f for f in fx if eb and f["how"] != "edge" and (f.get("of") or f["id"]) not in done and _overlap(f["rect"], eb["rect"])), None)
+        if not eb or not hit:
+            return said
+        owner = hit.get("of") or hit["id"]
+        idx = next((i for i, lay in enumerate(doc.get("layouts") or []) if owner in lay["nodes"]), None)
+        spec: tuple[str, Any] = ("layout", idx) if idx is not None else ("node", owner)
+        ids = _members(doc, spec)
+        done |= ids
+        mine = [f["rect"] for f in fx if (f.get("of") or f["id"]) in ids and f["how"] != "edge"]
+        m = (min(r[0] for r in mine), min(r[1] for r in mine), max(r[2] for r in mine), max(r[3] for r in mine))
+        r, g = eb["rect"], PLACE_GAP_MM
+        ways = {"+x": (r[2] + g - m[0], 0.0), "-x": (r[0] - g - m[2], 0.0), "+y": (0.0, r[3] + g - m[1]), "-y": (0.0, r[1] - g - m[3])}
+        ways.pop(eb["edge"], None)  # out past the edge the part sits on
+        dx, dy = min(ways.values(), key=lambda d: abs(d[0]) + abs(d[1]))
+        _spot(doc, parts, size, spec, dx=dx, dy=dy)
+        at = doc["layouts"][idx]["center"] if idx is not None else (places(doc)[owner]["x"], places(doc)[owner]["y"])
+        axis, v = ("x", at[0]) if dx else ("y", at[1])
+        name = f"the {doc['layouts'][idx]['pattern']} layout's center" if idx is not None else owner
+        said += f" and {name} at {axis} {'>=' if (dx or dy) > 0 else '<='} {v:.1f}"
+    return said
+
+
+def _ways(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float], spec: tuple[str, Any], who: str,
+          b: dict[str, Any], moves: list[tuple[str, dict[str, float]]], grow: tuple[str, tuple[float, float]]) -> str:
+    """The ways out of a placed part (or a layout) running into edge part b, each with the board the build would then size,
+    smallest first: the plain moves (`moves`: what to say, the shift), b on another edge with the mover shifted clear of
+    it there, the mover turned by 90 degrees; the last two only when clean and smaller than the other ways. Growing the
+    board (`grow`: the lever and the size it gives) comes last, with its cost in area against `size`."""
+    ids = _members(doc, spec)
+    name = spec[1] if spec[0] == "node" else "its center"
+    owner = spec[1] if spec[0] == "node" else f"the {doc['layouts'][spec[1]]['pattern']} layout"
+
+    def run(say: str, kind: str, edit: Any) -> dict[str, Any] | None:
+        d = clone(doc)
+        try:
+            more = edit(d) or ""
+        except (KeyError, ValueError, IndexError, StopIteration):
+            return None
+        s, conf = sized(d, parts)
+        left: list[str] = []
+        for c in conf:
+            if c["kind"] != "part":
+                continue
+            x, y = c["a"].get("of") or c["a"]["id"], c["b"].get("of") or c["b"]["id"]
+            for p, q in ((x, y), (y, x)):
+                if p in ids and q not in ids and q not in left:
+                    left.append(q)
+        return {"say": say + more, "kind": kind, "doc": d, "size": s, "area": board_area(d, s), "left": left}
+
+    alts = [v for v in (run(say, "move", lambda d, k=k: _spot(d, parts, size, spec, **k)) for say, k in moves) if v]
+    for e2 in EDGES:
+        if e2 != b["edge"]:
+            def to_edge(d: dict[str, Any], e2: str = e2) -> str:
+                _node(d, b["id"])["edge"] = e2
+                return _clear_of(d, parts, spec, b["id"], name) + _clear_rest(d, parts, ids, b["id"])
+            v = run(f"put {b['id']} on the {e2} edge", "edge", to_edge)
+            if v:
+                alts.append(v)
+    if spec[0] == "node":
+        box = local_box(_node(doc, spec[1]), parts.get(spec[1]))
+        turnable = bool(box) and abs((box[2] - box[0]) - (box[3] - box[1])) >= 2.0  # type: ignore[index]
+        rot = float((places(doc).get(spec[1]) or {}).get("rot") or 0)
+        node = _node(doc, spec[1])
+        note = (" (the display then reads in portrait: turn the picture in the firmware)"
+                if node["kind"] == "accessory" and acc.ACCESSORIES[node["accessory"]]["kind"] == "display" else "")
+    else:
+        lay = doc["layouts"][spec[1]]
+        turnable, rot, note = lay["pattern"] in ("row", "column", "grid") and len(lay["nodes"]) > 1, float(lay.get("rot") or 0), ""
+    if turnable:
+        def turned(d: dict[str, Any]) -> str:
+            _spot(d, parts, size, spec, turn=90)
+            return _clear_of(d, parts, spec, b["id"], name)
+        v = run(f"turn {who} by 90 degrees (rot {(rot + 90) % 360:g}){note}", "turn", turned)
+        if v:
+            alts.append(v)
+    gsize = grow[1]
+    if doc["board"].get("shape") == "round":
+        gsize = (max(gsize), max(gsize))
+    g_area = board_area(doc, gsize)
+    keep = [a for a in alts if a["kind"] == "move"]
+    best = min([a["area"] for a in keep if not a["left"]] + [g_area])
+    for kind in ("edge", "turn"):
+        clean = sorted((a for a in alts if a["kind"] == kind and not a["left"]), key=lambda a: a["area"])
+        if clean and clean[0]["area"] < best - 1.0:
+            keep.append(clean[0])
+    keep.sort(key=lambda a: (bool(a["left"]), a["area"]))
+    said = [f"({i}) {a['say']}: {size_text(a['doc'], a['size'])}" + (f", but {owner} then overlaps {', '.join(a['left'][:4])}" if a["left"] else "")
+            for i, a in enumerate(keep, 1)]
+    pct = round(100 * (g_area / board_area(doc, size) - 1))
+    said.append(f"({len(keep) + 1}) last, {grow[0]}: grows the board to {size_text(doc, gsize)}, {pct:+d}% area")
+    return "Ways out, smallest board first: " + "; ".join(said)
+
+
+def place_issues(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float] | None = None) -> list[dict[str, Any]]:
+    """What the build would fail on, or blow the board up for, because of a fixed spot: said before any build, with the
+    designer's levers (the place that clears it, or the board size that does). Code place_conflict, severity error.
+    A board the build may size grows by itself when that takes up to GROW_SAFE_MM (or a quarter) per side, and what
+    that clears is not reported; two placed parts on each other are, as is anything on the person's fixed board. With
+    `size`: the conflicts on that board as built. Each issue lists the parts it is about in `ids`."""
+    locked = bool(doc["board"].get("locked"))
+    big = False
+    if size is None:
+        base = base_size(doc, parts)
+        grown = base if locked else fit(doc, parts, base)
+        big = not locked and any(g > b0 + max(GROW_SAFE_MM, b0 * 0.25) for g, b0 in zip(grown, base))
+        size = base if (locked or big) else grown
+    W, H = size
+    area = free_area(doc, parts, size)
+    o = outline(doc, size)
+    round_ = o["shape"] == "round"
+    room = f"room for placed parts on a {describe_outline(o)}: x {area['x'][0]:g}..{area['x'][1]:g}, y {area['y'][0]:g}..{area['y'][1]:g}"
+    if o["shape"] != "rect":
+        room += (f", every courtyard corner within {o['r']:g} mm of the centre" if round_
+                 else f", clear of the corner arcs")
+    if big:
+        room += f"; left as it is, the build grows the board to {size_text(doc, grown)}"
+    if locked:
+        room += f" (the person fixed the board at {W:g} x {H:g} mm)"
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, ...]] = set()
+    layout_of = {nid: lay for lay in doc.get("layouts") or [] for nid in lay["nodes"]}
+    by_layout: dict[tuple[int, str], dict[str, Any]] = {}  # a layout's parts against one obstacle: one message
+    for c in conflicts(doc, parts, size):
+        a, b = c["a"], c.get("b")
+        mover = a["of"] if a["how"] == "cap" else a["id"]
+        lay = layout_of.get(mover) if a["how"] in ("place", "cap") else None
+        if lay and b and (b["how"] == "edge" or (b["of"] if b["how"] == "cap" else b["id"]) in lay["nodes"]):
+            inside = b["how"] != "edge"
+            k2 = (id(lay), "itself" if inside else b["id"])
+            m = by_layout.setdefault(k2, {"lay": lay, "b": b, "inside": inside, "ox": 0.0, "oy": 0.0, "clear": 0.0})
+            m["ox"], m["oy"] = max(m["ox"], c["ox"]), max(m["oy"], c["oy"])
+            if not inside:
+                m["clear"] = max(m["clear"], _clearing(a["rect"], b))
+            continue
+        key = (mover, (b or {}).get("of") or (b or {}).get("id") or c["kind"])
+        if key in seen:
+            continue
+        seen.add(key)
+        r, g = a["rect"], PLACE_GAP_MM
+        ax, ay = a.get("chip_at") or (a["x"], a["y"])
+        who = mover + (f" (its capacitor {a['id']})" if a["how"] == "cap" else "")
+        if c["kind"] == "outline":
+            sd, d = c["side"], c["by"] + g
+            move = {"+y": f"y <= {ay - d:.1f}", "-y": f"y >= {ay + d:.1f}", "+x": f"x <= {ax - d:.1f}", "-x": f"x >= {ax + d:.1f}"}[sd]
+            axis = "h" if sd[1] == "y" and not round_ else "w"
+            where = f"round board's rim on its {sd} side" if round_ else f"board's {sd} edge" + (" (a rounded corner)" if o["shape"] == "rounded" else "")
+            msg = f"{_who(a)} reaches {c['by']:g} mm past the {where}: put {who} at {move}, or board.{axis} >= {math.ceil((H if axis == 'h' else W) + 2 * d)}"
+        elif c["kind"] == "hole":
+            hx, hy = c["at"]
+            msg = (f"{_who(a)} runs into the mounting hole at ({hx:g}, {hy:g}): move {who} {c['ox'] + g:.1f} mm in x or {c['oy'] + g:.1f} mm "
+                   f"in y away from the corner, or board.holes false")
+        elif b["how"] == "edge":
+            e, ox, oy = b["edge"], _clearing(a["rect"], b) + g, _clearing(a["rect"], b) + g
+            br = b["rect"]
+            spec = ("node", mover)
+            moves: list[tuple[str, dict[str, float]]] = []
+            if e in ("+y", "-y"):
+                ny = ay - oy if e == "+y" else ay + oy
+                moves.append((f"put {who} at y {'<=' if e == '+y' else '>='} {ny:.1f}", {"dy": ny - ay}))
+                left, right = ax - (r[2] - br[0] + g), ax + (br[2] - r[0] + g)
+                if left - (ax - r[0]) >= area["x"][0] - 0.01:
+                    moves.append((f"put {who} at x <= {left:.1f}", {"dx": left - ax}))
+                if right + (r[2] - ax) <= area["x"][1] + 0.01:
+                    moves.append((f"put {who} at x >= {right:.1f}", {"dx": right - ax}))
+                grow = (f"board.{'w' if round_ else 'h'} >= {math.ceil(H + 2 * oy)} (the {e} edge moves out by half of what it grows)",
+                        (W, math.ceil(H + 2 * oy)))
+            else:
+                nx = ax - ox if e == "+x" else ax + ox
+                moves.append((f"put {who} at x {'<=' if e == '+x' else '>='} {nx:.1f}", {"dx": nx - ax}))
+                grow = (f"board.w >= {math.ceil(W + 2 * ox)} (the {e} edge moves out by half of what w grows)", (math.ceil(W + 2 * ox), H))
+            msg = f"{_who(a)} runs into {_who(b)}, which stays on its edge. " + _ways(doc, parts, size, spec, who, b, moves, grow)
+        else:
+            ox, oy = c["ox"] + g, c["oy"] + g
+            other = b["of"] if b["how"] == "cap" else b["id"]
+            bx, by = b.get("chip_at") or (b["x"], b["y"])
+            msg = (f"{_who(a)} and {_who(b)} overlap: move {who} {ox:.1f} mm in x (x = {ax + math.copysign(ox, (ax - bx) or 1):.1f}) "
+                   f"or {oy:.1f} mm in y (y = {ay + math.copysign(oy, (ay - by) or 1):.1f}), or {other} the other way")
+            lay = next((x for x in doc.get("layouts") or [] if mover in x["nodes"] and other in x["nodes"]), None)
+            if lay:
+                msg += f"; in their {lay['pattern']} layout, a pitch >= {lay['pitch'] + min(ox, oy):.1f} mm"
+        ids = [mover] + ([b["of"] if b["how"] == "cap" else b["id"]] if b else [])
+        out.append({"code": "place_conflict", "ref": mover, "severity": "error", "msg": f"{msg}. {room}", "ids": ids})
+    missing = (_arranged(doc, parts, size) or {}).get("missing") or [] if locked else []
+    if missing:
+        out.append({"code": "place_conflict", "ref": missing[0], "severity": "error", "msg": f"{no_room(doc, size, missing)}. {room}", "ids": missing})
+    for m in by_layout.values():
+        lay, b, g = m["lay"], m["b"], PLACE_GAP_MM
+        cx, cy = lay["center"]
+        names = f"the {lay['pattern']} layout of {', '.join(lay['nodes'])} (center ({cx:g}, {cy:g}), pitch {lay['pitch']:g})"
+        if m["inside"]:
+            msg = f"{names} puts its parts on each other: a pitch >= {lay['pitch'] + min(m['ox'], m['oy']) + g:.1f} mm"
+        else:
+            spec = ("layout", (doc.get("layouts") or []).index(lay))
+            who = f"the {lay['pattern']} layout"
+            if b["edge"] in ("+y", "-y"):
+                oy = m["clear"] + g
+                ny = cy - oy if b["edge"] == "+y" else cy + oy
+                moves = [(f"put its center at y {'<=' if b['edge'] == '+y' else '>='} {ny:.1f}", {"dy": ny - cy})]
+                grow = (f"board.{'w' if round_ else 'h'} >= {math.ceil(H + 2 * oy)}", (W, math.ceil(H + 2 * oy)))
+            else:
+                ox = m["clear"] + g
+                nx = cx - ox if b["edge"] == "+x" else cx + ox
+                moves = [(f"put its center at x {'<=' if b['edge'] == '+x' else '>='} {nx:.1f}", {"dx": nx - cx})]
+                grow = (f"board.w >= {math.ceil(W + 2 * ox)}", (math.ceil(W + 2 * ox), H))
+            msg = f"{names} runs into {_who(b)}, which stays on its edge. " + _ways(doc, parts, size, spec, who, b, moves, grow)
+        out.append({"code": "place_conflict", "ref": lay["nodes"][0], "severity": "error", "msg": f"{msg}. {room}",
+                    "ids": list(lay["nodes"]) + ([] if m["inside"] else [b["id"]])})
+    return out
+
+
+# ------------------------------------------------------------------ how large the board is, against what is on it
+COMPACT_RATIO = 2.5   # a board this many times its parts' footprints is worth a look for a smaller arrangement
+COMPACT_GAIN = 0.8    # what counts as smaller: at most this share of the board's area,
+COMPACT_SAVED = 600.0  # and at least this much off it, mm²: 36 x 40 -> 31 x 36 mm is the estimate's margin, no finding
+OVER_CONCEPT = 1.2    # a build past this share of the chosen concept's board says so
+
+
+def footprint_area(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> float:
+    """What the parts take on the board, mm²: each courtyard on the carrier (a module over the board by its body); a
+    layout as the box around its parts, because a pattern's spacing is what it is for (a die's pips, a ring of LEDs)."""
+    at = places(doc)
+    layouts = doc.get("layouts") or []
+    in_layout = {nid for lay in layouts for nid in lay["nodes"]}
+    by_id = {n["id"]: n for n in doc["nodes"]}
+    total = 0.0
+    for n in doc["nodes"]:
+        box = local_box(n, parts.get(n["id"])) if n["kind"] != "hole" and n["id"] not in in_layout else None
+        if box:
+            total += (box[2] - box[0]) * (box[3] - box[1])
+    for lay in layouts:
+        rects = [_turned(b_, at[nid]["x"], at[nid]["y"], float(at[nid].get("rot") or 0)) for nid in lay["nodes"]
+                 if nid in at and (b_ := local_box(by_id[nid], parts.get(nid)))]
+        if rects:
+            total += (max(r[2] for r in rects) - min(r[0] for r in rects)) * (max(r[3] for r in rects) - min(r[1] for r in rects))
+    return total
+
+
+def compaction(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    """A board more than COMPACT_RATIO x its parts' footprints when a concrete arrangement takes at most COMPACT_GAIN of its
+    area and saves COMPACT_SAVED: the same parts on the size they need (the designer's board.w/h may be the generous part), a long edge part (the
+    module) on another edge with the placed parts shifted off it, a large placed body turned by 90 degrees. Each is sized
+    as the build sizes a board (estimate()) and free of overlaps. None on the person's fixed board, while placed parts
+    overlap (place_issues speaks first), or when nothing smaller exists. {msg, say, size, area, need, doc: the arrangement}."""
+    if doc["board"].get("locked") or not doc["nodes"]:
+        return None
+    size, conf = sized(doc, parts)
+    if any(c["kind"] == "part" for c in conf):
+        return None
+    area, need = board_area(doc, size), footprint_area(doc, parts)
+    if need <= 0 or area <= COMPACT_RATIO * need:
+        return None
+    free = clone(doc)
+    free["board"].pop("w", None)
+    free["board"].pop("h", None)
+    cands: list[tuple[str, dict[str, Any]]] = [("the same layout on the size it needs", free)]
+    at = places(doc)
+    in_layout = {nid for lay in doc.get("layouts") or [] for nid in lay["nodes"]}
+    for n in doc["nodes"]:
+        if n.get("edge") and n["id"] not in at and _along(n, parts.get(n["id"], {}))[0] >= 10.0:
+            for e2 in EDGES:
+                if e2 != n["edge"]:
+                    d = clone(free)
+                    _node(d, n["id"])["edge"] = e2
+                    cands.append((f"put {n['id']} on the {e2} edge{_clear_rest(d, parts, set(), n['id'])}", d))
+                    # the largest placed body it now lands on goes beside it, along the edge's normal, not the shortest way
+                    # (an OLED up past the top of the board is shorter to say and far from smaller)
+                    d = clone(free)
+                    _node(d, n["id"])["edge"] = e2
+                    fx = fixed_parts(d, parts, base_size(d, parts))
+                    eb = next((f for f in fx if f["id"] == n["id"]), None)
+                    hit = [f for f in fx if eb and f["how"] in ("place", "pcb", "auto") and f["id"] not in in_layout and _overlap(f["rect"], eb["rect"])]
+                    if hit:
+                        big = max(hit, key=lambda f: (f["rect"][2] - f["rect"][0]) * (f["rect"][3] - f["rect"][1]))["id"]
+                        said = _clear_of(d, parts, ("node", big), n["id"], big)
+                        cands.append((f"put {n['id']} on the {e2} edge{said}{_clear_rest(d, parts, {big}, n['id'])}", d))
+    for n in doc["nodes"]:
+        box = local_box(n, parts.get(n["id"])) if n["id"] in at and n["id"] not in in_layout else None
+        if box and (box[2] - box[0]) * (box[3] - box[1]) >= 100.0 and abs((box[2] - box[0]) - (box[3] - box[1])) >= 2.0:
+            d = clone(free)
+            _spot(d, parts, size, ("node", n["id"]), turn=90)
+            cands.append((f"turn {n['id']} by 90 degrees", d))
+    best: tuple[float, str, tuple[float, float], dict[str, Any]] | None = None
+    for say, d in cands:
+        s, left = sized(d, parts)
+        a = board_area(d, s)
+        if not any(c["kind"] == "part" for c in left) and (best is None or a < best[0]):
+            best = (a, say, s, d)
+    if best is None or best[0] > COMPACT_GAIN * area or area - best[0] < COMPACT_SAVED:
+        return None
+    a, say, s, smaller = best
+    set_wh = ", with board.w/h lowered to it or left out" if doc["board"].get("w") or doc["board"].get("h") else ""
+    chosen = device_concept.chosen(doc)
+    msg = (f"the board ({size_text(doc, size)}, {area:.0f} mm²) is {area / need:.1f} x what its parts take ({need:.0f} mm²), and a smaller "
+           f"arrangement exists: {say}: about {size_text(doc, s)} ({round(100 * (1 - a / area))}% less area){set_wh}"
+           + (" (and the concept's board with it)" if chosen and chosen.get("board") else "") + "; write_device edits [{op:'compact'}] applies it")
+    return {"msg": msg, "say": say, "size": list(s), "area": round(a), "need": round(need), "doc": smaller}
+
+
+def growth_report(doc: dict[str, Any], parts: dict[str, dict[str, Any]], final: tuple[float, float],
+                  attempts: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """What the build's own growth did to the board, in one message: from the size it was asked for (base_size) to the one
+    it built, by how much and why (the placed parts fit() cleared before routing, the attempts that failed on a smaller
+    board), and how far past the chosen concept's board if more than OVER_CONCEPT of its area. None when neither happened.
+    {from, to, pct, why, msg, concept?: {name, size, pct}}."""
+    base = base_size(doc, parts)
+    final = (float(final[0]), float(final[1]))
+    area, start = board_area(doc, final), board_area(doc, base)
+    why: list[str] = []
+    grew = area > start + 0.5
+    est = estimate(doc, parts)
+    fitted = base if doc["board"].get("locked") else fit(doc, parts, base)
+    if fitted != base:
+        names: list[str] = []
+        for c in conflicts(doc, parts, base):
+            a = c["a"].get("of") or c["a"]["id"]
+            if c["kind"] == "outline":
+                names.append(f"{a} past the {c['side']} edge")
+            elif c["kind"] == "hole":
+                names.append(f"{a} on a mounting hole")
+            elif c["b"]["how"] == "edge":
+                names.append(f"{a} into {c['b']['id']} on the {c['b']['edge']} edge")
+        why.append(f"to {size_text(doc, fitted)} before routing to clear {', '.join(list(dict.fromkeys(names))[:4]) or 'its placed parts'}")
+    if board_area(doc, est) > board_area(doc, fitted) + 0.5:
+        left = (_arranged(doc, parts, fitted) or {}).get("missing") or []
+        why.append(f"to {size_text(doc, est)} before routing to give {', '.join(left[:4]) or 'the free parts'} a spot")
+    for prev, nxt in zip(attempts, attempts[1:]):
+        if prev.get("size_mm") != nxt.get("size_mm"):
+            s = str(prev.get("first") or prev.get("error") or "placement or routing failed")[:100]
+            why.append(f"to {size_text(doc, tuple(nxt['size_mm']))} after {prev['size_mm'][0]:g} x {prev['size_mm'][1]:g} mm failed ({s})")
+    out: dict[str, Any] = {"from": list(base), "to": list(final), "pct": round(100 * (area / start - 1)), "why": why}
+    msg = f"the build grew the board from {size_text(doc, base)} to {size_text(doc, final)} ({out['pct']:+d}% area): {'; '.join(why)}" if grew else ""
+    o = device_concept.chosen(doc)
+    want = (o or {}).get("board") or {}
+    if want.get("w") and want.get("h"):
+        like = {"board": {k: v for k, v in want.items() if k in ("shape", "r")}}
+        aim = board_area(like, (float(want["w"]), float(want["h"])))
+        if area > OVER_CONCEPT * aim:
+            pct = round(100 * (area / aim - 1))
+            out["concept"] = {"name": o["name"], "size": [want["w"], want["h"]], "pct": pct}  # type: ignore[index]
+            msg += ("; " if msg else "") + (f"it is past the board of the chosen concept {o['name']!r} ({size_text(like, (want['w'], want['h']))}) by {pct}% "  # type: ignore[index]
+                                            f"of its area: rearrange it (the hints say how) or change the concept")
+    if not msg:
+        return None
+    out["msg"] = msg
+    return out
+
+
+# errors a larger board can clear (parts packed onto each other or off the edge, routing that found no way); the rest
+# (a capacitor trace over its length limit, a connector turned inwards, a shorted switch) only spreads parts apart
+GROWABLE = re.compile(r"overlap|outside|packing|placement|autorouting|not_connected|trace_missing|clearance|pcb_trace_error|not_on_board", re.I)
+
+
+def growable(errors: list[dict[str, Any]]) -> bool:
+    return any(GROWABLE.search(str(e.get("type") or "")) for e in errors)
+
+
+def long_caps(doc: dict[str, Any], errors: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """The capacitors behind trace-too-long errors ({cap: {length, max, to}}): the worker lists the pads such a trace runs
+    between and the connections it carries; `to` is the other end of the capacitor's own connection (its chip's pin).
+    Empty when any error is something else."""
+    kinds = {n["id"]: n["kind"] for n in doc["nodes"]}
+    out: dict[str, dict[str, Any]] = {}
+    for e in errors:
+        if e.get("type") != "pcb_trace_too_long_error":
+            return {}
+        refs = [x.lstrip(".") for t in e.get("traces") or [] for x in re.findall(r"\.(\w+) > \.(\w+)", t) for x in [f"{x[0]}.{x[1]}"]]
+        caps = [r.split(".")[0] for r in refs + list(e.get("ends") or []) if kinds.get(r.split(".")[0]) == "capacitor"]
+        if not caps:
+            return {}
+        for cap in dict.fromkeys(caps):
+            to = next((r for r in refs if not r.startswith(cap + ".") and kinds.get(r.split(".")[0]) != "capacitor"), None)
+            cur = out.get(cap)
+            if cur is None or (e.get("length") or 0) > cur["length"]:
+                out[cap] = {"length": float(e.get("length") or 0), "max": float(e.get("max") or DECOUPLING_MAX_MM), "to": to}
+    return out
+
+
+OVERLAP_MSG = re.compile(r"^(\S+) overlaps (\S+):|Courtyard of (\S+) overlaps with courtyard of (\S+)")
+
+
+def build_hints(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float], errors: list[dict[str, Any]]) -> None:
+    """Hints for a device build's placement errors in the designer's terms (changes `errors` in place): an overlap with
+    a part placed by the designer names that part and its new place, never an edge part it cannot move (the worker's
+    rule, 'move the smaller one', said 'move U1' to a designer whose OLED sat in the module's band); a part the packer
+    pushed into an edge part, or a packing that gave up and dropped the free parts at the board's centre, says the board
+    had no room and where the room is."""
+    fixed = {f["id"]: f for f in fixed_parts(doc, parts, size)}
+    issues = place_issues(doc, parts, size)
+    area = free_area(doc, parts, size)
+    room = f"room for placed parts: x {area['x'][0]:g}..{area['x'][1]:g}, y {area['y'][0]:g}..{area['y'][1]:g} on this {size[0]:g} x {size[1]:g} mm board"
+    grows = "the build grows the board on its next attempt" if not doc["board"].get("locked") else "the person fixed the board size"
+    for e in errors:
+        msg = str(e.get("message") or "")
+        if "Unable to pack all PCB components" in msg:
+            e["hint"] = (f"the parts without a fixed spot did not fit around the fixed ones, so the packer left them at the board's "
+                         f"centre (the overlaps there follow from this): move placed parts closer to the edges or together; {room}; {grows}")
+            continue
+        m = OVERLAP_MSG.search(msg)
+        if not m:
+            continue
+        x, y = (m[1], m[2]) if m[1] else (m[3], m[4])
+        hit = next((i for i in issues if {x, y} <= set(i["ids"])), None)
+        if hit:
+            e["hint"] = hit["msg"]
+            continue
+        fx, fy = fixed.get(x), fixed.get(y)
+        edge = next((f for f in (fx, fy) if f and f["how"] == "edge"), None)
+        if edge is None:
+            continue
+        other = y if edge["id"] == x else x
+        f = fixed.get(other)
+        if f and f["how"] != "edge":
+            e["hint"] = f"{other} is placed into {edge['id']}, which stays on its {edge['edge']} edge: place {other} clear of it; {room}"
+        else:
+            e["hint"] = f"{other} was packed against {edge['id']} (on its {edge['edge']} edge) for want of room; {grows}, or make room ({room})"
+
+
+# the side a connector's mouth faces at rotation 0, as tscircuit infers it (pcb_connector_not_in_accessible_orientation):
+# usbcmidmount opens to -y, jst*_ph to +y; the rotation that turns it to each edge
+FACING_ROT = {"usb_c": {"-y": 0, "+x": 90, "+y": 180, "-x": 270}, "jst": {"+y": 0, "-x": 90, "-y": 180, "+x": 270}}
 
 
 def _placement(node: dict[str, Any], part: dict[str, Any], W: float, H: float, slot: float) -> dict[str, float]:
     """pcbX/pcbY/pcbRotation of an edge part whose slot centre lies `slot` mm along its edge (from the edge's middle)."""
-    k, e = node["kind"], node["edge"]
+    k, e = _conn_kind(node), node["edge"]
     if k == "module":
         d = MODULES[node["module"]]["depth"]
         rot = {"+y": 0, "-x": 90, "-y": 180, "+x": 270}[e]
     else:
         d = DEPTH.get(k, 3.0)
-        if k == "usb_c":
-            rot = {"-y": 0, "+x": 90, "+y": 180, "-x": 270}[e]
+        if k in FACING_ROT:
+            rot = FACING_ROT[k][e]
         else:
             rot = 0 if e in ("-y", "+y") else 90
     if e == "+y":
@@ -627,9 +2252,12 @@ def _placement(node: dict[str, Any], part: dict[str, Any], W: float, H: float, s
 
 
 def layout_edges(doc: dict[str, Any], parts: dict[str, dict[str, Any]], W: float, H: float) -> dict[str, dict[str, float]]:
-    """Edge parts spread evenly along their edge, clear of the corner holes."""
+    """Edge parts spread evenly along their edge, clear of the corner holes; on a curved outline they span only the
+    stretch the holes leave (a round board: its side up to the 45 degree holes) and each sits in by the chord its outer
+    corners need (_onto_rim), its body inside the rim and its mouth at it."""
     holes = doc["board"].get("holes", True)
     corner = 7.5 if holes else 1.5
+    o = outline(doc, (W, H))
     out: dict[str, dict[str, float]] = {}
     for e in EDGES:
         on = [n for n in doc["nodes"] if n.get("edge") == e]
@@ -637,14 +2265,24 @@ def layout_edges(doc: dict[str, Any], parts: dict[str, dict[str, Any]], W: float
             continue
         L = W if e in ("-y", "+y") else H
         lens = [_along(n, parts.get(n["id"], {}))[0] for n in on]
-        usable = L - 2 * corner
+        if o["shape"] == "round":  # up to the mounting holes on the diagonals, else up to the diagonals themselves
+            usable = 2 * ((o["r"] - RIM_MM) / math.sqrt(2) - HOLE_KEEP_MM - 0.5) if holes else 2 * (o["r"] / math.sqrt(2) - 1.5)
+        else:
+            usable = L - 2 * max(corner, o["r"] * 0.6)
         gap = max(1.0, (usable - sum(lens)) / (len(on) + 1))
         pos = -usable / 2 + gap
         for n, ln in zip(on, lens):
             centre = pos + ln / 2
             if len(on) == 1:
                 centre = 0.0
-            out[n["id"]] = _placement(n, parts.get(n["id"], {}), W, H, centre)
+            p = _placement(n, parts.get(n["id"], {}), W, H, centre)
+            box = local_box(n, parts.get(n["id"])) if o["shape"] != "rect" else None
+            if box:
+                t = _onto_rim(o, _turned(box, p["pcbX"], p["pcbY"], p["pcbRotation"]), e)
+                if t:
+                    sign = 1 if e[0] == "+" else -1
+                    p[("pcbY" if e[1] == "y" else "pcbX")] = round(p["pcbY" if e[1] == "y" else "pcbX"] - sign * t, 2)
+            out[n["id"]] = p
             pos += ln + gap
     return out
 
@@ -667,6 +2305,42 @@ def _pos(p: dict[str, float] | None) -> str:
     return s + (f" pcbRotation={_attr(p['pcbRotation'])}" if p.get("pcbRotation") else "")
 
 
+def _on_carrier(node: dict[str, Any]) -> bool:
+    """Whether the node puts anything on the carrier board (a LiPo for a XIAO goes on the module's own BAT pads)."""
+    return not (node["kind"] == "accessory" and acc.ACCESSORIES[node["accessory"]]["connect"] == "module_bat")
+
+
+def _accessory_tsx(node: dict[str, Any], part: dict[str, Any], pos: str) -> str | None:
+    """The carrier's side of an accessory: a 2.54 mm header with its pins in header order (a JST PH for connect 'jst'),
+    nothing for a cell on the module's BAT pads. A module that sits on the board (an OLED) gets its header as a footprint
+    of its own whose courtyard is the module's body, so no part is packed under it (traces may pass) and the silkscreen
+    shows where it goes; the part sits at the header row's centre, the body off to one side of it."""
+    a = acc.ACCESSORIES[node["accessory"]]
+    nid, pins = node["id"], a["pins"]
+    conn = part.get("connector") or {}
+    mpn = a["name"].replace('"', "in")
+    if a["connect"] == "module_bat":
+        return None
+    labels = ", ".join(f'pin{i + 1}: "{p}"' for i, p in enumerate(pins))
+    if a["mount"] == "board":
+        n, (bw, bd, _) = len(pins), a["body"]
+        dx, dy = a.get("header_offset") or (0.0, 0.0)
+        along_x = a.get("header_axis", "x") == "x"
+        holes = []
+        for i in range(n):
+            t = round((i - (n - 1) / 2) * 2.54, 3) + 0.0
+            x, y = (t, 0.0) if along_x else (0.0, -t)
+            holes.append(f'<platedhole portHints={{["pin{i + 1}"]}} shape="circle" holeDiameter="1mm" outerDiameter="1.7mm" pcbX={{{x:g}}} pcbY={{{y:g}}} />')
+        cx, cy = round(-dx, 3) + 0.0, round(-dy, 3) + 0.0
+        fp = (f"<footprint>{''.join(holes)}<courtyardrect pcbX={{{cx:g}}} pcbY={{{cy:g}}} width={{{bw:g}}} height={{{bd:g}}} />"
+              f"<silkscreenrect pcbX={{{cx:g}}} pcbY={{{cy:g}}} width={{{bw:g}}} height={{{bd:g}}} /></footprint>")
+        return f'<chip name="{nid}" manufacturerPartNumber="{mpn}"{_spn(conn)}{pos} pinLabels={{{{ {labels} }}}} footprint={{{fp}}} />'
+    if a["connect"] == "jst":
+        return f'<chip name="{nid}" footprint="jst{len(pins)}_ph" manufacturerPartNumber="S{len(pins)}B-PH-K-S"{_spn(conn)}{pos} pinLabels={{{{ {labels} }}}} />'
+    quoted = ", ".join(f'"{p}"' for p in pins)
+    return f'<pinheader name="{nid}" pinCount={{{len(pins)}}} pitch="2.54mm" pinLabels={{[{quoted}]}}{_spn(conn)}{pos} />'
+
+
 def _tsx_pins(node: dict[str, Any], part: dict[str, Any], pin: str) -> list[str]:
     """The TSX pin labels one device pin stands for: a chip's 'GND' is every pin called GND, a Pico's 'GND' all eight."""
     k = node["kind"]
@@ -675,10 +2349,35 @@ def _tsx_pins(node: dict[str, Any], part: dict[str, Any], pin: str) -> list[str]
     if k == "module":
         return MODULES[node["module"]]["groups"].get(pin) or [pin]
     if k == "chip":
-        labels = [p["label"] for p in part.get("pins") or []]
-        group = [lb for lb in labels if catalog.base_label(lb) == pin]
-        return group or [pin]
+        return chip_labels(part, pin)[0] or [pin]
     return [pin]
+
+
+def _old_label(name: str) -> str:
+    """catalog.safe_label as it was before 2026-11-03 ('+' and '-' both 'P', a bare '1' 'P1'): what saved graphs say."""
+    s = re.sub(r"[^A-Za-z0-9_]+", "_", str(name).replace("+", "P").replace("~", "N").replace("#", "N")).strip("_")
+    if not s:
+        return "P"
+    if s[0].isdigit():
+        s = ("V" if re.match(r"^\d+V\d*$", s) else "P") + s
+    return s[:24]
+
+
+def chip_labels(part: dict[str, Any], pin: str) -> tuple[list[str], str]:
+    """The TSX labels a chip pin reference stands for, and how it matched: 'label' (its label, or the group a duplicated
+    supply name folds into: 'GND' is GND and GND_7), 'name' (the symbol's pin name), 'number' ('P2' / 'pin2' / '2' by pin
+    number), 'legacy' (the name the catalogue gave before it renamed pins; may stand for several). ([], '') when none.
+    The same order as device_rules."""
+    pins, up = part.get("pins") or [], str(pin).upper()
+    tests = (("label", lambda p: p["label"].upper() == up or catalog.base_label(p["label"]).upper() == up),
+             ("name", lambda p: bool(p.get("name")) and catalog.safe_label(p["name"]).upper() == up),
+             ("number", lambda p: up in (f"P{p['num']}".upper(), f"PIN{p['num']}".upper(), str(p["num"]).upper())),
+             ("legacy", lambda p: bool(p.get("name")) and _old_label(p["name"]).upper() == up))
+    for how, test in tests:
+        hit = [p["label"] for p in pins if test(p)]
+        if hit:
+            return hit, how
+    return [], ""
 
 
 # (pin offset from the centre, courtyard half width, courtyard half length) of a chip capacitor at rotation 0
@@ -686,8 +2385,41 @@ CAP_GEOM = {"0402": (0.5, 0.45, 0.8), "0603": (0.8, 0.6, 1.1), "0805": (0.95, 0.
 PACK_GAP_MM = 1.6           # between packed parts: room for traces, so the router does not squeeze past pads
 DECOUPLING_MAX_MM = 10.0   # placed at its supply pin by the compiler; the ground pin may sit across a small package
 CAP_GAP = 0.6               # between the chip's outline and the capacitor's courtyard
-BULK_MAX_MM = 12.0          # a supply capacitor with no chip to sit by (a module decouples itself): anywhere near
+BULK_MAX_MM = 25.0          # a supply capacitor with no chip to sit by (a module decouples itself): anywhere near; a
+                            # limit the packed board cannot meet skips routing altogether (12 mm did on a 58 mm board)
 HAND_MAX_MM = 150.0         # a capacitor routed by hand: the person's lengths (no limit would mean tscircuit's own 1 mm)
+TIED_MAX_MM = 16.0          # a capacitor of a bulky part: packed beside its body, tied to its pin by a direct trace
+
+
+def bulky(part: dict[str, Any]) -> bool:
+    """A body far larger than its pads (a TO-5 PIR, a 9.6 mm buzzer with two pads 9 mm apart): tscircuit's packer sees a
+    group by its pads alone and drops small parts between them, so such a part is packed on its own, by its courtyard,
+    and its capacitors are tied to its pins by direct traces instead of a group."""
+    pads, box = part.get("pads"), part.get("box")
+    if not isinstance(pads, dict) or not pads or not box:
+        return False
+    x0 = min(x - w / 2 for x, y, w, h in pads.values())
+    x1 = max(x + w / 2 for x, y, w, h in pads.values())
+    y0 = min(y - h / 2 for x, y, w, h in pads.values())
+    y1 = max(y + h / 2 for x, y, w, h in pads.values())
+    margin = max(x0 - box[0], box[2] - x1, y0 - box[1], box[3] - y1)
+    return (box[2] - box[0]) * (box[3] - box[1]) > 2.0 * (x1 - x0) * (y1 - y0) + 4.0 or margin > 2.5
+
+
+def is_supply(net: dict[str, Any], by_id: dict[str, dict[str, Any]] | None = None, parts: dict[str, dict[str, Any]] | None = None) -> bool:
+    """Whether a net is a supply rail: a power name (V3V3, VLED behind a diode, PWR_5V), or no name but a chip's or
+    module's supply pin on it (VDD, VCC, VIN). Ground is never one."""
+    name = net.get("name") or ""
+    if GROUND.match(name):
+        return False
+    if name:
+        return bool(POWER_NET.match(name) or SUPPLY_NAME.match(name))
+    for ref in net.get("pins") or []:
+        nid, pin = ref.split(".", 1)
+        node = (by_id or {}).get(nid) or {}
+        if node.get("kind") in ("chip", "module") and SUPPLY_PIN.match(catalog.base_label(pin)):
+            return True
+    return False
 
 
 def decoupling(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> tuple[dict[str, list[tuple[str, str, str]]], set[str]]:
@@ -706,9 +2438,9 @@ def decoupling(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> tuple[d
             continue
         a, b = net_of.get(f"{n['id']}.1"), net_of.get(f"{n['id']}.2")
         names = [(x or {}).get("name") or "" for x in (a, b)]
-        if GROUND.match(names[1]) and POWER_NET.match(names[0]) and not GROUND.match(names[0]):
+        if GROUND.match(names[1]) and a and is_supply(a, by_id, parts):
             supply, cap_pin = a, "1"
-        elif GROUND.match(names[0]) and POWER_NET.match(names[1]) and not GROUND.match(names[1]):
+        elif GROUND.match(names[0]) and b and is_supply(b, by_id, parts):
             supply, cap_pin = b, "2"
         else:
             continue
@@ -727,6 +2459,52 @@ def decoupling(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> tuple[d
         cid, label = (named or sorted(cands, key=lambda c: len(plan.get(c[0], []))))[0]
         plan.setdefault(cid, []).append((n["id"], label, cap_pin))
     return plan, bulk
+
+
+def _ties(doc: dict[str, Any], parts: dict[str, dict[str, Any]], plan: dict[str, list[tuple[str, str, str]]],
+          bulk: set[str]) -> dict[str, str]:
+    """Capacitor pads wired straight to a pad rather than to their net ({'.C1 > .pin1': '.U2 > .VDD'}): a decoupling
+    capacitor to its chip's supply pin and the chip's ground pin nearest it, a bulk capacitor to the supply and ground
+    pins of the part that feeds its net (the module, else the first part on it). The router then joins them pad to pad
+    (a ground pin left to the net's spanning tree went 11 mm round a 5050 LED and broke the 10 mm decoupling limit), and
+    the two-pin traces pull the packer together where no group holds the capacitor."""
+    tied: dict[str, str] = {}
+    for chip, caps in plan.items():
+        for cap, label, cap_pin in caps:
+            tied[f".{cap} > .pin{cap_pin}"] = f".{chip} > .{label}"
+            g = _nearest_ground(parts[chip], label)
+            if g:
+                tied[f".{cap} > .pin{'2' if cap_pin == '1' else '1'}"] = f".{chip} > .{g}"
+    by_id = {n["id"]: n for n in doc["nodes"]}
+    net_of = {p: net for net in doc["nets"] for p in net["pins"]}
+    for cap in bulk:
+        a, b = net_of.get(f"{cap}.1"), net_of.get(f"{cap}.2")
+        if not a or not b:
+            continue
+        sup_pin = "2" if GROUND.match(a.get("name") or "") else "1"
+        sup, gnd = (a, b) if sup_pin == "1" else (b, a)
+        feeds = [p for p in sup["pins"] if by_id.get(p.split(".")[0], {}).get("kind") not in (None, "capacitor") and _on_carrier(by_id[p.split(".")[0]])]
+        # the packer cannot pull a part towards a fixed one (a module on its edge is an obstacle to it, not a network), so
+        # a bulk capacitor fed from one stays on its nets and finds the nearest pad there
+        if not feeds or any(by_id[p.split(".")[0]]["kind"] == "module" or by_id[p.split(".")[0]].get("edge") for p in feeds[:1]):
+            continue
+        nid, pin = feeds[0].split(".", 1)
+        tied[f".{cap} > .pin{sup_pin}"] = f".{nid} > .{_tsx_pins(by_id[nid], parts.get(nid, {}), pin)[0]}"
+        g = next((p.split(".", 1)[1] for p in gnd["pins"] if p.split(".")[0] == nid), None)
+        if g:
+            tied[f".{cap} > .pin{'2' if sup_pin == '1' else '1'}"] = f".{nid} > .{_tsx_pins(by_id[nid], parts.get(nid, {}), g)[0]}"
+    return tied
+
+
+def _nearest_ground(part: dict[str, Any], label: str) -> str | None:
+    """The chip's ground pin label nearest its pin `label` (by pad position), or None."""
+    pads, pins = part.get("pads") or {}, part.get("pins") or []
+    num_of = {p["label"]: p["num"] for p in pins}
+    at = pads.get(num_of.get(label, "")) if isinstance(pads, dict) else None
+    grounds = [p for p in pins if GROUND.match(catalog.base_label(p["label"])) and isinstance(pads, dict) and p["num"] in pads]
+    if not at or not grounds:
+        return None
+    return min(grounds, key=lambda p: abs(pads[p["num"]][0] - at[0]) + abs(pads[p["num"]][1] - at[1]))["label"]
 
 
 def _cap_spots(part: dict[str, Any], caps: list[tuple[str, str, str]], packages: dict[str, str]) -> dict[str, dict[str, float]]:
@@ -771,23 +2549,46 @@ def _cap_spots(part: dict[str, Any], caps: list[tuple[str, str, str]], packages:
     return out
 
 
-def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float]) -> dict[str, Any]:
-    """The TSX file, the LCSC footprints it needs ({code: {easyeda, h}}) and the intent; the board is W x H mm. A chip
-    and its decoupling capacitors are one group, capacitors placed at its supply pins, so the packer moves them together
-    and the capacitors stay next to the pins they decouple."""
+def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[float, float], *, relaxed: set[str] | frozenset[str] = frozenset(),
+            gap: float | None = None) -> dict[str, Any]:
+    """The TSX file, the LCSC footprints it needs ({code: {easyeda, h}}) and the intent; the board is W x H mm. Fixed
+    positions: the person's pcb, the designer's place and layouts (places()), a module that sits on the board at its default
+    spot (accessory_places()); an accessory's place is its body's centre, its connector goes where the module's header
+    lands. The rest comes from the placer (arrange()), a chip and its decoupling capacitors as one unit, the capacitors at
+    its supply pins; `unplaced` lists what found no spot (the build grows the board, or says so). Only then, or if the
+    placer broke, tscircuit packs them: a chip and its capacitors as one group. `relaxed`: capacitors whose trace length
+    limit the build lifts after the router could not meet it (deviceapi.build_device; a warning, not a failed board). `gap`:
+    the placer's gap between free parts, when the build asks for another arrangement of the same board."""
     W, H = size
+    if doc["board"].get("shape") == "round":
+        H = W
     by_id = {n["id"]: n for n in doc["nodes"]}
     place = layout_edges(doc, parts, W, H)
     plan, bulk = decoupling(doc, parts)
     packages = {n["id"]: n.get("package", "0603") for n in doc["nodes"] if n["kind"] == "capacitor"}
-    pins = {n["id"]: n["pcb"] for n in doc["nodes"] if n.get("pcb")}
+    pins = {**accessory_places(doc, parts, W, H), **places(doc)}
+    # every part nobody placed gets its spot from the placer; tscircuit packs them only if it broke or found no room
+    got = _arranged(doc, parts, (W, H), gap)
+    unplaced = list((got or {}).get("missing") or [])
+    arranged = got["place"] if got is not None and not unplaced else None
     in_group: dict[str, str] = {}
     decoupled: set[str] = set()
+    # a capacitor's pins wired straight to its chip's supply and nearest ground pin rather than to the nets: the router
+    # then joins them pad to pad (a ground pin left to the net's spanning tree went 11 mm round a 5050 LED and broke the
+    # 10 mm decoupling limit), and for a bulky part packed on its own, a two-pin trace is what pulls the packer together
+    tied = _ties(doc, parts, plan, bulk)  # capacitor pad selector -> the pad it is wired to directly
+    bulky_caps: set[str] = set()
     for chip, caps in plan.items():
-        spots = _cap_spots(parts[chip], caps, packages)
         at = pins.get(chip)
-        turn = (at or {}).get("rot", 0)
-        c, s_ = round(math.cos(math.radians(turn))), round(math.sin(math.radians(turn)))
+        if not at and bulky(parts[chip]):
+            bulky_caps |= {cap for cap, *_ in caps}
+            continue
+        if not at and arranged is not None:
+            decoupled |= {cap for cap, *_ in caps}
+            continue
+        spots = _cap_spots(parts[chip], caps, packages)
+        turn = float((at or {}).get("rot") or 0)
+        c, s_ = round(math.cos(math.radians(turn)), 6), round(math.sin(math.radians(turn)), 6)
         ox, oy = (at["x"], at["y"]) if at else (0, 0)
         for cap, *_ in caps:
             decoupled.add(cap)
@@ -795,7 +2596,9 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
                 sp = spots[cap]
                 # the chip turned by hand: its capacitors turn with it around the chip's centre
                 x, y = sp["pcbX"], sp["pcbY"]
-                place[cap] = {"pcbX": round(ox + x * c - y * s_, 2), "pcbY": round(oy + x * s_ + y * c, 2), "pcbRotation": (sp["pcbRotation"] + turn) % 360}
+                rot = (sp["pcbRotation"] + turn) % 360
+                place[cap] = {"pcbX": round(ox + x * c - y * s_, 2), "pcbY": round(oy + x * s_ + y * c, 2),
+                              "pcbRotation": int(rot) if float(rot).is_integer() else round(rot, 1)}
                 if not at:
                     in_group[cap] = chip
         if not at:
@@ -803,7 +2606,9 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
             place[chip] = {"pcbX": 0, "pcbY": 0, "pcbRotation": 0}
             in_group[chip] = chip
     for nid, pin in pins.items():
-        place[nid] = {"pcbX": pin["x"], "pcbY": pin["y"], "pcbRotation": pin["rot"]}
+        place[nid] = _fixed_spot(by_id[nid], pin)
+    if arranged:
+        place.update(arranged)
     grouped: dict[str, list[str]] = {}
     lines: list[str] = []
     lcsc: dict[str, dict[str, Any]] = {}
@@ -816,7 +2621,8 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
         if k == "resistor":
             lines.append(f'<resistor name="{nid}" resistance={_attr(n["value"])} footprint="{n["package"]}"{_spn(part)}{pos} />')
         elif k == "capacitor":
-            limit = HAND_MAX_MM if nid in routed else DECOUPLING_MAX_MM if nid in decoupled else BULK_MAX_MM if nid in bulk else None
+            limit = (HAND_MAX_MM if nid in routed or nid in relaxed else TIED_MAX_MM if nid in bulky_caps else DECOUPLING_MAX_MM if nid in decoupled
+                     else BULK_MAX_MM)  # no limit would mean tscircuit's own 1 mm, and a failed build for a capacitor labelled for a buzzer
             extra = f" maxDecouplingTraceLength={{{limit:g}}}" if limit else ""
             lines.append(f'<capacitor name="{nid}" capacitance={_attr(n["value"])} footprint="{n["package"]}"{_spn(part)}{pos}{extra} />')
         elif k == "led":
@@ -833,6 +2639,10 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
             lines.append(f'<chip name="{nid}" footprint="usbcmidmount" manufacturerPartNumber="TYPE-C-31-M-12"{_spn(part)}{pos} pinLabels={{{{ {labels} }}}} />')
         elif k == "jst":
             lines.append(f'<chip name="{nid}" footprint="jst2_ph" manufacturerPartNumber="S2B-PH-K-S"{_spn(part)}{pos} pinLabels={{{{ pin1: "pin1", pin2: "pin2" }}}} />')
+        elif k == "accessory":
+            line = _accessory_tsx(n, part, pos)
+            if line:
+                lines.append(line)
         elif k == "module":
             m = MODULES[n["module"]]
             labels = ", ".join(f'pin{i + 1}: "{p}"' for i, p in enumerate(m["pins"]))
@@ -850,12 +2660,10 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
         # the chip first, so the group reads as the chip with its capacitors
         members.sort(key=lambda ln: f'name="{chip}"' not in ln)
         lines.append(f'<group name="G_{chip}">\n      ' + "\n      ".join(members) + "\n    </group>")
-    holes = []
-    if doc["board"].get("holes", True) and W >= 26 and H >= 26:
-        for i, (sx, sy) in enumerate(((-1, 1), (1, 1), (-1, -1), (1, -1))):
-            holes.append(f'<hole name="H{i + 1}" diameter="3.2mm" pcbX={_attr(round(sx * (W / 2 - 3.5), 2))} pcbY={_attr(round(sy * (H / 2 - 3.5), 2))} />')
+    holes = [f'<hole name="H{i + 1}" diameter="3.2mm" pcbX={_attr(hx)} pcbY={_attr(hy)} />' for i, (hx, hy) in enumerate(_holes(doc, W, H))]
 
-    hand, joined, bottom = _hand_traces(doc, parts, place, in_group)
+    # a hand trace leads from a part with a fixed spot, as ever: one the placer put down has no spot of the person's
+    hand, joined, bottom = _hand_traces(doc, parts, place, {**in_group, **{nid: nid for nid in arranged or {}}})
     # pads one hand trace already joins are one island: the autorouter only joins the islands. A pad has one key
     # whatever the TSX calls it (an LED's anode is its pin1) and a button's or a USB-C receptacle's twin pads share one
     same: dict[str, str] = {}
@@ -881,7 +2689,7 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
         for ref in net["pins"]:
             nid, pin = ref.split(".", 1)
             node = by_id.get(nid)
-            if node is None or (node["kind"] == "chip" and not parts.get(nid, {}).get("raw")):
+            if node is None or (node["kind"] == "chip" and not parts.get(nid, {}).get("raw")) or not _on_carrier(node):
                 continue
             ends += [f".{nid} > .{lb}" for lb in _tsx_pins(node, parts.get(nid, {}), pin)]
         # a USB-C receptacle's twin pins and shell go with the pin the device names
@@ -902,10 +2710,19 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
             continue
         name = net.get("name")
         if name and WIDE_NET.match(name):
-            # the supply path pin to pin, so its width is kept (a width on a trace to a net is dropped)
+            # the supply path pin to pin, so its width is kept (a width on a trace to a net is dropped). A capacitor hangs
+            # off the chain by one trace to the pin it serves (its chip's supply pin, else the first part on the net):
+            # its traces carry the decoupling length limit, and as a link of the chain it would have to sit within 10 mm
+            # of whichever parts came before and after it in the list
             reps = list(dict.fromkeys(root(e) for e in ends))
-            for a, b in zip(reps, reps[1:]):
+            is_cap = lambda e: by_id.get(e[1:].split(" > ", 1)[0], {}).get("kind") == "capacitor"  # noqa: E731
+            chain = [e for e in reps if not is_cap(e)] or reps[:1]
+            for a, b in zip(chain, chain[1:]):
                 traces.append(f'<trace from="{a}" to="{b}" thickness="0.4mm" />')
+            for e in reps:
+                if e not in chain:
+                    anchor = root(tied[e]) if e in tied and root(tied[e]) in chain else chain[0]
+                    traces.append(f'<trace from="{e}" to="{anchor}" thickness="0.4mm" />')
         elif not name and len(ends) == 2:
             if root(ends[0]) != root(ends[1]):
                 traces.append(f'<trace from="{ends[0]}" to="{ends[1]}" />')
@@ -913,7 +2730,9 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
             if not name:
                 auto += 1
                 name = f"N{auto}"
-            traces += [f'<trace from="{e}" to="net.{ident(name)}" />' for e in ends]
+            # a bulky part's capacitor goes to its pin, not to the net: a two-pin trace is what pulls the packer together
+            traces += [f'<trace from="{e}" to="{tied[e]}" />' if e in tied and tied[e] in ends else f'<trace from="{e}" to="net.{ident(name)}" />'
+                       for e in ends]
 
     intent = intent_of(doc, parts)
     meta = {"title": doc["title"][:60], "intent": intent, "device": True, **({"hand_bottom": bottom} if bottom else {})}
@@ -924,23 +2743,123 @@ def compile(doc: dict[str, Any], parts: dict[str, dict[str, Any]], size: tuple[f
         if z["kind"] == "pour":
             # pour after routing: the solver keeps its clearance from every other net's copper and ties its own pads in
             r = z.get("rect")
-            outline = (f" outline={{[{{ x: {r[0]:g}, y: {r[1]:g} }}, {{ x: {r[2]:g}, y: {r[1]:g} }}, {{ x: {r[2]:g}, y: {r[3]:g} }}, "
+            poured = (f" outline={{[{{ x: {r[0]:g}, y: {r[1]:g} }}, {{ x: {r[2]:g}, y: {r[1]:g} }}, {{ x: {r[2]:g}, y: {r[3]:g} }}, "
                        f"{{ x: {r[0]:g}, y: {r[3]:g} }}]}}") if r else ""
-            zones.append(f'<copperpour layer="{z["layer"]}" connectsTo="net.{z["net"]}" clearance="{POUR_CLEARANCE_MM:g}mm"{outline} />')
+            zones.append(f'<copperpour layer="{z["layer"]}" connectsTo="net.{z["net"]}" clearance="{POUR_CLEARANCE_MM:g}mm"{poured} />')
         else:
             r = z["rect"]
             layers = ", ".join(f'"{lay}"' for lay in z["layers"])
             zones.append(f'<keepout shape="rect" pcbX={_attr(round((r[0] + r[2]) / 2, 2))} pcbY={_attr(round((r[1] + r[3]) / 2, 2))} '
                          f'width={_attr(round(r[2] - r[0], 2))} height={_attr(round(r[3] - r[1], 2))} layers={{[{layers}]}} />')
     body = "\n    ".join(lines + holes + zones + hand + traces)
-    source = (f"// Compiled from the device graph (fw.device/1) by Formwright: parts on an edge are placed, the rest is packed by\n"
-              f"// tscircuit next to the pins it connects, then autorouted on 2 layers.\n"
+    # a curved outline goes as the polygon: tscircuit sizes the board from it, checks parts against it (pcb_component_outside_
+    # board_error, copper to the edge), and board.json carries it as {kind: 'poly'} for the case
+    shape = outline(doc, (W, H))
+    pts = outline_points(shape)
+    extent = ('outline={[' + ", ".join(f"{{ x: {x:g}, y: {y:g} }}" for x, y in pts) + ']}') if pts else f'width="{W:g}mm" height="{H:g}mm"'
+    source = (f"// Compiled from the device graph (fw.device/1) by Formwright: parts on an edge and the designer's are where they\n"
+              f"// were put, the rest next to the pins it connects, then autorouted on 2 layers.\n"
               f"export const meta = {_json.dumps(meta, ensure_ascii=False)}\n\n"
               f"export default () => (\n"
-              f'  <board width="{W:g}mm" height="{H:g}mm" thickness="1.6mm" minTraceWidth="0.2mm" minViaHoleDiameter="0.3mm" minViaPadDiameter="0.6mm"'
-              f' pcbPackGap="{PACK_GAP_MM:g}mm">\n'
+              f'  <board {extent} thickness="1.6mm" minTraceWidth="0.2mm" minViaHoleDiameter="0.3mm" minViaPadDiameter="0.6mm"'
+              # pcbPack, the fallback: tscircuit packs a board only when two or more of its parts are free, so with every other
+              # part placed (a dice face, a display) the one resistor left would sit at the board's centre, on top of them
+              + ('>\n' if arranged is not None else f' pcbPackGap="{PACK_GAP_MM:g}mm" pcbPack>\n') +
               f"    {body}\n  </board>\n)\n")
-    return {"source": source, "lcsc": lcsc, "intent": intent, "size": [W, H], "placed": place, "hand": len(hand)}
+    return {"source": source, "lcsc": lcsc, "intent": intent, "size": [W, H], "placed": place, "hand": len(hand), "relaxed": sorted(relaxed),
+            **({"unplaced": unplaced} if unplaced else {}), **({"gap": got["gap"], "free": len(arranged)} if arranged is not None else {})}
+
+
+def dress_board(board: dict[str, Any], doc: dict[str, Any], parts: dict[str, dict[str, Any]], cj: list[dict[str, Any]]) -> dict[str, Any]:
+    """board.json (fw.board/1) told what the device graph knows and the circuit cannot (contract C2): each part's face
+    becomes its access ('light' for an LED chip such as a WS2812, 'sound' over a buzzer, 'sensor' over a PIR or a light
+    sensor; shape 'round' for a round can), a board-mounted module's connector becomes the header it is (its body goes
+    to the accessories), a cable accessory's connector and an edge connector with face 'none' (a cell's JST) are parts
+    inside rather than wall ports, and `accessories` lists every module fitted by hand: where its body sits in the board frame
+    (origin bottom-left, mm), its size, window, holes, the edge a cable leaves by. Changes `board` in place."""
+    if not board or not cj:
+        return board
+    pb = next((e for e in cj if e.get("type") == "pcb_board"), None)
+    if not pb:
+        return board
+    W, H = float(pb["width"]), float(pb["height"])
+    ox, oy = pb["center"]["x"] - W / 2, pb["center"]["y"] - H / 2
+    src = {e["source_component_id"]: e.get("name") for e in cj if e.get("type") == "source_component"}
+    pcs = {src.get(e.get("source_component_id")): e for e in cj if e.get("type") == "pcb_component"}
+    comps = {c["id"]: c for c in board.get("components") or []}
+    r2 = lambda v: round(float(v), 2) + 0.0  # noqa: E731
+    out_acc: list[dict[str, Any]] = []
+    # the polygon the worker read off the circuit, told what it stands for (the case and device_concept read the shape)
+    shape, ol = outline(doc, (W, H)), (board.get("pcb") or {}).get("outline")
+    if shape["shape"] != "rect" and isinstance(ol, dict):
+        ol.update({"shape": shape["shape"], "r": r2(shape["r"])})
+    def inside(c: dict[str, Any], x: float, y: float, note: str) -> None:
+        """An edge connector nobody plugs from outside (a cell's JST, a probe's header): a part, not a wall window."""
+        across = c["edge"] in ("+y", "-y")
+        c.update({"access": "none", "x": r2(x), "y": r2(y), "w": c["w"] if across else c["d"], "d": c["d"] if across else c["w"],
+                  "normal": [0, 0, 1], "note": note})
+        for k in ("edge", "at", "protrude", "plug", "plugR"):
+            c.pop(k, None)
+
+    for n in doc["nodes"]:
+        nid, c, part = n["id"], comps.get(n["id"]), parts.get(n["id"]) or {}
+        if n["kind"] != "accessory":
+            if c is not None and c.get("access") == "port" and n.get("face") == "none" and pcs.get(nid):
+                inside(c, pcs[nid]["center"]["x"] - ox, pcs[nid]["center"]["y"] - oy, "plugged inside the case (face none)")
+            if c is None or c.get("access") == "port":
+                continue
+            face = face_of(n, part)
+            if face != "none":
+                c["access"] = face
+                if ROUND_PACKAGE.search(_part_text(part)):
+                    c["shape"] = "round"
+            elif n.get("face") == "none" and c.get("access") == "light":
+                c["access"] = "none"  # an LED the designer keeps inside the case
+            continue
+        a = acc.ACCESSORIES[n["accessory"]]
+        entry: dict[str, Any] = {"id": nid, "key": n["accessory"], "name": a["name"], "kind": a["kind"], "mount": a["mount"]}
+        pc = pcs.get(nid)
+        rot = float((pc or {}).get("rotation") or 0) % 360
+        c_, s_ = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+        turn = lambda dx, dy: (dx * c_ - dy * s_, dx * s_ + dy * c_)  # noqa: E731
+        bw, bd, bh = a["body"]
+        swap = round(rot) % 180 == 90
+        if a["mount"] == "board" and pc and c is not None:
+            hx, hy = pc["center"]["x"] - ox, pc["center"]["y"] - oy  # the header row's centre
+            ddx, ddy = turn(*[-v for v in (a.get("header_offset") or (0.0, 0.0))])
+            bx, by = hx + ddx, hy + ddy
+            n_pins = len(a["pins"])
+            row, across = 2.54 * n_pins, 2.54
+            along_x = (a.get("header_axis", "x") == "x") != swap
+            # the board component is the header strip under the module; the module's body is an accessory
+            c.update({"type": "pin_header_2_54", "access": "none", "x": r2(hx), "y": r2(hy), "w": r2(row if along_x else across),
+                      "d": r2(across if along_x else row), "h": a.get("stack_h", 2.5), "note": f"header under {a['name']}"})
+            c.pop("verify", None)
+            entry.update({"x": r2(bx), "y": r2(by), "w": r2(bd if swap else bw), "d": r2(bw if swap else bd), "h": bh, "z0": a.get("stack_h", 2.5)})
+            if a.get("window"):
+                ww, wd = a["window"]
+                wx, wy = turn(*(a.get("window_offset") or (0.0, 0.0)))
+                entry.update({"window": [r2(wd if swap else ww), r2(ww if swap else wd)], "window_dx": r2(wx), "window_dy": r2(wy)})
+                if a.get("window_shape") == "round":
+                    entry["shape"] = "round"
+            if a.get("holes"):
+                entry["holes"] = [{"x": r2(bx + turn(hx_, hy_)[0]), "y": r2(by + turn(hx_, hy_)[1]), "d": d} for hx_, hy_, d in a["holes"]]
+        elif a["mount"] == "cable" and pc:
+            hx, hy = pc["center"]["x"] - ox, pc["center"]["y"] - oy
+            entry.update({"x": r2(hx), "y": r2(hy), "w": bw, "d": bd, "h": bh, "cable_d": a.get("cable_d", 3.0)})
+            if c is not None and c.get("access") == "port":
+                entry.update({"edge": c["edge"], "at": c["at"]})
+                # the lead leaves by the accessory's cable exit; its header inside is plugged once, not through a wall
+                inside(c, hx, hy, f"connector of {a['name']}: its lead leaves by the cable exit")
+            elif n.get("edge"):
+                entry["edge"] = n["edge"]
+                entry["at"] = r2(hy if n["edge"] in ("+x", "-x") else hx)
+        else:  # loose in the case (a LiPo): it needs room, the case decides where
+            entry.update({"x": r2(W / 2), "y": r2(H / 2), "w": bw, "d": bd, "h": bh})
+        out_acc.append(entry)
+    if out_acc:
+        board["accessories"] = out_acc
+    return board
 
 
 def _sel(ref: str) -> str:
@@ -1070,18 +2989,26 @@ def view(doc: dict[str, Any], parts: dict[str, dict[str, Any]]) -> dict[str, Any
         if n["kind"] == "module":
             m = MODULES[n["module"]]
             nodes[n["id"]]["part"].update({"mpn": m["name"], "mcu": m["mcu"], "wireless": m["wireless"], "url": m["url"]})
+        if n["kind"] == "accessory":
+            a = acc.ACCESSORIES[n["accessory"]]
+            nodes[n["id"]]["part"].update({"accessory": n["accessory"], "kind": a["kind"], "mount": a["mount"], "note": a["note"]})
+        nodes[n["id"]]["face"] = face_of(n, part)
     plan, _ = decoupling(doc, parts)
     return {"nodes": nodes, "power": [net.get("name") for net in doc["nets"] if net.get("name") and POWER_NET.match(net["name"])],
             # a chip and the capacitors placed at its pins move together on the board
-            "groups": {chip: [cap for cap, *_ in caps] for chip, caps in plan.items()}}
+            "groups": {chip: [cap for cap, *_ in caps] for chip, caps in plan.items() if not bulky(parts.get(chip) or {})}}
 
 
 def library() -> dict[str, Any]:
     """What the editor's palette offers besides catalogue search: modules and primitives with their pins."""
     return {
         "modules": [{"module": k, "name": m["name"], "mcu": m["mcu"], "pins": m["pins"], "wireless": m["wireless"], "price_usd": m["price_usd"],
-                     "size_mm": m["size"]} for k, m in MODULES.items()],
+                     "size_mm": m["size"], "gpio": m["gpio"], "strapping": m["strapping"], "battery": m["battery"]} for k, m in MODULES.items()],
         "primitives": [{"kind": k, "prefix": v["prefix"], "pins": v["pins"]} for k, v in PRIMS.items()] + [{"kind": "header", "prefix": "J", "pins": ["P1", "P2", "P3", "P4"]}],
+        # ready-made modules fitted by hand: node {kind: 'accessory', accessory: key}; the carrier gets their connector
+        "accessories": acc.catalogue(),
+        "faces": list(FACES),
+        "layouts": list(LAYOUTS),
     }
 
 
@@ -1101,13 +3028,18 @@ def changes(old: dict[str, Any], new: dict[str, Any], limit: int = 24) -> list[s
     for nid in a.keys() - b.keys():
         out.append(f"removed {nid} ({a[nid]['kind']} {what(a[nid])})".replace("  ", " "))
     for nid in sorted(a.keys() & b.keys()):
-        for k in ("lcsc", "module", "value", "package", "color", "pins", "edge", "label"):
+        for k in ("lcsc", "module", "accessory", "value", "package", "color", "pins", "edge", "face", "label"):
             if a[nid].get(k) != b[nid].get(k):
                 out.append(f"{nid}: {k} {a[nid].get(k) or '-'} -> {b[nid].get(k) or '-'}")
         pa, pb = a[nid].get("pcb"), b[nid].get("pcb")
         if pa != pb:
             out.append(f"{nid}: placed by hand on the board at ({pb['x']:g}, {pb['y']:g}) mm, rotation {pb['rot']}" if pb
                        else f"{nid}: hand placement removed (placed automatically again)")
+        qa, qb = a[nid].get("place"), b[nid].get("place")
+        if qa != qb:
+            out.append(f"{nid}: placed at ({qb['x']:g}, {qb['y']:g}) mm, rotation {qb['rot']:g}" if qb else f"{nid}: place removed")
+    if (old.get("layouts") or []) != (new.get("layouts") or []):
+        out.append("layouts: " + ("; ".join(f"{x['pattern']} of {', '.join(x['nodes'])}" for x in new.get("layouts") or []) or "removed"))
     key = lambda net: frozenset(net.get("pins") or [])  # noqa: E731
     na = {key(n): n.get("name") for n in old.get("nets") or []}
     nb = {key(n): n.get("name") for n in new.get("nets") or []}
@@ -1140,6 +3072,8 @@ def changes(old: dict[str, Any], new: dict[str, Any], limit: int = 24) -> list[s
     ba, bb = old.get("board") or {}, new.get("board") or {}
     if (ba.get("w"), ba.get("h")) != (bb.get("w"), bb.get("h")):
         out.append(f"board size fixed at {bb['w']:g} x {bb['h']:g} mm" if bb.get("w") and bb.get("h") else "board size left to the build again")
+    if (ba.get("shape") or "rect", ba.get("r")) != (bb.get("shape") or "rect", bb.get("r")):
+        out.append(f"board shape {bb.get('shape') or 'rect'}" + (f", corner radius {bb['r']:g} mm" if bb.get("r") else ""))
     if ba.get("holes", True) != bb.get("holes", True):
         out.append("mounting holes " + ("on" if bb.get("holes", True) else "off"))
     fa = ((old.get("firmware") or {}).get("files") or {})
@@ -1157,4 +3091,5 @@ def board_key(doc: dict[str, Any]) -> str:
     import json as _json
 
     return _json.dumps({"nodes": [{k: v for k, v in n.items() if k not in ("ui", "label", "note")} for n in doc.get("nodes") or []],
-                        "nets": doc.get("nets") or [], "board": doc.get("board") or {}, "routes": doc.get("routes") or [], "zones": doc.get("zones") or []}, sort_keys=True)
+                        "nets": doc.get("nets") or [], "board": doc.get("board") or {}, "routes": doc.get("routes") or [], "zones": doc.get("zones") or [],
+                        "layouts": doc.get("layouts") or []}, sort_keys=True)

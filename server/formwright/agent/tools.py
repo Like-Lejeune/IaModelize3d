@@ -19,6 +19,7 @@ import numpy as np
 from PIL import Image
 
 from .. import storage
+from ..config import settings
 from ..db import get_db, now
 from ..geom import GeomError, geom
 from ..knowledge import facts as knowledge
@@ -45,6 +46,11 @@ try:
 except Exception:  # noqa: BLE001
     log.exception("agent tools: device_tools did not import, pack 'device' is off")
     device_tools = None  # type: ignore[assignment]
+try:
+    from . import device_inspect  # the device designer's close looks: without it the pack works as before
+except Exception:  # noqa: BLE001
+    log.exception("agent tools: device_inspect did not import, the inspect tools are off")
+    device_inspect = None  # type: ignore[assignment]
 
 
 @dataclass
@@ -76,6 +82,10 @@ class DesignState:
     pcb: dict[str, Any] = field(default_factory=dict)
     # pack 'device': the device version the job works on {version, built, pcb_version, firmware, quoted}
     device: dict[str, Any] = field(default_factory=dict)
+    # set by the loop before each tool call: the turns left after this one (None outside a loop)
+    turns_left: int | None = None
+    # pack 'device': the designer's self-check at finish {asked, rejected, passed, kinds, checked} (device_tools.self_check)
+    self_check: dict[str, Any] = field(default_factory=dict)
 
 
 def fn(name: str, description: str, properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -207,7 +217,8 @@ def tools_for(pack: str, *, photos: bool, prints: bool, engine: str = "cad") -> 
         return pcb_tools.TOOLS + [pcb_tools.LOOK, DIMENSIONS, ASK, FINISH]
     if pack == "device" and device_tools and pcb_tools:
         # a device is a graph of parts: the board is compiled from it, the case comes from the board
-        return device_tools.TOOLS[:4] + [pcb_tools.MAKE_ENCLOSURE, pcb_tools.EXPORT_FAB] + device_tools.TOOLS[4:] + [pcb_tools.LOOK, DIMENSIONS, ASK, FINISH]
+        return device_tools.TOOLS[:4] + [pcb_tools.MAKE_ENCLOSURE, pcb_tools.EXPORT_FAB] + device_tools.TOOLS[4:] + [pcb_tools.LOOK] + (
+            device_inspect.TOOLS if device_inspect else []) + [DIMENSIONS, ASK, getattr(device_tools, "FINISH", FINISH)]
     tools = [WRITE, EDIT, SET_PARAMS, INSPECT, LOOK, DIMENSIONS, ASK]
     if engine == "mesh":
         tools = [MESH_WRITE, MESH_EDIT] + tools
@@ -570,12 +581,21 @@ async def _look(ctx: JobContext, state: DesignState, args: dict[str, Any]) -> tu
 async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """Returns (result for the model, image refs). Image refs are relative file paths or data URLs."""
     ctx.check_cancelled()
+    if state.pack == "device":
+        # what the designer looked at since the board or the case last changed: its self-check waits for a close look
+        looked = state.self_check.setdefault("looked", [])
+        if name in ("build_device", "make_enclosure"):
+            looked.clear()
+        elif name in ("inspect_board", "inspect_case", "look") and name not in looked:
+            looked.append(name)
     if elec_tools and name in elec_tools.NAMES:
         return await elec_tools.run(ctx, state, name, args)
     if pcb_tools and name in pcb_tools.NAMES:
         return await pcb_tools.run(ctx, state, name, args)
     if device_tools and name in device_tools.NAMES:
         return await device_tools.run(ctx, state, name, args)
+    if device_inspect and name in device_inspect.NAMES:
+        return await device_inspect.run(ctx, state, name, args)
     if name == "write_program":
         if not str(args.get("source") or "").strip():
             return {"ok": False, "error": "source is empty: pass the complete program"}, []
@@ -681,7 +701,7 @@ async def run_tool(ctx: JobContext, state: DesignState, name: str, args: dict[st
     if name == "compare_print":
         return await _compare_print(ctx, state, args)
     if name == "finish":
-        return await _finish(ctx, state, args.get("summary", "")), []
+        return await _finish(ctx, state, args.get("summary", ""), args.get("checked")), []
     return {"ok": False, "error": f"unknown tool {name}"}, []
 
 
@@ -842,11 +862,12 @@ def pack_gate(pack: str) -> tuple[Any, str] | None:
     return (mod, reason) if mod else None
 
 
-async def _finish(ctx: JobContext, state: DesignState, summary: str) -> dict[str, Any]:
+async def _finish(ctx: JobContext, state: DesignState, summary: str, checked: Any = None) -> dict[str, Any]:
     """Checks, then the pack's own gate (the case against its board, the PCB's DRC and intent), then the independent
     review of the version that would ship. The gate decides before it emits, so the timeline never shows a pass that
     is overruled a moment later. Two blocking rounds at most: from the third finish on the review only reports, so
-    nothing ships unreviewed."""
+    nothing ships unreviewed. A device has no reviewer by default (settings.device_reviewer): past its gate the designer
+    answers its own self-check (device_tools.self_check, the checklists of the kinds in its graph) in `checked`."""
     from .critic import review
 
     state.finish_attempts += 1
@@ -861,11 +882,34 @@ async def _finish(ctx: JobContext, state: DesignState, summary: str) -> dict[str
         reasons = await gate[0].finish_gate(ctx, state)
         if reasons:
             return {"accepted": False, "reason": gate[1], "issues": reasons}
-    if state.source and state.last_build:
+    if state.pack == "device" and device_tools and hasattr(device_tools, "self_check"):
+        # the person reads the summary of the finish that is accepted: one that answers the self-check often only says
+        # "see above" (a night light shipped as "готов — см. предыдущее описание"), so the fuller earlier one stays
+        told = str(state.self_check.get("summary") or "")
+        if len(summary.strip()) >= len(told.strip()) or len(summary.strip()) >= 400:
+            state.self_check["summary"] = told = summary
+        held = await device_tools.self_check(ctx, state, checked)
+        if held:
+            return held
+        summary = told or summary
+        if hasattr(device_tools, "finish_note"):
+            summary = await device_tools.finish_note(ctx, state, summary)
+        if state.self_check.get("passed") == "skipped":
+            out["self_check"] = "not answered in full"
+        await ctx.emit("device.self_check", {k: state.self_check.get(k) for k in ("passed", "kinds", "checked", "looked", "asked", "rejected")})
+    device_review_on = state.pack == "device" and settings().device_reviewer
+    # a device is reviewed even without a case (when its reviewer is on): its board, firmware and order are what ship
+    if (state.source and state.last_build and state.pack != "device") or device_review_on:
         report_only = state.finish_attempts > 2
         look = state.pack in MATCH_PACKS
         await ctx.status("Independent review of the design")
-        verdict = await review(ctx, state, bar=MATCH_BAR if look else None)
+        if state.pack == "device":
+            # the generic critic sees only the case render; the device reviewer reads the graph, board, firmware and order
+            from .device_review import review as device_review
+
+            verdict = await device_review(ctx, state, summary=summary)
+        else:
+            verdict = await review(ctx, state, bar=MATCH_BAR if look else None)
         if "verdict" not in verdict:
             verdict = {"verdict": "pass", "match_score": None, "issues": [], "note": "reviewer unavailable", "reviewer": verdict.get("reviewer", "unavailable")}
         major = [i for i in verdict.get("issues", []) if i.get("severity") == "major"]

@@ -59,7 +59,7 @@ process.on('unhandledRejection', (e) => process.stderr.write(`unhandled rejectio
 
 const { buildCircuit, StageError } = await import('./build.mjs');
 const { boardFromCircuit } = await import('./board.mjs');
-const { digest, hintFor } = await import('./hints.mjs');
+const { digest, hintFor, DEVICE_ERRORS } = await import('./hints.mjs');
 const { netsOf, countsOf, checkIntent, checkLimits } = await import('./intent.mjs');
 const { gerberZip, bomCsv, cplCsv } = await import('./fab.mjs');
 const { previews } = await import('./preview.mjs');
@@ -111,7 +111,8 @@ async function build(params, id) {
   } catch (e) { drc = [{ type: 'drc_crash_warning', message: String(e?.message ?? e).slice(0, 300) }]; }
   ms.drc = Math.round(performance.now() - t1);
   const nets = netsOf(json);
-  const { errors, warnings, suppressed, quiet } = digest(json, drc, nets);
+  // a device (compiled from fw.device/1, meta.device) is a finished product: a connector facing inwards is an error there
+  const { errors, warnings, suppressed, quiet } = digest(json, drc, nets, { promote: meta.device ? DEVICE_ERRORS : [] });
   const counts = countsOf(json, nets);
   let board = null;
   try {

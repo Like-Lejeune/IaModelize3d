@@ -1,0 +1,1158 @@
+{
+ "C10077": {
+  "lcsc": "C10077",
+  "mpn": "GL5516(5-10)",
+  "brand": "JCHL(Shenzhen Jing Chuang He Li Tech)",
+  "package": "Plugin,P=3.4mm",
+  "category": "Photoresistors",
+  "description": "-30℃~+70℃ 0.6 150V 2.4mm 200kΩ 3.4mm 4.3mm 5.1mm 540nm 5kΩ~10kΩ 插件,P=3.4mm Photoresistors ROHS",
+  "stock": 13870,
+  "basic": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.042
+   },
+   {
+    "qty": 100,
+    "usd": 0.033
+   },
+   {
+    "qty": 400,
+    "usd": 0.0278
+   },
+   {
+    "qty": 1000,
+    "usd": 0.0243
+   },
+   {
+    "qty": 5000,
+    "usd": 0.0215
+   },
+   {
+    "qty": 10000,
+    "usd": 0.0202
+   }
+  ],
+  "footprint_name": "RES-TH_L5.1-W4.3-P3.40_GL55",
+  "pins": [
+   {
+    "num": "1",
+    "name": "1",
+    "label": "P1"
+   },
+   {
+    "num": "2",
+    "name": "2",
+    "label": "P2"
+   }
+  ],
+  "kind_hint": "sensor"
+ },
+ "C114881": {
+  "lcsc": "C114881",
+  "mpn": "AM312",
+  "brand": "Senba Sensing Tech",
+  "package": "TO-5-3",
+  "category": "Human Body Sensing Sensor",
+  "description": "-30℃~+70℃ 3x4mm Rectangle TO-5-3 Human Body Sensing Sensor ROHS",
+  "stock": 55,
+  "basic": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 1.0562
+   },
+   {
+    "qty": 10,
+    "usd": 0.8725
+   },
+   {
+    "qty": 30,
+    "usd": 0.7725
+   },
+   {
+    "qty": 100,
+    "usd": 0.6593
+   },
+   {
+    "qty": 500,
+    "usd": 0.6085
+   },
+   {
+    "qty": 1000,
+    "usd": 0.5855
+   }
+  ],
+  "footprint_name": "TO-5-3_L8.2-W8.2",
+  "pins": [
+   {
+    "num": "1",
+    "name": "VCC",
+    "label": "VCC"
+   },
+   {
+    "num": "2",
+    "name": "OUT",
+    "label": "OUT"
+   },
+   {
+    "num": "3",
+    "name": "GND",
+    "label": "GND"
+   }
+  ],
+  "kind_hint": "sensor"
+ },
+ "C181090": {
+  "lcsc": "C181090",
+  "mpn": "AO3400",
+  "brand": "Guangdong Hottech",
+  "package": "SOT-23",
+  "category": "MOSFETs",
+  "description": "1 N-channel 1.45V 1.4W 28mΩ@10V 30V 5.8A 50pF 630pF 75pF 7nC@4.5V N-Channel SOT-23 MOSFETs ROHS",
+  "stock": 351261,
+  "basic": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.0291
+   },
+   {
+    "qty": 200,
+    "usd": 0.0225
+   },
+   {
+    "qty": 600,
+    "usd": 0.0197
+   },
+   {
+    "qty": 3000,
+    "usd": 0.0178
+   },
+   {
+    "qty": 9000,
+    "usd": 0.0169
+   },
+   {
+    "qty": 21000,
+    "usd": 0.0163
+   }
+  ],
+  "footprint_name": "SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR",
+  "pins": [
+   {
+    "num": "1",
+    "name": "G",
+    "label": "G"
+   },
+   {
+    "num": "2",
+    "name": "S",
+    "label": "S"
+   },
+   {
+    "num": "3",
+    "name": "D",
+    "label": "D"
+   }
+  ],
+  "kind_hint": "nmos",
+  "current_ma": 5800.0
+ },
+ "C181158": {
+  "lcsc": "C181158",
+  "mpn": "S8050",
+  "brand": "Guangdong Hottech",
+  "package": "SOT-23",
+  "category": "Bipolar (BJT)",
+  "description": "1 NPN 100nA 150MHz 25V 300mW 400 500mA 5V 600mV NPN SOT-23 Bipolar (BJT) ROHS",
+  "stock": 2233108,
+  "basic": false,
+  "preferred": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.011
+   },
+   {
+    "qty": 500,
+    "usd": 0.0093
+   },
+   {
+    "qty": 3000,
+    "usd": 0.0077
+   },
+   {
+    "qty": 6000,
+    "usd": 0.0071
+   },
+   {
+    "qty": 24000,
+    "usd": 0.0069
+   },
+   {
+    "qty": 51000,
+    "usd": 0.0067
+   }
+  ],
+  "datasheet": "https://www.lcsc.com/datasheet/lcsc_datasheet_2410121837_Guangdong-Hottech-S8050_C181158.pdf",
+  "image": "https://assets.lcsc.com/images/lcsc/96x96/20230110_Guangdong-Hottech-S8050_C181158_front.jpg",
+  "url": "https://lcsc.com/product-detail/bipolar-bjt_guangdong-hottech-s8050_C181158.html",
+  "pins": [
+   {
+    "num": "1",
+    "name": "1",
+    "label": "P1"
+   },
+   {
+    "num": "2",
+    "name": "2",
+    "label": "P2"
+   },
+   {
+    "num": "3",
+    "name": "3",
+    "label": "P3"
+   }
+  ]
+ },
+ "C2146": {
+  "lcsc": "C2146",
+  "mpn": "S8050 J3Y(RANGE:200-350)",
+  "brand": "Jiangsu Changjing Electronics Technology Co., Ltd.",
+  "package": "SOT-23",
+  "category": "Bipolar (BJT)",
+  "description": "-55℃~+150℃ 1 NPN 100nA 150MHz 200 25V 300mW 500mA 5V 600mV NPN SOT-23 Bipolar (BJT) ROHS",
+  "stock": 1383646,
+  "basic": true,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.0142
+   },
+   {
+    "qty": 500,
+    "usd": 0.0109
+   },
+   {
+    "qty": 3000,
+    "usd": 0.0095
+   },
+   {
+    "qty": 6000,
+    "usd": 0.0084
+   },
+   {
+    "qty": 24000,
+    "usd": 0.008
+   },
+   {
+    "qty": 51000,
+    "usd": 0.0077
+   }
+  ],
+  "footprint_name": "SOT-23-3_L3.0-W1.7-P0.95-LS2.9-BR",
+  "pins": [
+   {
+    "num": "1",
+    "name": "B",
+    "label": "B"
+   },
+   {
+    "num": "2",
+    "name": "E",
+    "label": "E"
+   },
+   {
+    "num": "3",
+    "name": "C",
+    "label": "C"
+   }
+  ],
+  "kind_hint": "npn",
+  "current_ma": 500.0
+ },
+ "C2150": {
+  "lcsc": "C2150",
+  "mpn": "SS8050(RANGE:200-350)",
+  "brand": "Jiangsu Changjing Electronics Technology Co., Ltd.",
+  "package": "SOT-23",
+  "category": "Bipolar (BJT)",
+  "description": "-55℃~+150℃ 1 NPN 1.5A 100MHz 100nA 200 25V 300mW 500mV 5V NPN SOT-23 Bipolar (BJT) ROHS",
+  "stock": 3161644,
+  "basic": true,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.0148
+   },
+   {
+    "qty": 500,
+    "usd": 0.0114
+   },
+   {
+    "qty": 3000,
+    "usd": 0.0099
+   },
+   {
+    "qty": 6000,
+    "usd": 0.0087
+   },
+   {
+    "qty": 24000,
+    "usd": 0.0083
+   },
+   {
+    "qty": 51000,
+    "usd": 0.008
+   }
+  ],
+  "footprint_name": "SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR",
+  "pins": [
+   {
+    "num": "1",
+    "name": "B",
+    "label": "B"
+   },
+   {
+    "num": "2",
+    "name": "E",
+    "label": "E"
+   },
+   {
+    "num": "3",
+    "name": "C",
+    "label": "C"
+   }
+  ],
+  "kind_hint": "npn",
+  "current_ma": 1500.0
+ },
+ "C2843785": {
+  "lcsc": "C2843785",
+  "mpn": "XL-5050RGBC-2812B",
+  "brand": "XINGLIGHT",
+  "package": "SMD5050-4P",
+  "category": "RGB LEDs(Built-in IC)",
+  "description": "-20℃~+85℃ 0.3mA 1.6mm 120° 2000V 3.5V~5.5V 4kHz 5mm 5mm 800Kbit/s G:1300mcd~1800mcd、R:500mcd~700mcd、B:300mcd~500mcd R:620nm~635nm、B:465nm~475nm、G:520nm~535nm Top-mount Water Clear SMD5050-4P RGB LEDs(Built-in IC) ROHS",
+  "stock": 273069,
+  "basic": false,
+  "preferred": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.0553
+   },
+   {
+    "qty": 100,
+    "usd": 0.0443
+   },
+   {
+    "qty": 300,
+    "usd": 0.0386
+   },
+   {
+    "qty": 1000,
+    "usd": 0.034
+   },
+   {
+    "qty": 5000,
+    "usd": 0.0301
+   },
+   {
+    "qty": 10000,
+    "usd": 0.0289
+   }
+  ],
+  "datasheet": "https://www.lcsc.com/datasheet/lcsc_datasheet_2404120946_XINGLIGHT-XL-5050RGBC-WS2812B_C2843785.pdf",
+  "image": null,
+  "url": "https://www.lcsc.com/product-detail/rgb-leds-built-in-ic_xinglight-xl-5050rgbc-ws2812b_C2843785.html",
+  "pins": [
+   {
+    "num": "1",
+    "name": "VDD",
+    "label": "VDD"
+   },
+   {
+    "num": "2",
+    "name": "DOU",
+    "label": "DOU"
+   },
+   {
+    "num": "3",
+    "name": "GND",
+    "label": "GND"
+   },
+   {
+    "num": "4",
+    "name": "DIN",
+    "label": "DIN"
+   }
+  ]
+ },
+ "C2878": {
+  "lcsc": "C2878",
+  "mpn": "HND-2319",
+  "brand": "Jiangsu Huaneng Elec",
+  "package": "Plugin,D=23mm",
+  "category": "Buzzers",
+  "description": "-20℃~+60℃ 12V 19.3mm 23mm 3.7kHz 3V~24V 90dB Active Buzzer (Built-in Driving Circuit) Piezoelectric 插件,D=23mm Buzzers ROHS",
+  "stock": 14115,
+  "basic": false,
+  "preferred": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.4511
+   },
+   {
+    "qty": 10,
+    "usd": 0.4035
+   },
+   {
+    "qty": 30,
+    "usd": 0.3789
+   },
+   {
+    "qty": 100,
+    "usd": 0.3412
+   },
+   {
+    "qty": 500,
+    "usd": 0.3264
+   },
+   {
+    "qty": 1000,
+    "usd": 0.3199
+   }
+  ],
+  "datasheet": "https://www.lcsc.com/datasheet/lcsc_datasheet_1811141110_Jiangsu-Huaneng-Elec-HND-2319_C2878.pdf",
+  "image": null,
+  "url": "https://www.lcsc.com/product-detail/buzzers_jiangsu-huaneng-elec-hnd-2319_C2878.html",
+  "pins": [
+   {
+    "num": "1",
+    "name": "+",
+    "label": "P"
+   },
+   {
+    "num": "2",
+    "name": "2",
+    "label": "P2"
+   }
+  ]
+ },
+ "C2887190": {
+  "lcsc": "C2887190",
+  "mpn": "QMA6100P",
+  "brand": "QST",
+  "package": "LGA-12_2x2mm",
+  "category": "Accelerometers",
+  "description": "-40℃~+85℃ 1.71V~3.6V 14bit 500nA Accelerometer SPI、I2C X,Y,Z ±32g 运动事件检测 LGA-12(2x2) Accelerometers ROHS",
+  "stock": 27531,
+  "basic": false,
+  "preferred": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.5888
+   },
+   {
+    "qty": 10,
+    "usd": 0.4707
+   },
+   {
+    "qty": 30,
+    "usd": 0.4133
+   },
+   {
+    "qty": 100,
+    "usd": 0.3625
+   },
+   {
+    "qty": 500,
+    "usd": 0.2985
+   },
+   {
+    "qty": 1000,
+    "usd": 0.2903
+   }
+  ],
+  "datasheet": "https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2208161803_QST-QMA6100P_C2887190.pdf",
+  "image": null,
+  "url": "https://www.lcsc.com/product-detail/accelerometers_qst-qma6100p_C2887190.html",
+  "pins": [
+   {
+    "num": "1",
+    "name": "AD0",
+    "label": "AD0"
+   },
+   {
+    "num": "2",
+    "name": "SDX",
+    "label": "SDX"
+   },
+   {
+    "num": "3",
+    "name": "VDD",
+    "label": "VDD"
+   },
+   {
+    "num": "4",
+    "name": "RESV1",
+    "label": "RESV1"
+   },
+   {
+    "num": "5",
+    "name": "INT1",
+    "label": "INT1"
+   },
+   {
+    "num": "6",
+    "name": "INT2",
+    "label": "INT2"
+   },
+   {
+    "num": "7",
+    "name": "NC",
+    "label": "NC"
+   },
+   {
+    "num": "8",
+    "name": "GNDIO",
+    "label": "GNDIO"
+   },
+   {
+    "num": "9",
+    "name": "GND",
+    "label": "GND"
+   },
+   {
+    "num": "10",
+    "name": "SENB",
+    "label": "SENB"
+   },
+   {
+    "num": "11",
+    "name": "RESV2",
+    "label": "RESV2"
+   },
+   {
+    "num": "12",
+    "name": "SCX",
+    "label": "SCX"
+   }
+  ]
+ },
+ "C417385": {
+  "lcsc": "C417385",
+  "mpn": "FMB09A03-3V",
+  "brand": "FUET",
+  "package": "Plugin,D=9mm",
+  "category": "Buzzers",
+  "description": "-20℃~+70℃ 2.7kHz 2V~4.2V 30mA 3V 5.7mm 80dB 9mm Active Buzzer (Built-in Driving Circuit) Electromagnetic Through-hole 插件,D=9mm Buzzers ROHS",
+  "stock": 1134,
+  "basic": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.2423
+   },
+   {
+    "qty": 50,
+    "usd": 0.1885
+   },
+   {
+    "qty": 200,
+    "usd": 0.1622
+   },
+   {
+    "qty": 500,
+    "usd": 0.1335
+   },
+   {
+    "qty": 2000,
+    "usd": 0.1208
+   },
+   {
+    "qty": 5000,
+    "usd": 0.113
+   }
+  ],
+  "footprint_name": "BUZ-TH_BD9.0-P5.00-D0.6-FD",
+  "pins": [
+   {
+    "num": "1",
+    "name": "+",
+    "label": "POS"
+   },
+   {
+    "num": "2",
+    "name": "-",
+    "label": "NEG"
+   }
+  ],
+  "kind_hint": "buzzer_active",
+  "current_ma": 30.0
+ },
+ "C52917433": {
+  "lcsc": "C52917433",
+  "mpn": "WS2812B-V6",
+  "brand": "Worldsemi",
+  "package": "SMD5050-4P",
+  "category": "LED Indication - Discrete",
+  "description": "-40℃~+85℃ 200mcd~300mcd、300mcd~500mcd、600mcd~1cd 465nm~475nm、515nm~525nm、620nm~630nm 5.0mm x 5.0mm square LED Red, green, blue SMD5050-4P LED Indication - Discrete ROHS",
+  "stock": 120034,
+  "basic": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.0934
+   },
+   {
+    "qty": 50,
+    "usd": 0.0755
+   },
+   {
+    "qty": 150,
+    "usd": 0.0661
+   },
+   {
+    "qty": 1000,
+    "usd": 0.0586
+   },
+   {
+    "qty": 2000,
+    "usd": 0.056
+   },
+   {
+    "qty": 5000,
+    "usd": 0.0542
+   }
+  ],
+  "footprint_name": "LED-SMD_4P-L5.0-W5.0-TL-A",
+  "pins": [
+   {
+    "num": "1",
+    "name": "VDD",
+    "label": "VDD"
+   },
+   {
+    "num": "2",
+    "name": "DOUT",
+    "label": "DOUT"
+   },
+   {
+    "num": "3",
+    "name": "VSS",
+    "label": "VSS"
+   },
+   {
+    "num": "4",
+    "name": "DIN",
+    "label": "DIN"
+   }
+  ],
+  "kind_hint": "rgb_led"
+ },
+ "C76871": {
+  "lcsc": "C76871",
+  "mpn": "PS1240P02BT",
+  "brand": "TDK",
+  "package": "Plugin,D=12.2mm",
+  "category": "Buzzers",
+  "description": "-10℃~+70℃ 12.2mm 30V 3V 4kHz 5mm 7.8mm 70dB Passive (Externally Driven) Piezoelectric 插件,D=12.2mm Buzzers ROHS",
+  "stock": 6027,
+  "basic": false,
+  "preferred": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.2246
+   },
+   {
+    "qty": 10,
+    "usd": 0.1796
+   },
+   {
+    "qty": 30,
+    "usd": 0.1604
+   },
+   {
+    "qty": 100,
+    "usd": 0.1365
+   },
+   {
+    "qty": 500,
+    "usd": 0.1253
+   },
+   {
+    "qty": 1000,
+    "usd": 0.119
+   }
+  ],
+  "datasheet": "https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_TDK-PS1240P02BT_C76871.pdf",
+  "image": null,
+  "url": "https://www.lcsc.com/product-detail/buzzers_tdk-ps1240p02bt_C76871.html",
+  "pins": [
+   {
+    "num": "1",
+    "name": "1",
+    "label": "P1"
+   },
+   {
+    "num": "2",
+    "name": "2",
+    "label": "P2"
+   }
+  ]
+ },
+ "C781847": {
+  "lcsc": "C781847",
+  "mpn": "YX-YT9042 3v",
+  "brand": "YUEXIN",
+  "package": "Plugin,D=9mm",
+  "category": "Buzzers",
+  "description": "-20℃~+70℃ 2.8kHz 2V~4V 30mA 4.2mm 80dB 9mm Active Buzzer (Built-in Driving Circuit) Electromagnetic 插件,D=9mm Buzzers ROHS",
+  "stock": 387,
+  "basic": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.333
+   },
+   {
+    "qty": 50,
+    "usd": 0.259
+   },
+   {
+    "qty": 200,
+    "usd": 0.2162
+   },
+   {
+    "qty": 500,
+    "usd": 0.1767
+   },
+   {
+    "qty": 2000,
+    "usd": 0.159
+   },
+   {
+    "qty": 5000,
+    "usd": 0.1485
+   }
+  ],
+  "footprint_name": "BUZ-TH_BD9.0-P5.00-D0.6-FD",
+  "pins": [
+   {
+    "num": "1",
+    "name": "1",
+    "label": "P1"
+   },
+   {
+    "num": "2",
+    "name": "2",
+    "label": "P2"
+   }
+  ],
+  "kind_hint": "buzzer_active",
+  "current_ma": 30.0
+ },
+ "C78960": {
+  "lcsc": "C78960",
+  "mpn": "BH1750FVI-TR",
+  "brand": "ROHM Semicon",
+  "package": "WSOF-6",
+  "category": "Ambient Light Sensors",
+  "description": "-40℃~+85℃ 2.4V~3.6V 65.535klx I2C Light Intensity WSOF-6 Ambient Light Sensors ROHS",
+  "stock": 32928,
+  "basic": false,
+  "preferred": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.9234
+   },
+   {
+    "qty": 10,
+    "usd": 0.7709
+   },
+   {
+    "qty": 30,
+    "usd": 0.6626
+   },
+   {
+    "qty": 100,
+    "usd": 0.5741
+   },
+   {
+    "qty": 500,
+    "usd": 0.515
+   },
+   {
+    "qty": 1000,
+    "usd": 0.4986
+   }
+  ],
+  "datasheet": "https://www.lcsc.com/datasheet/lcsc_datasheet_1811081611_ROHM-Semicon-BH1750FVI-TR_C78960.pdf",
+  "image": null,
+  "url": "https://www.lcsc.com/product-detail/ambient-light-sensors_rohm-semicon-bh1750fvi-tr_C78960.html",
+  "pins": [
+   {
+    "num": "1",
+    "name": "VCC",
+    "label": "VCC"
+   },
+   {
+    "num": "2",
+    "name": "ADDR",
+    "label": "ADDR"
+   },
+   {
+    "num": "3",
+    "name": "GND",
+    "label": "GND"
+   },
+   {
+    "num": "4",
+    "name": "SDA",
+    "label": "SDA"
+   },
+   {
+    "num": "5",
+    "name": "DVI",
+    "label": "DVI"
+   },
+   {
+    "num": "6",
+    "name": "SCL",
+    "label": "SCL"
+   },
+   {
+    "num": "7",
+    "name": "EP",
+    "label": "EP"
+   }
+  ]
+ },
+ "C92489": {
+  "lcsc": "C92489",
+  "mpn": "BME280",
+  "brand": "Bosch Sensortec",
+  "package": "LGA-8(2.5x2.5)",
+  "category": "Temperature and Humidity Sensor",
+  "description": "-40℃~+85℃ 0%RH~100%RH 1.71V~3.6V 1.8uA 16bit I2C、SPI ±0.5℃ ±3%RH LGA-8(2.5x2.5) Temperature and Humidity Sensor ROHS",
+  "stock": 3281,
+  "basic": false,
+  "preferred": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 8.2345
+   },
+   {
+    "qty": 10,
+    "usd": 7.5277
+   },
+   {
+    "qty": 30,
+    "usd": 7.0767
+   },
+   {
+    "qty": 100,
+    "usd": 5.7401
+   },
+   {
+    "qty": 102,
+    "usd": 5.7401
+   },
+   {
+    "qty": 104,
+    "usd": 5.7401
+   }
+  ],
+  "datasheet": "https://www.lcsc.com/datasheet/lcsc_datasheet_2410121920_Bosch-Sensortec-BME280_C92489.pdf",
+  "image": "https://assets.lcsc.com/images/lcsc/96x96/20230217_Bosch-Sensortec-BME280_C92489_front.jpg",
+  "url": "https://www.lcsc.com/product-detail/temperature-and-humidity-sensor_bosch-sensortec-bme280_C92489.html",
+  "pins": [
+   {
+    "num": "1",
+    "name": "GND",
+    "label": "GND"
+   },
+   {
+    "num": "2",
+    "name": "CSB",
+    "label": "CSB"
+   },
+   {
+    "num": "3",
+    "name": "SDI",
+    "label": "SDI"
+   },
+   {
+    "num": "4",
+    "name": "SCK",
+    "label": "SCK"
+   },
+   {
+    "num": "5",
+    "name": "SDO",
+    "label": "SDO"
+   },
+   {
+    "num": "6",
+    "name": "VDDIO",
+    "label": "VDDIO"
+   },
+   {
+    "num": "7",
+    "name": "GND",
+    "label": "GND_7"
+   },
+   {
+    "num": "8",
+    "name": "VDD",
+    "label": "VDD"
+   }
+  ]
+ },
+ "C94598": {
+  "lcsc": "C94598",
+  "mpn": "MLT-5020",
+  "brand": "Jiangsu Huaneng Elec",
+  "package": "SMD,5x5mm",
+  "category": "Buzzers",
+  "description": "-20℃~+70℃ 100mA 2.5mm 2V~4V 3V 4kHz 5.2mm 5.2mm 75dB Electromagnetic Passive (Externally Driven) SMD,5x5mm Buzzers ROHS",
+  "stock": 151789,
+  "basic": false,
+  "preferred": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.4014
+   },
+   {
+    "qty": 50,
+    "usd": 0.3126
+   },
+   {
+    "qty": 150,
+    "usd": 0.2693
+   },
+   {
+    "qty": 500,
+    "usd": 0.1969
+   },
+   {
+    "qty": 2500,
+    "usd": 0.1864
+   },
+   {
+    "qty": 5000,
+    "usd": 0.1799
+   }
+  ],
+  "datasheet": "https://www.lcsc.com/datasheet/lcsc_datasheet_2108131530_Jiangsu-Huaneng-Elec-MLT-5020_C94598.pdf",
+  "image": null,
+  "url": "https://www.lcsc.com/product-detail/buzzers_jiangsu-huaneng-elec-mlt-5020_C94598.html",
+  "pins": [
+   {
+    "num": "1",
+    "name": "+",
+    "label": "P"
+   },
+   {
+    "num": "2",
+    "name": "-",
+    "label": "P_2"
+   },
+   {
+    "num": "3",
+    "name": "NC",
+    "label": "NC"
+   }
+  ]
+ },
+ "C96127": {
+  "lcsc": "C96127",
+  "mpn": "MLT-9650",
+  "brand": "Jiangsu Huaneng Elec",
+  "package": "SMD",
+  "category": "Buzzers",
+  "description": "-20℃~+70℃ 2.7kHz 30mA 3V~7V 5.5mm 5V 85dB 9.6mm 9.6mm Active Buzzer (Built-in Driving Circuit) Electromagnetic SMD SMD Buzzers ROHS",
+  "stock": 29805,
+  "basic": false,
+  "preferred": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.5413
+   },
+   {
+    "qty": 10,
+    "usd": 0.4363
+   },
+   {
+    "qty": 30,
+    "usd": 0.3855
+   },
+   {
+    "qty": 100,
+    "usd": 0.3395
+   },
+   {
+    "qty": 600,
+    "usd": 0.2493
+   },
+   {
+    "qty": 1200,
+    "usd": 0.2428
+   }
+  ],
+  "datasheet": "https://www.lcsc.com/datasheet/lcsc_datasheet_1811141110_Jiangsu-Huaneng-Elec-MLT-9650_C96127.pdf",
+  "image": null,
+  "url": "https://www.lcsc.com/product-detail/buzzers_jiangsu-huaneng-elec-mlt-9650_C96127.html",
+  "pins": [
+   {
+    "num": "1",
+    "name": "1",
+    "label": "P1"
+   },
+   {
+    "num": "2",
+    "name": "2",
+    "label": "P2"
+   }
+  ]
+ },
+ "C210315": {
+  "lcsc": "C210315",
+  "mpn": "HL-AM-2835H421W-S1-08-HR3(Color Temperature2800-3100K)",
+  "brand": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+  "package": "SMD2835-2P",
+  "category": "LED Indication - Discrete",
+  "description": "-40℃~+85℃ 120° 288mW 3.2V 3000K 60mA Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+  "stock": 117977,
+  "basic": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.0103
+   },
+   {
+    "qty": 500,
+    "usd": 0.009
+   },
+   {
+    "qty": 1500,
+    "usd": 0.0083
+   },
+   {
+    "qty": 4000,
+    "usd": 0.0079
+   },
+   {
+    "qty": 20000,
+    "usd": 0.0075
+   },
+   {
+    "qty": 40000,
+    "usd": 0.0073
+   }
+  ],
+  "footprint_name": "LED-SMD_L3.3-W2.8-RD",
+  "attrs": {
+   "Mounting Style": "Top-mount",
+   "Operating Temperature": "-40℃~+85℃",
+   "Color Temperature": "3000K",
+   "Test Current": "60mA",
+   "Viewing Angle": "120°",
+   "Power(Watts)": "288mW",
+   "Diode Configuration": "Discrete Diode",
+   "Illumination Color": "White",
+   "Lens Color": "Frosted Yellow Lens",
+   "Voltage - Forward(Vf)": "3.2V"
+  },
+  "pins": [
+   {
+    "num": "1",
+    "name": "1",
+    "label": "K"
+   },
+   {
+    "num": "2",
+    "name": "2",
+    "label": "A"
+   }
+  ],
+  "kind_hint": "led",
+  "current_ma": 60.0,
+  "pin_note": "pin roles 1=K, 2=A come from the diode triangle on the symbol (the symbol only numbers its pins): check the polarity mark on the part"
+ },
+ "C49246934": {
+  "lcsc": "C49246934",
+  "mpn": "TMB12075-3V",
+  "brand": "XHXDZ",
+  "package": "插件,D12xL7.5mm",
+  "category": "Buzzers",
+  "description": "-30℃~+70℃ 12mm 2.7kHz 2V~4V 30mA 3V 7.5mm 85dB Active Buzzer (Built-in Driving Circuit) Electromagnetic 插件,D12xL7.5mm Buzzers ROHS",
+  "stock": 98,
+  "basic": false,
+  "prices": [
+   {
+    "qty": 1,
+    "usd": 0.1978
+   },
+   {
+    "qty": 50,
+    "usd": 0.1568
+   },
+   {
+    "qty": 200,
+    "usd": 0.1393
+   },
+   {
+    "qty": 500,
+    "usd": 0.1173
+   },
+   {
+    "qty": 2000,
+    "usd": 0.1075
+   },
+   {
+    "qty": 5000,
+    "usd": 0.1017
+   }
+  ],
+  "footprint_name": "BUZ-TH_BD12.0-P7.60-D0.6-FD",
+  "attrs": {
+   "Operating Temperature": "-30℃~+70℃",
+   "Voltage Rating": "3V",
+   "Diameter(φD)": "12mm",
+   "Sound Pressure Level(SPL)": "85dB",
+   "Driver Circuitry": "Active Buzzer (Built-in Driving Circuit)",
+   "Technology": "Electromagnetic",
+   "Voltage - Supply": "2V~4V",
+   "Frequency": "2.7kHz",
+   "Height": "7.5mm",
+   "Current Consumption": "30mA"
+  },
+  "pins": [
+   {
+    "num": "1",
+    "name": "1",
+    "label": "POS"
+   },
+   {
+    "num": "2",
+    "name": "2",
+    "label": "NEG"
+   }
+  ],
+  "kind_hint": "buzzer_active",
+  "current_ma": 30.0,
+  "pin_note": "pin 1=POS, pin 2=NEG come from a '+' printed on the footprint by pin 1 (the symbol only numbers its pins): check the + marked on the part"
+ }
+}

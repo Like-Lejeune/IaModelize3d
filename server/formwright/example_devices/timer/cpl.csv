@@ -1,0 +1,14 @@
+Designator,Mid X,Mid Y,Layer,Rotation
+U1,0.000mm,-25.500mm,Top,180
+DS1,-12.000mm,26.400mm,Top,0
+SW1,-16.000mm,-10.000mm,Top,0
+SW2,0.000mm,-10.000mm,Top,0
+SW3,16.000mm,-10.000mm,Top,0
+BZ1,-31.000mm,-2.000mm,Top,0
+Q1,-23.000mm,-3.500mm,Top,270
+RB,-23.500mm,-8.500mm,Top,90
+D1,-17.500mm,-2.500mm,Top,0
+LED1,30.000mm,2.000mm,Top,0
+R4,25.500mm,1.000mm,Top,0
+R1,-9.000mm,30.500mm,Top,0
+R2,-13.000mm,31.000mm,Top,270

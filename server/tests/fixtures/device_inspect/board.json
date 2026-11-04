@@ -1,0 +1,826 @@
+{
+ "schema": "fw.board/1",
+ "id": "pcb",
+ "name": "Ночник с датчиком движения",
+ "aliases": [],
+ "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side; x right, y up, z up from the PCB bottom face. Component z values are heights above the face they sit on. Generated from the routed circuit.",
+ "source": {
+  "kind": "pcb",
+  "pcb_job": "pcb:v1"
+ },
+ "sources": {
+  "circuit": "circuit.json",
+  "typical": "packages/geom/src/boards.json#typical",
+  "modules": "packages/pcb/src/modules.json"
+ },
+ "uncertainty_mm": 0,
+ "pcb": {
+  "outline": {
+   "kind": "rect",
+   "w": 58,
+   "h": 66,
+   "r": 0,
+   "src": "circuit"
+  },
+  "thickness": 1.6,
+  "layers": 2,
+  "holes": [
+   {
+    "x": 21.38,
+    "y": 63.12,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 21.38,
+    "y": 60.58,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 21.38,
+    "y": 58.04,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 21.38,
+    "y": 55.5,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 21.38,
+    "y": 52.96,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 21.38,
+    "y": 50.42,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 21.38,
+    "y": 47.88,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 36.62,
+    "y": 47.88,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 36.62,
+    "y": 50.42,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 36.62,
+    "y": 52.96,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 36.62,
+    "y": 55.5,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 36.62,
+    "y": 58.04,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 36.62,
+    "y": 60.58,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 36.62,
+    "y": 63.12,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 26.46,
+    "y": 15,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "PIR1"
+   },
+   {
+    "x": 29,
+    "y": 15,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "PIR1"
+   },
+   {
+    "x": 31.54,
+    "y": 15,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "PIR1"
+   },
+   {
+    "x": 3.5,
+    "y": 62.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 54.5,
+    "y": 62.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 3.5,
+    "y": 3.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 54.5,
+    "y": 3.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   }
+  ]
+ },
+ "components": [
+  {
+   "id": "U1",
+   "type": "xiao_esp32c3",
+   "side": "top",
+   "access": "none",
+   "x": 29,
+   "y": 55.5,
+   "w": 17.8,
+   "d": 21,
+   "z0": 2.5,
+   "h": 1.2,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "Seeed XIAO ESP32-C3: module PCB 1.2 mm on 2.5 mm header spacers"
+  },
+  {
+   "id": "U1_hdr_1",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 21.4,
+   "y": 55.5,
+   "w": 2.5,
+   "d": 17.78,
+   "h": 2.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   }
+  },
+  {
+   "id": "U1_hdr_2",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 36.6,
+   "y": 55.5,
+   "w": 2.5,
+   "d": 17.78,
+   "h": 2.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   }
+  },
+  {
+   "id": "U1_usb",
+   "type": "usb_c",
+   "side": "top",
+   "access": "port",
+   "edge": "+y",
+   "at": 29,
+   "w": 8.94,
+   "h": 3.2,
+   "d": 7.3,
+   "z0": 3.7,
+   "protrude": 1,
+   "plug": [
+    12.4,
+    6.5
+   ],
+   "src": "modules",
+   "verify": [
+    "h",
+    "d",
+    "protrude",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "Seeed XIAO ESP32-C3 usb, z 3.7-6.9 over the carrier"
+  },
+  {
+   "id": "U1_btn_boot",
+   "type": "tact_3x4_smd",
+   "side": "top",
+   "access": "press",
+   "x": 23.3,
+   "y": 62.8,
+   "w": 2.5,
+   "d": 3,
+   "z0": 3.7,
+   "h": 1.4,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "BOOT button beside the USB connector (pinout image)"
+  },
+  {
+   "id": "U1_btn_reset",
+   "type": "tact_3x4_smd",
+   "side": "top",
+   "access": "press",
+   "x": 34.7,
+   "y": 62.8,
+   "w": 2.5,
+   "d": 3,
+   "z0": 3.7,
+   "h": 1.4,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "RESET button"
+  },
+  {
+   "id": "U1_can",
+   "type": "shield",
+   "side": "top",
+   "access": "none",
+   "x": 29,
+   "y": 53.5,
+   "w": 13,
+   "d": 12,
+   "z0": 3.7,
+   "h": 1.8,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   }
+  },
+  {
+   "id": "U1_ufl",
+   "type": "ufl",
+   "side": "top",
+   "access": "cable",
+   "x": 22.6,
+   "y": 47.5,
+   "w": 3,
+   "d": 3,
+   "z0": 3.7,
+   "h": 1.25,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "U.FL antenna connector (bottom-left of the front); the flat antenna cable must exit the case"
+  },
+  {
+   "id": "PIR1",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 29.0,
+   "y": 15.0,
+   "w": 7.62,
+   "d": 2.54,
+   "h": 8.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "evidence": {
+    "ref": "PIR1",
+    "footprint": ""
+   },
+   "note": "header under HC-SR501 PIR motion module"
+  },
+  {
+   "id": "R1",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 24.74,
+   "y": 31.13,
+   "w": 1.46,
+   "d": 2.96,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R1",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "R2",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 24.07,
+   "y": 34.96,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R2",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "LED1",
+   "type": "chip",
+   "side": "top",
+   "access": "light",
+   "x": 17,
+   "y": 39,
+   "w": 4.39,
+   "d": 3.3,
+   "h": 0.7,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "LED1",
+    "footprint": ""
+   }
+  },
+  {
+   "id": "LED2",
+   "type": "chip",
+   "side": "top",
+   "access": "light",
+   "x": 29,
+   "y": 43,
+   "w": 4.39,
+   "d": 3.3,
+   "h": 0.7,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "LED2",
+    "footprint": ""
+   }
+  },
+  {
+   "id": "LED3",
+   "type": "chip",
+   "side": "top",
+   "access": "light",
+   "x": 41,
+   "y": 39,
+   "w": 4.39,
+   "d": 3.3,
+   "h": 0.7,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "LED3",
+    "footprint": ""
+   }
+  },
+  {
+   "id": "R3",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 38.36,
+   "y": 34.27,
+   "w": 1.46,
+   "d": 2.96,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R3",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "R4",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 42.17,
+   "y": 32.98,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R4",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "R5",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 35.3,
+   "y": 37.3,
+   "w": 1.46,
+   "d": 2.96,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R5",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "Q1",
+   "type": "chip",
+   "side": "top",
+   "access": "none",
+   "x": 34.28,
+   "y": 32.52,
+   "w": 3.5,
+   "d": 3.4,
+   "h": 1,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "Q1",
+    "footprint": ""
+   }
+  },
+  {
+   "id": "R6",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 31.93,
+   "y": 37.3,
+   "w": 1.46,
+   "d": 2.96,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R6",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "R7",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 28.12,
+   "y": 39.02,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R7",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "U2",
+   "type": "chip",
+   "side": "top",
+   "access": "sensor",
+   "x": 29,
+   "y": 31.57,
+   "w": 3.86,
+   "d": 2.12,
+   "h": 0.8,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "U2",
+    "footprint": ""
+   }
+  },
+  {
+   "id": "C1",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 28.37,
+   "y": 33.41,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "C1",
+    "footprint": "cap0603"
+   }
+  },
+  {
+   "id": "C2",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 28.37,
+   "y": 35.01,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "C2",
+    "footprint": "cap0603"
+   }
+  }
+ ],
+ "keepouts": [],
+ "heights": {
+  "top_max": 6.9,
+  "bottom_max": 2,
+  "verify": [
+   "top_max",
+   "bottom_max"
+  ]
+ },
+ "mount": {
+  "preferred": "screw",
+  "screw": "M3",
+  "holes": 4
+ },
+ "accessories": [
+  {
+   "id": "PIR1",
+   "key": "hc_sr501_pir",
+   "name": "HC-SR501 PIR motion module",
+   "kind": "sensor",
+   "mount": "board",
+   "x": 29.0,
+   "y": 15.0,
+   "w": 32.2,
+   "d": 24.3,
+   "h": 1.6,
+   "z0": 8.5,
+   "window": [
+    23.2,
+    23.2
+   ],
+   "window_dx": 0.0,
+   "window_dy": 0.0,
+   "shape": "round",
+   "holes": [
+    {
+     "x": 14.5,
+     "y": 15.0,
+     "d": 2.0
+    },
+    {
+     "x": 43.5,
+     "y": 15.0,
+     "d": 2.0
+    }
+   ]
+  }
+ ]
+}

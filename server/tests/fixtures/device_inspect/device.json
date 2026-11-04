@@ -1,0 +1,283 @@
+{
+ "schema": "fw.device/1",
+ "title": "Ночник с датчиком движения",
+ "summary": "Включает теплый свет только в темноте при движении, плавное затухание, питание от USB-C",
+ "board": {
+  "holes": true,
+  "w": 58.0,
+  "h": 62.0
+ },
+ "nodes": [
+  {
+   "id": "U1",
+   "kind": "module",
+   "label": "MCU",
+   "module": "113991054",
+   "edge": "+y"
+  },
+  {
+   "id": "PIR1",
+   "kind": "accessory",
+   "label": "датчик движения",
+   "accessory": "hc_sr501_pir",
+   "place": {
+    "x": 0.0,
+    "y": -18.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "U2",
+   "kind": "chip",
+   "label": "BH1750 датчик света",
+   "lcsc": "C78960"
+  },
+  {
+   "id": "C1",
+   "kind": "capacitor",
+   "label": "U2 decoupling",
+   "value": "100nF",
+   "package": "0603"
+  },
+  {
+   "id": "C2",
+   "kind": "capacitor",
+   "label": "bulk",
+   "value": "10uF",
+   "package": "0603"
+  },
+  {
+   "id": "R1",
+   "kind": "resistor",
+   "label": "SDA pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  },
+  {
+   "id": "R2",
+   "kind": "resistor",
+   "label": "SCL pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  },
+  {
+   "id": "LED1",
+   "kind": "chip",
+   "label": "теплый LED 1",
+   "lcsc": "C210315",
+   "place": {
+    "x": -12.0,
+    "y": 6.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "LED2",
+   "kind": "chip",
+   "label": "теплый LED 2",
+   "lcsc": "C210315",
+   "place": {
+    "x": 0.0,
+    "y": 10.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "LED3",
+   "kind": "chip",
+   "label": "теплый LED 3",
+   "lcsc": "C210315",
+   "place": {
+    "x": 12.0,
+    "y": 6.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "R3",
+   "kind": "resistor",
+   "label": "LED1 resistor",
+   "value": "33R",
+   "package": "0603"
+  },
+  {
+   "id": "R4",
+   "kind": "resistor",
+   "label": "LED2 resistor",
+   "value": "33R",
+   "package": "0603"
+  },
+  {
+   "id": "R5",
+   "kind": "resistor",
+   "label": "LED3 resistor",
+   "value": "33R",
+   "package": "0603"
+  },
+  {
+   "id": "Q1",
+   "kind": "chip",
+   "label": "MOSFET N",
+   "lcsc": "C181090"
+  },
+  {
+   "id": "R6",
+   "kind": "resistor",
+   "label": "gate",
+   "value": "100R",
+   "package": "0603"
+  },
+  {
+   "id": "R7",
+   "kind": "resistor",
+   "label": "gate pull-down",
+   "value": "100k",
+   "package": "0603"
+  }
+ ],
+ "nets": [
+  {
+   "pins": [
+    "U1.GND",
+    "U2.GND",
+    "U2.EP",
+    "C1.2",
+    "C2.2",
+    "R7.2",
+    "Q1.S",
+    "PIR1.GND"
+   ],
+   "name": "GND"
+  },
+  {
+   "pins": [
+    "U1.V3V3",
+    "U2.VCC",
+    "U2.DVI",
+    "U2.ADDR",
+    "C1.1",
+    "C2.1",
+    "R1.1",
+    "R2.1"
+   ],
+   "name": "V3V3"
+  },
+  {
+   "pins": [
+    "U1.V5",
+    "PIR1.VCC",
+    "LED1.P2",
+    "LED2.P2",
+    "LED3.P2"
+   ],
+   "name": "V5"
+  },
+  {
+   "pins": [
+    "U1.SDA",
+    "U2.SDA",
+    "R1.2"
+   ],
+   "name": "SDA"
+  },
+  {
+   "pins": [
+    "U1.SCL",
+    "U2.SCL",
+    "R2.2"
+   ],
+   "name": "SCL"
+  },
+  {
+   "pins": [
+    "U1.D2",
+    "PIR1.OUT"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D1",
+    "R6.1"
+   ]
+  },
+  {
+   "pins": [
+    "R6.2",
+    "Q1.G",
+    "R7.1"
+   ]
+  },
+  {
+   "pins": [
+    "Q1.D",
+    "R3.2",
+    "R4.2",
+    "R5.2"
+   ]
+  },
+  {
+   "pins": [
+    "R3.1",
+    "LED1.P1"
+   ]
+  },
+  {
+   "pins": [
+    "R4.1",
+    "LED2.P1"
+   ]
+  },
+  {
+   "pins": [
+    "R5.1",
+    "LED3.P1"
+   ]
+  }
+ ],
+ "requirements": [
+  {
+   "id": "R1",
+   "text": "обнаруживает движение человека",
+   "parts": [
+    "PIR1"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R2",
+   "text": "измеряет освещенность и определяет темноту",
+   "parts": [
+    "U2"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R3",
+   "text": "включает теплый свет только в темноте при движении",
+   "parts": [
+    "LED1",
+    "LED2",
+    "LED3",
+    "Q1"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R4",
+   "text": "плавное включение/выключение и автовыключение",
+   "parts": [
+    "Q1"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R5",
+   "text": "питание от USB-C модуля",
+   "parts": [
+    "U1"
+   ],
+   "firmware": false
+  }
+ ],
+ "_version": 3
+}

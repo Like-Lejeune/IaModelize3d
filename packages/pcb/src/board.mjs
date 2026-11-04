@@ -26,7 +26,21 @@ export function boardFrame(cj) {
   if (!b) throw new Error('the circuit has no <board>');
   const W = b.width, H = b.height;
   const origin = [b.center.x - W / 2, b.center.y - H / 2];
-  return { board: b, W, H, origin, fw: (x, y) => [x - origin[0], y - origin[1]] };
+  const poly = Array.isArray(b.outline) && b.outline.length >= 3 ? b.outline.map((p) => [p.x - origin[0], p.y - origin[1]]) : null;
+  return { board: b, W, H, origin, poly, fw: (x, y) => [x - origin[0], y - origin[1]] };
+}
+
+/** Where a polygon outline's boundary lies on an edge's side at u along that edge (x for the +-y edges, y for +-x), or null. */
+export function rimAt(poly, edge, u) {
+  const t = edge[1] === 'y' ? 0 : 1;
+  const hits = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    if (a[t] === b[t] || u < Math.min(a[t], b[t]) || u > Math.max(a[t], b[t])) continue;
+    hits.push(a[1 - t] + ((u - a[t]) / (b[t] - a[t])) * (b[1 - t] - a[1 - t]));
+  }
+  if (!hits.length) return null;
+  return edge[0] === '+' ? Math.max(...hits) : Math.min(...hits);
 }
 
 /** Per component (by reference designator): its source/pcb records and its body box [x0, y0, x1, y1] in the circuit frame. */
@@ -78,20 +92,39 @@ function typicalHeight(key) {
   return null;
 }
 
-const gapsOf = ([x0, y0, x1, y1], W, H) => ({ '-x': x0, '+x': W - x1, '-y': y0, '+y': H - y1 });
+/**
+ * How far a body's faces lie from each edge. On a shaped board (a polygon outline) from the outline itself: at the body's
+ * corners and middle, the nearest, so a part whose corners touch a round rim is at that edge wherever along it it sits.
+ */
+export function gapsOf([x0, y0, x1, y1], W, H, poly = null) {
+  const flat = { '-x': x0, '+x': W - x1, '-y': y0, '+y': H - y1 };
+  if (!poly) return flat;
+  const near = (edge, a, b, face) => {
+    const gaps = [a, (a + b) / 2, b].map((u) => rimAt(poly, edge, u)).filter((r) => r != null).map((r) => (edge[0] === '+' ? r - face : face - r));
+    return gaps.length ? Math.min(...gaps) : flat[edge];
+  };
+  return { '-x': near('-x', y0, y1, x0), '+x': near('+x', y0, y1, x1), '-y': near('-y', x0, x1, y0), '+y': near('+y', x0, x1, y1) };
+}
 
-function portFields([x0, y0, x1, y1], edge, W, H) {
+/** How far a point on an edge's normal stands past that edge: from the outline at u on a shaped board. */
+function pastEdge(edge, n, u, W, H, poly) {
+  const rim = (poly ? rimAt(poly, edge, u) : null) ?? { '+x': W, '-x': 0, '+y': H, '-y': 0 }[edge];
+  return edge[0] === '+' ? n - rim : rim - n;
+}
+
+function portFields([x0, y0, x1, y1], edge, W, H, poly = null) {
+  const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
   switch (edge) {
-    case '-y': return { at: (x0 + x1) / 2, w: x1 - x0, d: y1 - y0, protrude: -y0 };
-    case '+y': return { at: (x0 + x1) / 2, w: x1 - x0, d: y1 - y0, protrude: y1 - H };
-    case '-x': return { at: (y0 + y1) / 2, w: y1 - y0, d: x1 - x0, protrude: -x0 };
-    default: return { at: (y0 + y1) / 2, w: y1 - y0, d: x1 - x0, protrude: x1 - W };
+    case '-y': return { at: mx, w: x1 - x0, d: y1 - y0, protrude: pastEdge(edge, y0, mx, W, H, poly) };
+    case '+y': return { at: mx, w: x1 - x0, d: y1 - y0, protrude: pastEdge(edge, y1, mx, W, H, poly) };
+    case '-x': return { at: my, w: y1 - y0, d: x1 - x0, protrude: pastEdge(edge, x0, my, W, H, poly) };
+    default: return { at: my, w: y1 - y0, d: x1 - x0, protrude: pastEdge(edge, x1, my, W, H, poly) };
   }
 }
 
 /** Where a part's port could go: the facing edge (rotated with the part) or, for an any-way part, the nearest edge. */
-export function portEdge(rule, rotation, boxFw, W, H) {
-  const gaps = gapsOf(boxFw, W, H);
+export function portEdge(rule, rotation, boxFw, W, H, poly = null) {
+  const gaps = gapsOf(boxFw, W, H, poly);
   const edge = rule.faces ? rotateEdge(rule.faces, rotation) : Object.entries(gaps).sort((a, b) => a[1] - b[1])[0][0];
   return { edge, gap: gaps[edge], gaps };
 }
@@ -100,7 +133,7 @@ const roundAll = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k,
 
 // A module on headers: its PCB as a slab at z0 = seat, the header strips under it, and its own parts lifted by
 // seat + thickness (z0), its ports included when they reach the carrier's edge.
-function expandModule(c, mod, fwCenter, W, H, pins) {
+function expandModule(c, mod, fwCenter, W, H, pins, poly = null) {
   const ds = DATASET[mod.dataset_id];
   const [mw, mh] = mod.size;
   const off = mod.offset ?? [0, 0];
@@ -149,8 +182,8 @@ function expandModule(c, mod, fwCenter, W, H, pins) {
       const mouth = { '+y': [s.at, mh + s.protrude], '-y': [s.at, -s.protrude], '+x': [mw + s.protrude, s.at], '-x': [-s.protrude, s.at] }[s.edge];
       const m = place(mouth[0], mouth[1]);
       const edge = rotateEdge(s.edge, rot);
-      const protrude = { '+x': m[0] - W, '-x': -m[0], '+y': m[1] - H, '-y': -m[1] }[edge];
       const at = edge[1] === 'x' ? m[1] : m[0];
+      const protrude = pastEdge(edge, edge[1] === 'x' ? m[0] : m[1], at, W, H, poly);
       const z0 = lift + (s.z0 ?? 0);
       if (protrude >= -EDGE_MM) {
         comps.push(roundAll({
@@ -186,7 +219,7 @@ function expandModule(c, mod, fwCenter, W, H, pins) {
  * fw.board/1 for a routed circuit. opts: {id, name, job ('pcb:v3' once the version is saved)}.
  */
 export function boardFromCircuit(cj, { id = 'pcb', name, job, lcsc = {} } = {}) {
-  const { board, W, H, origin } = boardFrame(cj);
+  const { board, W, H, origin, poly } = boardFrame(cj);
   const fw = (x, y) => [x - origin[0], y - origin[1]];
   const fwBox = (b) => [b[0] - origin[0], b[1] - origin[1], b[2] - origin[0], b[3] - origin[1]];
   const parts = componentBoxes(cj);
@@ -199,7 +232,7 @@ export function boardFromCircuit(cj, { id = 'pcb', name, job, lcsc = {} } = {}) 
     const center = fw(...c.center);
     if (mod) {
       const pins = cj.filter((e) => e.type === 'pcb_plated_hole' && e.pcb_component_id === c.pc.pcb_component_id).map((e) => fw(e.x, e.y));
-      const m = expandModule(c, mod, center, W, H, pins);
+      const m = expandModule(c, mod, center, W, H, pins, poly);
       components.push(...m.comps);
       keepouts.push(...m.keepouts);
       continue;
@@ -214,9 +247,9 @@ export function boardFromCircuit(cj, { id = 'pcb', name, job, lcsc = {} } = {}) 
     const verify = th != null || rule.unknown ? ['h'] : [];
     const ev = { ref: c.ref, footprint: c.footprint };
     if (rule.port) {
-      const { edge, gap } = portEdge(rule, c.rotation, box, W, H);
+      const { edge, gap } = portEdge(rule, c.rotation, box, W, H, poly);
       if (gap <= EDGE_MM) {
-        const p = portFields(box, edge, W, H);
+        const p = portFields(box, edge, W, H, poly);
         components.push(roundAll({
           id: c.ref, type: rule.type, side: c.layer, access: 'port', edge, at: p.at, w: p.w, h, d: p.d, z0: 0, protrude: p.protrude,
           plug: TYPICAL[rule.typical]?.plug ?? null, src: 'circuit', verify, evidence: ev,

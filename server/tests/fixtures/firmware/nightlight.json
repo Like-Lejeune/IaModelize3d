@@ -1,0 +1,146 @@
+{
+ "project": "p_8d9ba4afe72448ba",
+ "version": 8,
+ "doc": {
+  "schema": "fw.device/1",
+  "title": "Ночник с датчиком движения",
+  "summary": "Включается в темноте при движении, тёплый свет WS2812, настройка кнопкой",
+  "board": {
+   "holes": true,
+   "w": 50.0,
+   "h": 50.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU ESP32-C3",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "J2",
+    "kind": "header",
+    "label": "PIR AM312 модуль",
+    "pins": [
+     "V3V3",
+     "GND",
+     "OUT"
+    ],
+    "edge": "-y"
+   },
+   {
+    "id": "U3",
+    "kind": "chip",
+    "label": "BH1750",
+    "lcsc": "C78960"
+   },
+   {
+    "id": "LED1",
+    "kind": "chip",
+    "label": "WS2812",
+    "lcsc": "C2843785"
+   },
+   {
+    "id": "C2",
+    "kind": "capacitor",
+    "label": "U3 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "SDA pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "SCL pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "режим"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "J2.GND",
+     "U3.GND",
+     "U3.ADDR",
+     "LED1.GND",
+     "C2.2",
+     "SW1.B"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "J2.V3V3",
+     "U3.VCC",
+     "U3.DVI",
+     "C2.1",
+     "R1.1",
+     "R2.1"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.V5",
+     "LED1.VDD"
+    ],
+    "name": "V5"
+   },
+   {
+    "pins": [
+     "U1.SDA",
+     "U3.SDA",
+     "R1.2"
+    ],
+    "name": "SDA"
+   },
+   {
+    "pins": [
+     "U1.SCL",
+     "U3.SCL",
+     "R2.2"
+    ],
+    "name": "SCL"
+   },
+   {
+    "pins": [
+     "U1.D0",
+     "J2.OUT"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "LED1.DIN"
+    ]
+   }
+  ],
+  "firmware": {
+   "lang": "arduino",
+   "files": {
+    "night_light.ino": "#include <Wire.h>\n#include <BH1750.h>\n#include <Adafruit_NeoPixel.h>\n\n// Пины (XIAO ESP32-C3): SDA=D4, SCL=D5, D0=D0, D1=D1, D2=D2\n#define PIN_PIR   D0\n#define PIN_BTN   D1\n#define PIN_LED   D2\n#define NUM_LEDS 1\n\nBH1750 lightMeter;\nAdafruit_NeoPixel strip(NUM_LEDS, PIN_LED, NEO_GRB + NEO_KHZ800);\n\n// Настройки\nfloat LUX_THRESHOLD = 15.0; // ниже — считается темно\nuint32_t LIGHT_DURATION_MS = 15000; // сколько гореть после движения\nuint8_t BRIGHTNESS = 80; // 0-255\nbool warmOnly = true;\n\nunsigned long lastMotion = 0;\nbool isOn = false;\nunsigned long btnPress = 0;\n\nvoid setup(){\n  Serial.begin(115200);\n  pinMode(PIN_PIR, INPUT);\n  pinMode(PIN_BTN, INPUT_PULLUP);\n  Wire.begin(SDA, SCL); // SDA=D4 SCL=D5 на XIAO\n  if(lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) Serial.println(\"BH1750 OK\");\n  else Serial.println(\"BH1750 not found - работа без датчика света\");\n  strip.begin();\n  strip.setBrightness(BRIGHTNESS);\n  strip.clear(); strip.show();\n}\n\nvoid setLight(bool on){\n  isOn = on;\n  if(on){\n    if(warmOnly) strip.setPixelColor(0, 255, 180, 80); // тёплый белый\n    else strip.setPixelColor(0, 100, 150, 255);\n  } else strip.clear();\n  strip.show();\n}\n\nvoid loop(){\n  // Кнопка: короткое нажатие — переключить яркость/цвет, длинное 2с — выкл\n  if(digitalRead(PIN_BTN)==LOW){\n    if(btnPress==0) btnPress=millis();\n  } else {\n    if(btnPress!=0){\n      unsigned long d=millis()-btnPress;\n      if(d>2000){ setLight(false); }\n      else {\n        // цикл яркости\n        if(BRIGHTNESS<60) BRIGHTNESS=80;\n        else if(BRIGHTNESS<130) BRIGHTNESS=180;\n        else BRIGHTNESS=30;\n        strip.setBrightness(BRIGHTNESS);\n        if(isOn) setLight(true);\n      }\n      btnPress=0;\n      delay(200);\n    }\n  }\n\n  float lux = -1;\n  if(lightMeter.measurementReady()) lux = lightMeter.readLightLevel();\n  else lux = lightMeter.readLightLevel(); // пробуем\n  bool dark = true;\n  if(lux>=0) dark = (lux < LUX_THRESHOLD);\n  // PIR\n  bool motion = digitalRead(PIN_PIR)==HIGH;\n  if(motion){\n    lastMotion = millis();\n    if(dark && !isOn) setLight(true);\n  }\n  if(isOn && millis()-lastMotion > LIGHT_DURATION_MS){\n    setLight(false);\n  }\n  // если стало светло — гасим\n  if(isOn && !dark && lux>=0) setLight(false);\n\n  delay(100);\n}\n"
+   },
+   "notes": "Плата XIAO ESP32-C3. Библиотеки: BH1750 by Christopher Laws, Adafruit NeoPixel. Пины: PIR OUT -> D0, кнопка -> D1 (к GND), WS2812 DIN -> D2, I2C BH1750 SDA=D4 SCL=D5 ADDR к GND (0x23). Прошивка: включайте Arduino IDE, выберите XIAO_ESP32C3, залейте night_light.ino. Питание по USB-C XIAO 5В."
+  }
+ }
+}

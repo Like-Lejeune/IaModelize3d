@@ -122,6 +122,9 @@ export function hintFor(type, message, cj = null, nets = null) {
   if ((m = msg.match(/Net name "([^"]+)" cannot start with a number/))) {
     return `rename net.${m[1]}: a net name starts with a letter or underscore, e.g. net.V${m[1]} (as V3V3 for 3V3)`;
   }
+  if (/Unable to pack all PCB components/.test(msg)) {
+    return 'the parts without pcbX/pcbY did not fit around the placed ones and were left at the board\'s centre (the overlaps there follow from this): make the board larger or move the placed parts to leave room';
+  }
   if (/Autorouting was skipped because \d+ PCB placement error/.test(msg)) {
     return 'routing runs once the placement errors in this list are fixed';
   }
@@ -135,6 +138,12 @@ export function hintFor(type, message, cj = null, nets = null) {
     return sw
       ? `${ref} is a 4-leg switch whose legs pair up inside (pin1-pin2 and pin3-pin4 on the 6x6 footprint): wire the GPIO to pin1 and GND to pin3, and declare internallyConnectedPins={[["pin1", "pin2"], ["pin3", "pin4"]]} so ${pin} needs no trace`
       : `connect ${ref}.${pin} or remove the part: a pin left open is usually a forgotten trace`;
+  }
+  if ((m = msg.match(/^(\S+) is inferred to face ([xy][+-]).*?should face ([xy][+-])/))) {
+    const deg = { 'x+': 0, 'y+': 90, 'x-': 180, 'y-': 270 };
+    const turn = ((deg[m[3]] - deg[m[2]]) % 360 + 360) % 360;
+    const o = parts[m[1]]?.rotation ?? 0;
+    return `${m[1]} opens towards the board (${m[2]}), not out of its edge (${m[3]}): turn it by ${turn}° (pcbRotation ${r2(o)} -> ${r2((o + turn) % 360)}) so a plug can reach it`;
   }
   if (/imports are not allowed/.test(msg)) return 'drop the import lines: write one self-contained file, the circuit elements are built in';
   if (/must `export default/.test(msg)) return 'end the file with export default () => (<board width="..mm" height="..mm"> ... </board>)';
@@ -221,6 +230,24 @@ export function buttonShorts(cj) {
   return out;
 }
 
+/** A trace over its length limit (a decoupling capacitor's maxDecouplingTraceLength): the pads it runs between, the
+ * connections it carries (the router merges a net's traces into one) and a hint naming them. */
+function tooLong(e, cj) {
+  const t = cj.find((x) => x.type === 'pcb_trace' && x.pcb_trace_id === e.pcb_trace_id);
+  if (!t) return null;
+  const comp = Object.fromEntries(cj.filter((x) => x.type === 'source_component').map((c) => [c.source_component_id, c.name]));
+  const sp = Object.fromEntries(cj.filter((x) => x.type === 'source_port').map((p) => [p.source_port_id, p]));
+  const pp = Object.fromEntries(cj.filter((x) => x.type === 'pcb_port').map((p) => [p.pcb_port_id, p]));
+  const name = (pcbPortId) => { const s = sp[pp[pcbPortId]?.source_port_id]; return s ? `${comp[s.source_component_id]}.${s.name}` : null; };
+  const ends = [...new Set((t.route ?? []).flatMap((p) => [p.start_pcb_port_id, p.end_pcb_port_id]).filter(Boolean).map(name).filter(Boolean))];
+  const ids = String(e.pcb_trace_id ?? '').match(/source_trace_\d+/g) ?? [e.source_trace_id].filter(Boolean);
+  const traces = [...new Set(ids)].map((id) => cj.find((x) => x.type === 'source_trace' && x.source_trace_id === id)?.display_name).filter(Boolean);
+  const length = r2(e.actual_trace_length ?? NaN), max = r2(e.maximum_trace_length ?? NaN);
+  const hint = `${ends.join(' to ') || 'a trace'} routed ${fmt(length)} mm against a ${fmt(max)} mm limit (it carries ${traces.join(', ') || 'a capacitor connection'}): `
+    + 'a decoupling capacitor wants its chip close; place them together, or raise the capacitor\'s maxDecouplingTraceLength';
+  return { ends, traces, length, max, hint };
+}
+
 function refsOf(e, cj) {
   const ids = e.pcb_component_ids ?? (e.pcb_component_id ? [e.pcb_component_id] : []);
   if (!ids.length) return null;
@@ -229,11 +256,15 @@ function refsOf(e, cj) {
   return pc[ids[0]] ?? null;
 }
 
+// warnings a finished device cannot ship with: a connector that opens towards the board cannot take its plug
+export const DEVICE_ERRORS = ['pcb_connector_not_in_accessible_orientation_warning'];
+
 /**
  * Errors and warnings of a built circuit plus an independent DRC run: {errors, warnings, suppressed, quiet}.
  * suppressed: cascaded "not connected" errors (routing skipped) and errors past the first 12; quiet: noise warnings by type.
+ * promote: warning types counted as errors (DEVICE_ERRORS for a device build).
  */
-export function digest(cj, drc = [], nets = null) {
+export function digest(cj, drc = [], nets = null, { promote = [] } = {}) {
   const seen = new Set();
   const all = [];
   for (const e of [...cj, ...drc, ...buttonShorts(cj)]) {
@@ -243,21 +274,25 @@ export function digest(cj, drc = [], nets = null) {
     seen.add(key);
     all.push(e);
   }
-  const errs = all.filter((e) => e.type.endsWith('_error'));
+  const isError = (e) => e.type.endsWith('_error') || promote.includes(e.type);
+  const errs = all.filter(isError);
   const skipped = errs.some((e) => e.type === 'pcb_autorouting_error');
   const root = errs.filter((e) => !(skipped && CASCADE.test(e.type)));
   let suppressed = errs.length - root.length;
   // root causes first: what blocks routing, then placement, then the rest
-  const rank = (e) => (e.type === 'pcb_autorouting_error' ? 0 : /placement|outside|overlap|footprint|selector|source_/.test(e.type + e.message) ? 1 : 2);
+  // a packing that gave up leaves the free parts at the board's centre: every overlap there follows from it
+  const rank = (e) => (e.type === 'pcb_packing_error' ? -1 : e.type === 'pcb_autorouting_error' ? 0 : /placement|outside|overlap|footprint|selector|source_/.test(e.type + e.message) ? 1 : 2);
   root.sort((a, b) => rank(a) - rank(b));
   const errors = root.slice(0, MAX_ERRORS).map((e) => {
     const ref = refsOf(e, cj);
-    return { type: e.type, message: e.message, hint: e.hint ?? hintFor(e.type, e.message, cj, nets), ...(ref ? { ref } : {}) };
+    const long = e.type === 'pcb_trace_too_long_error' ? tooLong(e, cj) : null;
+    return { type: e.type, message: e.message, hint: e.hint ?? long?.hint ?? hintFor(e.type, e.message, cj, nets), ...(ref ? { ref } : {}),
+      ...(long ? { ends: long.ends, traces: long.traces, length: long.length, max: long.max } : {}) };
   });
   suppressed += Math.max(0, root.length - MAX_ERRORS);
   const quiet = {};
   const warnings = [];
-  for (const e of all.filter((x) => x.type.endsWith('_warning'))) {
+  for (const e of all.filter((x) => x.type.endsWith('_warning') && !isError(x))) {
     if (QUIET.has(e.type)) { quiet[e.type] = (quiet[e.type] ?? 0) + 1; continue; }
     const hint = hintFor(e.type, e.message, cj, nets);
     warnings.push({ type: e.type, message: e.message, ...(hint ? { hint } : {}) });

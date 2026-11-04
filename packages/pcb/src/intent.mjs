@@ -4,7 +4,7 @@
 // and the build checks it against the netlist (source-level connectivity, so it works before routing succeeds) and
 // against the fw.board/1 description (edge ports). Plus the hard limits of this pipeline.
 import { getSourcePortConnectivityMapFromCircuitJson } from 'circuit-json-to-connectivity-map';
-import { EDGE_MM, MODULES, componentBoxes, boardFrame, partRule, rotateEdge } from './board.mjs';
+import { EDGE_MM, MODULES, componentBoxes, boardFrame, gapsOf, partRule, rotateEdge } from './board.mjs';
 
 export const LIMITS = { layers: 2, nets: 30, components: 40, size_mm: 100 };
 const EDGE_NAMES = { left: '-x', right: '+x', top: '+y', bottom: '-y', '+x': '+x', '-x': '-x', '+y': '+y', '-y': '-y' };
@@ -120,10 +120,10 @@ function edgeCheck(cj, board, ref, want) {
   if (ports.length) {
     return { code: 'intent_wrong_edge', ref, msg: `${ref} is on the ${ports[0].edge} edge, the intent says ${edge}`, hint: `move ${ref} to the ${edge} edge or change the intent` };
   }
-  const { W, H, origin } = boardFrame(cj);
+  const { W, H, origin, poly } = boardFrame(cj);
   const box = [part.box[0] - origin[0], part.box[1] - origin[1], part.box[2] - origin[0], part.box[3] - origin[1]];
   const rule = partRule(part.ftype, part.footprint);
-  const gaps = { '-x': box[0], '+x': W - box[2], '-y': box[1], '+y': H - box[3] };
+  const gaps = gapsOf(box, W, H, poly);
   const faces = rule?.faces ? rotateEdge(rule.faces, part.rotation) : null;
   const turn = faces && faces !== edge ? `pcbRotation={${[0, 90, 180, 270].find((r) => rotateEdge(rule.faces, r) === edge)}}` : null;
   if (gaps[edge] <= EDGE_MM && turn) {

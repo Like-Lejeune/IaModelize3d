@@ -1,0 +1,2818 @@
+{
+ "_note": "the boards far larger than their parts: Spark Open runs of 2026-11-04, latest versions, firmware left out (timer_v1: the first write, whose place_conflict offered board.h >= 99); bench_*: the placer's bench (scripts/device_bench.py), latest versions of 2026-11-04, firmware left out: packed by tscircuit they failed on free boards and grew",
+ "timer": {
+  "schema": "fw.device/1",
+  "title": "Кухонный таймер",
+  "summary": "Кухонный таймер с OLED 0.96\" — установка минут/секунд тремя кнопками, обратный отсчёт, громкий сигнал и пауза/сброс",
+  "board": {
+   "holes": true,
+   "w": 58.0,
+   "h": 78.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "DS1",
+    "kind": "accessory",
+    "label": "OLED 0.96\"",
+    "accessory": "oled_096_i2c",
+    "place": {
+     "x": 0.0,
+     "y": 5.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "UP (+)",
+    "place": {
+     "x": -18.0,
+     "y": -20.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "SW2",
+    "kind": "button",
+    "label": "DOWN (-)",
+    "place": {
+     "x": 0.0,
+     "y": -20.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "SW3",
+    "kind": "button",
+    "label": "START/PAUSE",
+    "place": {
+     "x": 18.0,
+     "y": -20.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "buzzer 3V active",
+    "lcsc": "C417385",
+    "face": "sound"
+   },
+   {
+    "id": "Q1",
+    "kind": "chip",
+    "label": "NPN driver",
+    "lcsc": "C2146"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "base resistor",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "flyback"
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "SDA pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "SCL pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "LiPo 500mAh",
+    "accessory": "lipo_1s_500"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "DS1.GND",
+     "SW1.B",
+     "SW2.B",
+     "SW3.B",
+     "Q1.E"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "DS1.VCC",
+     "R1.1",
+     "R2.1",
+     "BZ1.POS",
+     "D1.K"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.SDA",
+     "DS1.SDA",
+     "R1.2"
+    ],
+    "name": "SDA"
+   },
+   {
+    "pins": [
+     "U1.SCL",
+     "DS1.SCL",
+     "R2.2"
+    ],
+    "name": "SCL"
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "SW2.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "SW3.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R3.1"
+    ]
+   },
+   {
+    "pins": [
+     "R3.2",
+     "Q1.B"
+    ]
+   },
+   {
+    "pins": [
+     "Q1.C",
+     "BZ1.NEG",
+     "D1.A"
+    ]
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "Установка времени кнопками +/−",
+    "parts": [
+     "SW1",
+     "SW2"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "Старт/пауза и сброс таймера кнопкой",
+    "parts": [
+     "SW3"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "Отображение установленного и оставшегося времени на OLED",
+    "parts": [
+     "DS1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "Громкий звуковой сигнал по окончании",
+    "parts": [
+     "BZ1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "Питание от USB-C модуля, опционально LiPo с зарядкой, переход в сон после бездействия",
+    "parts": [
+     "U1",
+     "BT1"
+    ],
+    "firmware": true
+   }
+  ]
+ },
+ "timer_v1": {
+  "schema": "fw.device/1",
+  "title": "Кухонный таймер",
+  "summary": "Кухонный таймер с OLED 0.96\" — установка минут/секунд тремя кнопками, обратный отсчёт, громкий сигнал и пауза/сброс",
+  "board": {
+   "holes": true,
+   "w": 52.0,
+   "h": 58.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "DS1",
+    "kind": "accessory",
+    "label": "OLED 0.96\"",
+    "accessory": "oled_096_i2c",
+    "place": {
+     "x": 0.0,
+     "y": 14.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "UP (+)",
+    "place": {
+     "x": -16.0,
+     "y": -12.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "SW2",
+    "kind": "button",
+    "label": "DOWN (-)",
+    "place": {
+     "x": 0.0,
+     "y": -12.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "SW3",
+    "kind": "button",
+    "label": "START/PAUSE",
+    "place": {
+     "x": 16.0,
+     "y": -12.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "buzzer 3V active",
+    "lcsc": "C417385"
+   },
+   {
+    "id": "Q1",
+    "kind": "chip",
+    "label": "NPN driver",
+    "lcsc": "C2146"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "base resistor",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "flyback"
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "SDA pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "SCL pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "LiPo 500mAh",
+    "accessory": "lipo_1s_500"
+   },
+   {
+    "id": "C1",
+    "kind": "capacitor",
+    "label": "decoupling",
+    "value": "100nF",
+    "package": "0603"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "DS1.GND",
+     "SW1.B",
+     "SW2.B",
+     "SW3.B",
+     "Q1.E",
+     "D1.A"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "DS1.VCC",
+     "R1.1",
+     "R2.1",
+     "BZ1.POS",
+     "D1.K"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.SDA",
+     "DS1.SDA",
+     "R1.2"
+    ],
+    "name": "SDA"
+   },
+   {
+    "pins": [
+     "U1.SCL",
+     "DS1.SCL",
+     "R2.2"
+    ],
+    "name": "SCL"
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "SW2.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "SW3.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R3.1"
+    ]
+   },
+   {
+    "pins": [
+     "R3.2",
+     "Q1.B"
+    ]
+   },
+   {
+    "pins": [
+     "Q1.C",
+     "BZ1.NEG"
+    ]
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "Установка времени кнопками +/−",
+    "parts": [
+     "SW1",
+     "SW2"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "Старт/пауза и сброс таймера кнопкой",
+    "parts": [
+     "SW3"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "Отображение установленного и оставшегося времени на OLED",
+    "parts": [
+     "DS1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "Громкий звуковой сигнал по окончании",
+    "parts": [
+     "BZ1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "Питание от USB-C модуля, опционально LiPo с зарядкой, переход в сон после бездействия",
+    "parts": [
+     "U1",
+     "BT1"
+    ],
+    "firmware": true
+   }
+  ]
+ },
+ "soil": {
+  "schema": "fw.device/1",
+  "title": "Датчик влажности почвы",
+  "summary": "Ёмкостный датчик в горшке, OLED показывает влажность %, 3 светодиода и звуковое напоминание о поливе, LiPo с зарядкой по USB-C",
+  "board": {
+   "holes": true,
+   "w": 62.0,
+   "h": 70.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "SOIL1",
+    "kind": "accessory",
+    "label": "зонд влажности",
+    "accessory": "soil_capacitive_v12",
+    "edge": "-y"
+   },
+   {
+    "id": "DS1",
+    "kind": "accessory",
+    "label": "OLED 0.96",
+    "accessory": "oled_096_i2c",
+    "place": {
+     "x": 0.0,
+     "y": 8.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "LiPo 500мАч",
+    "accessory": "lipo_1s_500"
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "сухо",
+    "color": "red",
+    "place": {
+     "x": -14.0,
+     "y": -10.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "LED2",
+    "kind": "led",
+    "label": "норма",
+    "color": "green",
+    "place": {
+     "x": 0.0,
+     "y": -10.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "LED3",
+    "kind": "led",
+    "label": "мокро",
+    "color": "blue",
+    "place": {
+     "x": 14.0,
+     "y": -10.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "LED1 рез.",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "LED2 рез.",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "LED3 рез.",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "LED4",
+    "kind": "led",
+    "label": "статус",
+    "color": "yellow",
+    "place": {
+     "x": -20.0,
+     "y": -18.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "R4",
+    "kind": "resistor",
+    "label": "LED4 рез.",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "buzzer 3V",
+    "lcsc": "C781847",
+    "place": {
+     "x": 20.0,
+     "y": -18.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "Q1",
+    "kind": "chip",
+    "label": "NPN MMBT2222A",
+    "lcsc": "C8512"
+   },
+   {
+    "id": "R5",
+    "kind": "resistor",
+    "label": "база Q1",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "flyback"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "проверка",
+    "place": {
+     "x": 0.0,
+     "y": -18.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "R6",
+    "kind": "resistor",
+    "label": "SDA pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R7",
+    "kind": "resistor",
+    "label": "SCL pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "C1",
+    "kind": "capacitor",
+    "label": "фильтр ADC",
+    "value": "100nF",
+    "package": "0603"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "DS1.GND",
+     "SOIL1.GND",
+     "LED1.K",
+     "LED2.K",
+     "LED3.K",
+     "LED4.K",
+     "Q1.E",
+     "SW1.B",
+     "C1.2"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "DS1.VCC",
+     "SOIL1.VCC",
+     "R6.1",
+     "R7.1",
+     "BZ1.POS",
+     "D1.K"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.SDA",
+     "DS1.SDA",
+     "R6.2"
+    ],
+    "name": "SDA"
+   },
+   {
+    "pins": [
+     "U1.SCL",
+     "DS1.SCL",
+     "R7.2"
+    ],
+    "name": "SCL"
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SOIL1.AOUT",
+     "C1.1"
+    ],
+    "name": "SOIL_ADC"
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "R1.1"
+    ]
+   },
+   {
+    "pins": [
+     "R1.2",
+     "LED1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R2.1",
+     "R3.1"
+    ]
+   },
+   {
+    "pins": [
+     "R2.2",
+     "LED2.A"
+    ]
+   },
+   {
+    "pins": [
+     "R3.2",
+     "LED3.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.RX",
+     "R4.1"
+    ]
+   },
+   {
+    "pins": [
+     "R4.2",
+     "LED4.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.TX",
+     "R5.1"
+    ]
+   },
+   {
+    "pins": [
+     "R5.2",
+     "Q1.B"
+    ]
+   },
+   {
+    "pins": [
+     "Q1.C",
+     "BZ1.NEG",
+     "D1.A"
+    ]
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "измерять влажность почвы ёмкостным датчиком",
+    "parts": [
+     "SOIL1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "показывать влажность в % на OLED дисплее",
+    "parts": [
+     "DS1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "светодиодная индикация: сухо / норма / мокро",
+    "parts": [
+     "LED1",
+     "LED2",
+     "LED3"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "звуковое напоминание о поливе (буззер)",
+    "parts": [
+     "BZ1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "кнопка ручной проверки и калибровки",
+    "parts": [
+     "SW1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R6",
+    "text": "автономная работа от LiPo, зарядка от USB-C, засыпание между замерами",
+    "parts": [
+     "U1",
+     "BT1"
+    ],
+    "firmware": true
+   }
+  ]
+ },
+ "night_light": {
+  "schema": "fw.device/1",
+  "title": "Ночник с датчиком движения",
+  "summary": "В темноте включает тёплый свет при движении, гаснет через таймер",
+  "board": {
+   "holes": true,
+   "w": 60.0,
+   "h": 60.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "U2",
+    "kind": "chip",
+    "label": "AM312 PIR",
+    "lcsc": "C114881"
+   },
+   {
+    "id": "C1",
+    "kind": "capacitor",
+    "label": "U2 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "R_LDR",
+    "kind": "chip",
+    "label": "LDR GL5528",
+    "lcsc": "C10081"
+   },
+   {
+    "id": "R_DIV",
+    "kind": "resistor",
+    "label": "LDR divider",
+    "value": "47k",
+    "package": "0603"
+   },
+   {
+    "id": "R_D1",
+    "kind": "resistor",
+    "label": "LDR protection",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "LED1",
+    "kind": "chip",
+    "label": "WS2812 #1",
+    "lcsc": "C2843785"
+   },
+   {
+    "id": "LED2",
+    "kind": "chip",
+    "label": "WS2812 #2",
+    "lcsc": "C2843785"
+   },
+   {
+    "id": "LED3",
+    "kind": "chip",
+    "label": "WS2812 #3",
+    "lcsc": "C2843785"
+   },
+   {
+    "id": "LED4",
+    "kind": "chip",
+    "label": "WS2812 #4",
+    "lcsc": "C2843785"
+   },
+   {
+    "id": "C2",
+    "kind": "capacitor",
+    "label": "LED1 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C3",
+    "kind": "capacitor",
+    "label": "LED2 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C4",
+    "kind": "capacitor",
+    "label": "LED3 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C5",
+    "kind": "capacitor",
+    "label": "LED4 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C6",
+    "kind": "capacitor",
+    "label": "LED chain bulk",
+    "value": "10uF",
+    "package": "0603"
+   },
+   {
+    "id": "R_DATA",
+    "kind": "resistor",
+    "label": "DIN series",
+    "value": "330R",
+    "package": "0603"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "WS2812 drop diode"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "Mode",
+    "place": {
+     "x": 20.0,
+     "y": -20.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "LiPo 500mAh",
+    "accessory": "lipo_1s_500"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "U2.GND",
+     "C1.2",
+     "R_DIV.2",
+     "LED1.GND",
+     "LED2.GND",
+     "LED3.GND",
+     "LED4.GND",
+     "C2.2",
+     "C3.2",
+     "C4.2",
+     "C5.2",
+     "C6.2",
+     "SW1.B"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "U2.VCC",
+     "C1.1",
+     "R_LDR.P1"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.V5",
+     "D1.A"
+    ],
+    "name": "V5"
+   },
+   {
+    "pins": [
+     "D1.K",
+     "LED1.VDD",
+     "LED2.VDD",
+     "LED3.VDD",
+     "LED4.VDD",
+     "C2.1",
+     "C3.1",
+     "C4.1",
+     "C5.1",
+     "C6.1"
+    ],
+    "name": "VLED"
+   },
+   {
+    "pins": [
+     "R_LDR.P2",
+     "R_DIV.1",
+     "R_D1.1"
+    ],
+    "name": "LDR_TAP"
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R_DATA.1"
+    ]
+   },
+   {
+    "pins": [
+     "R_DATA.2",
+     "LED1.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "LED1.DOU",
+     "LED2.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "LED2.DOU",
+     "LED3.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "LED3.DOU",
+     "LED4.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "R_D1.2",
+     "U1.D2"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "U2.OUT"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "SW1.A"
+    ]
+   }
+  ],
+  "layouts": [
+   {
+    "pattern": "ring",
+    "nodes": [
+     "LED1",
+     "LED2",
+     "LED3",
+     "LED4"
+    ],
+    "center": [
+     0.0,
+     -5.0
+    ],
+    "pitch": 8.0,
+    "radius": 16.0,
+    "rot": 0.0
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "Обнаружение движения PIR-сенсором",
+    "parts": [
+     "U2"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "Измерение освещённости (день/ночь)",
+    "parts": [
+     "R_LDR",
+     "R_DIV"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "Тёплая подсветка ночника (4× WS2812)",
+    "parts": [
+     "LED1",
+     "LED2",
+     "LED3",
+     "LED4"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "Автоотключение по таймеру и плавное затухание",
+    "parts": [
+     "U1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "Кнопка режимов и питание от USB/BAT с LiPo",
+    "parts": [
+     "SW1",
+     "BT1"
+    ],
+    "firmware": true
+   }
+  ]
+ },
+ "bench_leak_round": {
+  "schema": "fw.device/1",
+  "title": "Датчик протечки воды",
+  "summary": "Датчик протечки с выносным щупом, сиреной, светодиодами и Wi-Fi оповещением, питание от LiPo с зарядкой от USB-C",
+  "board": {
+   "holes": true,
+   "w": 44.0,
+   "h": 44.0,
+   "shape": "round"
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "-x"
+   },
+   {
+    "id": "PR1",
+    "kind": "accessory",
+    "label": "щуп протечки",
+    "accessory": "leak_probe",
+    "edge": "-y"
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "батарея",
+    "accessory": "lipo_1s_1000"
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "buzzer",
+    "lcsc": "C49246934"
+   },
+   {
+    "id": "Q1",
+    "kind": "chip",
+    "label": "NPN driver",
+    "lcsc": "C2146"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "flyback"
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "норма",
+    "color": "green",
+    "place": {
+     "x": -8.0,
+     "y": 9.93,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "LED2",
+    "kind": "led",
+    "label": "тревога",
+    "color": "red",
+    "place": {
+     "x": 8.0,
+     "y": 6.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "LED green res",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "LED red res",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "base",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "mute/test",
+    "place": {
+     "x": 4.71,
+     "y": -10.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "R4",
+    "kind": "resistor",
+    "label": "probe pullup",
+    "value": "100k",
+    "package": "0603"
+   },
+   {
+    "id": "R5",
+    "kind": "resistor",
+    "label": "bat div high",
+    "value": "220k",
+    "package": "0603"
+   },
+   {
+    "id": "R6",
+    "kind": "resistor",
+    "label": "bat div low",
+    "value": "220k",
+    "package": "0603"
+   },
+   {
+    "id": "C1",
+    "kind": "capacitor",
+    "label": "bat filter",
+    "value": "100nF",
+    "package": "0603"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.D2",
+     "R1.1"
+    ]
+   },
+   {
+    "pins": [
+     "R1.2",
+     "LED1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "R2.1"
+    ]
+   },
+   {
+    "pins": [
+     "R2.2",
+     "LED2.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R3.1"
+    ]
+   },
+   {
+    "pins": [
+     "R3.2",
+     "Q1.B"
+    ]
+   },
+   {
+    "pins": [
+     "U1.RX",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.GND",
+     "Q1.E",
+     "LED1.K",
+     "LED2.K",
+     "SW1.B",
+     "R6.2",
+     "C1.2",
+     "PR1.GND"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "R4.1",
+     "BZ1.POS",
+     "D1.K"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "R4.2",
+     "PR1.SENSE",
+     "U1.D1"
+    ],
+    "name": "PROBE"
+   },
+   {
+    "pins": [
+     "BT1.VBAT",
+     "R5.1"
+    ],
+    "name": "VBAT"
+   },
+   {
+    "pins": [
+     "Q1.C",
+     "BZ1.NEG",
+     "D1.A"
+    ],
+    "name": "BUZZ_SW"
+   },
+   {
+    "pins": [
+     "R5.2",
+     "R6.1",
+     "C1.1",
+     "U1.SDA"
+    ],
+    "name": "VBAT_DIV"
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "обнаружение воды щупом протечки",
+    "parts": [
+     "PR1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "звуковой сигнал при протечке",
+    "parts": [
+     "BZ1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "световая индикация: зелёный норма, красный тревога",
+    "parts": [
+     "LED1",
+     "LED2"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "кнопка отключения/теста",
+    "parts": [
+     "SW1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "питание от LiPo с зарядкой от USB-C модуля, уход в сон",
+    "parts": [
+     "BT1"
+    ],
+    "firmware": true
+   }
+  ],
+  "concept": {
+   "uses": [
+    "на полу в ванной/кухне как напольная шайба с контактами-ножками: при появлении воды — громкий писк и красный светодиод",
+    "на стене рядом со стиральной машиной с выносным щупом на проводе в самом низком месте"
+   ],
+   "options": [
+    {
+     "name": "Puck floor",
+     "look": "круглая шайба на полу, контакты-винты снизу как ножки, кольцо светодиодов сверху",
+     "panel": "красный и зеленый светодиоды в центре сверху, кнопка сбоку, щуп выведен вниз",
+     "form": "round",
+     "stance": "desk",
+     "mounting": "contacts",
+     "module_edge": "-x",
+     "board": {
+      "shape": "round",
+      "w": 44.0,
+      "h": 44.0
+     }
+    },
+    {
+     "name": "Wall puck",
+     "look": "плоская коробка на стене с ушами, щуп на проводе уходит вниз к полу",
+     "panel": "светодиоды сверху, кнопка по центру, модуль USB-C вниз",
+     "form": "soft",
+     "stance": "wall",
+     "mounting": "ears",
+     "module_edge": "-y",
+     "board": {
+      "shape": "rect",
+      "w": 50.0,
+      "h": 40.0
+     }
+    },
+    {
+     "name": "Desk block",
+     "look": "мягкий брусок на полке рядом с бойлером",
+     "panel": "два светодиода в ряд сверху, кнопка рядом, щуп с торца",
+     "form": "soft",
+     "stance": "desk",
+     "mounting": "none",
+     "module_edge": "+y",
+     "board": {
+      "shape": "rect",
+      "w": 52.0,
+      "h": 44.0
+     }
+    }
+   ],
+   "chosen": "Puck floor",
+   "why": "Напольная шайба — самое естественное для протечки: стоит там где течёт, контакты-ножки сами замыкаются водой, а выносной щуп достаёт в узкие места."
+  }
+ },
+ "bench_dice_rounded": {
+  "schema": "fw.device/1",
+  "title": "Электронный игральный кубик",
+  "summary": "Нажми кнопку — 7 светодиодов покажут 1-6 как на кубике, анимация броска, сон и пробуждение кнопкой, зарядка по USB-C",
+  "board": {
+   "holes": true,
+   "w": 59.0,
+   "h": 64.0,
+   "shape": "rounded"
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "-y"
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "точка 1",
+    "color": "red"
+   },
+   {
+    "id": "LED2",
+    "kind": "led",
+    "label": "точка 2",
+    "color": "red"
+   },
+   {
+    "id": "LED3",
+    "kind": "led",
+    "label": "точка 3",
+    "color": "red"
+   },
+   {
+    "id": "LED4",
+    "kind": "led",
+    "label": "точка 4",
+    "color": "red"
+   },
+   {
+    "id": "LED5",
+    "kind": "led",
+    "label": "точка 5",
+    "color": "red"
+   },
+   {
+    "id": "LED6",
+    "kind": "led",
+    "label": "точка 6",
+    "color": "red"
+   },
+   {
+    "id": "LED7",
+    "kind": "led",
+    "label": "точка 7",
+    "color": "red"
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "LED1 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "LED2 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "LED3 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R4",
+    "kind": "resistor",
+    "label": "LED4 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R5",
+    "kind": "resistor",
+    "label": "LED5 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R6",
+    "kind": "resistor",
+    "label": "LED6 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R7",
+    "kind": "resistor",
+    "label": "LED7 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "бросок",
+    "place": {
+     "x": 15.0,
+     "y": -14.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "бипер",
+    "lcsc": "C391032"
+   },
+   {
+    "id": "Q1",
+    "kind": "chip",
+    "label": "NPN транзистор",
+    "lcsc": "C2146"
+   },
+   {
+    "id": "R8",
+    "kind": "resistor",
+    "label": "база Q1",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "батарея",
+    "accessory": "lipo_1s_500"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "LED1.K",
+     "LED2.K",
+     "LED3.K",
+     "LED4.K",
+     "LED5.K",
+     "LED6.K",
+     "LED7.K",
+     "SW1.B",
+     "Q1.E"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "BZ1.NEG"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "R1.1"
+    ]
+   },
+   {
+    "pins": [
+     "R1.2",
+     "LED1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "R2.1",
+     "R7.1"
+    ]
+   },
+   {
+    "pins": [
+     "R2.2",
+     "LED2.A"
+    ]
+   },
+   {
+    "pins": [
+     "R7.2",
+     "LED7.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R3.1",
+     "R6.1"
+    ]
+   },
+   {
+    "pins": [
+     "R3.2",
+     "LED3.A"
+    ]
+   },
+   {
+    "pins": [
+     "R6.2",
+     "LED6.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.RX",
+     "R4.1",
+     "R5.1"
+    ]
+   },
+   {
+    "pins": [
+     "R4.2",
+     "LED4.A"
+    ]
+   },
+   {
+    "pins": [
+     "R5.2",
+     "LED5.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.SDA",
+     "R8.1"
+    ]
+   },
+   {
+    "pins": [
+     "R8.2",
+     "Q1.B"
+    ]
+   },
+   {
+    "pins": [
+     "Q1.C",
+     "BZ1.POS"
+    ]
+   }
+  ],
+  "layouts": [
+   {
+    "pattern": "dice",
+    "nodes": [
+     "LED1",
+     "LED2",
+     "LED3",
+     "LED4",
+     "LED5",
+     "LED6",
+     "LED7"
+    ],
+    "center": [
+     0.0,
+     10.0
+    ],
+    "pitch": 9.0,
+    "rot": 0.0
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "7 светодиодов-точек в раскладке игрального кубика, видны через крышку",
+    "parts": [
+     "LED1",
+     "LED2",
+     "LED3",
+     "LED4",
+     "LED5",
+     "LED6",
+     "LED7"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "кнопка броска на крышке",
+    "parts": [
+     "SW1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "анимация броска и случайный результат 1-6",
+    "parts": [
+     "U1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "питание от LiPo с зарядкой через USB-C модуля, глубокий сон и пробуждение кнопкой",
+    "parts": [
+     "U1",
+     "BT1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "звук броска — писк бипера",
+    "parts": [
+     "BZ1"
+    ],
+    "firmware": true
+   }
+  ],
+  "concept": {
+   "uses": [
+    "на столе в настольной игре: нажал кнопку — выпало число, все видят яркие точки",
+    "в поездке в руке: маленький кубик в ладони, тряхнул — нажал",
+    "на полке как сувенир: стоит на подставке, светится при нажатии"
+   ],
+   "options": [
+    {
+     "name": "Настольный кубик",
+     "look": "квадратный корпус как кубик, точки сверху, кнопка сбоку-сверху, стоит на столе",
+     "panel": "7 LED точек в центре по схеме кубика, кнопка броска справа вверху у края",
+     "form": "soft",
+     "stance": "desk",
+     "mounting": "none",
+     "module_edge": "-y",
+     "board": {
+      "shape": "rounded",
+      "w": 59.0,
+      "h": 64.0
+     }
+    },
+    {
+     "name": "Карманный брелок",
+     "look": "круглый пук с ушком для ремешка",
+     "panel": "точки по кругу, кнопка внизу",
+     "form": "round",
+     "stance": "hand",
+     "mounting": "lanyard",
+     "module_edge": "-y",
+     "board": {
+      "shape": "round",
+      "w": 42.0,
+      "h": 42.0
+     }
+    },
+    {
+     "name": "Кубик-куб",
+     "look": "мини-куб на столе, все грани закруглены",
+     "panel": "точки в центре, кнопка на углу",
+     "form": "box",
+     "stance": "desk",
+     "mounting": "none",
+     "module_edge": "-y",
+     "board": {
+      "shape": "rect",
+      "w": 40.0,
+      "h": 40.0
+     }
+    }
+   ],
+   "chosen": "Настольный кубик",
+   "why": "Самый удобный для игры — стоит на столе, точки крупные и читаются всеми, кнопка под пальцем, место для батареи внутри."
+  }
+ },
+ "bench_night_light_round": {
+  "schema": "fw.device/1",
+  "title": "Ночник с датчиком движения",
+  "summary": "Тёплый ночник: включается плавно в темноте при движении, гаснет через 30с, кнопка меняет яркость",
+  "board": {
+   "holes": false,
+   "w": 68.0,
+   "h": 68.0,
+   "shape": "round"
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "-y"
+   },
+   {
+    "id": "U2",
+    "kind": "chip",
+    "label": "PIR AM312",
+    "lcsc": "C114881",
+    "place": {
+     "x": 0.0,
+     "y": 7.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "C1",
+    "kind": "capacitor",
+    "label": "U2 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "LDR1",
+    "kind": "chip",
+    "label": "фоторезистор GL5528",
+    "lcsc": "C10081",
+    "place": {
+     "x": 18.0,
+     "y": 9.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "R_LDR",
+    "kind": "resistor",
+    "label": "LDR делитель",
+    "value": "10k",
+    "package": "0603"
+   },
+   {
+    "id": "LED1",
+    "kind": "chip",
+    "label": "WS2812B 1",
+    "lcsc": "C2843785"
+   },
+   {
+    "id": "LED2",
+    "kind": "chip",
+    "label": "WS2812B 2",
+    "lcsc": "C2843785"
+   },
+   {
+    "id": "LED3",
+    "kind": "chip",
+    "label": "WS2812B 3",
+    "lcsc": "C2843785"
+   },
+   {
+    "id": "LED4",
+    "kind": "chip",
+    "label": "WS2812B 4",
+    "lcsc": "C2843785"
+   },
+   {
+    "id": "LED5",
+    "kind": "chip",
+    "label": "WS2812B 5",
+    "lcsc": "C2843785"
+   },
+   {
+    "id": "LED6",
+    "kind": "chip",
+    "label": "WS2812B 6",
+    "lcsc": "C2843785"
+   },
+   {
+    "id": "C2",
+    "kind": "capacitor",
+    "label": "LED1 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C3",
+    "kind": "capacitor",
+    "label": "LED chain bulk",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C4",
+    "kind": "capacitor",
+    "label": "LED bulk 10uF",
+    "value": "10uF",
+    "package": "0603"
+   },
+   {
+    "id": "R_DIN",
+    "kind": "resistor",
+    "label": "DIN resistor",
+    "value": "330R",
+    "package": "0603"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "WS2812 level diode"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "режим",
+    "place": {
+     "x": -18.0,
+     "y": 10.0,
+     "rot": 0.0
+    }
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "U2.GND",
+     "C1.2",
+     "R_LDR.2",
+     "LED1.GND",
+     "LED2.GND",
+     "LED3.GND",
+     "LED4.GND",
+     "LED5.GND",
+     "LED6.GND",
+     "C2.2",
+     "C3.2",
+     "C4.2",
+     "SW1.B"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "U2.VCC",
+     "C1.1",
+     "LDR1.P1"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.V5",
+     "D1.A",
+     "C4.1"
+    ],
+    "name": "V5"
+   },
+   {
+    "pins": [
+     "D1.K",
+     "LED1.VDD",
+     "LED2.VDD",
+     "LED3.VDD",
+     "LED4.VDD",
+     "LED5.VDD",
+     "LED6.VDD",
+     "C2.1",
+     "C3.1"
+    ],
+    "name": "VLED"
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "U2.OUT"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "LDR1.P2",
+     "R_LDR.1"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R_DIN.1"
+    ]
+   },
+   {
+    "pins": [
+     "R_DIN.2",
+     "LED1.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "LED1.DOU",
+     "LED2.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "LED2.DOU",
+     "LED3.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "LED3.DOU",
+     "LED4.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "LED4.DOU",
+     "LED5.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "LED5.DOU",
+     "LED6.DIN"
+    ]
+   }
+  ],
+  "layouts": [
+   {
+    "pattern": "ring",
+    "nodes": [
+     "LED1",
+     "LED2",
+     "LED3",
+     "LED4",
+     "LED5",
+     "LED6"
+    ],
+    "center": [
+     0.0,
+     9.0
+    ],
+    "pitch": 8.0,
+    "radius": 13.0,
+    "rot": 0.0
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "обнаруживать движение PIR-сенсором",
+    "parts": [
+     "U2"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "измерять освещённость и включать только в темноте",
+    "parts": [
+     "LDR1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "тёплый свет с плавным включением/затуханием",
+    "parts": [
+     "LED1",
+     "LED2",
+     "LED3",
+     "LED4",
+     "LED5",
+     "LED6"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "кнопка переключения режимов яркости",
+    "parts": [
+     "SW1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "питание от USB-C модуля",
+    "parts": [
+     "U1"
+    ],
+    "firmware": false
+   }
+  ],
+  "concept": {
+   "uses": [
+    "в коридоре ночью: мягкий свет на полу, включается при проходе, не слепит",
+    "в детской на тумбочке: тусклое свечение, реагирует на движение ребёнка"
+   ],
+   "options": [
+    {
+     "name": "Puck round",
+     "look": "круглая таблетка с матовым кольцом света по краю",
+     "panel": "кольцо из 6 LED по кругу, PIR-линза в центре, фоторезистор рядом, кнопка сбоку",
+     "form": "round",
+     "stance": "desk",
+     "mounting": "none",
+     "module_edge": "-y",
+     "board": {
+      "shape": "round",
+      "w": 68.0,
+      "h": 68.0
+     }
+    },
+    {
+     "name": "Wall tile",
+     "look": "квадратная плитка на стену с винтами-ушами",
+     "panel": "LED матрица спереди, PIR внизу, датчик света вверху",
+     "form": "box",
+     "stance": "wall",
+     "mounting": "ears",
+     "module_edge": "-y",
+     "board": {
+      "shape": "rect",
+      "w": 50.0,
+      "h": 50.0
+     }
+    },
+    {
+     "name": "Upright dome",
+     "look": "полусфера на подставке как маленький светильник",
+     "panel": "купол рассеивает свет, PIR смотрит вперёд, кнопка сверху",
+     "form": "soft",
+     "stance": "upright",
+     "mounting": "none",
+     "module_edge": "-y",
+     "board": {
+      "shape": "round",
+      "w": 44.0,
+      "h": 44.0
+     }
+    }
+   ],
+   "chosen": "Puck round",
+   "why": "Круглый пук лучше рассеивает свет по кругу для ночника, компактный на тумбочке и в коридоре, PIR в центре видит 360° отражённо"
+  }
+ },
+ "bench_timer_rect": {
+  "schema": "fw.device/1",
+  "title": "Кухонный таймер",
+  "summary": "Кухонный таймер с OLED-экраном, 3 кнопками и громким бипером, питание от USB-C с подзарядкой LiPo",
+  "board": {
+   "holes": true,
+   "w": 48.0,
+   "h": 62.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "DS1",
+    "kind": "accessory",
+    "label": "дисплей 0.91\" 128x32",
+    "accessory": "oled_091_i2c",
+    "place": {
+     "x": -4.0,
+     "y": 5.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "SET/+",
+    "place": {
+     "x": -14.0,
+     "y": -18.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "SW2",
+    "kind": "button",
+    "label": "START/STOP",
+    "place": {
+     "x": 0.0,
+     "y": -18.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "SW3",
+    "kind": "button",
+    "label": "-/RESET",
+    "place": {
+     "x": 14.0,
+     "y": -18.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "бипер активный 3В",
+    "lcsc": "C391032",
+    "place": {
+     "x": 18.0,
+     "y": -8.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "Q1",
+    "kind": "chip",
+    "label": "NPN S8050",
+    "lcsc": "C2146"
+   },
+   {
+    "id": "R5",
+    "kind": "resistor",
+    "label": "база Q1",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "flyback"
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "SDA pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "SCL pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "LiPo 500мАч",
+    "accessory": "lipo_1s_500"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "DS1.GND",
+     "SW1.B",
+     "SW2.B",
+     "SW3.B",
+     "Q1.E"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "DS1.VCC",
+     "R1.1",
+     "R2.1",
+     "BZ1.POS",
+     "D1.K"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.SDA",
+     "DS1.SDA",
+     "R1.2"
+    ],
+    "name": "SDA"
+   },
+   {
+    "pins": [
+     "U1.SCL",
+     "DS1.SCL",
+     "R2.2"
+    ],
+    "name": "SCL"
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW2.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "SW3.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R5.1"
+    ]
+   },
+   {
+    "pins": [
+     "R5.2",
+     "Q1.B"
+    ]
+   },
+   {
+    "pins": [
+     "Q1.C",
+     "BZ1.NEG",
+     "D1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "SW1.A"
+    ]
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "отображение оставшегося времени и статуса на OLED",
+    "parts": [
+     "DS1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "установка времени и управление таймером 3 кнопками",
+    "parts": [
+     "SW1",
+     "SW2",
+     "SW3"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "громкий звуковой сигнал по окончании",
+    "parts": [
+     "BZ1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "питание от USB-C, автономная работа от LiPo с зарядкой",
+    "parts": [
+     "BT1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "мигание экрана и прерывистый сигнал при срабатывании",
+    "parts": [
+     "DS1",
+     "BZ1"
+    ],
+    "firmware": true
+   }
+  ],
+  "concept": {
+   "uses": [
+    "на кухонном столе: поставил время кнопками, нажал Старт, видишь обратный отсчёт крупно на экране, громкий сигнал в конце",
+    "на полке у плиты на магните: закрепил на холодильник, видно издалека"
+   ],
+   "options": [
+    {
+     "name": "Настольный клин",
+     "look": "небольшой клин на подставке, экран под наклоном к повару",
+     "panel": "OLED по центру сверху, 3 кнопки в ряд снизу, бипер справа от экрана",
+     "form": "soft",
+     "stance": "tilt",
+     "mounting": "none",
+     "module_edge": "+y",
+     "board": {
+      "shape": "rect",
+      "w": 53.0,
+      "h": 72.0
+     }
+    },
+    {
+     "name": "Настенный плитка",
+     "look": "плоская плитка на ушках на стене",
+     "panel": "OLED в центре, кнопки под ним, бипер над экраном",
+     "form": "box",
+     "stance": "wall",
+     "mounting": "ears",
+     "module_edge": "-y",
+     "board": {
+      "shape": "rect",
+      "w": 44.0,
+      "h": 58.0
+     }
+    },
+    {
+     "name": "Холодильник-шайба",
+     "look": "круглая шайба на магнитах на холодильнике",
+     "panel": "круглый OLED в центре, кнопки по дуге снизу, бипер сбоку",
+     "form": "round",
+     "stance": "upright",
+     "mounting": "magnets",
+     "module_edge": "-y",
+     "board": {
+      "shape": "round",
+      "w": 50.0,
+      "h": 50.0
+     }
+    }
+   ],
+   "chosen": "Настольный клин",
+   "why": "Клин под углом 25° лучше всего виден с высоты стола, компактен и стоит без крепления"
+  }
+ },
+ "bench_soil_rounded": {
+  "schema": "fw.device/1",
+  "title": "Датчик влажности почвы",
+  "summary": "Емкостной датчик для комнатного цветка: OLED показывает влажность %, LED и писк при сухости, калибровка кнопкой, LiPo с зарядкой от USB-C",
+  "board": {
+   "holes": true,
+   "w": 52.0,
+   "h": 42.0,
+   "shape": "rounded"
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "DS1",
+    "kind": "accessory",
+    "label": "OLED 0.91\"",
+    "accessory": "oled_091_i2c",
+    "place": {
+     "x": 0.0,
+     "y": -2.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "SOIL1",
+    "kind": "accessory",
+    "label": "зонд влажности",
+    "accessory": "soil_capacitive_v12",
+    "edge": "-y"
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "LiPo 500mAh",
+    "accessory": "lipo_1s_500"
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "норма",
+    "color": "green",
+    "place": {
+     "x": -12.0,
+     "y": 10.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "LED2",
+    "kind": "led",
+    "label": "сухо",
+    "color": "red",
+    "place": {
+     "x": 12.0,
+     "y": 10.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "LED1 resistor",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "LED2 resistor",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "SDA pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R4",
+    "kind": "resistor",
+    "label": "SCL pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "калибровка",
+    "place": {
+     "x": 18.0,
+     "y": -14.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "buzzer active",
+    "lcsc": "C391032"
+   },
+   {
+    "id": "Q1",
+    "kind": "chip",
+    "label": "NPN driver",
+    "lcsc": "C2146"
+   },
+   {
+    "id": "R5",
+    "kind": "resistor",
+    "label": "base resistor",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "flyback"
+   },
+   {
+    "id": "C1",
+    "kind": "capacitor",
+    "label": "decoupling buzzer",
+    "value": "100nF",
+    "package": "0603"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "DS1.GND",
+     "SOIL1.GND",
+     "LED1.K",
+     "LED2.K",
+     "SW1.B",
+     "Q1.E",
+     "C1.2"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "DS1.VCC",
+     "SOIL1.VCC",
+     "R3.1",
+     "R4.1",
+     "BZ1.POS",
+     "D1.K",
+     "C1.1"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.SDA",
+     "DS1.SDA",
+     "R3.2"
+    ],
+    "name": "SDA"
+   },
+   {
+    "pins": [
+     "U1.SCL",
+     "DS1.SCL",
+     "R4.2"
+    ],
+    "name": "SCL"
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R1.1"
+    ]
+   },
+   {
+    "pins": [
+     "R1.2",
+     "LED1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.TX",
+     "R2.1"
+    ]
+   },
+   {
+    "pins": [
+     "R2.2",
+     "LED2.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "SOIL1.AOUT"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "R5.1"
+    ]
+   },
+   {
+    "pins": [
+     "R5.2",
+     "Q1.B"
+    ]
+   },
+   {
+    "pins": [
+     "Q1.C",
+     "BZ1.NEG",
+     "D1.A"
+    ]
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "измерять влажность почвы емкостным зондом",
+    "parts": [
+     "SOIL1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "показывать влажность % на OLED",
+    "parts": [
+     "DS1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "LED-индикация: зеленый норм, красный сухо",
+    "parts": [
+     "LED1",
+     "LED2"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "звуковой сигнал при сухой почве",
+    "parts": [
+     "BZ1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "кнопка калибровки сухая/мокрая",
+    "parts": [
+     "SW1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R6",
+    "text": "питание от LiPo, заряд от USB-C модуля, сон между замерами",
+    "parts": [
+     "BT1"
+    ],
+    "firmware": true
+   }
+  ],
+  "concept": {
+   "uses": [
+    "на подоконнике рядом с горшком: экран показывает влажность, LED подсвечивает сухую землю",
+    "на полке с цветами: поставил — забыл, пищит когда нужно полить, ночью спит"
+   ],
+   "options": [
+    {
+     "name": "Горшочек",
+     "look": "мягкий скруглённый блок у края горшка, экран сверху",
+     "panel": "OLED в центре крышки, LED-индикатор над ним, кнопка калибровки сбоку, зонд кабелем в землю",
+     "form": "soft",
+     "stance": "desk",
+     "mounting": "none",
+     "module_edge": "+y",
+     "board": {
+      "shape": "rounded",
+      "w": 69.0,
+      "h": 61.0
+     }
+    },
+    {
+     "name": "Колышек",
+     "look": "высокий стержень втыкается в землю горшка, дисплей на макушке",
+     "panel": "OLED сверху, LED по кругу, кнопка сбоку",
+     "form": "box",
+     "stance": "desk",
+     "mounting": "stake",
+     "module_edge": "-y",
+     "board": {
+      "shape": "rect",
+      "w": 32.0,
+      "h": 60.0
+     }
+    },
+    {
+     "name": "Подвесной",
+     "look": "круглый медальон вешается на край горшка",
+     "panel": "OLED в центре, LED кольцо, кнопка внизу",
+     "form": "round",
+     "stance": "hand",
+     "mounting": "none",
+     "module_edge": "-y",
+     "board": {
+      "shape": "round",
+      "w": 45.0,
+      "h": 45.0
+     }
+    }
+   ],
+   "chosen": "Горшочек",
+   "why": "Устойчивый блок рядом с горшком не травмирует корни, кабель зонда гибкий, экран удобно читать сверху, батарея и плата помещаются компактно."
+  }
+ }
+}

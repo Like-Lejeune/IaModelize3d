@@ -22,6 +22,8 @@ dependencies = [
   "scipy",
   "python-multipart",
   "meta-sam-parser",
+  "ziglang",
+  "wasmtime",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +31,10 @@ dev = ["pytest", "pytest-asyncio"]
 
 [tool.setuptools.packages.find]
 include = ["formwright*"]
+
+[tool.setuptools.package-data]
+# the Arduino core and library headers the firmware check compiles against (firmware_check.py)
+formwright = ["firmware_stubs/*.h", "firmware_stubs/*/*.h", "firmware_sim/*.cpp"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

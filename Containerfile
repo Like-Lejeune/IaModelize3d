@@ -11,7 +11,8 @@
 FROM node:24-bookworm-slim AS pcb
 WORKDIR /app/packages/pcb
 COPY packages/pcb/package.json packages/pcb/package-lock.json ./
-RUN npm ci --ignore-scripts --no-audit --no-fund
+# manifold-3d on its own: on Linux the bundle step cannot otherwise resolve manifold-3d/manifold.wasm
+RUN npm ci --ignore-scripts --no-audit --no-fund && npm install --no-save --ignore-scripts --no-audit --no-fund manifold-3d@3.5.4
 COPY packages/geom/src/boards.json /app/packages/geom/src/boards.json
 COPY packages/pcb/src src
 COPY packages/pcb/scripts scripts
@@ -29,10 +30,11 @@ RUN npm run build -w web
 
 FROM python:3.12-slim-trixie
 ARG ORCA_APPIMAGE_URL=""
-# what the extracted AppImage loads from the host (its own check names libopengl0 and libglu1-mesa); no FUSE is needed
+# what the extracted AppImage loads from the host (its own check names libopengl0 and libglu1-mesa); no FUSE is needed.
+# g++: the firmware check compiles each device's sketch against the stub Arduino headers (firmware_check.py; no link)
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl ffmpeg xvfb xauth libgl1 libegl1 libopengl0 libglu1-mesa libglib2.0-0t64 libgtk-3-0t64 \
-      libwebkit2gtk-4.1-0 libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 file \
+      libwebkit2gtk-4.1-0 libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 file g++ \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=web /usr/local/bin/node /usr/local/bin/node
 RUN if [ -n "$ORCA_APPIMAGE_URL" ]; then \

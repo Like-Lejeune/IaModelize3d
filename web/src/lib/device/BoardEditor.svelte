@@ -8,11 +8,13 @@
   // Backspace steps back, Esc or the right button cancels. A right click elsewhere opens the menu of what is under it;
   // the middle or right button drags the view, the wheel zooms, F fits. Every change goes into the device document at
   // once (Ctrl+Z undoes it); "Route" in the workspace header builds the board again: hand traces and placements stay,
-  // the autorouter joins the rest, the pours fill, DRC checks it all.
+  // the autorouter joins the rest, the pours fill, DRC checks it all. A part's card says who placed it: the person (pcb),
+  // the AI engineer (place, or a layout such as the dice pips: a dotted outline) or the build; dragging makes it the person's.
   import { pcbApi } from '$lib/pcb/api';
   import type { ProjectStore } from '$lib/project.svelte';
   import type { DeviceDoc, DevNode } from './api';
-  import { dt } from './i18n';
+  import { dt, patternName } from './i18n';
+  import { layoutOf, placedBy } from './facets';
   import {
     align, carry, flip, lockTrace, octi, readCopper, routeCopper, segLength, unrouted,
     type Layer, type Pad, type Pose, type Pt, type Route, type Seg,
@@ -51,6 +53,8 @@
   const nodeOf = $derived(new Map((doc?.nodes ?? []).map((n) => [n.id, n])));
   const W = $derived(doc?.board.w ?? copper?.board.w ?? 30);
   const H = $derived(doc?.board.h ?? copper?.board.h ?? 30);
+  // the plate's corners: a round board is all corner, a rounded one has the radius it was built with
+  const cornerR = $derived(doc?.board.shape === 'round' ? Math.min(W, H) / 2 : doc?.board.shape === 'rounded' ? (doc.board.r ?? Math.min(W, H) / 6) : 0.6);
 
   // ---- tools and state
   type Tool = 'select' | 'route' | 'pour' | 'keepout' | 'measure';
@@ -151,7 +155,8 @@
   const partsNow = $derived((copper?.parts ?? []).map((p) => {
     const q = poses.get(p.id)!;
     const swap = turned(p.id) % 180 === 90;
-    return { id: p.id, x: q.x, y: q.y, w: swap ? p.h : p.w, h: swap ? p.w : p.h, pinned: !!nodeOf.get(p.id)?.pcb, moved: moved.has(p.id) };
+    const by = placedBy(doc, nodeOf.get(p.id));
+    return { id: p.id, x: q.x, y: q.y, w: swap ? p.h : p.w, h: swap ? p.w : p.h, pinned: by === 'person', designer: by === 'designer', moved: moved.has(p.id) };
   }));
   // an autorouted trace to a part that moved is out of date: its connection shows as a ratsnest line until the build
   const gone = $derived(new Set([...hidden, ...(copper?.traces ?? []).filter((t) => !t.hand && [t.from, t.to].some((k) => k && moved.has(k.split('.')[0]))).map((t) => t.id)]));
@@ -624,7 +629,7 @@
       sel = { kind: 'part', id: part.id };
       if (!readonly) {
         items.push({ label: dt('ed_rotate'), key: 'R', run: () => rotate(part.id, 90) });
-        if (part.pinned) items.push({ label: dt('unpin'), run: () => unpin(part.id) });
+        if (part.pinned) items.push({ label: nodeOf.get(part.id)?.place || layoutOf(doc, part.id) ? dt('unpin_designer') : dt('unpin'), run: () => unpin(part.id) });
       }
     } else if (t) {
       sel = t.kind === 'auto' ? { kind: 'auto', id: t.id! } : { kind: 'hand', i: t.i! };
@@ -698,7 +703,11 @@
     if (sel.kind === 'part') {
       const p = partsNow.find((q) => q.id === (sel as { id: string }).id), q = poses.get((sel as { id: string }).id);
       const n = nodeOf.get((sel as { id: string }).id);
-      return p && q ? { kind: 'part' as const, id: p.id, label: n?.label ?? '', x: q.x, y: q.y, rot: q.rot, pinned: p.pinned } : null;
+      if (!p || !q) return null;
+      // who put it there: the person (pcb), the designer (place, or a layout such as the dice pips), else the build
+      const lay = layoutOf(doc, p.id);
+      const tag = p.pinned ? dt('place_pinned') : p.designer ? (lay ? dt('placed_layout', { p: patternName(lay.layout.pattern) }) : dt('placed_designer')) : dt('ed_auto_placed');
+      return { kind: 'part' as const, id: p.id, label: n?.label ?? '', x: q.x, y: q.y, rot: q.rot, pinned: p.pinned, designer: p.designer, tag, back: !!(n?.place || lay) };
     }
     if (sel.kind === 'zone') {
       const z = zones[sel.i];
@@ -760,7 +769,7 @@
         </pattern>
       </defs>
       <g transform="scale(1,-1)">
-        <rect class="board" x={-W / 2} y={-H / 2} width={W} height={H} rx="0.6" />
+        <rect class="board" x={-W / 2} y={-H / 2} width={W} height={H} rx={cornerR} />
         {#if showGrid}
           <rect x={vb.x} y={-(vb.y + vb.h)} width={vb.w} height={vb.h} fill="url(#grid-minor)" pointer-events="none" />
           <rect x={vb.x} y={-(vb.y + vb.h)} width={vb.w} height={vb.h} fill="url(#grid-major)" pointer-events="none" />
@@ -795,7 +804,7 @@
           {/if}
         {/each}
         {#each partsNow as p (p.id)}
-          <rect class="court" class:sel={sel?.kind === 'part' && sel.id === p.id} class:moved={p.moved} class:pinned={p.pinned && !p.moved}
+          <rect class="court" class:sel={sel?.kind === 'part' && sel.id === p.id} class:moved={p.moved} class:pinned={p.pinned && !p.moved} class:designer={p.designer && !p.moved}
             x={p.x - p.w / 2 - 0.25} y={p.y - p.h / 2 - 0.25} width={p.w + 0.5} height={p.h + 0.5} rx="0.3" />
         {/each}
         {#each ratsnest as l, i (i)}<line class="rat" x1={l[0]} y1={l[1]} x2={l[2]} y2={l[3]} />{/each}
@@ -863,13 +872,14 @@
     {#if info}
       <div class="card">
         {#if info.kind === 'part'}
-          <div class="ct"><b>{info.id}</b><span class="tag">{info.pinned ? dt('place_pinned') : dt('ed_auto_placed')}</span></div>
+          <div class="ct"><b>{info.id}</b><span class="tag" class:dsg={info.designer}>{info.tag}</span></div>
           {#if info.label}<div class="cd">{info.label}</div>{/if}
           <div class="cd mono">X {info.x.toFixed(2)} · Y {info.y.toFixed(2)} · {info.rot}°</div>
+          {#if info.designer && !readonly}<div class="cd muted">{dt('placed_designer_move')}</div>{/if}
           {#if !readonly}
             <div class="cb">
               <button class="tb" onclick={() => rotate(info.id, 90)} title="R"><i class="ti ti-rotate-clockwise-2" aria-hidden="true"></i> {dt('ed_rotate')}</button>
-              {#if info.pinned}<button class="tb" onclick={() => unpin(info.id)}>{dt('unpin')}</button>{/if}
+              {#if info.pinned}<button class="tb" onclick={() => unpin(info.id)}>{info.back ? dt('unpin_designer') : dt('unpin')}</button>{/if}
             </div>
           {/if}
         {:else if info.kind === 'zone'}
@@ -985,6 +995,12 @@
   }
   .court.pinned {
     stroke-dasharray: 0.5 0.3;
+  }
+  /* placed by the designer (place, a layout): a dotted outline in the accent of the designer's own marks */
+  .court.designer {
+    stroke: rgba(120, 200, 255, 0.7);
+    stroke-dasharray: 0.15 0.25;
+    stroke-width: 0.12;
   }
   .court.moved {
     stroke: #e6b045;
@@ -1210,6 +1226,10 @@
   .tag.hand {
     background: color-mix(in srgb, var(--primary) 30%, transparent);
     color: #fff;
+  }
+  .tag.dsg {
+    background: rgba(120, 200, 255, 0.18);
+    color: rgb(170, 220, 255);
   }
   .cd {
     color: #aaa;

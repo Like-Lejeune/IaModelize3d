@@ -18,7 +18,7 @@ KIND = {
     "write_circuit": "build", "check_pcb": "inspect", "export_fab": "export", "make_enclosure": "build",
     # whole devices: parts from the LCSC catalogue, the device graph, its board, firmware and price
     "search_parts": "standard", "part_info": "standard", "write_device": "build", "build_device": "build",
-    "write_firmware": "build", "quote_device": "export",
+    "write_firmware": "build", "simulate_device": "inspect", "quote_device": "export", "inspect_board": "look", "inspect_case": "look", "inspect_part": "inspect",
 }
 
 # which stage of the job a tool belongs to
@@ -93,6 +93,8 @@ RU = {
     "the board hits the case": "плата задевает корпус", " touches a wall": " касается стенки", "the board is not held": "плата не закреплена",
     " button out of reach": " не нажимается", " window blocked": " закрыт пластиком", "the lid does not fit": "крышка не садится",
     "snaps bend": "защёлки гнутся на", "snaps ": "защёлки ", "metal in an antenna keep-out": "металл в зоне антенны",
+    " display window blocked": ": окно экрана перекрыто", " sensor covered": ": датчик закрыт", "no sound holes over ": "нет отверстий для звука над ",
+    "no cable exit for ": "нет выхода кабеля для ", "no room for ": "нет места для ",
     "Writing the circuit": "Пишу схему", "Changing the circuit": "Меняю схему", "Fixing the circuit": "Исправляю схему",
     "Routing took too long, simplifying the board": "Трассировка заняла слишком много времени, упрощаю плату",
     "Checking the board": "Проверяю плату", "Checking PCB v": "Проверяю плату v", "Exporting Gerber, BOM and CPL": "Готовлю Gerber, BOM и CPL",
@@ -111,6 +113,9 @@ RU = {
     "Writing the firmware": "Пишу прошивку", "Pricing": "Считаю цену", "finished devices": "готовых устройств", "Device v": "Устройство v",
     "Firmware: ": "Прошивка: ", " devices: $": " шт.: $", "ready by": "готово к", "first version": "первая версия",
     "the device is not ready": "устройство ещё не готово", ", stock ": ", на складе ", "problems: ": "проблем: ", "notes: ": "замечаний: ",
+    "design errors: ": "ошибок в схеме: ", " — check passed": " — проверка пройдена", " — check failed: ": " — ошибок проверки: ",
+    " — not checked": " — не проверена",
+    "self-check against the checklist": "самопроверка по чек-листу", "the self-check leaves part kinds out": "в самопроверке пропущены типы деталей",
 }
 
 # Russian counts decline their noun ("23 traces" -> "23 трассы"), so these go by pattern before the plain phrases
@@ -183,6 +188,55 @@ def handover(reason: str, version: int, printable: bool, reviewed: bool, languag
                 f"{'проверена' if reviewed else 'не проверена'}. Напишите сообщение, чтобы продолжить.")
     return (f"{en} Version {version} is the latest: {'printable' if printable else 'it still has printability problems'}, "
             f"{'reviewed' if reviewed else 'not reviewed'}. Send a message to keep improving it.")
+
+
+# what is left of a device that stopped before an accepted finish (device_tools.handover), in a few words each
+DEVICE_LEFT = {
+    "build": ("build the board from it", "собрать из неё плату"),
+    "drc": ("fix the board's DRC errors", "исправить ошибки DRC на плате"),
+    "intent": ("move the parts the board check points at", "передвинуть детали, на которые указала проверка платы"),
+    "case": ("make the case for the latest board", "сделать корпус под последнюю плату"),
+    "firmware": ("write the firmware", "написать прошивку"),
+    "firmware_failed": ("fix the firmware so it passes its check", "исправить прошивку, чтобы она прошла проверку"),
+    "firmware_stale": ("update the firmware to the new wiring", "обновить прошивку под новую разводку"),
+}
+
+
+def device_handover(reason: str, f: dict[str, Any], language: str | None) -> str:
+    """'Time is up for this run. Device version 11: PCB v6 is built from it with 0 DRC errors, the case is made, the
+    firmware passes its check. Left: ... Send a message to continue.' The case program's own version number means
+    nothing to the person here, so it never appears. f: device_tools.handover's facts {device, pcb, built, drc, intent_ok,
+    case, firmware: None|'passed'|'failed'|'unchecked'|'stale', left: [DEVICE_LEFT keys], notes: [the reviewer's words]}."""
+    en, ru = HANDOVER.get(reason, HANDOVER["turns"])
+    r = _ru(language)
+    drc = int(f.get("drc") or 0)
+    if not f.get("device"):
+        state = "Устройства пока нет." if r else "There is no device yet."
+    else:
+        bits = []
+        if not f.get("pcb"):
+            bits.append("плата ещё не собиралась" if r else "no board is built yet")
+        elif f.get("built"):
+            bits.append(f"из неё собрана плата v{f['pcb']}, {drc} {_ru_form(drc, ('ошибка DRC', 'ошибки DRC', 'ошибок DRC'))}" if r
+                        else f"PCB v{f['pcb']} is built from it with {_n(drc, 'DRC error', 'DRC errors')}")
+        else:
+            bits.append(f"последняя плата v{f['pcb']} собрана из более ранней версии" if r else f"the latest board, PCB v{f['pcb']}, is from an earlier version")
+        if f.get("pcb") and f.get("built"):
+            bits.append(("корпус под неё сделан" if f.get("case") else "корпуса под неё пока нет") if r
+                        else ("the case is made for it" if f.get("case") else "no case for it yet"))
+        fw = f.get("firmware")
+        bits.append({"passed": ("прошивка прошла проверку", "the firmware passes its check"),
+                     "failed": ("прошивка пока не проходит проверку", "the firmware does not pass its check yet"),
+                     "unchecked": ("прошивка написана, но не проверена", "the firmware is written but not checked"),
+                     "stale": ("прошивка написана под прежнюю разводку", "the firmware was written for the earlier wiring")}.get(
+            fw or "", ("прошивки пока нет", "no firmware yet"))[0 if r else 1])
+        state = (f"Устройство — версия {f['device']}: " if r else f"Device version {f['device']}: ") + ", ".join(bits) + "."
+    left = [DEVICE_LEFT[k][1 if r else 0] for k in f.get("left") or [] if k in DEVICE_LEFT]
+    notes = [_short(str(n), 160).rstrip(".") for n in (f.get("notes") or [])[:2] if str(n).strip()]
+    if notes:
+        left.append(("замечания ревьюера: " if r else "the reviewer's notes: ") + "; ".join(notes))
+    rest = (" Осталось: " if r else " Left: ") + "; ".join(left) + "." if left else ""
+    return f"{ru if r else en} {state}{rest} " + ("Напишите сообщение, чтобы продолжить." if r else "Send a message to continue.")
 
 
 def review_of(critic: dict[str, Any] | None, version: int) -> str | None:
@@ -283,8 +337,17 @@ def _elec_call(name: str, a: dict[str, Any]) -> str:
         return "Placing and routing the board"
     if name == "write_firmware":
         return f"Writing the firmware ({a.get('lang') or 'arduino'})"
+    if name == "simulate_device":
+        return "Running the firmware on a virtual board"
     if name == "quote_device":
         return f"Pricing {a.get('qty') or 5} finished devices"
+    if name == "inspect_board":
+        f = a.get("focus")
+        return f"Looking closely at {f} on the board" if isinstance(f, str) and f else "Looking closely at the board"
+    if name == "inspect_case":
+        return f"Looking at {a['focus']} in the case" if a.get("focus") else "Looking closely at the case"
+    if name == "inspect_part":
+        return f"Reading everything about {a.get('id') or 'the part'}"
     if name == "scan_board":
         return "Scanning the board on the photo" + (f": {a['hint']}" if a.get("hint") else "")
     if name == "use_board":
@@ -307,8 +370,20 @@ def _elec_call(name: str, a: dict[str, Any]) -> str:
         " and a printable mock-up of it" if a.get("with_mockup") is not False else "")
 
 
+def _sim_title(r: dict[str, Any]) -> str:
+    sim = r.get("simulation")
+    if not isinstance(sim, dict):
+        return f"Simulated {r.get('end_s')} s of device time"
+    if not sim.get("ran"):
+        return "Not simulated"
+    errs = sum(1 for f in sim.get("findings") or [] if f.get("severity") == "error")
+    cov = sim.get("coverage") or {}
+    return f"Simulation: {cov.get('scenarios')} scenarios, " + (f"problems: {errs}" if errs else "clean")
+
+
 ELEC_TOOLS = ("scan_board", "use_board", "check_enclosure", "write_circuit", "check_pcb", "export_fab", "make_enclosure",
-              "search_parts", "part_info", "write_device", "build_device", "write_firmware", "quote_device")
+              "search_parts", "part_info", "write_device", "build_device", "write_firmware", "simulate_device", "quote_device", "inspect_board",
+              "inspect_case", "inspect_part")
 PCB_LOOKS = {"pcb": "Looking at the routed board from the top", "pcb_bottom": "Looking at the board from below", "schematic": "Reading the schematic"}
 
 
@@ -400,7 +475,8 @@ CASE_PROBLEM = {
     "port_blocked": "{p} plug blocked", "board_collision": "the board hits the case", "component_clear": "{p} touches a wall",
     "pcb_seated": "the board is not held", "button_reach": "{p} button out of reach", "button_unreachable": "{p} button out of reach",
     "light_window": "{p} window blocked", "lid_fit": "the lid does not fit", "snap_strain": "snaps bend {v} %",
-    "metal_in_keepout": "metal in an antenna keep-out",
+    "metal_in_keepout": "metal in an antenna keep-out", "display_window": "{p} display window blocked", "sensor_window": "{p} sensor covered",
+    "sound_grille": "no sound holes over {p}", "cable_exit": "no cable exit for {p}", "battery_space": "no room for {p}",
 }
 SCALE = {"board_holes": "scale from its holes", "a4": "scale from the A4 sheet", "card": "scale from the bank card",
          "board_outline": "scale from its outline", "none": "no scale reference"}
@@ -453,7 +529,10 @@ def _case_suffix(enc: Any) -> str:
 
 
 def _drc(r: dict[str, Any]) -> int:
-    """DRC errors of a PCB brief, the suppressed follow-ups included ('3 DRC error(s): ...')."""
+    """DRC errors of a PCB brief as the board's own version counts them (pcb_tools.brief: drc_errors, the listed root
+    errors; an older brief's '3 DRC error(s): ...' or its list)."""
+    if isinstance(r.get("drc_errors"), int):
+        return r["drc_errors"]
     m = re.match(r"(\d+) DRC", str(r.get("error") or ""))
     return int(m[1]) if m else len(r.get("errors") or [])
 
@@ -480,14 +559,31 @@ def _elec_result(name: str, args: dict[str, Any], r: dict[str, Any]) -> str | No
         return f"{r.get('mpn')} ({r.get('lcsc')}): {_n(len(r.get('pins') or []), 'pin', 'pins')}, {r.get('package')}, stock {r.get('stock')}"
     if name == "write_device" and r.get("version") is not None:
         bad = len(r.get("issues") or [])
+        errs = len(r.get("design_errors") or [])
         warn = len(r.get("design_warnings") or [])
         return (f"Device v{r['version']} — {_n(int(r.get('nodes') or 0), 'part', 'parts')}, {_n(int(r.get('nets') or 0), 'net', 'nets')}"
-                + (f", problems: {bad}" if bad else "") + (f", notes: {warn}" if warn else ""))
+                + (f", problems: {bad}" if bad else "") + (f", design errors: {errs}" if errs else "") + (f", notes: {warn}" if warn else ""))
     if name == "build_device" and r.get("version") is not None and "counts" in r:
         size = f", {_size(r['board_mm'])}" if r.get("board_mm") else ""
         return _pcb(r) + size
-    if name == "write_firmware" and r.get("ok"):
-        return "Firmware: " + ", ".join(r.get("files") or [])
+    if name == "write_firmware" and r.get("version") is not None and r.get("files"):
+        chk = r.get("check") if isinstance(r.get("check"), dict) else {}
+        head = "Firmware: " + ", ".join(r.get("files") or [])
+        if not chk.get("ran"):
+            return head + (" — not checked" if chk else "")
+        if chk.get("ok"):
+            return head + " — check passed"
+        n = chk["errors"] if isinstance(chk.get("errors"), int) else len(r.get("errors") or []) or 1
+        return head + f" — check failed: {n}"
+    if name in ("inspect_board", "inspect_case", "inspect_part") and r.get("ok"):
+        if name == "inspect_part":
+            return f"{r.get('id')}: {_n(len(r.get('pins') or []), 'pin', 'pins')}" + (f", driven by {r['driven_by'][0]}" if r.get("driven_by") else "")
+        if name == "inspect_case":
+            return f"Case v{r.get('case_version')}, {str(r.get('mode') or '').replace('_', ' ')}" + (f": {r['part']['id']}" if r.get("part") else "")
+        what = r.get("id") or r.get("net") or ("a region" if r.get("focus") == "region" else "the whole board")
+        return f"PCB v{r.get('version')}: {what}"
+    if name == "simulate_device" and (isinstance(r.get("simulation"), dict) or r.get("trace")):
+        return _sim_title(r)
     if name == "quote_device" and r.get("ok"):
         return f"{r.get('qty')} devices: ${r.get('total_usd')} ({r.get('total_kzt')} KZT), ready by {r.get('eta')}"
     if name in ("scan_board", "use_board") and r.get("ok") is not False and isinstance(r.get("board"), dict):

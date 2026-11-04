@@ -110,6 +110,9 @@ export const api = {
     req<{ job_id: string }>('POST', `/api/projects/${id}/visual-edit`, { instruction, sketch_png }),
   order: (id: string, body: { quantity: number; material: string; color?: string; comment?: string }) =>
     req<Record<string, any>>('POST', `/api/projects/${id}/order`, body),
+  /** The version as a design in the Axo shop's cart; `replace` is the design Axo sent the buyer back to edit. `url` opens the cart. */
+  axoCart: (id: string, body: { version?: number; replace?: string }) =>
+    req<{ url: string; design_id?: string; price_kzt?: number | null }>('POST', `/api/projects/${id}/axo-cart`, body),
   captureToken: (id: string) => req<{ token: string; url?: string }>('POST', `/api/projects/${id}/capture-token`),
 
   memory: () => req<{ mine: any[]; global: any[] }>('GET', '/api/memory'),

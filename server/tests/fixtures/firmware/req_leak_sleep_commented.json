@@ -1,0 +1,213 @@
+{
+ "project": "p_979fb77173044e39",
+ "version": 5,
+ "doc": {
+  "schema": "fw.device/1",
+  "title": "Датчик протечки воды",
+  "summary": "Выносной зонд на проводе, громкая сирена, красный LED, кнопка теста/сброса, Wi-Fi оповещение, питание от LiPo с зарядкой от USB-C",
+  "board": {
+   "holes": true,
+   "w": 52.0,
+   "h": 58.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU XIAO ESP32-C3",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "SENS1",
+    "kind": "accessory",
+    "label": "зонд протечки",
+    "accessory": "leak_probe",
+    "edge": "-y"
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "buzzer 3V active",
+    "lcsc": "C417385"
+   },
+   {
+    "id": "Q1",
+    "kind": "chip",
+    "label": "NPN S8050",
+    "lcsc": "C2146"
+   },
+   {
+    "id": "R_B",
+    "kind": "resistor",
+    "label": "base resistor",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "flyback diode"
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "тревога",
+    "color": "red"
+   },
+   {
+    "id": "R_LED",
+    "kind": "resistor",
+    "label": "LED resistor",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "тест/сброс",
+    "place": {
+     "x": -12.0,
+     "y": -10.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "LiPo 500mAh",
+    "accessory": "lipo_1s_500"
+   },
+   {
+    "id": "C_BT",
+    "kind": "capacitor",
+    "label": "bulk cap",
+    "value": "10uF",
+    "package": "0603"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "SENS1.GND",
+     "Q1.E",
+     "LED1.K",
+     "SW1.B",
+     "C_BT.2"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "C_BT.1",
+     "BZ1.POS"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "R_LED.1"
+    ]
+   },
+   {
+    "pins": [
+     "R_LED.2",
+     "LED1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "R_B.1"
+    ]
+   },
+   {
+    "pins": [
+     "R_B.2",
+     "Q1.B"
+    ]
+   },
+   {
+    "pins": [
+     "BZ1.NEG",
+     "Q1.C",
+     "D1.A"
+    ]
+   },
+   {
+    "pins": [
+     "SENS1.SENSE",
+     "U1.MOSI"
+    ]
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "Обнаружение воды выносным зондом",
+    "parts": [
+     "SENS1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "Звуковая тревога при протечке",
+    "parts": [
+     "BZ1",
+     "Q1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "Световая индикация статуса/тревоги",
+    "parts": [
+     "LED1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "Кнопка тест/сброс на крышке",
+    "parts": [
+     "SW1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "Wi-Fi оповещение и веб-страница статуса",
+    "parts": [
+     "U1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R6",
+    "text": "Автономное питание LiPo с зарядкой от USB-C, глубокий сон",
+    "parts": [
+     "U1",
+     "BT1"
+    ],
+    "firmware": true
+   }
+  ],
+  "firmware": {
+   "lang": "arduino",
+   "files": {
+    "leak_detector.ino": "#include <WiFi.h>\n#include <WebServer.h>\n\n// Пины по схеме\n#define PIN_LEAK D10 // SENS1.SENSE - датчик протечки (высокий при воде)\n#define PIN_BUTTON D1 // SW1 - кнопка тест/сброс\n#define PIN_LED D2 // LED1\n#define PIN_BUZZER D3 // Q1 base -> buzzer\n\nconst char* WIFI_SSID = \"YOUR_SSID\";\nconst char* WIFI_PASS = \"YOUR_PASSWORD\";\n\nWebServer server(80);\n\nbool leakDetected = false;\nbool muted = false;\nunsigned long muteUntil = 0;\nunsigned long lastCheck = 0;\n\nvoid handleRoot() {\n  String html = \"<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>\";\n  html += \"<title>Датчик протечки</title></head><body style='font-family:sans-serif;text-align:center;padding:20px'>\";\n  html += \"<h1>Датчик протечки воды</h1>\";\n  if (leakDetected) html += \"<h2 style='color:red'>⚠️ ПРОТЕЧКА ОБНАРУЖЕНА!</h2>\";\n  else html += \"<h2 style='color:green'>Сухо - все в порядке</h2>\";\n  if (muted) html += \"<p>Звук приглушен на 5 мин</p>\";\n  html += \"<p><a href='/mute'><button style='padding:12px 24px'>Приглушить</button></a> \"\"<a href='/test'><button style='padding:12px 24px'>Тест сирены</button></a></p>\";\n  html += \"<p>Обновление каждые 3с</p><script>setTimeout(()=>location.reload(),3000)</script></body></html>\";\n  server.send(200, \"text/html; charset=utf-8\", html);\n}\nvoid handleMute(){ muted=true; muteUntil=millis()+5*60*1000; server.sendHeader(\"Location\",\"/\"); server.send(303);}\nvoid handleTest(){ digitalWrite(PIN_LED,HIGH); digitalWrite(PIN_BUZZER,HIGH); delay(500); digitalWrite(PIN_BUZZER,LOW); digitalWrite(PIN_LED,LOW); server.sendHeader(\"Location\",\"/\"); server.send(303);}\n\nvoid setup() {\n  pinMode(PIN_LEAK, INPUT); // зонд замыкает на GND при воде? инверсия обработана\n  pinMode(PIN_BUTTON, INPUT_PULLUP);\n  pinMode(PIN_LED, OUTPUT);\n  pinMode(PIN_BUZZER, OUTPUT);\n  digitalWrite(PIN_LED, LOW);\n  digitalWrite(PIN_BUZZER, LOW);\n  Serial.begin(115200);\n  \n  // WiFi - не блокируем работу без него\n  WiFi.begin(WIFI_SSID, WIFI_PASS);\n  unsigned long t0=millis();\n  while (WiFi.status()!=WL_CONNECTED && millis()-t0<8000) delay(200);\n  \n  server.on(\"/\", handleRoot);\n  server.on(\"/mute\", handleMute);\n  server.on(\"/test\", handleTest);\n  server.begin();\n  // Короткий сигнал включения\n  digitalWrite(PIN_BUZZER,HIGH); delay(100); digitalWrite(PIN_BUZZER,LOW);\n}\n\nvoid loop() {\n  server.handleClient();\n  // Кнопка - сброс/мьют с дебаунсом\n  static unsigned long lastBtn=0;\n  if (digitalRead(PIN_BUTTON)==LOW && millis()-lastBtn>500) {\n    lastBtn=millis();\n    if (leakDetected) { muted=true; muteUntil=millis()+5*60000; }\n    else { // тест\n      digitalWrite(PIN_BUZZER,HIGH); digitalWrite(PIN_LED,HIGH); delay(300); digitalWrite(PIN_BUZZER,LOW); digitalWrite(PIN_LED,LOW);\n    }\n  }\n  if (muted && millis()>muteUntil) muted=false;\n\n  // Опрос датчика каждые 200мс\n  if (millis()-lastCheck>200) {\n    lastCheck=millis();\n    int v=digitalRead(PIN_LEAK);\n    // leak_probe: SENSE замыкается на GND при воде -> LOW = протечка\n    leakDetected = (v==LOW);\n  }\n  \n  // Сигнализация\n  if (leakDetected && !muted) {\n    // прерывистая сирена 1кГц через транзистор - вкл/выкл 400мс\n    bool on = (millis()%800)<400;\n    digitalWrite(PIN_BUZZER, on? HIGH:LOW);\n    digitalWrite(PIN_LED, on? HIGH:LOW);\n  } else if (!leakDetected) {\n    digitalWrite(PIN_BUZZER, LOW);\n    // медленное мигание раз в 3с - жив\n    digitalWrite(PIN_LED, (millis()%3000)<100 ? HIGH:LOW);\n  } else {\n    digitalWrite(PIN_BUZZER, LOW);\n    digitalWrite(PIN_LED, HIGH); // горит но без звука\n  }\n\n  // Глубокий сон если на батарее и сухо - просыпаемся каждые 10с или по кнопке D1 (GPIO3 wake)\n  // esp_sleep_enable_timer_wakeup(10*1000000);\n  // esp_sleep_enable_ext0_wakeup((gpio_num_t)3, 0);\n}\n"
+   },
+   "notes": "Arduino для Seeed XIAO ESP32-C3. Библиотеки: WiFi, WebServer (входят в esp32 core). В Arduino IDE выберите XIAO_ESP32C3. Задайте WIFI_SSID/WIFI_PASS. Зонд подключите к SENS1, батарею LiPo 500мАч к BAT площадкам на обратной стороне XIAO."
+  }
+ }
+}

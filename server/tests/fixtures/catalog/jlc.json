@@ -1,0 +1,4177 @@
+{
+"C114881": [
+{
+"componentCode": "C114881",
+"componentModelEn": "AM312",
+"componentBrandEn": "Senba Sensing Tech",
+"componentSpecificationEn": "TO-5-3",
+"firstSortName": "Human Body Sensing Sensor",
+"secondSortName": "Sensors",
+"componentTypeEn": "Human Body Sensing Sensor",
+"describe": "-30℃~+70℃ 3x4mm Rectangle TO-5-3 Human Body Sensing Sensor ROHS",
+"stockCount": 55,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 1.0562
+},
+{
+"startNumber": 10,
+"productPrice": 0.8725
+},
+{
+"startNumber": 30,
+"productPrice": 0.7725
+}
+],
+"dataManualUrl": null,
+"lcscGoodsUrl": null,
+"attributes": [
+{
+"attribute_name_en": "Operating Temperature",
+"attribute_value_name": "-30℃~+70℃"
+},
+{
+"attribute_name_en": "Window Size",
+"attribute_value_name": "3x4mm"
+},
+{
+"attribute_name_en": "Voltage - Supply",
+"attribute_value_name": "2.7V~3.3V"
+},
+{
+"attribute_name_en": "Window Shape",
+"attribute_value_name": "Rectangular"
+}
+]
+}
+],
+"C181090": [
+{
+"componentCode": "C181090",
+"componentModelEn": "AO3400",
+"componentBrandEn": "Guangdong Hottech",
+"componentSpecificationEn": "SOT-23",
+"firstSortName": "MOSFETs",
+"secondSortName": "Transistors/Thyristors",
+"componentTypeEn": "MOSFETs",
+"describe": "1 N-channel 1.45V 1.4W 28mΩ@10V 30V 5.8A 50pF 630pF 75pF 7nC@4.5V N-Channel SOT-23 MOSFETs ROHS",
+"stockCount": 351466,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0291
+},
+{
+"startNumber": 200,
+"productPrice": 0.0225
+},
+{
+"startNumber": 600,
+"productPrice": 0.0197
+}
+],
+"dataManualUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_2204271430_Guangdong-Hottech-AO3400_C181090.pdf",
+"lcscGoodsUrl": "https://www.lcsc.com/product-detail/mosfets_guangdong-hottech-ao3400_C181090.html",
+"attributes": [
+{
+"attribute_name_en": "Vgs",
+"attribute_value_name": "±12V"
+},
+{
+"attribute_name_en": "Gate Charge(Qg)",
+"attribute_value_name": "7nC@4.5V"
+},
+{
+"attribute_name_en": "Reverse Transfer Capacitance (Crss@Vds)",
+"attribute_value_name": "50pF"
+},
+{
+"attribute_name_en": "Current - Continuous Drain(Id)",
+"attribute_value_name": "5.8A"
+},
+{
+"attribute_name_en": "Drain to Source Voltage",
+"attribute_value_name": "30V"
+},
+{
+"attribute_name_en": "Output Capacitance(Coss)",
+"attribute_value_name": "75pF"
+},
+{
+"attribute_name_en": "RDS(on)",
+"attribute_value_name": "28mΩ@10V"
+},
+{
+"attribute_name_en": "Input Capacitance(Ciss)",
+"attribute_value_name": "630pF"
+},
+{
+"attribute_name_en": "Type",
+"attribute_value_name": "N-Channel"
+},
+{
+"attribute_name_en": "Gate Threshold Voltage (Vgs(th))",
+"attribute_value_name": "1.45V"
+},
+{
+"attribute_name_en": "Number",
+"attribute_value_name": "1 N-channel"
+},
+{
+"attribute_name_en": "Pd - Power Dissipation",
+"attribute_value_name": "1.4W"
+}
+]
+}
+],
+"C181158": [
+{
+"componentCode": "C181158",
+"componentModelEn": "S8050",
+"componentBrandEn": "Guangdong Hottech",
+"componentSpecificationEn": "SOT-23",
+"firstSortName": "Bipolar (BJT)",
+"secondSortName": "Transistors/Thyristors",
+"componentTypeEn": "Bipolar (BJT)",
+"describe": "1 NPN 100nA 150MHz 25V 300mW 400 500mA 5V 600mV NPN SOT-23 Bipolar (BJT) ROHS",
+"stockCount": 2233108,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.011
+},
+{
+"startNumber": 500,
+"productPrice": 0.0093
+},
+{
+"startNumber": 3000,
+"productPrice": 0.0077
+}
+],
+"dataManualUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_2410121837_Guangdong-Hottech-S8050_C181158.pdf",
+"lcscGoodsUrl": "https://lcsc.com/product-detail/bipolar-bjt_guangdong-hottech-s8050_C181158.html",
+"attributes": [
+{
+"attribute_name_en": "Transition frequency(fT)",
+"attribute_value_name": "150MHz"
+},
+{
+"attribute_name_en": "Collector - Emitter Voltage VCEO",
+"attribute_value_name": "25V"
+},
+{
+"attribute_name_en": "Number",
+"attribute_value_name": "1 NPN"
+},
+{
+"attribute_name_en": "DC Current Gain",
+"attribute_value_name": "400"
+},
+{
+"attribute_name_en": "Current - Collector(Ic)",
+"attribute_value_name": "500mA"
+},
+{
+"attribute_name_en": "Vce Saturation(VCE(sat))",
+"attribute_value_name": "600mV"
+},
+{
+"attribute_name_en": "Emitter-Base Voltage(Vebo)",
+"attribute_value_name": "5V"
+},
+{
+"attribute_name_en": "Pd - Power Dissipation",
+"attribute_value_name": "300mW"
+},
+{
+"attribute_name_en": "type",
+"attribute_value_name": "NPN"
+},
+{
+"attribute_name_en": "Current - Collector Cutoff",
+"attribute_value_name": "100nA"
+}
+]
+}
+],
+"C2286": [
+{
+"componentCode": "C2286",
+"componentModelEn": "KT-0603R",
+"componentBrandEn": "Hubei KENTO Elec",
+"componentSpecificationEn": "0603",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"componentTypeEn": "LED Indication - Discrete",
+"describe": "-40℃~+85℃ 1.6mm x 0.8mm square LED 1.8V~2.4V 120° 20mA 300mcd 40mW 615nm~630nm 645nm Discrete Diode Red Water Clear 0603 LED Indication - Discrete ROHS",
+"stockCount": 6818436,
+"componentLibraryType": "base",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0077
+},
+{
+"startNumber": 1000,
+"productPrice": 0.0059
+},
+{
+"startNumber": 4000,
+"productPrice": 0.0046
+}
+],
+"dataManualUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_1810231112_Hubei-KENTO-Elec-KT-0603R_C2286.pdf",
+"lcscGoodsUrl": "https://www.lcsc.com/product-detail/led-indication-discrete_hubei-kento-elec-kt-0603r_C2286.html",
+"attributes": [
+{
+"attribute_name_en": "Wavelength - Dominant",
+"attribute_value_name": "615nm~630nm"
+},
+{
+"attribute_name_en": "Operating Temperature",
+"attribute_value_name": "-40℃~+85℃"
+},
+{
+"attribute_name_en": "Test Current",
+"attribute_value_name": "20mA"
+},
+{
+"attribute_name_en": "Viewing Angle",
+"attribute_value_name": "120°"
+},
+{
+"attribute_name_en": "Lamp Holder Type",
+"attribute_value_name": "1.6mm x 0.8mm square LED"
+},
+{
+"attribute_name_en": "Luminous Intensity",
+"attribute_value_name": "300mcd"
+},
+{
+"attribute_name_en": "Power(Watts)",
+"attribute_value_name": "40mW"
+},
+{
+"attribute_name_en": "Diode Configuration",
+"attribute_value_name": "Discrete Diode"
+},
+{
+"attribute_name_en": "Illumination Color",
+"attribute_value_name": "Red"
+},
+{
+"attribute_name_en": "Lens Color",
+"attribute_value_name": "Water Clear"
+},
+{
+"attribute_name_en": "Peak Wavelength",
+"attribute_value_name": "645nm"
+},
+{
+"attribute_name_en": "Voltage - Forward(Vf)",
+"attribute_value_name": "1.8V~2.4V"
+}
+]
+}
+],
+"C2843785": [
+{
+"componentCode": "C2843785",
+"componentModelEn": "XL-5050RGBC-2812B",
+"componentBrandEn": "XINGLIGHT",
+"componentSpecificationEn": "SMD5050-4P",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"componentTypeEn": "RGB LEDs(Built-in IC)",
+"describe": "-20℃~+85℃ 0.3mA 1.6mm 120° 2000V 3.5V~5.5V 4kHz 5mm 5mm 800Kbit/s G:1300mcd~1800mcd、R:500mcd~700mcd、B:300mcd~500mcd R:620nm~635nm、B:465nm~475nm、G:520nm~535nm Top-mount Water Clear SMD5050-4P RGB LEDs(Built-in IC) ROHS",
+"stockCount": 273069,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0553
+},
+{
+"startNumber": 100,
+"productPrice": 0.0443
+},
+{
+"startNumber": 300,
+"productPrice": 0.0386
+}
+],
+"dataManualUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_2404120946_XINGLIGHT-XL-5050RGBC-WS2812B_C2843785.pdf",
+"lcscGoodsUrl": "https://www.lcsc.com/product-detail/rgb-leds-built-in-ic_xinglight-xl-5050rgbc-ws2812b_C2843785.html",
+"attributes": [
+{
+"attribute_name_en": "Viewing Angle",
+"attribute_value_name": "120°"
+},
+{
+"attribute_name_en": "Data Transmission Rate",
+"attribute_value_name": "800Kbit/s"
+},
+{
+"attribute_name_en": "Installation method",
+"attribute_value_name": "Top-mount"
+},
+{
+"attribute_name_en": "Voltage - Supply",
+"attribute_value_name": "3.5V~5.5V"
+},
+{
+"attribute_name_en": "Height",
+"attribute_value_name": "5mm"
+},
+{
+"attribute_name_en": "Width",
+"attribute_value_name": "1.6mm"
+},
+{
+"attribute_name_en": "Operating Temperature",
+"attribute_value_name": "-20℃~+85℃"
+},
+{
+"attribute_name_en": "Luminous Intensity - B",
+"attribute_value_name": "300mcd~500mcd"
+},
+{
+"attribute_name_en": "ESD Withstand Voltage",
+"attribute_value_name": "2000V"
+},
+{
+"attribute_name_en": "Dominant Wavelength - B",
+"attribute_value_name": "465nm~475nm"
+},
+{
+"attribute_name_en": "Luminous Intensity - G",
+"attribute_value_name": "1300mcd~1800mcd"
+},
+{
+"attribute_name_en": "Fixed-Frequency Pwm Mode",
+"attribute_value_name": "4kHz"
+},
+{
+"attribute_name_en": "Luminous Intensity - R",
+"attribute_value_name": "500mcd~700mcd"
+},
+{
+"attribute_name_en": "Rise Time",
+"attribute_value_name": "100ns"
+},
+{
+"attribute_name_en": "Length",
+"attribute_value_name": "5mm"
+},
+{
+"attribute_name_en": "Dominant Wavelength - G",
+"attribute_value_name": "520nm~535nm"
+},
+{
+"attribute_name_en": "Quiescent Current",
+"attribute_value_name": "0.3mA"
+},
+{
+"attribute_name_en": "Transmission Delay",
+"attribute_value_name": "500ns"
+},
+{
+"attribute_name_en": "Dominant Wavelength - R",
+"attribute_value_name": "620nm~635nm"
+},
+{
+"attribute_name_en": "Lens Color",
+"attribute_value_name": "Water Clear"
+}
+]
+}
+],
+"C2878": [
+{
+"componentCode": "C2878",
+"componentModelEn": "HND-2319",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "Plugin,D=23mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"componentTypeEn": "Buzzers",
+"describe": "-20℃~+60℃ 12V 19.3mm 23mm 3.7kHz 3V~24V 90dB Active Buzzer (Built-in Driving Circuit) Piezoelectric 插件,D=23mm Buzzers ROHS",
+"stockCount": 14115,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.4511
+},
+{
+"startNumber": 10,
+"productPrice": 0.4035
+},
+{
+"startNumber": 30,
+"productPrice": 0.3789
+}
+],
+"dataManualUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_1811141110_Jiangsu-Huaneng-Elec-HND-2319_C2878.pdf",
+"lcscGoodsUrl": "https://www.lcsc.com/product-detail/buzzers_jiangsu-huaneng-elec-hnd-2319_C2878.html",
+"attributes": [
+{
+"attribute_name_en": "Operating Temperature",
+"attribute_value_name": "-20℃~+60℃"
+},
+{
+"attribute_name_en": "Voltage Rating",
+"attribute_value_name": "12V"
+},
+{
+"attribute_name_en": "Diameter(φD)",
+"attribute_value_name": "23mm"
+},
+{
+"attribute_name_en": "Sound Pressure Level(SPL)",
+"attribute_value_name": "90dB"
+},
+{
+"attribute_name_en": "Driver Circuitry",
+"attribute_value_name": "Active Buzzer (Built-in Driving Circuit)"
+},
+{
+"attribute_name_en": "Technology",
+"attribute_value_name": "Piezoelectric"
+},
+{
+"attribute_name_en": "Voltage - Supply",
+"attribute_value_name": "3V~24V"
+},
+{
+"attribute_name_en": "Frequency",
+"attribute_value_name": "3.7kHz"
+},
+{
+"attribute_name_en": "Height",
+"attribute_value_name": "19.3mm"
+}
+]
+}
+],
+"C404323": [
+{
+"componentCode": "C404323",
+"componentModelEn": "BISS0001",
+"componentBrandEn": "UMW(Youtai Semiconductor Co., Ltd.)",
+"componentSpecificationEn": "SOP-16",
+"firstSortName": "Human Body Sensing Sensor",
+"secondSortName": "Sensors",
+"componentTypeEn": "Human Body Sensing Sensor",
+"describe": "-10℃~+70℃ 100uA 3V~5V SOP-16 Human Body Sensing Sensor ROHS",
+"stockCount": 19481,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1232
+},
+{
+"startNumber": 50,
+"productPrice": 0.098
+},
+{
+"startNumber": 150,
+"productPrice": 0.0853
+}
+],
+"dataManualUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_2311091735_UMW-Youtai-Semiconductor-Co---Ltd--BISS0001_C404323.pdf",
+"lcscGoodsUrl": "https://www.lcsc.com/product-detail/human-body-sensing-sensor_umw-youtai-semiconductor-co-ltd-biss0001_C404323.html",
+"attributes": [
+{
+"attribute_name_en": "Operating Temperature",
+"attribute_value_name": "-10℃~+70℃"
+},
+{
+"attribute_name_en": "Voltage - Supply",
+"attribute_value_name": "3V~5V"
+},
+{
+"attribute_name_en": "Features",
+"attribute_value_name": "Ambient light suppression function"
+},
+{
+"attribute_name_en": "Current - Supply",
+"attribute_value_name": "100uA"
+}
+]
+}
+],
+"C76871": [
+{
+"componentCode": "C76871",
+"componentModelEn": "PS1240P02BT",
+"componentBrandEn": "TDK",
+"componentSpecificationEn": "Plugin,D=12.2mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"componentTypeEn": "Buzzers",
+"describe": "-10℃~+70℃ 12.2mm 30V 3V 4kHz 5mm 7.8mm 70dB Passive (Externally Driven) Piezoelectric 插件,D=12.2mm Buzzers ROHS",
+"stockCount": 6025,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.2246
+},
+{
+"startNumber": 10,
+"productPrice": 0.1796
+},
+{
+"startNumber": 30,
+"productPrice": 0.1604
+}
+],
+"dataManualUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_TDK-PS1240P02BT_C76871.pdf",
+"lcscGoodsUrl": "https://www.lcsc.com/product-detail/buzzers_tdk-ps1240p02bt_C76871.html",
+"attributes": [
+{
+"attribute_name_en": "Operating Temperature",
+"attribute_value_name": "-10℃~+70℃"
+},
+{
+"attribute_name_en": "Voltage Rating",
+"attribute_value_name": "3V"
+},
+{
+"attribute_name_en": "Mounting Type",
+"attribute_value_name": "Plug-in"
+},
+{
+"attribute_name_en": "Diameter(φD)",
+"attribute_value_name": "12.2mm"
+},
+{
+"attribute_name_en": "Sound Pressure Level(SPL)",
+"attribute_value_name": "70dB"
+},
+{
+"attribute_name_en": "Driver Circuitry",
+"attribute_value_name": "Passive (Externally Driven)"
+},
+{
+"attribute_name_en": "Technology",
+"attribute_value_name": "Piezoelectric"
+},
+{
+"attribute_name_en": "Voltage - Supply",
+"attribute_value_name": "30V"
+},
+{
+"attribute_name_en": "Frequency",
+"attribute_value_name": "4kHz"
+},
+{
+"attribute_name_en": "Height",
+"attribute_value_name": "7.8mm"
+},
+{
+"attribute_name_en": "Lead Pitch",
+"attribute_value_name": "5mm"
+}
+]
+}
+],
+"C78960": [
+{
+"componentCode": "C78960",
+"componentModelEn": "BH1750FVI-TR",
+"componentBrandEn": "ROHM Semicon",
+"componentSpecificationEn": "WSOF-6",
+"firstSortName": "Ambient Light Sensors",
+"secondSortName": "Sensors",
+"componentTypeEn": "Ambient Light Sensors",
+"describe": "-40℃~+85℃ 2.4V~3.6V 65.535klx I2C Light Intensity WSOF-6 Ambient Light Sensors ROHS",
+"stockCount": 32928,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.9234
+},
+{
+"startNumber": 10,
+"productPrice": 0.7709
+},
+{
+"startNumber": 30,
+"productPrice": 0.6626
+}
+],
+"dataManualUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_1811081611_ROHM-Semicon-BH1750FVI-TR_C78960.pdf",
+"lcscGoodsUrl": "https://www.lcsc.com/product-detail/ambient-light-sensors_rohm-semicon-bh1750fvi-tr_C78960.html",
+"attributes": [
+{
+"attribute_name_en": "Operating Temperature",
+"attribute_value_name": "-40℃~+85℃"
+},
+{
+"attribute_name_en": "Measurement Type",
+"attribute_value_name": "Light Intensity"
+},
+{
+"attribute_name_en": "Length",
+"attribute_value_name": "2.6mm"
+},
+{
+"attribute_name_en": "Voltage - Supply",
+"attribute_value_name": "2.4V~3.6V"
+},
+{
+"attribute_name_en": "Resolution(Bits)",
+"attribute_value_name": "16bit"
+},
+{
+"attribute_name_en": "Quiescent Current",
+"attribute_value_name": "10nA"
+},
+{
+"attribute_name_en": "Photoperceptivity",
+"attribute_value_name": "65.535klx"
+},
+{
+"attribute_name_en": "Features",
+"attribute_value_name": "Low power/sleep mode、Spectral correction/filtering、Adjustable gain control"
+},
+{
+"attribute_name_en": "Height",
+"attribute_value_name": "0.75mm"
+},
+{
+"attribute_name_en": "Width",
+"attribute_value_name": "1.6mm"
+},
+{
+"attribute_name_en": "Interface",
+"attribute_value_name": "I2C"
+}
+]
+}
+],
+"C8598": [
+{
+"componentCode": "C8598",
+"componentModelEn": "B5819W SL",
+"componentBrandEn": "Jiangsu Changjing Electronics Technology Co., Ltd.",
+"componentSpecificationEn": "SOD-123",
+"firstSortName": "Schottky Diodes",
+"secondSortName": "Diodes",
+"componentTypeEn": "Schottky Diodes",
+"describe": "1A 40V 600mV@1A 9A Independent SOD-123 Schottky Diodes ROHS",
+"stockCount": 939843,
+"componentLibraryType": "base",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0263
+},
+{
+"startNumber": 200,
+"productPrice": 0.0202
+},
+{
+"startNumber": 600,
+"productPrice": 0.0174
+}
+],
+"dataManualUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--B5819W-SL_C8598.pdf",
+"lcscGoodsUrl": "https://www.lcsc.com/product-detail/schottky-diodes_jiangsu-changjing-electronics-technology-co-ltd-b5819w-sl_C8598.html",
+"attributes": [
+{
+"attribute_name_en": "Voltage - Forward(Vf@If)",
+"attribute_value_name": "600mV@1A"
+},
+{
+"attribute_name_en": "Non-Repetitive Peak Forward Surge Current",
+"attribute_value_name": "9A"
+},
+{
+"attribute_name_en": "Voltage - DC Reverse(Vr)",
+"attribute_value_name": "40V"
+},
+{
+"attribute_name_en": "Diode Configuration",
+"attribute_value_name": "Standalone"
+},
+{
+"attribute_name_en": "Current - Rectified",
+"attribute_value_name": "1A"
+}
+]
+}
+],
+"C94598": [
+{
+"componentCode": "C94598",
+"componentModelEn": "MLT-5020",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "SMD,5x5mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"componentTypeEn": "Buzzers",
+"describe": "-20℃~+70℃ 100mA 2.5mm 2V~4V 3V 4kHz 5.2mm 5.2mm 75dB Electromagnetic Passive (Externally Driven) SMD,5x5mm Buzzers ROHS",
+"stockCount": 151784,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.4014
+},
+{
+"startNumber": 50,
+"productPrice": 0.3126
+},
+{
+"startNumber": 150,
+"productPrice": 0.2693
+}
+],
+"dataManualUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_2108131530_Jiangsu-Huaneng-Elec-MLT-5020_C94598.pdf",
+"lcscGoodsUrl": "https://www.lcsc.com/product-detail/buzzers_jiangsu-huaneng-elec-mlt-5020_C94598.html",
+"attributes": [
+{
+"attribute_name_en": "Operating Temperature",
+"attribute_value_name": "-20℃~+70℃"
+},
+{
+"attribute_name_en": "Voltage Rating",
+"attribute_value_name": "3V"
+},
+{
+"attribute_name_en": "Sound Pressure Level(SPL)",
+"attribute_value_name": "75dB"
+},
+{
+"attribute_name_en": "Driver Circuitry",
+"attribute_value_name": "Passive (Externally Driven)"
+},
+{
+"attribute_name_en": "Length",
+"attribute_value_name": "5.2mm"
+},
+{
+"attribute_name_en": "Technology",
+"attribute_value_name": "Electromagnetic"
+},
+{
+"attribute_name_en": "Voltage - Supply",
+"attribute_value_name": "2V~4V"
+},
+{
+"attribute_name_en": "Frequency",
+"attribute_value_name": "4kHz"
+},
+{
+"attribute_name_en": "Height",
+"attribute_value_name": "2.5mm"
+},
+{
+"attribute_name_en": "Width",
+"attribute_value_name": "5.2mm"
+},
+{
+"attribute_name_en": "Current Consumption",
+"attribute_value_name": "100mA"
+}
+]
+}
+],
+"C96127": [
+{
+"componentCode": "C96127",
+"componentModelEn": "MLT-9650",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "SMD",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"componentTypeEn": "Buzzers",
+"describe": "-20℃~+70℃ 2.7kHz 30mA 3V~7V 5.5mm 5V 85dB 9.6mm 9.6mm Active Buzzer (Built-in Driving Circuit) Electromagnetic SMD SMD Buzzers ROHS",
+"stockCount": 29805,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.5413
+},
+{
+"startNumber": 10,
+"productPrice": 0.4363
+},
+{
+"startNumber": 30,
+"productPrice": 0.3855
+}
+],
+"dataManualUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_1811141110_Jiangsu-Huaneng-Elec-MLT-9650_C96127.pdf",
+"lcscGoodsUrl": "https://www.lcsc.com/product-detail/buzzers_jiangsu-huaneng-elec-mlt-9650_C96127.html",
+"attributes": [
+{
+"attribute_name_en": "Operating Temperature",
+"attribute_value_name": "-20℃~+70℃"
+},
+{
+"attribute_name_en": "Voltage Rating",
+"attribute_value_name": "5V"
+},
+{
+"attribute_name_en": "Mounting Type",
+"attribute_value_name": "Surface-mount (SMD)"
+},
+{
+"attribute_name_en": "Sound Pressure Level(SPL)",
+"attribute_value_name": "85dB"
+},
+{
+"attribute_name_en": "Driver Circuitry",
+"attribute_value_name": "Active Buzzer (Built-in Driving Circuit)"
+},
+{
+"attribute_name_en": "Length",
+"attribute_value_name": "9.6mm"
+},
+{
+"attribute_name_en": "Technology",
+"attribute_value_name": "Electromagnetic"
+},
+{
+"attribute_name_en": "Voltage - Supply",
+"attribute_value_name": "3V~7V"
+},
+{
+"attribute_name_en": "Frequency",
+"attribute_value_name": "2.7kHz"
+},
+{
+"attribute_name_en": "Height",
+"attribute_value_name": "5.5mm"
+},
+{
+"attribute_name_en": "Width",
+"attribute_value_name": "9.6mm"
+},
+{
+"attribute_name_en": "Current Consumption",
+"attribute_value_name": "30mA"
+}
+]
+}
+],
+"2835": [
+{
+"componentCode": "C73533",
+"componentModelEn": "67-21S/KK3C-H2727M31N42936Z6/2T",
+"componentBrandEn": "Everlight Elec",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 2.9V~3.6V 2700K 60mA Discrete Diode Water Clear White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 10,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0151
+},
+{
+"startNumber": 200,
+"productPrice": 0.0148
+},
+{
+"startNumber": 600,
+"productPrice": 0.0146
+}
+]
+},
+{
+"componentCode": "C73535",
+"componentModelEn": "67-21S/KK3C-H4040M42P32936Z6/2T",
+"componentBrandEn": "Everlight Elec",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 2.9V~3.6V 270mW 4000K 60mA Discrete Diode Water Clear White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 11,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0271
+},
+{
+"startNumber": 200,
+"productPrice": 0.021
+},
+{
+"startNumber": 600,
+"productPrice": 0.0176
+}
+]
+},
+{
+"componentCode": "C73540",
+"componentModelEn": "67-21S/KK3C-H2727QAR32835Z15/2T",
+"componentBrandEn": "Everlight Elec",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 150mA 2.8V~3.5V 2700K 630mW Water Clear White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 1,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0535
+},
+{
+"startNumber": 100,
+"productPrice": 0.044
+},
+{
+"startNumber": 300,
+"productPrice": 0.0392
+}
+]
+},
+{
+"componentCode": "C73541",
+"componentModelEn": "67-21S/KK3C-H3030R1R42835Z15/2T",
+"componentBrandEn": "Everlight Elec",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 150mA 2.8V~3.5V 3000K 630mW Discrete Diode Water Clear White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 9,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0384
+},
+{
+"startNumber": 200,
+"productPrice": 0.0306
+},
+{
+"startNumber": 600,
+"productPrice": 0.0266
+}
+]
+},
+{
+"componentCode": "C73544",
+"componentModelEn": "67-21S/KK3C-H5757R2R52835Z15/2T",
+"componentBrandEn": "Everlight Elec",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 150mA 2.8V~3.5V 5700K 630mW Discrete Diode Water Clear White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 4,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0365
+},
+{
+"startNumber": 100,
+"productPrice": 0.0286
+},
+{
+"startNumber": 300,
+"productPrice": 0.0247
+}
+]
+},
+{
+"componentCode": "C115722",
+"componentModelEn": "67-21S/KK4C-H3030M42P32833Z6/2T",
+"componentBrandEn": "Everlight Elec",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 2.8V~3.3V 3000K 60mA Discrete Diode Water Clear White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 2,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0284
+},
+{
+"startNumber": 200,
+"productPrice": 0.0227
+},
+{
+"startNumber": 600,
+"productPrice": 0.0196
+}
+]
+},
+{
+"componentCode": "C182223",
+"componentModelEn": "67-21S/KK7C-H407034Z15/DT(GC)",
+"componentBrandEn": "Everlight Elec",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 150mA 2.8V~3.4V 4000K Discrete Diode Water Clear White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 411604,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.01
+},
+{
+"startNumber": 500,
+"productPrice": 0.0077
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0065
+}
+]
+},
+{
+"componentCode": "C210310",
+"componentModelEn": "HL-AM-2835H489W-S1-08HL-HR3",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 3.4V 3000K 306mW 60mA Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 2922,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0093
+},
+{
+"startNumber": 500,
+"productPrice": 0.0072
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0061
+}
+]
+},
+{
+"componentCode": "C210311",
+"componentModelEn": "HL-AM-2835H489W-S1-08HL-HR3",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 3.4V 306mW 4000K 60mA Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 809693,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.009
+},
+{
+"startNumber": 500,
+"productPrice": 0.0068
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0056
+}
+]
+},
+{
+"componentCode": "C210312",
+"componentModelEn": "HL-AM-2835H489W-S1-08HL-HR3",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 3.4V 306mW 5000K 60mA Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 199190,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0103
+},
+{
+"startNumber": 500,
+"productPrice": 0.0081
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0068
+}
+]
+},
+{
+"componentCode": "C210313",
+"componentModelEn": "HL-AM-2835H489W-S1-08HL-HR3",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 3.4V 306mW 6000K 60mA Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 71667,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0108
+},
+{
+"startNumber": 500,
+"productPrice": 0.0086
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0073
+}
+]
+},
+{
+"componentCode": "C210314",
+"componentModelEn": "HL-AM-2835H489W-S1-08HL-HR3",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 3.4V 306mW 60mA 6500K Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 22723,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0093
+},
+{
+"startNumber": 500,
+"productPrice": 0.0071
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0058
+}
+]
+},
+{
+"componentCode": "C210315",
+"componentModelEn": "HL-AM-2835H421W-S1-08-HR3(Color Temperature2800-3100K)",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 288mW 3.2V 3000K 60mA Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 117977,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0103
+},
+{
+"startNumber": 500,
+"productPrice": 0.009
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0083
+}
+]
+},
+{
+"componentCode": "C210316",
+"componentModelEn": "HL-AM-2835H421W-S1-08-HR3",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 288mW 3.2V 4000K 60mA Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 130089,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0131
+},
+{
+"startNumber": 500,
+"productPrice": 0.01
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0083
+}
+]
+},
+{
+"componentCode": "C210317",
+"componentModelEn": "HL-AM-2835H421W-S1-08-HR3(Color Temperature4750-5300K)",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 288mW 3.2V 5000K 60mA Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 57601,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0126
+},
+{
+"startNumber": 500,
+"productPrice": 0.0099
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0083
+}
+]
+},
+{
+"componentCode": "C210318",
+"componentModelEn": "HL-AM-2835H421W-S1-08-HR3",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 288mW 3.2V 6000K 60mA Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 153645,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0145
+},
+{
+"startNumber": 500,
+"productPrice": 0.0114
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0097
+}
+]
+},
+{
+"componentCode": "C210319",
+"componentModelEn": "HL-AM-2835H421W-S1-08-HR3",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 288mW 3.2V 60mA 6500K Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 78734,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0132
+},
+{
+"startNumber": 500,
+"productPrice": 0.0101
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0084
+}
+]
+},
+{
+"componentCode": "C210320",
+"componentModelEn": "HL-AM-2835D1W-S1-08-HR3(Color Temperature2800-3100K)",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 150mA 3.4V 3000K 510mW Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 101680,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0161
+},
+{
+"startNumber": 500,
+"productPrice": 0.0125
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0105
+}
+]
+},
+{
+"componentCode": "C210321",
+"componentModelEn": "HL-AM-2835D1W-S1-08-HR3",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 150mA 3.4V 4000K 510mW Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 9493,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0158
+},
+{
+"startNumber": 500,
+"productPrice": 0.0123
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0103
+}
+]
+},
+{
+"componentCode": "C210322",
+"componentModelEn": "HL-AM-2835D1W-S1-08-HR3",
+"componentBrandEn": "HONGLITRONIC(Hongli Zhihui (HONGLITRONIC))",
+"componentSpecificationEn": "SMD2835-2P",
+"firstSortName": "LED Indication - Discrete",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 120° 150mA 3.4V 5000K 510mW Discrete Diode Frosted Yellow Lens Top-mount White SMD2835-2P LED Indication - Discrete ROHS",
+"stockCount": 26390,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0154
+},
+{
+"startNumber": 500,
+"productPrice": 0.0119
+},
+{
+"startNumber": 1500,
+"productPrice": 0.0099
+}
+]
+}
+],
+"AM312": [
+{
+"componentCode": "C114881",
+"componentModelEn": "AM312",
+"componentBrandEn": "Senba Sensing Tech",
+"componentSpecificationEn": "TO-5-3",
+"firstSortName": "Human Body Sensing Sensor",
+"secondSortName": "Sensors",
+"describe": "-30℃~+70℃ 3x4mm Rectangle TO-5-3 Human Body Sensing Sensor ROHS",
+"stockCount": 55,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 1.0562
+},
+{
+"startNumber": 10,
+"productPrice": 0.8725
+},
+{
+"startNumber": 30,
+"productPrice": 0.7725
+}
+]
+}
+],
+"LED warm white high power": [],
+"OLED": [
+{
+"componentCode": "C2890610",
+"componentModelEn": "N087-2832TSWYG02-H14",
+"componentBrandEn": "Newvisio",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+85℃ 0.87 128x32 170cd/m2 22.38x5.58mm CH1115 chip I2C Passive (PMOLED) White - OLED Display ROHS",
+"stockCount": 114,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 2.1222
+},
+{
+"startNumber": 10,
+"productPrice": 1.8008
+},
+{
+"startNumber": 30,
+"productPrice": 1.5991
+}
+]
+},
+{
+"componentCode": "C2890611",
+"componentModelEn": "N096-6428TSWMG01-H13",
+"componentBrandEn": "Newvisio",
+"componentSpecificationEn": "SMD",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+85℃ 0.96 10.86x21.74mm 120cd/m2 64x128 CH1115 chip Passive (PMOLED) White - OLED Display ROHS",
+"stockCount": 14,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 2.6487
+},
+{
+"startNumber": 10,
+"productPrice": 2.2534
+},
+{
+"startNumber": 56,
+"productPrice": 1.9271
+}
+]
+},
+{
+"componentCode": "C5123562",
+"componentModelEn": "X077-6428TSWCG01-H13",
+"componentBrandEn": "Newvisio",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+85℃ 0.77 128x64 320cd/m2 9.26x17.26mm I2C Passive (PMOLED) SSD1312 chip White - OLED Display ROHS",
+"stockCount": 23,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 2.014
+},
+{
+"startNumber": 10,
+"productPrice": 1.704
+},
+{
+"startNumber": 30,
+"productPrice": 1.5105
+}
+]
+},
+{
+"componentCode": "C5123564",
+"componentModelEn": "X096-2864TMBAG01-H30",
+"componentBrandEn": "Newvisio",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+85℃ 0.96 105cd/m2 128x64 21.74x11.2mm Blue Passive (PMOLED) SSD1315 chip - OLED Display ROHS",
+"stockCount": 25,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 2.3174
+},
+{
+"startNumber": 10,
+"productPrice": 1.973
+},
+{
+"startNumber": 54,
+"productPrice": 1.6876
+}
+]
+},
+{
+"componentCode": "C5123566",
+"componentModelEn": "X150-2828KSWKG01-H25",
+"componentBrandEn": "Newvisio",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+70℃ 1.54 1.65V~3.5V 100cd/m2 128x128 26.855x26.855mm I2C、SPI Passive (PMOLED) SH1107 chip White - OLED Display ROHS",
+"stockCount": 18,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 4.1722
+},
+{
+"startNumber": 10,
+"productPrice": 4.0771
+},
+{
+"startNumber": 32,
+"productPrice": 3.836
+}
+]
+},
+{
+"componentCode": "C5123570",
+"componentModelEn": "X223-2832ALBCG02-C24",
+"componentBrandEn": "Newvisio",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+85℃ 120cd/m2 128x32 2.23 55.02x13.1mm Blue Passive (PMOLED) SSD1305 chip - OLED Display ROHS",
+"stockCount": 8,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 12.4051
+},
+{
+"startNumber": 10,
+"productPrice": 10.7028
+},
+{
+"startNumber": 36,
+"productPrice": 9.6646
+}
+]
+},
+{
+"componentCode": "C5139758",
+"componentModelEn": "HS96L01W4S03",
+"componentBrandEn": "HS",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+80℃ 0.96 100cd/m2 128x64 21.74x10.86mm 5uA Passive (PMOLED) White - OLED Display ROHS",
+"stockCount": 522,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 2.319
+},
+{
+"startNumber": 10,
+"productPrice": 1.8451
+},
+{
+"startNumber": 30,
+"productPrice": 1.6286
+}
+]
+},
+{
+"componentCode": "C5248080",
+"componentModelEn": "HS96L03W2C03",
+"componentBrandEn": "HS",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+70℃ 0.96 128x64 180cd/m2 21.744x10.864mm I2C Passive (PMOLED) SSD1315 chip White - OLED Display ROHS",
+"stockCount": 1965,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 2.3502
+},
+{
+"startNumber": 10,
+"productPrice": 1.9533
+},
+{
+"startNumber": 30,
+"productPrice": 1.7417
+}
+]
+},
+{
+"componentCode": "C5248081",
+"componentModelEn": "HS91L02W2C01",
+"componentBrandEn": "HS",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "0.91 1.65V~3.3V 128x32 150cd/m2 22.384x5.584mm I2C Passive (PMOLED) SSD1306 chip White - OLED Display ROHS",
+"stockCount": 1956,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 2.3502
+},
+{
+"startNumber": 10,
+"productPrice": 1.9451
+},
+{
+"startNumber": 30,
+"productPrice": 1.7483
+}
+]
+},
+{
+"componentCode": "C7465997",
+"componentModelEn": "HS13L03W2C01",
+"componentBrandEn": "HS",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+70℃ 1.3 128x64 150cd/m2 29.42x14.7mm I2C Passive (PMOLED) SH1106 chip White - OLED Display ROHS",
+"stockCount": 442,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 4.8791
+},
+{
+"startNumber": 10,
+"productPrice": 4.21
+},
+{
+"startNumber": 30,
+"productPrice": 3.8131
+}
+]
+},
+{
+"componentCode": "C7465999",
+"componentModelEn": "HS154L03W2C01",
+"componentBrandEn": "HS",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+70℃ 1.54 120cd/m2 128x64 35.052x17.516mm I2C Passive (PMOLED) SSD1309 chip White - OLED Display ROHS",
+"stockCount": 761,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 6.9898
+},
+{
+"startNumber": 10,
+"productPrice": 6.0058
+},
+{
+"startNumber": 30,
+"productPrice": 5.4072
+}
+]
+},
+{
+"componentCode": "C7466000",
+"componentModelEn": "HS242L03B2C01",
+"componentBrandEn": "HS",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+70℃ 120cd/m2 128x64 2.42 55.01x27.49mm Blue I2C Passive (PMOLED) SSD1309 chip - OLED Display ROHS",
+"stockCount": 133,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 13.1726
+},
+{
+"startNumber": 10,
+"productPrice": 11.3194
+},
+{
+"startNumber": 30,
+"productPrice": 10.1894
+}
+]
+},
+{
+"componentCode": "C18723006",
+"componentModelEn": "X032-6032TSWAG02-H14",
+"componentBrandEn": "Newvisio",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+85℃ 180cd/m2 60x32 7.06x3.82mm I2C Passive (PMOLED) SSD1315 chip White - OLED Display ROHS",
+"stockCount": 132,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 1.1923
+},
+{
+"startNumber": 10,
+"productPrice": 0.9857
+},
+{
+"startNumber": 30,
+"productPrice": 0.8725
+}
+]
+},
+{
+"componentCode": "C18723015",
+"componentModelEn": "X087-2832TSWIG02-H14",
+"componentBrandEn": "Newvisio",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+70℃ 0.87 128x32 160cd/m2 22.38x5.58mm I2C Passive (PMOLED) SSD1312 chip White - OLED Display ROHS",
+"stockCount": 875,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 1.768
+},
+{
+"startNumber": 10,
+"productPrice": 1.4957
+},
+{
+"startNumber": 54,
+"productPrice": 1.3252
+}
+]
+},
+{
+"componentCode": "C18723026",
+"componentModelEn": "X096-2864KSWPG01-H30",
+"componentBrandEn": "Newvisio",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-40℃~+85℃ 0.96 110cd/m2 128x64 21.74x11.175mm Passive (PMOLED) SSD1315 chip White - OLED Display ROHS",
+"stockCount": 1177,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 1.9271
+},
+{
+"startNumber": 10,
+"productPrice": 1.6319
+},
+{
+"startNumber": 60,
+"productPrice": 1.4465
+}
+]
+},
+{
+"componentCode": "C50396527",
+"componentModelEn": "JX943",
+"componentBrandEn": "YTL",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-20℃~+70℃ 1.43 850cd/m2 ST7801N chip - OLED Display ROHS",
+"stockCount": 4,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 14.1976
+},
+{
+"startNumber": 10,
+"productPrice": 13.517
+},
+{
+"startNumber": 25,
+"productPrice": 12.3378
+}
+]
+},
+{
+"componentCode": "C50396528",
+"componentModelEn": "CWS05",
+"componentBrandEn": "YTL",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-20℃~+70℃ 1.85 10uA 35.48x30.72mm 600cd/m2 CO5300AF chip - OLED Display ROHS",
+"stockCount": 4,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 14.2977
+},
+{
+"startNumber": 10,
+"productPrice": 13.6171
+},
+{
+"startNumber": 25,
+"productPrice": 12.4379
+}
+]
+},
+{
+"componentCode": "C50396529",
+"componentModelEn": "U3A",
+"componentBrandEn": "YTL",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "-20℃~+70℃ 2.06 33.09x40.51mm 850cd/m2 CO5300 chip - OLED Display ROHS",
+"stockCount": 3,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 14.9848
+},
+{
+"startNumber": 10,
+"productPrice": 14.2665
+},
+{
+"startNumber": 25,
+"productPrice": 13.0234
+}
+]
+},
+{
+"componentCode": "C55111608",
+"componentModelEn": "TAS039XGH01",
+"componentBrandEn": "Top Display Optoelectronics",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "- OLED Display ROHS",
+"stockCount": 3,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 51.3143
+},
+{
+"startNumber": 3,
+"productPrice": 51.3143
+},
+{
+"startNumber": 5,
+"productPrice": 51.3143
+}
+]
+},
+{
+"componentCode": "C88334",
+"componentModelEn": "UG-6448KLBEG03",
+"componentBrandEn": "UG(Univision Semicon)",
+"componentSpecificationEn": "-",
+"firstSortName": "OLED Display",
+"secondSortName": "Displays",
+"describe": "0.66 - OLED Display ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 2.1485
+},
+{
+"startNumber": 10,
+"productPrice": 2.1025
+},
+{
+"startNumber": 30,
+"productPrice": 2.1025
+}
+]
+}
+],
+"PIR": [
+{
+"componentCode": "C359325",
+"componentModelEn": "SPIRR7055220MA",
+"componentBrandEn": "Darfon Elec",
+"componentSpecificationEn": "SMD,7x7mm",
+"firstSortName": "Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "1.4A 22uH 64.3mΩ Unshielded Inductor ±20% SMD,7x7mm Power Inductors ROHS",
+"stockCount": 20,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.2821
+},
+{
+"startNumber": 50,
+"productPrice": 0.2198
+},
+{
+"startNumber": 150,
+"productPrice": 0.1931
+}
+]
+},
+{
+"componentCode": "C2654653",
+"componentModelEn": "SPIRIT1QTR",
+"componentBrandEn": "STMicroelectronics",
+"componentSpecificationEn": "QFN-20-EP(4x4)",
+"firstSortName": "RF Transceiver ICs",
+"secondSortName": "RF and Wireless",
+"describe": "-117dBm -40℃~+105℃ 1.8V~3.6V 150MHz~174MHz、300MHz~348MHz、387MHz~470MHz、779MHz~956MHz 16dBm 21mA 500Kbps 9mA ISM Power-on reset function、Supports RSSI function、Supports FEC function、CRC check function、Input sync word detection function、Automatic response function、Automatic retransmission function SPI transceiver QFN-20-EP(4x4) RF Transceiver ICs ROHS",
+"stockCount": 704,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 7.8131
+},
+{
+"startNumber": 10,
+"productPrice": 6.6847
+},
+{
+"startNumber": 30,
+"productPrice": 5.9976
+}
+]
+},
+{
+"componentCode": "C2675181",
+"componentModelEn": "TUSB522PIRGER",
+"componentBrandEn": "Texas Instruments",
+"componentSpecificationEn": "HVQFN-24-EP(4x4)",
+"firstSortName": "USB Converters",
+"secondSortName": "Interface",
+"describe": "-40℃~+85℃ 2 3.3V 5Gbps 98mA USB 3.1 HVQFN-24-EP(4x4) USB Converters ROHS",
+"stockCount": 5704,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.7364
+},
+{
+"startNumber": 10,
+"productPrice": 0.5839
+},
+{
+"startNumber": 30,
+"productPrice": 0.5068
+}
+]
+},
+{
+"componentCode": "C2887901",
+"componentModelEn": "PIR223D-S0",
+"componentBrandEn": "NEWOPTO",
+"componentSpecificationEn": "TO-5",
+"firstSortName": "Human Body Sensing Sensor",
+"secondSortName": "Sensors",
+"describe": "-20℃~+70℃ 10uA 2.7V~3.7V 4x3mm Rectangle TO-5 Human Body Sensing Sensor ROHS",
+"stockCount": 3206,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.7528
+},
+{
+"startNumber": 10,
+"productPrice": 0.6101
+},
+{
+"startNumber": 30,
+"productPrice": 0.5396
+}
+]
+},
+{
+"componentCode": "C2887902",
+"componentModelEn": "PIR223D-D0",
+"componentBrandEn": "NEWOPTO",
+"componentSpecificationEn": "TO-5",
+"firstSortName": "Human Body Sensing Sensor",
+"secondSortName": "Sensors",
+"describe": "-20℃~+70℃ 10uA 2.7V~3.7V 5x3.8mm Rectangle TO-5 Human Body Sensing Sensor ROHS",
+"stockCount": 2,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.9316
+},
+{
+"startNumber": 10,
+"productPrice": 0.7545
+},
+{
+"startNumber": 30,
+"productPrice": 0.6659
+}
+]
+},
+{
+"componentCode": "C2940631",
+"componentModelEn": "TPIRLML2244TRPBF",
+"componentBrandEn": "TECH PUBLIC",
+"componentSpecificationEn": "SOT-23",
+"firstSortName": "MOSFETs",
+"secondSortName": "Transistors/Thyristors",
+"describe": "-55℃~+150℃ 1 P-Channel 1.7W 190pF 1V 20V 290pF 4.1A 52mΩ@4.5V 7.8nC@4.5V 740pF SOT-23 MOSFETs ROHS",
+"stockCount": 3301,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0884
+},
+{
+"startNumber": 50,
+"productPrice": 0.0711
+},
+{
+"startNumber": 150,
+"productPrice": 0.0624
+}
+]
+},
+{
+"componentCode": "C5182048",
+"componentModelEn": "TPIRLML9303TRPBF",
+"componentBrandEn": "TECH PUBLIC",
+"componentSpecificationEn": "SOT-23",
+"firstSortName": "MOSFETs",
+"secondSortName": "Transistors/Thyristors",
+"describe": "-50℃~+150℃ 1 P-Channel 1.25W 10nC@10V 126pF 30V 3A 565pF 75mΩ@4.5V 75pF SOT-23 MOSFETs ROHS",
+"stockCount": 1193,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0829
+},
+{
+"startNumber": 50,
+"productPrice": 0.0657
+},
+{
+"startNumber": 150,
+"productPrice": 0.057
+}
+]
+},
+{
+"componentCode": "C5197338",
+"componentModelEn": "TPIRLML5103TRPBF",
+"componentBrandEn": "TECH PUBLIC",
+"componentSpecificationEn": "SOT-23",
+"firstSortName": "MOSFETs",
+"secondSortName": "Transistors/Thyristors",
+"describe": "-55℃~+150℃ 1 P-Channel 155pF 190mΩ@2.5V 1W 25pF 2A 30V 8nC@15V SOT-23 MOSFETs ROHS",
+"stockCount": 2152,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0834
+},
+{
+"startNumber": 50,
+"productPrice": 0.066
+},
+{
+"startNumber": 150,
+"productPrice": 0.0573
+}
+]
+},
+{
+"componentCode": "C5197349",
+"componentModelEn": "TPIRF7478TRPBF",
+"componentBrandEn": "TECH PUBLIC",
+"componentSpecificationEn": "SOP-8",
+"firstSortName": "MOSFETs",
+"secondSortName": "Transistors/Thyristors",
+"describe": "-55℃~+150℃ 1 N-channel 18mΩ@10V 2.18nF 2.2V 2.6W 270pF 58nC@30V 60V 9A SOP-8 MOSFETs ROHS",
+"stockCount": 2203,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3438
+},
+{
+"startNumber": 50,
+"productPrice": 0.271
+},
+{
+"startNumber": 150,
+"productPrice": 0.2398
+}
+]
+},
+{
+"componentCode": "C5197377",
+"componentModelEn": "TPIRF5806TRPBF",
+"componentBrandEn": "TECH PUBLIC",
+"componentSpecificationEn": "SOT-23-6L",
+"firstSortName": "MOSFETs",
+"secondSortName": "Transistors/Thyristors",
+"describe": "-55℃~+150℃ 1 P-Channel 1.1V 1.56W 1.67nF 120pF 19.5nC@4.5V 20V 220pF 26mΩ@2.5V 7A P-Channel SOT-23-6L MOSFETs ROHS",
+"stockCount": 2980,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1265
+},
+{
+"startNumber": 50,
+"productPrice": 0.1114
+},
+{
+"startNumber": 150,
+"productPrice": 0.1048
+}
+]
+},
+{
+"componentCode": "C5246406",
+"componentModelEn": "TPIRFTS9342TRPBF",
+"componentBrandEn": "TECH PUBLIC",
+"componentSpecificationEn": "SOT-23-6",
+"firstSortName": "MOSFETs",
+"secondSortName": "Transistors/Thyristors",
+"describe": "-55℃~+150℃ 1 P-Channel 1.4V 120pF 30V 350mW 4.1A 60mΩ@10V 700pF 75pF SOT-23-6 MOSFETs ROHS",
+"stockCount": 8804,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1306
+},
+{
+"startNumber": 50,
+"productPrice": 0.1047
+},
+{
+"startNumber": 150,
+"productPrice": 0.0916
+}
+]
+},
+{
+"componentCode": "C5246410",
+"componentModelEn": "TPIRLMS5703TRPBF",
+"componentBrandEn": "TECH PUBLIC",
+"componentSpecificationEn": "SOT-23-6",
+"firstSortName": "MOSFETs",
+"secondSortName": "Transistors/Thyristors",
+"describe": "-55℃~+150℃ 1 P-Channel 1.4V 120pF 30V 350mW 4.1A 60mΩ@10V 700pF 75pF SOT-23-6 MOSFETs ROHS",
+"stockCount": 1332,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1244
+},
+{
+"startNumber": 50,
+"productPrice": 0.0983
+},
+{
+"startNumber": 150,
+"productPrice": 0.0853
+}
+]
+},
+{
+"componentCode": "C5246438",
+"componentModelEn": "TPIRFR9024TRPBF",
+"componentBrandEn": "TECH PUBLIC",
+"componentSpecificationEn": "TO-252",
+"firstSortName": "MOSFETs",
+"secondSortName": "Transistors/Thyristors",
+"describe": "-55℃~+175℃ 1 P-Channel 1.6307nF 110mΩ@4.5V 13A 2V 37.6nC@30V 60V 60W 77.3pF TO-252 MOSFETs ROHS",
+"stockCount": 1013,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3751
+},
+{
+"startNumber": 50,
+"productPrice": 0.3025
+},
+{
+"startNumber": 150,
+"productPrice": 0.2713
+}
+]
+},
+{
+"componentCode": "C5350888",
+"componentModelEn": "TPIRLR3410TRPBF",
+"componentBrandEn": "TECH PUBLIC",
+"componentSpecificationEn": "TO-252",
+"firstSortName": "MOSFETs",
+"secondSortName": "Transistors/Thyristors",
+"describe": "-55℃~+150℃ 1 N-channel 100V 100mΩ@10V 14.7A 34.7W 3V 44pF 60nC 882pF TO-252 MOSFETs ROHS",
+"stockCount": 884,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.278
+},
+{
+"startNumber": 50,
+"productPrice": 0.217
+},
+{
+"startNumber": 150,
+"productPrice": 0.1909
+}
+]
+},
+{
+"componentCode": "C6081341",
+"componentModelEn": "XYC-PIR203B-S0",
+"componentBrandEn": "NEWOPTO",
+"componentSpecificationEn": "TO-5",
+"firstSortName": "Human Body Sensing Sensor",
+"secondSortName": "Sensors",
+"describe": "-30℃~+70℃ 2 2V~15V 4x3mm 5.5um~14um Rectangular TO-5 Human Body Sensing Sensor ROHS",
+"stockCount": 92,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.7069
+},
+{
+"startNumber": 10,
+"productPrice": 0.5724
+},
+{
+"startNumber": 30,
+"productPrice": 0.5052
+}
+]
+},
+{
+"componentCode": "C6081342",
+"componentModelEn": "XYC-PIR203Z-S0",
+"componentBrandEn": "NEWOPTO",
+"componentSpecificationEn": "TO-5",
+"firstSortName": "Human Body Sensing Sensor",
+"secondSortName": "Sensors",
+"describe": "TO-5 Human Body Sensing Sensor ROHS",
+"stockCount": 199,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.556
+},
+{
+"startNumber": 10,
+"productPrice": 0.4494
+},
+{
+"startNumber": 30,
+"productPrice": 0.3969
+}
+]
+},
+{
+"componentCode": "C6081343",
+"componentModelEn": "XYC-PIR223W-S0",
+"componentBrandEn": "NEWOPTO",
+"componentSpecificationEn": "TO-5",
+"firstSortName": "Human Body Sensing Sensor",
+"secondSortName": "Sensors",
+"describe": "TO-5 Human Body Sensing Sensor ROHS",
+"stockCount": 11,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.7545
+},
+{
+"startNumber": 10,
+"productPrice": 0.6118
+},
+{
+"startNumber": 30,
+"productPrice": 0.5413
+}
+]
+},
+{
+"componentCode": "C6081344",
+"componentModelEn": "XYC-PIR223Z-S0",
+"componentBrandEn": "NEWOPTO",
+"componentSpecificationEn": "TO-5",
+"firstSortName": "Human Body Sensing Sensor",
+"secondSortName": "Sensors",
+"describe": "-20℃~+70℃ 10uA 2.7V~3.3V 4x3mm Rectangular TO-5 Human Body Sensing Sensor ROHS",
+"stockCount": 837,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.6331
+},
+{
+"startNumber": 10,
+"productPrice": 0.5199
+},
+{
+"startNumber": 30,
+"productPrice": 0.4625
+}
+]
+},
+{
+"componentCode": "C6081345",
+"componentModelEn": "XYC-PIR244D-D0",
+"componentBrandEn": "NEWOPTO",
+"componentSpecificationEn": "TO-5",
+"firstSortName": "Human Body Sensing Sensor",
+"secondSortName": "Sensors",
+"describe": "-40℃~+70℃ 1.6V~5.5V 3uA 5x3.8mm Rectangular Serial Port TO-5 Human Body Sensing Sensor ROHS",
+"stockCount": 96,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 1.9812
+},
+{
+"startNumber": 10,
+"productPrice": 1.6843
+},
+{
+"startNumber": 30,
+"productPrice": 1.499
+}
+]
+},
+{
+"componentCode": "C6081346",
+"componentModelEn": "XYC-PIR226Z-S0",
+"componentBrandEn": "NEWOPTO",
+"componentSpecificationEn": "TO-5",
+"firstSortName": "Human Body Sensing Sensor",
+"secondSortName": "Sensors",
+"describe": "-20℃~+70℃ 10uA 2.7V~3.7V 4x3mm Rectangle TO-5 Human Body Sensing Sensor ROHS",
+"stockCount": 3,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 1.1169
+},
+{
+"startNumber": 10,
+"productPrice": 0.9201
+},
+{
+"startNumber": 30,
+"productPrice": 0.8201
+}
+]
+}
+],
+"PIR motion sensor": [],
+"SSD1306": [
+{
+"componentCode": "C9900039960",
+"componentModelEn": "SSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "Straight，P=2.54mm",
+"firstSortName": "New Arrivals",
+"secondSortName": "Others",
+"describe": "直插，P=2.54mm New Arrivals ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C9900222425",
+"componentModelEn": "SSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "SMD-14P-P0.62",
+"firstSortName": "SMT",
+"secondSortName": "Others",
+"describe": "SMD-14P-P0.62 SMT ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C9900104299",
+"componentModelEn": "1.3 SSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "OLED-SMD30pin",
+"firstSortName": "New Arrivals",
+"secondSortName": "Others",
+"describe": "OLED-SMD30pin New Arrivals ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C9900183382",
+"componentModelEn": "SSD1306oled",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "oled-30P",
+"firstSortName": "SMT",
+"secondSortName": "Others",
+"describe": "oled-30P SMT ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C5127225",
+"componentModelEn": "SSD1306-220MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "22uH 3.5A 47mΩ 7A ±20% SMD,18.5x15.2mm Power Inductors ROHS",
+"stockCount": 1718,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3174
+},
+{
+"startNumber": 50,
+"productPrice": 0.2488
+},
+{
+"startNumber": 250,
+"productPrice": 0.2195
+}
+]
+},
+{
+"componentCode": "C5127226",
+"componentModelEn": "SSD1306-330MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "33uH 3A 5.5A 66mΩ ±20% SMD,18.5x15.2mm Power Inductors ROHS",
+"stockCount": 44,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3256
+},
+{
+"startNumber": 50,
+"productPrice": 0.257
+},
+{
+"startNumber": 250,
+"productPrice": 0.2195
+}
+]
+},
+{
+"componentCode": "C5127227",
+"componentModelEn": "SSD1306-470MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "2.6A 4.5A 47uH 86mΩ ±20% SMD,18.5x15.2mm Power Inductors ROHS",
+"stockCount": 120,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3277
+},
+{
+"startNumber": 50,
+"productPrice": 0.259
+},
+{
+"startNumber": 250,
+"productPrice": 0.2215
+}
+]
+},
+{
+"componentCode": "C5127228",
+"componentModelEn": "SSD1306-101MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "1.8A 100uH 190mΩ 3A ±20% SMD,18.5x15.2mm Power Inductors ROHS",
+"stockCount": 56,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3149
+},
+{
+"startNumber": 50,
+"productPrice": 0.2462
+},
+{
+"startNumber": 250,
+"productPrice": 0.2087
+}
+]
+},
+{
+"componentCode": "C5127332",
+"componentModelEn": "SSD1306-221MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "1.2A 2.4A 220uH 380mΩ ±20% SMD,18.5x15.2mm Power Inductors ROHS",
+"stockCount": 43,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3194
+},
+{
+"startNumber": 50,
+"productPrice": 0.2508
+},
+{
+"startNumber": 250,
+"productPrice": 0.2133
+}
+]
+},
+{
+"componentCode": "C52098030",
+"componentModelEn": "SSD1306-150MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Molding Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "15uH 36mΩ 4A 8A Unshielded Inductor ±20% SMD,18.5x15.2mm Molding Power Inductors ROHS",
+"stockCount": 100,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3107
+},
+{
+"startNumber": 50,
+"productPrice": 0.242
+},
+{
+"startNumber": 250,
+"productPrice": 0.2126
+}
+]
+},
+{
+"componentCode": "C9900136099",
+"componentModelEn": "OLED082-SSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "SMD",
+"firstSortName": "New Arrivals",
+"secondSortName": "Others",
+"describe": "SMD New Arrivals ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C9900045120",
+"componentModelEn": "OLED0.96InchSSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "OLED-SMD",
+"firstSortName": "New Arrivals",
+"secondSortName": "Others",
+"describe": "OLED-SMD New Arrivals ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C9900150306",
+"componentModelEn": "KAC-096-7pin-SPI-SSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "TH-7P",
+"firstSortName": "New Arrivals",
+"secondSortName": "Others",
+"describe": "TH-7P New Arrivals ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+}
+],
+"SSD1306 OLED": [
+{
+"componentCode": "C9900039960",
+"componentModelEn": "SSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "Straight，P=2.54mm",
+"firstSortName": "New Arrivals",
+"secondSortName": "Others",
+"describe": "直插，P=2.54mm New Arrivals ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C9900222425",
+"componentModelEn": "SSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "SMD-14P-P0.62",
+"firstSortName": "SMT",
+"secondSortName": "Others",
+"describe": "SMD-14P-P0.62 SMT ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C9900104299",
+"componentModelEn": "1.3 SSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "OLED-SMD30pin",
+"firstSortName": "New Arrivals",
+"secondSortName": "Others",
+"describe": "OLED-SMD30pin New Arrivals ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C9900183382",
+"componentModelEn": "SSD1306oled",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "oled-30P",
+"firstSortName": "SMT",
+"secondSortName": "Others",
+"describe": "oled-30P SMT ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C5127225",
+"componentModelEn": "SSD1306-220MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "22uH 3.5A 47mΩ 7A ±20% SMD,18.5x15.2mm Power Inductors ROHS",
+"stockCount": 1718,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3174
+},
+{
+"startNumber": 50,
+"productPrice": 0.2488
+},
+{
+"startNumber": 250,
+"productPrice": 0.2195
+}
+]
+},
+{
+"componentCode": "C5127226",
+"componentModelEn": "SSD1306-330MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "33uH 3A 5.5A 66mΩ ±20% SMD,18.5x15.2mm Power Inductors ROHS",
+"stockCount": 44,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3256
+},
+{
+"startNumber": 50,
+"productPrice": 0.257
+},
+{
+"startNumber": 250,
+"productPrice": 0.2195
+}
+]
+},
+{
+"componentCode": "C5127227",
+"componentModelEn": "SSD1306-470MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "2.6A 4.5A 47uH 86mΩ ±20% SMD,18.5x15.2mm Power Inductors ROHS",
+"stockCount": 120,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3277
+},
+{
+"startNumber": 50,
+"productPrice": 0.259
+},
+{
+"startNumber": 250,
+"productPrice": 0.2215
+}
+]
+},
+{
+"componentCode": "C5127228",
+"componentModelEn": "SSD1306-101MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "1.8A 100uH 190mΩ 3A ±20% SMD,18.5x15.2mm Power Inductors ROHS",
+"stockCount": 56,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3149
+},
+{
+"startNumber": 50,
+"productPrice": 0.2462
+},
+{
+"startNumber": 250,
+"productPrice": 0.2087
+}
+]
+},
+{
+"componentCode": "C5127332",
+"componentModelEn": "SSD1306-221MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "1.2A 2.4A 220uH 380mΩ ±20% SMD,18.5x15.2mm Power Inductors ROHS",
+"stockCount": 43,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3194
+},
+{
+"startNumber": 50,
+"productPrice": 0.2508
+},
+{
+"startNumber": 250,
+"productPrice": 0.2133
+}
+]
+},
+{
+"componentCode": "C52098030",
+"componentModelEn": "SSD1306-150MT",
+"componentBrandEn": "LanTu Micro",
+"componentSpecificationEn": "SMD,18.5x15.2mm",
+"firstSortName": "Molding Power Inductors",
+"secondSortName": "Inductors, Coils, Chokes",
+"describe": "15uH 36mΩ 4A 8A Unshielded Inductor ±20% SMD,18.5x15.2mm Molding Power Inductors ROHS",
+"stockCount": 100,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3107
+},
+{
+"startNumber": 50,
+"productPrice": 0.242
+},
+{
+"startNumber": 250,
+"productPrice": 0.2126
+}
+]
+},
+{
+"componentCode": "C9900136099",
+"componentModelEn": "OLED082-SSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "SMD",
+"firstSortName": "New Arrivals",
+"secondSortName": "Others",
+"describe": "SMD New Arrivals ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C9900045120",
+"componentModelEn": "OLED0.96InchSSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "OLED-SMD",
+"firstSortName": "New Arrivals",
+"secondSortName": "Others",
+"describe": "OLED-SMD New Arrivals ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+},
+{
+"componentCode": "C9900150306",
+"componentModelEn": "KAC-096-7pin-SPI-SSD1306",
+"componentBrandEn": "JLCPCB Assembly",
+"componentSpecificationEn": "TH-7P",
+"firstSortName": "New Arrivals",
+"secondSortName": "Others",
+"describe": "TH-7P New Arrivals ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0399
+},
+{
+"startNumber": 100,
+"productPrice": 0.0206
+}
+]
+}
+],
+"WS2812": [
+{
+"componentCode": "C114587",
+"componentModelEn": "WS2812C",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "SMD5050-4P",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-25℃~+65℃ 0.6mA 1.57mm 3.7V~5.3V 5.4mm 5mm 800Kbit/s B:465nm~475nm、R:620nm~630nm、G:515nm~525nm Built-in power-on reset circuit、Built-in power-on reset circuit、Built-in one-way transmission function G:400mcd~600mcd、R:150mcd~200mcd、B:100mcd~150mcd SMD5050-4P RGB LEDs(Built-in IC) ROHS",
+"stockCount": 590,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1099
+},
+{
+"startNumber": 50,
+"productPrice": 0.0855
+},
+{
+"startNumber": 150,
+"productPrice": 0.0734
+}
+]
+},
+{
+"componentCode": "C139126",
+"componentModelEn": "WS2812D-F8",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "Plugin,D=8mm",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-25℃~+80℃ 120us 2500mcd 28° 3.5V~5.3V 3000mcd 300ns 4000mcd 465nm~470nm 467.5nm 520nm~525nm 522.5nm 600kHz 620nm~625nm 622.5nm 800Kbit/s 8mm round lamp holder Built-in power-on reset circuit、Built-in power-on reset circuit Plugin,D=8mm RGB LEDs(Built-in IC) ROHS",
+"stockCount": 4031,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.2442
+},
+{
+"startNumber": 50,
+"productPrice": 0.1934
+},
+{
+"startNumber": 250,
+"productPrice": 0.1717
+}
+]
+},
+{
+"componentCode": "C527089",
+"componentModelEn": "WS2812B-MINI-V3/W",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "SMD3535-4P",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "0.6mA 1.9mm 3.46mm 3.5V~5.3V 4000V 800Kbit/s Built-in power-on reset circuit、Built-in power-on reset circuit、Integrated intelligent reverse connection protection function R:310mcd、G:780mcd、B:215mcd R:622nm、G:518nm、B:472nm SMD3535-4P RGB LEDs(Built-in IC) ROHS",
+"stockCount": 1,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1245
+},
+{
+"startNumber": 50,
+"productPrice": 0.1003
+},
+{
+"startNumber": 150,
+"productPrice": 0.0881
+}
+]
+},
+{
+"componentCode": "C2761795",
+"componentModelEn": "WS2812B-B/T",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "SMD5050-4P",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+65℃ 0.6mA 1.57mm 120us 200mcd~300mcd 2kHz 3.7V~5.3V 300mcd~500mcd 300ns 471nm 471nm 5.4mm 520nm 520nm 5mm 600mcd~1000mcd 621nm 621nm 800Kbit/s Built-in power-on reset circuit、Built-in power-on reset circuit、Built-in one-way transmission function SMD5050-4P RGB LEDs(Built-in IC) ROHS",
+"stockCount": 0,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1175
+},
+{
+"startNumber": 50,
+"productPrice": 0.094
+},
+{
+"startNumber": 150,
+"productPrice": 0.0824
+}
+]
+},
+{
+"componentCode": "C2843785",
+"componentModelEn": "XL-5050RGBC-2812B",
+"componentBrandEn": "XINGLIGHT",
+"componentSpecificationEn": "SMD5050-4P",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-20℃~+85℃ 0.3mA 1.6mm 120° 2000V 3.5V~5.5V 4kHz 5mm 5mm 800Kbit/s G:1300mcd~1800mcd、R:500mcd~700mcd、B:300mcd~500mcd R:620nm~635nm、B:465nm~475nm、G:520nm~535nm Top-mount Water Clear SMD5050-4P RGB LEDs(Built-in IC) ROHS",
+"stockCount": 273069,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0553
+},
+{
+"startNumber": 100,
+"productPrice": 0.0443
+},
+{
+"startNumber": 300,
+"productPrice": 0.0386
+}
+]
+},
+{
+"componentCode": "C2874885",
+"componentModelEn": "WS2812B-V5/W",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "SMD5050-4P",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+65℃ 0.6mA 1.57mm 2kHz 5.4mm 5V 5mm 800Kbit/s B:465nm~475nm、R:620nm~630nm、G:515nm~525nm Built-in power-on reset circuit、Built-in power-on reset circuit、Integrated intelligent reverse connection protection function R:310mcd、G:780mcd、B:215mcd White Frosted Lens SMD5050-4P RGB LEDs(Built-in IC) ROHS",
+"stockCount": 1695,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1204
+},
+{
+"startNumber": 50,
+"productPrice": 0.097
+},
+{
+"startNumber": 150,
+"productPrice": 0.0853
+}
+]
+},
+{
+"componentCode": "C2890364",
+"componentModelEn": "XL-3528RGBW-2812B",
+"componentBrandEn": "XINGLIGHT",
+"componentSpecificationEn": "SMD3528-4P",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-20℃~+85℃ 0.5mA 1.5kHz 1.85mm 120° 2.8mm 2000V 3.5V~5.5V 3.5mm 800Kbit/s B:100mcd~200mcd、R:200mcd~300mcd、G:600mcd~800mcd G:520nm~525nm、B:467nm~472nm、R:618nm~623nm G:525nm、R:625nm、B:470nm Top-mount SMD3528-4P RGB LEDs(Built-in IC) ROHS",
+"stockCount": 92675,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0881
+},
+{
+"startNumber": 50,
+"productPrice": 0.0717
+},
+{
+"startNumber": 150,
+"productPrice": 0.0634
+}
+]
+},
+{
+"componentCode": "C2920042",
+"componentModelEn": "WS2812E-V5",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "SMD5050-4P",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "0.6mA 1.57mm 1000mcd 110mcd 120us 2kHz 3.7V~5.3V 300ns 320mcd 451nm 523nm 5mm 5mm 623nm 800Kbit/s Built-in power-on reset circuit、Built-in power-on reset circuit Top-mount SMD5050-4P RGB LEDs(Built-in IC) ROHS",
+"stockCount": 343201,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0679
+},
+{
+"startNumber": 100,
+"productPrice": 0.0553
+},
+{
+"startNumber": 300,
+"productPrice": 0.0488
+}
+]
+},
+{
+"componentCode": "C3646929",
+"componentModelEn": "XL-0807RGBC-2812B",
+"componentBrandEn": "XINGLIGHT",
+"componentSpecificationEn": "SMD-4P,2x1.8mm",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-20℃~+85℃ 0.35mA 0.8mm 1.8mm 120° 2mm 3000V 4.5kHz 4V~5.5V 800Kbit/s G:525nm、R:625nm、B:470nm R:200mcd、G:800mcd、B:300mcd R:620nm~630nm、G:520nm~530nm、B:460nm~475nm Top-mount Water Clear SMD-4P,2x1.8mm RGB LEDs(Built-in IC) ROHS",
+"stockCount": 36373,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0825
+},
+{
+"startNumber": 50,
+"productPrice": 0.072
+},
+{
+"startNumber": 150,
+"productPrice": 0.067
+}
+]
+},
+{
+"componentCode": "C3647024",
+"componentModelEn": "XL-4020RGBC-2812B",
+"componentBrandEn": "XINGLIGHT",
+"componentSpecificationEn": "SMD-4P,4x2mm",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-20℃~+85℃ 0.018us 0.018us 0.21us 1.5kHz 1.7mm 1.95mm 100mcd~200mcd 120° 2000V 200mcd~300mcd 3.95mm 4.5V~5.5V 465nm~475nm 470nm 515nm~525nm 525nm 600mcd~800mcd 620nm~630nm 625nm 800Kbit/s Side View Mount Water Clear SMD-4P,4x2mm RGB LEDs(Built-in IC) ROHS",
+"stockCount": 62574,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.116
+},
+{
+"startNumber": 50,
+"productPrice": 0.0927
+},
+{
+"startNumber": 150,
+"productPrice": 0.0809
+}
+]
+},
+{
+"componentCode": "C4154871",
+"componentModelEn": "WS2812E-MINI-X1",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "SMD-4P,3.7x3.5mm",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "0.6mA 0.95mm 2kHz 3.5mm 3.5mm 3.7V~5.3V 800Kbit/s R:260mcd~380mcd、G:850mcd~1200mcd、B:90mcd~130mcd R:620nm~625nm、G:520nm~525nm、B:449nm~454nm 内置上电复位电路、内置掉电复位电路 SMD-4P,3.7x3.5mm RGB LEDs(Built-in IC) ROHS",
+"stockCount": 11636,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1117
+},
+{
+"startNumber": 50,
+"productPrice": 0.0894
+},
+{
+"startNumber": 150,
+"productPrice": 0.0783
+}
+]
+},
+{
+"componentCode": "C4154872",
+"componentModelEn": "WS2812C-2427",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "SMD-4P,2.7x2.4mm",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+65℃ 0.6mA 1.1mm 2.4mm 2.7mm 2kHz 3.7V~5.3V 800Kbit/s G:522nm~527nm、R:618nm~623nm、B:462nm~467nm R:120mcd~200mcd、G:350mcd~500mcd、B:55mcd~75mcd 内置上电复位电路、内置掉电复位电路 SMD-4P,2.7x2.4mm RGB LEDs(Built-in IC) ROHS",
+"stockCount": 12232,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1114
+},
+{
+"startNumber": 50,
+"productPrice": 0.0894
+},
+{
+"startNumber": 150,
+"productPrice": 0.0784
+}
+]
+},
+{
+"componentCode": "C4154873",
+"componentModelEn": "WS2812B-MINI-X2",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "SMD3535-4P",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "0.6mA 0.95mm 2kHz 3.5V~5.3V 3.5mm 3.5mm 800Kbit/s B:215mcd、R:330mcd、G:700mcd R:620nm~625nm、B:467nm~472nm、G:515nm~520nm 内置上电复位电路、内置掉电复位电路、集成智能反向连接保护功能 SMD3535-4P RGB LEDs(Built-in IC) ROHS",
+"stockCount": 152,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1281
+},
+{
+"startNumber": 50,
+"productPrice": 0.1021
+},
+{
+"startNumber": 150,
+"productPrice": 0.0889
+}
+]
+},
+{
+"componentCode": "C4154875",
+"componentModelEn": "WS2812D-F5-12mA-C1",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "Plugin,D=4.8mm",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-25℃~+80℃ 110° 120us 2500mcd 2kHz 3.7V~5.3V 3000mcd 300ns 4000mcd 5mm round lamp head 6.1mm 800Kbit/s Built-in power-on reset circuit、Built-in power-on reset circuit Plugin,D=4.8mm RGB LEDs(Built-in IC) ROHS",
+"stockCount": 1,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1978
+},
+{
+"startNumber": 50,
+"productPrice": 0.154
+},
+{
+"startNumber": 150,
+"productPrice": 0.1354
+}
+]
+},
+{
+"componentCode": "C4154881",
+"componentModelEn": "WS2812B-XF01/W",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "SMD5050-4P",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "0.6mA 1.57mm 3.7V~5.3V 5mm 5mm 800Kbit/s R:350mcd、G:1050mcd、B:110mcd R:623nm、G:521nm、B:452nm 内置上电复位电路、内置掉电复位电路、集成智能反向连接保护功能 SMD5050-4P RGB LEDs(Built-in IC) ROHS",
+"stockCount": 667,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0865
+},
+{
+"startNumber": 50,
+"productPrice": 0.0684
+},
+{
+"startNumber": 150,
+"productPrice": 0.0593
+}
+]
+},
+{
+"componentCode": "C4154882",
+"componentModelEn": "WS2812B-XF02/W",
+"componentBrandEn": "Worldsemi",
+"componentSpecificationEn": "SMD5050-4P",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "0.6mA 1.57mm 2kHz 3.7V~5.3V 5mm 5mm 800Kbit/s R:350mcd、G:1050mcd、B:110mcd R:620nm~625nm、G:518nm~523nm、B:450nm~455nm 内置上电复位电路、内置掉电复位电路 SMD5050-4P RGB LEDs(Built-in IC) ROHS",
+"stockCount": 14177,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0793
+},
+{
+"startNumber": 100,
+"productPrice": 0.062
+},
+{
+"startNumber": 300,
+"productPrice": 0.0535
+}
+]
+},
+{
+"componentCode": "C5349953",
+"componentModelEn": "XL-1010RGBC-2812B",
+"componentBrandEn": "XINGLIGHT",
+"componentSpecificationEn": "SMD,1x1mm",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-20℃~+85℃ 0.35mA 0.8mm 120° 1kHz 1mm 1mm 2000V 200mcd、800mcd、300mcd 4.5V~5.5V 800Kbit/s B:465nm~475nm、R:620nm~625nm、G:520nm~530nm G:525nm、R:625nm、B:470nm Top-mount Water Clear SMD,1x1mm RGB LEDs(Built-in IC) ROHS",
+"stockCount": 529737,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0748
+},
+{
+"startNumber": 100,
+"productPrice": 0.0601
+},
+{
+"startNumber": 300,
+"productPrice": 0.0525
+}
+]
+},
+{
+"componentCode": "C5349954",
+"componentModelEn": "XL-1615RGBC-2812B",
+"componentBrandEn": "XINGLIGHT",
+"componentSpecificationEn": "SMD-4P,1.6x1.5mm",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-20℃~+85℃ 0.35mA 0.6mm 1.5mm 1.6mm 120° 130mcd、360mcd、110mcd 3.5V~5.5V 3000V 4.5kHz 800Kbit/s G:525nm、R:625nm、B:470nm R:620nm~625nm、B:465nm~470nm、G:525nm~530nm Top-mount Water Clear SMD-4P,1.6x1.5mm RGB LEDs(Built-in IC) ROHS",
+"stockCount": 235890,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.0593
+},
+{
+"startNumber": 100,
+"productPrice": 0.0466
+},
+{
+"startNumber": 300,
+"productPrice": 0.0401
+}
+]
+},
+{
+"componentCode": "C5349955",
+"componentModelEn": "XL-2020RGBC-2812B",
+"componentBrandEn": "XINGLIGHT",
+"componentSpecificationEn": "2020",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-40℃~+85℃ 0.5mA 0.65mm 1.5kHz 120° 150mcd、150mcd、400mcd 2000V 2mm 2mm 3.5V~5.5V 800Kbit/s G:525nm、R:625nm、B:470nm R:620nm~625nm、G:525nm~530nm、B:470nm~475nm Top-mount Translucent Frosted Lens 2020 RGB LEDs(Built-in IC) ROHS",
+"stockCount": 57929,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1019
+},
+{
+"startNumber": 50,
+"productPrice": 0.0801
+},
+{
+"startNumber": 150,
+"productPrice": 0.0688
+}
+]
+},
+{
+"componentCode": "C5349957",
+"componentModelEn": "XL-2121RGBC-2812B",
+"componentBrandEn": "XINGLIGHT",
+"componentSpecificationEn": "SMD-4P,2x2mm",
+"firstSortName": "RGB LEDs(Built-in IC)",
+"secondSortName": "Optoelectronics",
+"describe": "-20℃~+85℃ 0.3us 0.7mA 1.5kHz 120° 1mm 2.1mm 2.1mm 2000V 3V~5.5V 465nm~475nm 470nm 515nm~525nm 525nm 620nm~630nm 625nm 800Kbit/s Top-mount Translucent Frosted Lens SMD-4P,2x2mm RGB LEDs(Built-in IC) ROHS",
+"stockCount": 50468,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.1198
+},
+{
+"startNumber": 50,
+"productPrice": 0.0929
+},
+{
+"startNumber": 150,
+"productPrice": 0.0794
+}
+]
+}
+],
+"WS2812 addressable LED": [],
+"buzzer": [
+{
+"componentCode": "C2877",
+"componentModelEn": "HND-2310B",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "Plugin,D=23mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-20℃~+75℃ 10.3mm 10mA 12V 23mm 3.5kHz 3V~24V 90dB Active Buzzer (Built-in Driving Circuit) Piezoelectric 插件,D=23mm Buzzers ROHS",
+"stockCount": 3873,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.6872
+},
+{
+"startNumber": 10,
+"productPrice": 0.5708
+},
+{
+"startNumber": 30,
+"productPrice": 0.5134
+}
+]
+},
+{
+"componentCode": "C2878",
+"componentModelEn": "HND-2319",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "Plugin,D=23mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-20℃~+60℃ 12V 19.3mm 23mm 3.7kHz 3V~24V 90dB Active Buzzer (Built-in Driving Circuit) Piezoelectric 插件,D=23mm Buzzers ROHS",
+"stockCount": 14115,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.4511
+},
+{
+"startNumber": 10,
+"productPrice": 0.4035
+},
+{
+"startNumber": 30,
+"productPrice": 0.3789
+}
+]
+},
+{
+"componentCode": "C2881",
+"componentModelEn": "HND-3015B",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "-",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-20℃~+80℃ 12V 15mm 3.3kHz 30mm 3V~24V 95dB Active Buzzer (Built-in Driving Circuit) Piezoelectric - Buzzers ROHS",
+"stockCount": 51,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.9365
+},
+{
+"startNumber": 10,
+"productPrice": 0.7807
+},
+{
+"startNumber": 30,
+"productPrice": 0.7036
+}
+]
+},
+{
+"componentCode": "C76871",
+"componentModelEn": "PS1240P02BT",
+"componentBrandEn": "TDK",
+"componentSpecificationEn": "Plugin,D=12.2mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-10℃~+70℃ 12.2mm 30V 3V 4kHz 5mm 7.8mm 70dB Passive (Externally Driven) Piezoelectric 插件,D=12.2mm Buzzers ROHS",
+"stockCount": 6025,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.2246
+},
+{
+"startNumber": 10,
+"productPrice": 0.1796
+},
+{
+"startNumber": 30,
+"productPrice": 0.1604
+}
+]
+},
+{
+"componentCode": "C76872",
+"componentModelEn": "PS1740P02E",
+"componentBrandEn": "TDK",
+"componentSpecificationEn": "Plugin,D=17mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-10℃~+70℃ 10mm 17mm 3V 4kHz 7.8mm 75dB Passive (Externally Driven) Piezoelectric Through-hole 插件,D=17mm Buzzers ROHS",
+"stockCount": 160,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3471
+},
+{
+"startNumber": 50,
+"productPrice": 0.2698
+},
+{
+"startNumber": 150,
+"productPrice": 0.2367
+}
+]
+},
+{
+"componentCode": "C76873",
+"componentModelEn": "PS1240P02CT3",
+"componentBrandEn": "TDK",
+"componentSpecificationEn": "Plugin,D=12.2mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-10℃~+70℃ 12.2mm 3.5mm 30V 4kHz 5mm 60dB Passive (Externally Driven) Piezoelectric Through-hole 插件,D=12.2mm Buzzers ROHS",
+"stockCount": 1793,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.2756
+},
+{
+"startNumber": 50,
+"productPrice": 0.221
+},
+{
+"startNumber": 150,
+"productPrice": 0.1977
+}
+]
+},
+{
+"componentCode": "C91080",
+"componentModelEn": "PS1420P02CT",
+"componentBrandEn": "TDK",
+"componentSpecificationEn": "Plugin,D=14mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-10℃~+70℃ 11mm 14mm 2kHz 30V 5V 5mm 70dB Passive (Externally Driven) Piezoelectric Through-hole 插件,D=14mm Buzzers ROHS",
+"stockCount": 1658,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3481
+},
+{
+"startNumber": 50,
+"productPrice": 0.2764
+},
+{
+"startNumber": 150,
+"productPrice": 0.2456
+}
+]
+},
+{
+"componentCode": "C94598",
+"componentModelEn": "MLT-5020",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "SMD,5x5mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-20℃~+70℃ 100mA 2.5mm 2V~4V 3V 4kHz 5.2mm 5.2mm 75dB Electromagnetic Passive (Externally Driven) SMD,5x5mm Buzzers ROHS",
+"stockCount": 151784,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.4014
+},
+{
+"startNumber": 50,
+"productPrice": 0.3126
+},
+{
+"startNumber": 150,
+"productPrice": 0.2693
+}
+]
+},
+{
+"componentCode": "C94599",
+"componentModelEn": "MLT-8530",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "SMD,8.5x8.5mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-20℃~+70℃ 2.5V~4.5V 2.7kHz 3.3mm 3.6V 8.5mm 8.5mm 80dB 95mA Electromagnetic Passive (Externally Driven) SMD SMD,8.5x8.5mm Buzzers ROHS",
+"stockCount": 141294,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.2021
+},
+{
+"startNumber": 50,
+"productPrice": 0.1585
+},
+{
+"startNumber": 150,
+"productPrice": 0.1373
+}
+]
+},
+{
+"componentCode": "C95054",
+"componentModelEn": "CSS-73B16K-SMT",
+"componentBrandEn": "CUI",
+"componentSpecificationEn": "SMD-4P,8.5x8.5mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-30℃~+70℃ 100mA 2.5V~4.5V 2.73kHz 3.6V 4mm 8.5mm 8.5mm 92dB Passive (Externally Driven) SMD SMD-4P,8.5x8.5mm Buzzers ROHS",
+"stockCount": 1,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 3.3063
+},
+{
+"startNumber": 10,
+"productPrice": 3.2325
+},
+{
+"startNumber": 30,
+"productPrice": 3.1833
+}
+]
+},
+{
+"componentCode": "C95056",
+"componentModelEn": "CSS-J4B20-SMT-TR",
+"componentBrandEn": "CUI",
+"componentSpecificationEn": "SMD-4P,8.5x8.5mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-30℃~+70℃ 2.73kHz 3.2mm 3.6V 3V~5V 8.5mm 8.5mm 80mA Passive (Externally Driven) SMD SMD-4P,8.5x8.5mm Buzzers ROHS",
+"stockCount": 1,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 4.3051
+},
+{
+"startNumber": 10,
+"productPrice": 3.7048
+},
+{
+"startNumber": 30,
+"productPrice": 3.3473
+}
+]
+},
+{
+"componentCode": "C95163",
+"componentModelEn": "CPT-9019S-SMT-TR",
+"componentBrandEn": "CUI",
+"componentSpecificationEn": "SMD,9x9mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-30℃~+70℃ 1.9mm 4kHz 5mA 65dB 9mm 9mm Passive (Externally Driven) Piezoelectric SMD SMD,9x9mm Buzzers ROHS",
+"stockCount": 227,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 2.7028
+},
+{
+"startNumber": 10,
+"productPrice": 2.3059
+},
+{
+"startNumber": 30,
+"productPrice": 2.0583
+}
+]
+},
+{
+"componentCode": "C95297",
+"componentModelEn": "MLT-5030",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "SMD,5.2x5.7mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-20℃~+70℃ 100mA 2V~4V 3.4mm 3V 4kHz 5.2mm 5.2mm 80dB Electromagnetic Passive (Externally Driven) SMD,5.2x5.7mm Buzzers ROHS",
+"stockCount": 5655,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.5462
+},
+{
+"startNumber": 10,
+"productPrice": 0.4396
+},
+{
+"startNumber": 30,
+"productPrice": 0.3937
+}
+]
+},
+{
+"componentCode": "C95298",
+"componentModelEn": "MLT-8540H",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "SMD,8.5x8.5mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-20℃~+70℃ 100mA 2.5V~4.5V 2.7kHz 3.6V 4.3mm 8.5mm 8.5mm 85dB Electromagnetic Passive (Externally Driven) SMD SMD,8.5x8.5mm Buzzers ROHS",
+"stockCount": 32291,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.2251
+},
+{
+"startNumber": 50,
+"productPrice": 0.1755
+},
+{
+"startNumber": 150,
+"productPrice": 0.1542
+}
+]
+},
+{
+"componentCode": "C95299",
+"componentModelEn": "MLT-7525",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "SMD,7.5x7.5mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-20℃~+70℃ 2.5V~4.5V 2.7kHz 2.8mm 3.6V 7.5mm 7.5mm 80dB 95mA Electromagnetic Passive (Externally Driven) SMD,7.5x7.5mm Buzzers ROHS",
+"stockCount": 49498,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.2392
+},
+{
+"startNumber": 50,
+"productPrice": 0.1857
+},
+{
+"startNumber": 150,
+"productPrice": 0.1596
+}
+]
+},
+{
+"componentCode": "C95300",
+"componentModelEn": "MLT-8540",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "SMD,8.7x8.7mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-20℃~+70℃ 2.5V~4.5V 2.7kHz 3.6V 4mm 8.7mm 8.7mm 80dB 95mA Electromagnetic Passive (Externally Driven) SMD SMD,8.7x8.7mm Buzzers ROHS",
+"stockCount": 4051,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.2744
+},
+{
+"startNumber": 50,
+"productPrice": 0.2165
+},
+{
+"startNumber": 150,
+"productPrice": 0.1918
+}
+]
+},
+{
+"componentCode": "C96060",
+"componentModelEn": "PS1440P02BT",
+"componentBrandEn": "TDK",
+"componentSpecificationEn": "Plugin,D=14mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-10℃~+70℃ 14mm 30V 3V 4kHz 5mm 75dB 9.2mm Passive (Externally Driven) Piezoelectric Through-hole 插件,D=14mm Buzzers ROHS",
+"stockCount": 153,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.3909
+},
+{
+"startNumber": 50,
+"productPrice": 0.2982
+},
+{
+"startNumber": 150,
+"productPrice": 0.2585
+}
+]
+},
+{
+"componentCode": "C96061",
+"componentModelEn": "PS1720P02",
+"componentBrandEn": "TDK",
+"componentSpecificationEn": "Plugin,D=17mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-10℃~+70℃ 10mm 17mm 2kHz 3V 70dB 8.3mm Passive (Externally Driven) Piezoelectric Through-hole 插件,D=17mm Buzzers ROHS",
+"stockCount": 1501,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.359
+},
+{
+"startNumber": 50,
+"productPrice": 0.2921
+},
+{
+"startNumber": 150,
+"productPrice": 0.2292
+}
+]
+},
+{
+"componentCode": "C96078",
+"componentModelEn": "TMB12A24",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "Plugin,D=12mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-20℃~+70℃ 12mm 18V~26V 2.3kHz 24V 30mA 85dB 9.8mm Active Buzzer (Built-in Driving Circuit) Electromagnetic 插件,D=12mm Buzzers ROHS",
+"stockCount": 16041,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.299
+},
+{
+"startNumber": 50,
+"productPrice": 0.2429
+},
+{
+"startNumber": 150,
+"productPrice": 0.1729
+}
+]
+},
+{
+"componentCode": "C96079",
+"componentModelEn": "TMB12A12",
+"componentBrandEn": "Jiangsu Huaneng Elec",
+"componentSpecificationEn": "Plugin,D=12mm",
+"firstSortName": "Buzzers",
+"secondSortName": "Audio Products / Vibration Motors",
+"describe": "-20℃~+85℃ 12V 12mm 2.4kHz 30mA 85dB 8V~16V 9.8mm Active Buzzer (Built-in Driving Circuit) Electromagnetic Plugin,D=12mm Buzzers ROHS",
+"stockCount": 64729,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 0.2077
+},
+{
+"startNumber": 50,
+"productPrice": 0.1609
+},
+{
+"startNumber": 200,
+"productPrice": 0.1298
+}
+]
+}
+],
+"capacitive soil moisture sensor": [],
+"piezo buzzer": [],
+"soil moisture": [
+{
+"componentCode": "C18236196",
+"componentModelEn": "CHT-T-R",
+"componentBrandEn": "CYBERSEN",
+"componentSpecificationEn": "-",
+"firstSortName": "Sensor Modules",
+"secondSortName": "Sensors",
+"describe": "-30℃~+70℃ 15mm 4.5V~30V Soil temperature and humidity sensor Temperature compensation - Sensor Modules ROHS",
+"stockCount": 2,
+"componentLibraryType": "expand",
+"preferredComponentFlag": false,
+"componentPrices": [
+{
+"startNumber": 1,
+"productPrice": 19.5637
+},
+{
+"startNumber": 3,
+"productPrice": 19.5637
+},
+{
+"startNumber": 5,
+"productPrice": 19.5637
+}
+]
+}
+]
+}

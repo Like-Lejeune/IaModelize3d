@@ -120,8 +120,10 @@ def test_a_pcb_build_reads_its_drc_count_traces_and_vias():
     dirty["errors"] = [{"type": "pcb_trace_error", "ref": "C1", "message": "trace too close", "hint": "move C1 by 1 mm"}] * 3
     dirty["suppressed"] = 2
     out = pt.brief(dirty, 4, CARRIER, set(pt.PREVIEWS))
-    assert out["ok"] is False
-    assert n.result_title("write_circuit", {}, out) == "PCB v4 — 5 DRC errors, 23 traces, 13 vias"
+    assert out["ok"] is False and out["drc_errors"] == 3 and out["error"].startswith("3 DRC error(s)")
+    # the listed errors, as the 'pcb.version' event and the result card count them; the 2 follow-ups are the suppressed line
+    assert n.result_title("write_circuit", {}, out) == "PCB v4 — 3 DRC errors, 23 traces, 13 vias"
+    assert n.result_title("write_circuit", {}, {k: v for k, v in out.items() if k != "drc_errors"}) == "PCB v4 — 3 DRC errors, 23 traces, 13 vias"
     assert n.result_title("write_circuit", {}, pt.brief({**PCB_CHECKS, "intent": {"ok": True, "checked": 0}}, 1, CARRIER, ALL_FILES)).endswith(
         ", no intent stated")
     unmet = {**PCB_CHECKS, "intent": {"ok": False, "checked": 6, "issues": [{"code": "intent_not_at_edge", "ref": "J1", "msg": "x"}]}}

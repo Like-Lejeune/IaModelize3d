@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from formwright.agent import device_tools, elec_tools, examples, loop, pcb_tools, prompts, tools
+from formwright.agent import device_inspect, device_tools, elec_tools, examples, loop, pcb_tools, prompts, tools
 from formwright.config import REPO_DIR
 from formwright.llm.english import is_english
 
@@ -29,7 +29,7 @@ def test_every_pack_gets_a_stable_well_formed_tool_list(pack):
             assert t["type"] == "function" and t["parameters"]["type"] == "object" and set(t["parameters"]["required"]) <= set(t["parameters"]["properties"])
             assert is_english(json.dumps(t)), t["name"]
         # run_tool knows every one of them
-        assert set(names) <= HUB | elec_tools.NAMES | pcb_tools.NAMES | device_tools.NAMES, set(names) - HUB
+        assert set(names) <= HUB | elec_tools.NAMES | pcb_tools.NAMES | device_tools.NAMES | device_inspect.NAMES, set(names) - HUB
 
 
 def test_the_electronics_packs_and_the_others_keep_their_lists():

@@ -1,12 +1,15 @@
 <script lang="ts">
-  // The selected part as properties panels: the part itself (role, value, board edge), its LCSC card and the net each
-  // pin is on. Labels on the left, values on the right, as a properties editor reads.
+  // The selected part as properties panels: the part itself (role, value, board edge, what the case does over it, who
+  // placed it), its LCSC card (or, for a module fitted by hand, its library card), the requirements it serves and the
+  // net each pin is on. Labels on the left, values on the right, as a properties editor reads.
   import Icon from '$lib/components/Icon.svelte';
-  import { deviceApi, priceAt, type Edge, type PartCard } from './api';
+  import { deviceApi, priceAt, type Accessory, type Edge, type Face, type PartCard } from './api';
   import { errorText } from '$lib/api';
   import { EDGE_KINDS, type DeviceStore } from './store.svelte';
-  import { dt } from './i18n';
+  import { dt, patternName, usd } from './i18n';
   import { netColor } from './PartNode.svelte';
+  import { loadLibrary } from './PartLibrary.svelte';
+  import { FACES, FACE_KINDS, accessoriesOf, autoFace, layoutOf, requirementsOf, sizeText } from './facets';
   import Panel from './ui/Panel.svelte';
 
   let { device, readonly = false }: { device: DeviceStore; readonly?: boolean } = $props();
@@ -17,6 +20,25 @@
   const part = $derived(view?.part ?? {});
   const nets = $derived(s?.doc.nets ?? []);
   const netNames = $derived([...new Set(['GND', 'V3V3', ...nets.map((n) => n.name).filter((x): x is string => !!x)])]);
+
+  let accs = $state<Accessory[]>([]);
+  loadLibrary().then((l) => (accs = accessoriesOf(l))).catch(() => {});
+  const acc = $derived(node?.kind === 'accessory' ? (accs.find((a) => a.key === node.accessory) ?? null) : null);
+  // 'auto' reads as what the server (or the kind's default) gives the part
+  const autoF = $derived<Face>(node ? (view?.face && !node.face ? view.face : autoFace(node, part, acc)) : 'none');
+  const lay = $derived(node ? layoutOf(s?.doc, node.id) : null);
+  const reqs = $derived(node ? requirementsOf(s?.doc, node.id) : []);
+  const edgeOk = $derived(!!node && EDGE_KINDS.includes(node.kind) && (node.kind !== 'accessory' || acc?.mount === 'cable' || !!node.edge));
+  function swapAccessory(key: string) {
+    if (!node || !key || key === node.accessory) return;
+    const a = accs.find((x) => x.key === key);
+    device.setNode(node.id, { accessory: key, ...(a && (!node.label || node.label === acc?.name) ? { label: a.name } : {}) });
+  }
+  /** The designer's spot becomes the person's own: it can then be moved and turned like any placed part. */
+  function takePlace() {
+    if (!node?.place) return;
+    device.setNode(node.id, { pcb: { x: node.place.x, y: node.place.y, rot: node.place.rot ?? 0 } });
+  }
 
   // ---- swapping a chip for another LCSC part (its wiring stays; pins it lacks show up as problems)
   let replacing = $state(false);
@@ -103,6 +125,22 @@
           onchange={(e) => device.setNode(node.id, { pins: e.currentTarget.value.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean) })} />
       </label>
     {/if}
+    {#if node.kind === 'accessory'}
+      <label class="pr"><span>{dt('accessory')}</span>
+        <select value={node.accessory ?? ''} disabled={readonly || !accs.length} onchange={(e) => swapAccessory(e.currentTarget.value)}>
+          {#if !acc}<option value={node.accessory ?? ''}>{node.accessory ?? '—'}</option>{/if}
+          {#each accs as a (a.key)}<option value={a.key}>{a.name}</option>{/each}
+        </select>
+      </label>
+    {/if}
+    {#if FACE_KINDS.includes(node.kind)}
+      <label class="pr"><span title={dt('face_d')}>{dt('face')}</span>
+        <select value={node.face ?? ''} disabled={readonly} onchange={(e) => device.setNode(node.id, { face: (e.currentTarget.value || undefined) as Face | undefined })}>
+          <option value="">{dt('face_auto')} · {dt(`face_${autoF}`)}</option>
+          {#each FACES as f (f)}<option value={f}>{dt(`face_${f}`)}</option>{/each}
+        </select>
+      </label>
+    {/if}
     {#if node.pcb}
       <div class="pr"><span title={dt('pinned_d')}>{dt('on_board')}</span>
         <div class="xyr">
@@ -111,11 +149,24 @@
           <select value={node.pcb.rot} disabled={readonly} onchange={(e) => pinAt('rot', e.currentTarget.value)} aria-label={dt('rotation')}>
             {#each [0, 90, 180, 270] as r (r)}<option value={r}>{r}°</option>{/each}
           </select>
-          {#if !readonly}<button class="ib" onclick={() => device.setNode(node.id, { pcb: undefined })} title={dt('unpin')} aria-label={dt('unpin')}><i class="ti ti-pinned-off" aria-hidden="true"></i></button>{/if}
+          {#if !readonly}<button class="ib" onclick={() => device.setNode(node.id, { pcb: undefined })} title={node.place || lay ? dt('unpin_designer') : dt('unpin')} aria-label={dt('unpin')}><i class="ti ti-pinned-off" aria-hidden="true"></i></button>{/if}
         </div>
       </div>
+      {#if node.place || lay}<p class="note">{dt('place_overrides')}</p>{/if}
+    {:else if node.place}
+      <div class="pr"><span title={dt('place_designer_d')}>{dt('place_designer')}</span>
+        <div class="xyr ro">
+          <span class="mono">{node.place.x} · {node.place.y}{node.place.rot ? ` · ${node.place.rot}°` : ''}</span>
+          {#if lay}<span class="muted">{patternName(lay.layout.pattern)} {lay.index + 1}/{lay.layout.nodes.length}</span>{/if}
+          {#if !readonly}<button class="mini" onclick={takePlace} title={dt('place_take_d')}>{dt('place_take')}</button>{/if}
+        </div>
+      </div>
+    {:else if lay}
+      <div class="pr"><span title={dt('place_designer_d')}>{dt('place_designer')}</span>
+        <span class="muted">{patternName(lay.layout.pattern)} · {lay.index + 1}/{lay.layout.nodes.length}</span>
+      </div>
     {/if}
-    {#if EDGE_KINDS.includes(node.kind)}
+    {#if EDGE_KINDS.includes(node.kind) && edgeOk}
       <div class="pr"><span title={dt('edge_hint')}>{dt('edge')}</span>
         <div class="seg5" role="radiogroup" aria-label={dt('edge')}>
           {#each ['', '-x', '+y', '-y', '+x'] as e (e)}
@@ -127,7 +178,35 @@
     {/if}
   </Panel>
 
-  {#if part.mpn || part.lcsc}
+  {#if node.kind === 'accessory'}
+    <Panel name="accessory" title={dt('panel_accessory')}>
+      {#snippet right()}<span class="fitc"><i class="ti ti-hand-grab" aria-hidden="true"></i> {dt('fitted_hand_short')}</span>{/snippet}
+      <div class="pmeta"><strong>{acc?.name ?? part.mpn ?? node.accessory}</strong></div>
+      <dl class="kv">
+        {#if acc?.price_usd != null || view?.price_usd != null}<dt>{dt('f_price_each')}</dt><dd>{usd(view?.price_usd ?? acc?.price_usd)}</dd>{/if}
+        {#if acc?.connect}<dt>{dt('acc_connect')}</dt><dd>{dt(`connect_${acc.connect}`)}</dd>{/if}
+        {#if acc?.mount}<dt>{dt('acc_mount')}</dt><dd>{dt(`mount_${acc.mount}`)}</dd>{/if}
+        {#if acc?.body}<dt>{dt('acc_body')}</dt><dd>{sizeText(acc.body)} {dt('mm')}</dd>{/if}
+        {#if acc?.window}<dt>{dt('acc_window')}</dt><dd>{sizeText(acc.window)} {dt('mm')}</dd>{/if}
+        {#if acc?.supply}<dt>{dt('acc_supply')}</dt><dd>{acc.supply}</dd>{/if}
+        {#if acc?.current_ma}<dt>{dt('acc_current')}</dt><dd>{acc.current_ma} mA</dd>{/if}
+        {#if acc?.pins?.length}<dt>{dt('pins')}</dt><dd>{acc.pins.join(' · ')}</dd>{/if}
+      </dl>
+      <p class="note">{dt('accessory_d')}</p>
+      {#if acc?.note}<p class="desc muted">{acc.note}</p>{/if}
+      {#if acc?.url}<div class="links"><a href={acc.url} target="_blank" rel="noopener noreferrer">{dt('acc_page')} <Icon name="external" size={11} /></a></div>{/if}
+    </Panel>
+  {/if}
+
+  {#if reqs.length}
+    <Panel name="partreqs" title={dt('reqs_served')}>
+      {#each reqs as r (r.id)}
+        <button class="req" onclick={() => device.light(r.id, r.parts ?? [])}><span class="mono rid">{r.id}</span><span>{r.text}</span></button>
+      {/each}
+    </Panel>
+  {/if}
+
+  {#if node.kind !== 'accessory' && (part.mpn || part.lcsc)}
     <Panel name="lcsc" title={dt('panel_lcsc')}>
       {#snippet right()}
         {#if part.lcsc}<span class="mono">{part.lcsc}</span>{/if}
@@ -265,6 +344,41 @@
   .xyr input,
   .xyr select {
     min-width: 0;
+  }
+  .xyr.ro {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    font-size: 12px;
+  }
+  .fitc {
+    color: #2bb3a3;
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+  }
+  .req {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    align-items: baseline;
+    text-align: left;
+    padding: 3px 4px;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: var(--on-surface);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .req:hover {
+    background: color-mix(in srgb, var(--on-surface) 7%, transparent);
+  }
+  .rid {
+    font-size: 11px;
+    color: var(--on-surface-var);
   }
   .mini {
     height: 22px;

@@ -1,11 +1,13 @@
 <script lang="ts">
   // The Manufacturing stage's main view: what each step costs and when the devices are ready (the bill of materials
-  // has its own stage).
+  // has its own stage), and the ready-made modules the workshop fits by hand, each with its price.
   import type { QuoteState } from './quote.svelte';
-  import { dt, usd, kzt, date, groupNote } from './i18n';
+  import { dt, usd, kzt, date, groupNote, known } from './i18n';
 
   let { q, built }: { q: QuoteState; built: boolean } = $props();
   const quote = $derived(q.quote);
+  // quote_for lists them as BOM rows of kind 'accessory' (or of the 'modules' group)
+  const fitted = $derived((quote?.bom ?? []).filter((b) => b.kind === 'accessory' || !!b.accessory || b.group === 'modules'));
 </script>
 
 <div class="oc">
@@ -37,7 +39,7 @@
         <div class="bars">
           {#each quote.groups as g (g.key)}
             <div class="bar">
-              <span class="gname">{dt(`g_${g.key}`)}</span>
+              <span class="gname">{known(`g_${g.key}`, g.key)}</span>
               <span class="track"><span class="fill" style="width: {Math.max(2, (g.usd / quote.total_usd) * 100)}%"></span></span>
               <span class="mono">{usd(g.usd)}</span>
               <span class="xs muted note">{groupNote(g)}</span>
@@ -46,11 +48,30 @@
         </div>
       </section>
 
+      {#if fitted.length}
+        <section>
+          <h3>{dt('fitted_title')}</h3>
+          <p class="xs muted">{dt('accessory_d')}</p>
+          <table class="fit">
+            <tbody>
+              {#each fitted as b, i (i)}
+                <tr>
+                  <td class="mono refs">{b.refs.join(', ')}</td>
+                  <td>{#if b.url}<a href={b.url} target="_blank" rel="noopener noreferrer">{b.name ?? b.mpn ?? b.label}</a>{:else}{b.name ?? b.mpn ?? b.label}{/if}</td>
+                  <td class="r mono">{b.qty} × {usd(b.unit_usd)}</td>
+                  <td class="r mono">{usd(b.total_usd)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </section>
+      {/if}
+
       <section>
         <h3>{dt('timeline')}</h3>
         <ol class="timeline">
           {#each quote.timeline as s, i (s.key)}
-            <li><span class="dot">{i + 1}</span><span>{dt(`t_${s.key}`)}</span><span class="muted small">{date(s.by)}</span></li>
+            <li><span class="dot">{i + 1}</span><span>{known(`t_${s.key}`, s.key)}</span><span class="muted small">{date(s.by)}</span></li>
           {/each}
         </ol>
       </section>
@@ -140,6 +161,29 @@
   .note {
     grid-column: 2 / -1;
     margin-top: -4px;
+  }
+  .fit {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .fit td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--divider);
+  }
+  .fit .refs {
+    font-size: 12px;
+    color: var(--on-surface-var);
+    width: 1%;
+    white-space: nowrap;
+  }
+  .fit .r {
+    text-align: right;
+    white-space: nowrap;
+  }
+  .fit a {
+    color: var(--primary);
+    text-decoration: none;
   }
   .timeline {
     list-style: none;

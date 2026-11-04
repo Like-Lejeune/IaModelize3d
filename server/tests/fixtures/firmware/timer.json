@@ -1,0 +1,172 @@
+{
+ "project": "p_a04813e3e1c74f6a",
+ "version": 2,
+ "doc": {
+  "schema": "fw.device/1",
+  "title": "Кухонный таймер",
+  "summary": "Таймер обратного отсчёта до 99:59 на OLED 0.96\" I2C, 3 кнопки управления, громкий звуковой сигнал",
+  "board": {
+   "holes": true
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU ESP32-C3",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "J2",
+    "kind": "header",
+    "label": "OLED SSD1306 0.96\" I2C",
+    "pins": [
+     "V3V3",
+     "GND",
+     "SCL",
+     "SDA"
+    ],
+    "edge": "-y"
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "Буззер активный 3В",
+    "lcsc": "C2878"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "SET +"
+   },
+   {
+    "id": "SW2",
+    "kind": "button",
+    "label": "SET -"
+   },
+   {
+    "id": "SW3",
+    "kind": "button",
+    "label": "START/STOP"
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "SDA pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "SCL pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "LED резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "Сигнал",
+    "color": "red"
+   },
+   {
+    "id": "C1",
+    "kind": "capacitor",
+    "label": "BZ декуплирование",
+    "value": "100nF",
+    "package": "0603"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "J2.GND",
+     "SW1.B",
+     "SW2.B",
+     "SW3.B",
+     "BZ1.P2",
+     "LED1.K",
+     "C1.2"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "J2.V3V3",
+     "R1.1",
+     "R2.1",
+     "C1.1"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.SDA",
+     "J2.SDA",
+     "R1.2"
+    ],
+    "name": "SDA"
+   },
+   {
+    "pins": [
+     "U1.SCL",
+     "J2.SCL",
+     "R2.2"
+    ],
+    "name": "SCL"
+   },
+   {
+    "pins": [
+     "U1.D0",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW2.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "SW3.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "BZ1.P"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "R3.1"
+    ]
+   },
+   {
+    "pins": [
+     "R3.2",
+     "LED1.A"
+    ]
+   }
+  ],
+  "firmware": {
+   "lang": "arduino",
+   "files": {
+    "kitchen_timer.ino": "#include <Wire.h>\n#include <Adafruit_GFX.h>\n#include <Adafruit_SSD1306.h>\n\n#define SCREEN_WIDTH 128\n#define SCREEN_HEIGHT 64\n#define OLED_ADDR 0x3C\nAdafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);\n\n// Пины по схеме устройства\nconst int PIN_BTN_PLUS  = D0;  // SW1\nconst int PIN_BTN_MINUS = D1;  // SW2\nconst int PIN_BTN_START = D2;  // SW3\nconst int PIN_BUZZER    = D10; // BZ1.P (активный, HIGH=пищит)\nconst int PIN_LED       = D3;\n\nint setMinutes = 0;\nint setSeconds = 30;\nint remainSec = 30;\nenum State {IDLE, RUNNING, PAUSED, RINGING};\nState state = IDLE;\nunsigned long lastTick = 0;\nunsigned long lastBtn = 0;\nbool displayOn = true;\n\nvoid beep(int ms){ digitalWrite(PIN_BUZZER, HIGH); digitalWrite(PIN_LED, HIGH); delay(ms); digitalWrite(PIN_BUZZER, LOW); digitalWrite(PIN_LED, LOW); }\n\nvoid drawScreen(){\n  display.clearDisplay();\n  display.setTextColor(SSD1306_WHITE);\n  display.setCursor(0,0);\n  display.setTextSize(1);\n  if(state==RINGING) display.print(\"!! ГОТОВО !!\");\n  else if(state==RUNNING) display.print(\"Идет...\");\n  else if(state==PAUSED) display.print(\"Пауза\");\n  else display.print(\"Кухонный таймер\");\n  int m = remainSec/60;\n  int s = remainSec%60;\n  display.setCursor(10,18);\n  display.setTextSize(3);\n  char buf[6]; sprintf(buf,\"%02d:%02d\", m, s);\n  display.print(buf);\n  display.setTextSize(1);\n  display.setCursor(0,52);\n  if(state==IDLE||state==PAUSED) display.print(\"+/- set  START пуск\");\n  else if(state==RUNNING) display.print(\"START пауза (уд. сброс)\");\n  else display.print(\"Нажми любую кнопку\");\n  display.display();\n}\n\nbool btnPressed(int pin){\n  if(digitalRead(pin)==LOW){ delay(30); if(digitalRead(pin)==LOW) return true; }\n  return false;\n}\n\nvoid setup(){\n  pinMode(PIN_BTN_PLUS, INPUT_PULLUP);\n  pinMode(PIN_BTN_MINUS, INPUT_PULLUP);\n  pinMode(PIN_BTN_START, INPUT_PULLUP);\n  pinMode(PIN_BUZZER, OUTPUT); digitalWrite(PIN_BUZZER, LOW);\n  pinMode(PIN_LED, OUTPUT); digitalWrite(PIN_LED, LOW);\n  Wire.begin(SDA, SCL);\n  display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);\n  remainSec = setMinutes*60+setSeconds;\n  drawScreen();\n  beep(80);\n}\n\nvoid loop(){\n  unsigned long now = millis();\n  // Кнопки с антидребезгом 200мс\n  if(now - lastBtn > 180){\n    if(state==RINGING && (btnPressed(PIN_BTN_START)||btnPressed(PIN_BTN_PLUS)||btnPressed(PIN_BTN_MINUS))){\n      state=IDLE; remainSec=setMinutes*60+setSeconds; lastBtn=now; digitalWrite(PIN_BUZZER,LOW); drawScreen();\n    } else if(state==IDLE || state==PAUSED){\n      bool changed=false;\n      if(btnPressed(PIN_BTN_PLUS)){ remainSec+= (remainSec<60?5:30); if(remainSec>5999) remainSec=5999; changed=true; }\n      if(btnPressed(PIN_BTN_MINUS)){ remainSec-= (remainSec<=60?5:30); if(remainSec<0) remainSec=0; changed=true; }\n      if(changed){ setMinutes=remainSec/60; setSeconds=remainSec%60; state=IDLE; lastBtn=now; drawScreen(); }\n      if(btnPressed(PIN_BTN_START)){ if(remainSec>0){ state=RUNNING; lastTick=now; lastBtn=now; } drawScreen(); }\n    } else if(state==RUNNING){\n      if(btnPressed(PIN_BTN_START)){ state=PAUSED; lastBtn=now; drawScreen(); }\n      // удержание START 1с для сброса - упрощено: долгое нажатие = пауза+сброс через повтор\n    }\n  }\n  if(state==RUNNING && now - lastTick >= 1000){\n    lastTick+=1000;\n    remainSec--;\n    if(remainSec<=0){ remainSec=0; state=RINGING; }\n    drawScreen();\n  }\n  if(state==RINGING){\n    // прерывистый сигнал 1 Гц\n    digitalWrite(PIN_BUZZER, (now/400)%2==0 ? HIGH:LOW);\n    digitalWrite(PIN_LED, (now/400)%2==0 ? HIGH:LOW);\n  }\n  delay(10);\n}\n"
+   },
+   "notes": "Плата: Seeed XIAO ESP32-C3. Библиотеки в Arduino IDE: Adafruit GFX, Adafruit SSD1306. Подключи OLED SSD1306 0.96\" I2C к разъёму J2 (V3V3/GND/SCL/SDA). Выберите плату XIAO_ESP32C3, загрузите. Управление: +/- меняют время (шаг 5с до минуты, затем 30с), START пуск/пауза, когда звонит - любая кнопка стоп."
+  }
+ }
+}

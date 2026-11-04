@@ -1,0 +1,6 @@
+Comment,Designator,Footprint,LCSC,lcsc_verified
+113991054,U1,dip14_w15.24mm,,false
+0.96in OLED 128x64 I2C (SSD1306),DS1,C2337,C2337,false
+C2337,PR1,pinrow3_p2.54_nopinlabels,C2337,false
+C110153,SW1,pushbutton,C110153,false
+4.7k,"R1,R2",res0603,C23162,false

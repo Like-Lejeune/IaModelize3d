@@ -111,9 +111,11 @@ def legend(state: Any) -> str:
     if layout == "print":
         out.append("Layout: print, the parts lie side by side as they go on the bed." + (
             " The lid is printed upside down: its outer top face lies on the bed, so the BOTTOM view shows the outside of the lid "
-            "and the TOP view its inside (hooks, posts); a hole through the lid shows in both." if case else ""))
+            "and the TOP view its inside (hooks, posts); a hole through the lid shows in both." if case else "") + (
+            " The stand is a separate printed wedge the case leans in." if case and "stand" in names else ""))
     elif layout == "assembled":
-        out.append("Layout: assembled, the parts sit together as in use" + (", the lid on the base." if case else "."))
+        out.append("Layout: assembled, the parts sit together as in use" + (", the lid on the base." if case else ".") + (
+            " The case is drawn lying flat with its stand tilted under it; in use the stand is on the desk and the case leans in it." if case and "stand" in names else ""))
     out.append("A red tint on faces marks overhangs (the printability heat), not a part's colour.")
     return "\n".join(out)
 

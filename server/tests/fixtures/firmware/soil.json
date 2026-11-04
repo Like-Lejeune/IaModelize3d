@@ -1,0 +1,206 @@
+{
+ "project": "p_6ad352d4b96f47f8",
+ "version": 3,
+ "doc": {
+  "schema": "fw.device/1",
+  "title": "Датчик влажности почвы",
+  "summary": "Ёмкостной датчик влажности для комнатного цветка, OLED 0.96\" I2C, индикация сухости светодиодом и зуммером, кнопка, Wi-Fi веб-страница",
+  "board": {
+   "holes": true
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU ESP32-C3",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "J1",
+    "kind": "header",
+    "label": "Soil sensor (capacitive)",
+    "pins": [
+     "V3V3",
+     "GND",
+     "AO"
+    ],
+    "edge": "-x"
+   },
+   {
+    "id": "J2",
+    "kind": "header",
+    "label": "OLED SSD1306 I2C 0.96\"",
+    "pins": [
+     "V3V3",
+     "GND",
+     "SCL",
+     "SDA"
+    ],
+    "edge": "-y"
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "OK",
+    "color": "green"
+   },
+   {
+    "id": "LED2",
+    "kind": "led",
+    "label": "Dry alarm",
+    "color": "red"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "LED1 resistor",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R4",
+    "kind": "resistor",
+    "label": "LED2 resistor",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "Калибровка / страница"
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "Buzzer 5x5mm passive",
+    "lcsc": "C94598"
+   },
+   {
+    "id": "Q1",
+    "kind": "chip",
+    "label": "NPN S8050 for buzzer",
+    "lcsc": "C181158"
+   },
+   {
+    "id": "R5",
+    "kind": "resistor",
+    "label": "Base resistor buzzer",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "SDA pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "SCL pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "J1.GND",
+     "J2.GND",
+     "LED1.K",
+     "LED2.K",
+     "SW1.B",
+     "Q1.P3"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "J1.V3V3",
+     "J2.V3V3",
+     "R1.1",
+     "R2.1",
+     "Q1.P2",
+     "BZ1.P",
+     "BZ1.NC"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.SDA",
+     "J2.SDA",
+     "R1.2"
+    ],
+    "name": "SDA"
+   },
+   {
+    "pins": [
+     "U1.SCL",
+     "J2.SCL",
+     "R2.2"
+    ],
+    "name": "SCL"
+   },
+   {
+    "pins": [
+     "U1.D0",
+     "J1.AO"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "R3.1"
+    ]
+   },
+   {
+    "pins": [
+     "R3.2",
+     "LED1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "R4.1"
+    ]
+   },
+   {
+    "pins": [
+     "R4.2",
+     "LED2.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R5.1"
+    ]
+   },
+   {
+    "pins": [
+     "R5.2",
+     "Q1.P1"
+    ]
+   }
+  ],
+  "firmware": {
+   "lang": "arduino",
+   "files": {
+    "soil_sensor.ino": "#include <Wire.h>\n#include <Adafruit_GFX.h>\n#include <Adafruit_SSD1306.h>\n#include <WiFi.h>\n#include <WebServer.h>\n\n// Пины XIAO ESP32-C3: D0=GPIO2 A0, D1=GPIO3, D2=GPIO4, D3=GPIO5, SDA=D4=GPIO6, SCL=D5=GPIO7, D10=GPIO10\n#define PIN_SOIL A0  // D0 / GPIO2\n#define PIN_BTN 3    // D1\n#define PIN_LED_OK 4 // D2\n#define PIN_LED_DRY 5 // D3\n#define PIN_BUZZ 10  // D10 via transistor Q1\n\n#define SDA_PIN 6\n#define SCL_PIN 7\n#define OLED_W 128\n#define OLED_H 64\nAdafruit_SSD1306 display(OLED_W, OLED_H, &Wire, -1);\n\nconst char* WIFI_SSID=\"YOUR_SSID\";\nconst char* WIFI_PASS=\"YOUR_PASS\";\nWebServer server(80);\n\nint dryValue=2600; // значение в воздухе (сухо)\nint wetValue=1100; // в воде (мокро)\nint threshold=30; // % ниже - тревога\nint moisturePct=0;\nint rawVal=0;\nunsigned long lastBuzz=0;\nbool alarm=false;\n\nint readSoil(){\n  long sum=0;\n  for(int i=0;i<16;i++){ sum+=analogRead(PIN_SOIL); delay(5); }\n  return sum/16;\n}\nint toPercent(int raw){\n  int p = map(raw, dryValue, wetValue, 0, 100);\n  return constrain(p,0,100);\n}\nvoid handleRoot(){\n  String html=\"<meta charset=utf-8><h1>Датчик влажности</h1><p>Сырость: \"+String(moisturePct)+\"% (raw \"+String(rawVal)+\")</p>\";\n  html+=\"<p>Сухо в возд. \"+String(dryValue)+\" мокро \"+String(wetValue)+\" порог \"+String(threshold)+\"%</p>\";\n  html+=\"<p><a href='/api'>/api JSON</a></p>\";\n  server.send(200,\"text/html\",html);\n}\nvoid handleApi(){\n  String j=\"{\\\"moisture\\\":\"+String(moisturePct)+\",\\\"raw\\\":\"+String(rawVal)+\",\\\"alarm\\\":\"+String(alarm?\"true\":\"false\")+\"}\";\n  server.send(200,\"application/json\",j);\n}\nvoid setup(){\n  pinMode(PIN_BTN, INPUT_PULLUP);\n  pinMode(PIN_LED_OK, OUTPUT); pinMode(PIN_LED_DRY, OUTPUT);\n  pinMode(PIN_BUZZ, OUTPUT);\n  Wire.begin(SDA_PIN,SCL_PIN);\n  if(display.begin(SSD1306_SWITCHCAPVCC,0x3C)){\n    display.clearDisplay(); display.setTextSize(1); display.setTextColor(SSD1306_WHITE);\n    display.setCursor(0,0); display.println(\"Soil sensor\"); display.display();\n  }\n  analogReadResolution(12);\n  WiFi.begin(WIFI_SSID, WIFI_PASS);\n  unsigned long t0=millis();\n  while(WiFi.status()!=WL_CONNECTED && millis()-t0<8000) delay(200);\n  server.on(\"/\", handleRoot);\n  server.on(\"/api\", handleApi);\n  server.begin();\n}\nvoid loop(){\n  server.handleClient();\n  rawVal=readSoil();\n  moisturePct=toPercent(rawVal);\n  alarm = moisturePct < threshold;\n  digitalWrite(PIN_LED_OK, alarm?LOW:HIGH);\n  digitalWrite(PIN_LED_DRY, alarm?HIGH:LOW);\n  if(alarm && millis()-lastBuzz>30000){\n    // писк 500мс\n    tone(PIN_BUZZ, 4000, 500);\n    lastBuzz=millis();\n  }\n  // OLED\n  if(display.ssd1306_command){ // dummy check if init ok - use flag\n  }\n  display.clearDisplay();\n  display.setCursor(0,0); display.setTextSize(2); display.print(moisturePct); display.print(\"%\");\n  display.setTextSize(1); display.setCursor(0,22); display.print(\"raw \"); display.print(rawVal);\n  display.setCursor(0,34); display.print(alarm?\"ПОЛЕЙ МЕНЯ!\":\"Норма\");\n  if(WiFi.status()==WL_CONNECTED){ display.setCursor(0,46); display.print(WiFi.localIP()); } else { display.setCursor(0,46); display.print(\"WiFi off\"); }\n  display.setCursor(0,56); display.print(\"Удерж. кнопку-калибр.\");\n  display.display();\n  // калибровка: зажать 2с = принять текущее как сухое/влажное? Простое: долгое нажатие - инвертирует порог\n  static unsigned long pressStart=0;\n  if(digitalRead(PIN_BTN)==LOW){\n    if(pressStart==0) pressStart=millis();\n    if(millis()-pressStart>2000){\n      // калибровка: считаем текущее как \"сухо\" или \"мокро\" по второму нажатию\n      dryValue = rawVal + 200; // грубо: текущее сухое\n      tone(PIN_BUZZ,3000,200); delay(200); tone(PIN_BUZZ,4000,200);\n      pressStart=0; delay(1000);\n    }\n  } else pressStart=0;\n  delay(200);\n}\n"
+   },
+   "notes": "Плата: XIAO ESP32-C3. Библиотеки Arduino: Adafruit GFX, Adafruit SSD1306, WiFi (ESP32). В IDE выберите Board «XIAO_ESP32C3». Вставьте SSID/пароль в начале скетча. Зонд: ёмкостной 3-проводной (VCC GND AOUT) на J1, OLED 0.96\" I2C на J2 (VCC GND SCL SDA). Кнопка калибровки: удержание 2с. Прошивка через USB-C XIAO."
+  }
+ }
+}

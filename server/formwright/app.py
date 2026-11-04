@@ -37,6 +37,7 @@ from .llm.client import BudgetExceeded
 from .models import (
     AnswerRequest,
     AssetOut,
+    AxoCartRequest,
     BreedRequest,
     ConceptRequest,
     CreateProject,
@@ -361,7 +362,7 @@ async def me(user=Depends(current_user)) -> Usage:
     usd, jobs = await quotas.spent_today(user["id"])
     limit = quotas.TIERS.get(user["tier"], quotas.TIERS["anon"])[0]
     return Usage(user_id=user["id"], tier=user["tier"], today_usd=round(usd, 4), limit_usd=limit, jobs_today=jobs,
-                 contributor_consent=bool(user["contributor_consent"]), models=quotas.model_options(user))
+                 contributor_consent=bool(user["contributor_consent"]), models=quotas.model_options(user), axo_cart=bool(settings().axo_api_url))
 
 
 @app.post("/api/me/consent")
@@ -470,16 +471,19 @@ async def open_example(key: str, body: dict[str, Any], user=Depends(current_user
     db = await get_db()
     pid = new_id("p_")
     t = now()
-    await db.insert("projects", {"id": pid, "user_id": user["id"], "title": ex["title"][lang], "pack": ex["pack"], "version": 1, "cover": ready["cover"],
+    version = int(ready.get("version") or 1)
+    await db.insert("projects", {"id": pid, "user_id": user["id"], "title": ex["title"][lang], "pack": ex["pack"], "version": version, "cover": ready["cover"],
                                  "brief": {"turns": [ex["prompt"][lang]], "summary": f"Ready example: {ex['title']['en']}", "language": lang,
                                            **({"material": ex["material"]} if ex.get("material") else {})},
                                  "created_at": t, "updated_at": t})
-    await db.insert("programs", {"project_id": pid, "version": 1, "source": ex["source"], "params": ready["params"],
+    await db.insert("programs", {"project_id": pid, "version": version, "source": ex["source"], "params": ready["params"],
                                  "inputs": ready.get("inputs") or ex.get("inputs") or {},
                                  "summary": ex["title"][lang], "checks": ready["checks"], "author": "example", "created_at": t})
     if ready.get("pcb"):
         # the routed board the case was made from, as the project's PCB version 1 (files copied from the example's cache)
         await showcase.add_pcb(pid, ready)
+    if ex.get("device"):
+        await showcase.add_device(pid, ex)
     intro = showcase.intro(ex, ready, lang)
     await add_message(pid, "user", ex["prompt"][lang])
     await add_message(pid, "agent", intro)
@@ -1005,6 +1009,17 @@ async def order(project_id: str, body: OrderRequest, user=Depends(current_user))
     from .integrations import axo
 
     return await axo.create_order(user, p, body)
+
+
+@app.post("/api/projects/{project_id}/axo-cart")
+async def axo_cart(project_id: str, body: AxoCartRequest | None = None, user=Depends(current_user)):
+    """The version as a design in the Axo shop's cart (axo.kz): {url} takes the buyer there. The order route's rule:
+    only the owner sends their project out."""
+    p = await load_project(project_id, user, write=True)
+    from .integrations import axo
+
+    body = body or AxoCartRequest()
+    return await axo.add_to_cart(p, version=body.version, replace=body.replace)
 
 
 # ------------------------------------------------------------------ memory

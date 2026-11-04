@@ -11,6 +11,7 @@ export const TOOL_KIND: Record<string, string> = {
   scan_board: 'measure', use_board: 'standard', check_enclosure: 'inspect', write_circuit: 'build', check_pcb: 'inspect',
   export_fab: 'export', make_enclosure: 'build',
   search_parts: 'standard', part_info: 'standard', write_device: 'build', build_device: 'build', write_firmware: 'build', quote_device: 'export',
+  inspect_board: 'look', inspect_case: 'look', inspect_part: 'inspect',
 };
 
 export const KIND_ICON: Record<string, string> = {
@@ -299,7 +300,7 @@ function enResult(name: string, r: Record<string, any>): string {
 // builds them. A replay in the other UI language, or a run from before the server named these steps, still says
 // what happened, with its numbers.
 const ELEC_TOOLS = new Set(['scan_board', 'use_board', 'check_enclosure', 'write_circuit', 'check_pcb', 'export_fab', 'make_enclosure',
-  'search_parts', 'part_info', 'write_device', 'build_device', 'write_firmware', 'quote_device']);
+  'search_parts', 'part_info', 'write_device', 'build_device', 'write_firmware', 'quote_device', 'inspect_board', 'inspect_case', 'inspect_part']);
 const PCB_LOOKS: Record<string, [string, string, string, string]> = {
   pcb: ['Looking at the routed board from the top', 'Смотрю на разведённую плату сверху', 'from the top', 'сверху'],
   pcb_bottom: ['Looking at the board from below', 'Смотрю на плату снизу', 'from below', 'снизу'],
@@ -320,6 +321,9 @@ const CASE_PROBLEM: Record<string, [string, string]> = {
   component_clear: ['{p} touches a wall', '{p} касается стенки'], pcb_seated: ['the board is not held', 'плата не закреплена'],
   button_reach: ['{p} button out of reach', '{p} не нажимается'], button_unreachable: ['{p} button out of reach', '{p} не нажимается'],
   light_window: ['{p} window blocked', '{p} закрыт пластиком'],
+  display_window: ['{p} display window blocked', 'окно экрана {p} перекрыто'], sensor_window: ['{p} sensor covered', 'датчик {p} закрыт'],
+  sound_grille: ['no sound holes over {p}', 'нет отверстий над {p}'], cable_exit: ['no cable exit for {p}', 'нет выхода кабеля {p}'],
+  battery_space: ['no room for {p}', 'нет места для {p}'],
   lid_fit: ['the lid does not fit', 'крышка не садится'], snap_strain: ['snaps bend {v} %', 'защёлки гнутся на {v} %'],
   metal_in_keepout: ['metal in an antenna keep-out', 'металл в зоне антенны'],
 };
@@ -379,8 +383,9 @@ function buildCase(r: Record<string, any>): Record<string, any> | undefined {
   return { errors: [...problems, ...more], summary: isNum(f.usb_clearance_mm) ? { usb_clearance_mm: f.usb_clearance_mm } : {} };
 }
 
-/** DRC errors of a PCB brief, the suppressed follow-ups included ('3 DRC error(s): …'). */
+/** DRC errors of a PCB brief as the board's own version counts them (drc_errors; an older brief's '3 DRC error(s): …'). */
 const drc = (r: Record<string, any>) => {
+  if (typeof r.drc_errors === 'number') return r.drc_errors;
   const m = /^(\d+) DRC/.exec(String(r.error ?? ''));
   return m ? Number(m[1]) : (r.errors?.length ?? 0);
 };
@@ -410,6 +415,11 @@ function elecCall(name: string, a: any, ru: boolean): string | undefined {
     case 'build_device': return ru ? 'Размещаю детали и развожу плату' : 'Placing and routing the board';
     case 'write_firmware': return `${ru ? 'Пишу прошивку' : 'Writing the firmware'} (${s(a.lang) || 'arduino'})`;
     case 'quote_device': return ru ? `Считаю цену ${a.qty || 5} готовых устройств` : `Pricing ${a.qty || 5} finished devices`;
+    case 'inspect_board':
+      return s(a.focus) ? (ru ? `Рассматриваю на плате: ${a.focus}` : `Looking closely at ${a.focus} on the board`) : ru ? 'Рассматриваю плату' : 'Looking closely at the board';
+    case 'inspect_case':
+      return s(a.focus) ? (ru ? `Смотрю, как ${a.focus} стоит в корпусе` : `Looking at ${a.focus} in the case`) : ru ? 'Рассматриваю корпус' : 'Looking closely at the case';
+    case 'inspect_part': return ru ? `Собираю всё о детали ${s(a.id)}` : `Reading everything about ${s(a.id) || 'the part'}`;
     case 'scan_board': return (ru ? 'Сканирую плату на фото' : 'Scanning the board on the photo') + (s(a.hint) ? `: ${a.hint}` : '');
     case 'use_board': {
       if (!ownBoard(a)) return `${ru ? 'Беру плату из базы' : 'Taking the board from the dataset'}: ${s(a.board_id)}`;
@@ -450,14 +460,40 @@ function elecResult(name: string, a: any, r: Record<string, any>, ru: boolean): 
       if (r.version == null) return undefined;
       const bits = [count(Number(r.nodes) || 0, ['part', 'parts'], ['деталь', 'детали', 'деталей'], ru), count(Number(r.nets) || 0, ['net', 'nets'], ['цепь', 'цепи', 'цепей'], ru)];
       if (r.issues?.length) bits.push(ru ? `проблем: ${r.issues.length}` : `problems: ${r.issues.length}`);
+      if (r.design_errors?.length) bits.push(ru ? `ошибок в схеме: ${r.design_errors.length}` : `design errors: ${r.design_errors.length}`);
+      if (r.design_warnings?.length) bits.push(ru ? `замечаний: ${r.design_warnings.length}` : `notes: ${r.design_warnings.length}`);
       return `${ru ? 'Устройство' : 'Device'} v${r.version} — ${bits.join(', ')}`;
     }
     case 'build_device': {
       if (r.version == null || !r.counts) return undefined;
       const size = Array.isArray(r.board_mm) ? `, ${r.board_mm.map((x: number) => +x.toFixed(1)).join(' × ')} ${ru ? 'мм' : 'mm'}` : '';
-      return `${pcb} v${r.version} — ${drcText(drc(r), ru)}${size}`;
+      const intent = r.intent && r.intent.ok === false ? `, ${intentText(r.intent, ru, false)}` : '';
+      return `${pcb} v${r.version} — ${drcText(drc(r), ru)}${intent}${size}`;
     }
-    case 'write_firmware': return r.files ? `${ru ? 'Прошивка' : 'Firmware'}: ${r.files.join(', ')}` : undefined;
+    case 'write_firmware': {
+      if (!r.files) return undefined;
+      const head = `${ru ? 'Прошивка' : 'Firmware'}: ${r.files.join(', ')}`;
+      const chk = r.check && typeof r.check === 'object' ? r.check : null;
+      if (!chk) return head;
+      if (!chk.ran) return head + (ru ? ' — не проверена' : ' — not checked');
+      if (chk.ok) return head + (ru ? ' — проверка пройдена' : ' — check passed');
+      const n = typeof chk.errors === 'number' ? chk.errors : r.errors?.length || 1;
+      return head + (ru ? ` — ошибок проверки: ${n}` : ` — check failed: ${n}`);
+    }
+    case 'inspect_board': {
+      if (r.ok !== true || r.version == null) return undefined;
+      const what = r.id ?? r.net ?? (r.focus === 'region' ? (ru ? 'участок' : 'a region') : ru ? 'вся плата' : 'the whole board');
+      return `${pcb} v${r.version}: ${what}`;
+    }
+    case 'inspect_case': {
+      if (r.ok !== true || r.case_version == null) return undefined;
+      const mode = ({ assembled: ['assembled', 'в сборе'], lid_off: ['lid off', 'без крышки'], exploded: ['exploded', 'в разнесённом виде'],
+        section: ['section', 'в разрезе'] } as Record<string, [string, string]>)[String(r.mode)] ?? [String(r.mode), String(r.mode)];
+      return `${ru ? 'Корпус' : 'Case'} v${r.case_version}, ${mode[ru ? 1 : 0]}${r.part?.id ? ': ' + r.part.id : ''}`;
+    }
+    case 'inspect_part':
+      if (r.ok !== true || !r.id) return undefined;
+      return `${r.id}${Array.isArray(r.pins) ? ': ' + count(r.pins.length, ['pin', 'pins'], ['вывод', 'вывода', 'выводов'], ru) : ''}`;
     case 'quote_device':
       if (r.total_usd == null) return undefined;
       return ru ? `${r.qty} шт.: $${r.total_usd} (${r.total_kzt} ₸), готово к ${r.eta}` : `${r.qty} devices: $${r.total_usd} (${r.total_kzt} KZT), ready by ${r.eta}`;

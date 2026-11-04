@@ -9,8 +9,9 @@ const GAP = 34;
 const ROW = 21;
 
 export function nodeHeight(view: NodeView | undefined, node: DevNode): number {
-  const n = view?.pins.length ?? (node.kind === 'header' ? node.pins?.length ?? 4 : 2);
-  const rows = ['resistor', 'capacitor', 'led', 'diode', 'button', 'jst'].includes(node.kind) ? 1 : node.kind === 'header' ? n : Math.ceil(n / 2);
+  const n = view?.pins.length || (node.kind === 'header' ? node.pins?.length ?? 4 : node.kind === 'accessory' ? 4 : 2);
+  const column = node.kind === 'header' || node.kind === 'accessory';
+  const rows = ['resistor', 'capacitor', 'led', 'diode', 'button', 'jst'].includes(node.kind) ? 1 : column ? n : Math.ceil(n / 2);
   return 64 + rows * ROW + (node.label ? 16 : 0);
 }
 
@@ -41,7 +42,7 @@ export function autoLayout(doc: DeviceDoc, views: Record<string, NodeView>): Rec
   const col: Record<string, number> = {};
   for (const n of nodes) {
     if (PASSIVE.has(n.kind)) continue;
-    const c = POWER_IN.has(n.kind) ? 0 : mcus.includes(n) ? 2 : n.kind === 'chip' ? 3 : n.kind === 'header' ? 5 : 3;
+    const c = POWER_IN.has(n.kind) ? 0 : mcus.includes(n) ? 2 : n.kind === 'chip' ? 3 : n.kind === 'header' || n.kind === 'accessory' ? 5 : 3;
     cols[c].push(n);
     col[n.id] = c;
   }

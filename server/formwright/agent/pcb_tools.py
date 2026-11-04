@@ -75,7 +75,24 @@ MAKE_ENCLOSURE = _fn(
      "options": {"type": "object", "description": "case options: wall, floor, lid, clear (gap around the board), standoff (space under "
                                                   "it), port_fit (gap around plugs) in mm; lights 'hole'|'skin'; mount 'peg'|'auto'|'screw'. "
                                                   "wall 2.0 by default, 1.2 at least; the snap hooks hold firmer from 1.3 (catch 0.28 mm, "
-                                                  "0.20 at 1.2)"}},
+                                                  "0.20 at 1.2). Choose the next three for how the device is used, not by default; for pack "
+                                                  "'device' any left out come from the doc's chosen concept. form, the plan shape: 'soft' "
+                                                  "(default: corners as round as the parts allow, at most 0.6 mm larger; desk gadgets, sensors), "
+                                                  "'round' (a pebble or puck, up to 3 mm larger per side; a night light, a remote, a fob; on a "
+                                                  "round PCB a true round puck), 'box' (small corners: a rack, a DIN rail, stacking). A rounded "
+                                                  "or round PCB's case follows its outline. stance, how it sits in use: 'desk' (flat, lid up), "
+                                                  "'tilt' (a printed wedge stand comes with it: leans 25 deg, lid and display to the person; a "
+                                                  "timer, a clock, a meter), 'upright' (a printed stand, leans 75 deg like a picture frame; a "
+                                                  "display read across the room, a lamp), 'wall' (flat on the wall, lid out; gets ears when no "
+                                                  "mounting is given), 'hand' (no stand; pair it with round or a lanyard), 'auto' (follows the "
+                                                  "mounting). A stand takes a wall free of ports (-y with a display, so it reads upright; "
+                                                  "mount_edge picks another) and goes with mounting none or magnets. mounting, how it is held: "
+                                                  "'ears' (two screw ears, a wall plate), 'strap' (slots for a strap or band: a pipe, a wrist), "
+                                                  "'lanyard' (a keyring eyelet), 'stake' (a 70 mm spike into soil, it stands on it: a garden "
+                                                  "sensor), 'magnets' (pockets for 10x2 mm disc magnets under the floor: a fridge, a whiteboard), "
+                                                  "'contacts' (two M3 screws through the floor as feet or probe contacts: a leak puck), 'none'. "
+                                                  "Ears, strap, lanyard and stake need walls free of ports (mount_edge '+x'|'-x'|'+y'|'-y' picks "
+                                                  "the wall). min_height (mm): the outer height at least (a cube, a tower)"}},
     [])
 # the pack's look: the board's own views next to the case model
 LOOK = _fn(
@@ -97,7 +114,13 @@ async def run(ctx: Any, state: Any, name: str, args: dict[str, Any]) -> tuple[di
     if name == "export_fab":
         return await _export(ctx, state, args)
     if name == "make_enclosure":
-        return await _enclosure(ctx, state, args)
+        out, images = await _enclosure(ctx, state, args)
+        if getattr(state, "pack", None) == "device":
+            # the case held to the device's chosen concept (form, stance, mounting): warnings only
+            from . import device_tools
+
+            out = await device_tools.case_concept(ctx, state, out)
+        return out, images
     return {"ok": False, "error": f"unknown tool {name}"}, []
 
 
@@ -173,16 +196,17 @@ def _size(board: dict[str, Any] | None) -> list[float] | None:
 
 
 def brief(checks: dict[str, Any], version: int, board: dict[str, Any] | None, artifacts: set[str] | list[str]) -> dict[str, Any]:
-    """A build (or a version's stored checks) for the designer: errors in full with their hints, the rest short."""
+    """A build (or a version's stored checks) for the designer: errors in full with their hints, the rest short. The count
+    is the listed (root) errors, as the 'pcb.version' event and the result card count them; the follow-ups the listed ones
+    cause (routing skipped, not connected) are the separate `suppressed` line, so a title never says 50 where the board has 4."""
     errors = checks.get("errors") or []
     intent = checks.get("intent") or {"ok": True, "issues": [], "checked": 0}
     limits = checks.get("limits") or {"ok": True, "issues": []}
-    total = len(errors) + int(checks.get("suppressed") or 0)
-    out: dict[str, Any] = {"ok": not errors, "version": version, "counts": checks.get("counts") or {}}
+    out: dict[str, Any] = {"ok": not errors, "version": version, "counts": checks.get("counts") or {}, "drc_errors": len(errors)}
     if _size(board):
         out["board_mm"] = _size(board)
     if errors:
-        out["error"] = f"{total} DRC error(s): {errors[0].get('hint') or errors[0].get('message', '')}"[:300]
+        out["error"] = f"{len(errors)} DRC error(s): {errors[0].get('hint') or errors[0].get('message', '')}"[:300]
         out["errors"] = [{k: (str(e[k])[:500] if k == "message" else e[k]) for k in ("type", "ref", "message", "hint") if e.get(k)} for e in errors]
         if checks.get("suppressed"):
             out["suppressed"] = f"{checks['suppressed']} more errors that follow from these (fix the listed ones first)"
@@ -338,6 +362,25 @@ async def look(ctx: Any, state: Any, args: dict[str, Any]) -> tuple[dict[str, An
 
 
 # ------------------------------------------------------------------ make_enclosure
+CONCEPT_KEYS = ("form", "stance", "mounting")
+
+
+async def concept_case(project_id: str) -> tuple[str | None, dict[str, str]]:
+    """The chosen option of the latest device doc's concept: its name and the valid form, stance and mounting it names."""
+    try:
+        from .. import device_concept
+        from . import device_tools, elec_tools
+    except ImportError as e:
+        log.info("no concept for the case of %s: %s", project_id, e)
+        return None, {}
+    doc, _ = await device_tools.current(project_id)
+    pick = device_concept.chosen(doc)
+    if not pick:
+        return None, {}
+    vals = {k: str(pick.get(k) or "").strip().lower() for k in CONCEPT_KEYS}
+    return str(pick.get("name") or "") or None, {k: v for k, v in vals.items() if v in elec_tools.CHOICES[k] and v != "auto"}
+
+
 async def _enclosure(ctx: Any, state: Any, args: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     try:
         from . import elec_tools
@@ -353,6 +396,10 @@ async def _enclosure(ctx: Any, state: Any, args: dict[str, Any]) -> tuple[dict[s
     opts = _as_obj(args.get("options")) or {}
     if not isinstance(opts, dict):
         return {"ok": False, "error": "options must be an object, e.g. {port_fit: 0.4}"}, []
+    # a device's case takes what the call leaves out from the concept it was designed to
+    option, chosen = await concept_case(ctx.project_id) if getattr(state, "pack", None) == "device" else (None, {})
+    from_concept = {k: v for k, v in chosen.items() if opts.get(k) in (None, "", "auto")}
+    opts = {**opts, **from_concept}
     mockup = True if args.get("with_mockup") is None else bool(args.get("with_mockup"))
     try:
         source = elec_tools.enclosure_program(BOARD, title=f"{str(board.get('name') or 'PCB')[:60]} case", mockup=mockup, **opts)
@@ -375,6 +422,8 @@ async def _enclosure(ctx: Any, state: Any, args: dict[str, Any]) -> tuple[dict[s
     # the board's version right after the case's own, and the brief's verdict right after 'printable': both inside the step
     # summary's cut, so the step reads the same in the other UI language
     out = {**{k: built[k] for k in ("ok", "version") if k in built}, "pcb_version": v, **built, "mockup": mockup, "enclosure": enc}
+    if from_concept:
+        out["from_concept"] = {"option": option, **from_concept}
     _verdict_first(out)
     if checks.get("errors"):
         out["warning"] = f"PCB v{v} still has DRC errors: the board may still change, and the case with it"

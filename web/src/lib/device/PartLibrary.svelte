@@ -13,11 +13,12 @@
 </script>
 
 <script lang="ts">
-  // The Add menu's list (Shift+A, as in Blender): one search field over the modules, the basic parts and the live LCSC
-  // catalogue. Typing filters the modules and basics at once and searches LCSC after a short pause; arrows move,
+  // The Add menu's list (Shift+A, as in Blender): one search field over the modules, the ready-made modules fitted by
+  // hand (accessories: an OLED, a PIR, a soil probe), the basic parts and the live LCSC catalogue. Typing filters the modules and basics at once and searches LCSC after a short pause; arrows move,
   // Enter adds, Esc closes (AddMenu).
   import { errorText } from '$lib/api';
   import { priceAt, type DevNode, type PartCard } from './api';
+  import { accessoriesOf } from './facets';
   import { dt, usd } from './i18n';
 
   let { onAdd }: { onAdd: (node: Omit<DevNode, 'id'>) => void } = $props();
@@ -62,7 +63,7 @@
     return () => clearTimeout(t);
   });
 
-  type Item = { key: string; icon: string; name: string; sub: string; right?: string; tag?: 'basic' | 'ext'; node: Omit<DevNode, 'id'> };
+  type Item = { key: string; icon: string; name: string; sub: string; right?: string; tag?: 'basic' | 'ext' | 'hand'; node: Omit<DevNode, 'id'> };
   const BASICS: { kind: string; extra?: Partial<DevNode>; words: string }[] = [
     { kind: 'resistor', extra: { value: '10k', package: '0603' }, words: 'resistor r pull' },
     { kind: 'capacitor', extra: { value: '100nF', package: '0603' }, words: 'capacitor cap c decoupling' },
@@ -91,6 +92,16 @@
         sub: [m.mcu, ...m.wireless].join(' · '), right: usd(m.price_usd), node: { kind: 'module', module: m.module, edge: '+y', label: 'MCU' },
       })),
   );
+  // ready-made modules (an OLED, a PIR, a soil probe, a LiPo): the board gets their connector, the workshop fits them
+  const accessories = $derived<Item[]>(
+    accessoriesOf(lib)
+      .filter((a) => matches(`${a.name} ${a.key} ${a.kind ?? ''} ${a.note ?? ''} ${(a.pins ?? []).join(' ')} module accessory ${dt('lib_accessories')}`))
+      .map((a) => ({
+        key: `a:${a.key}`, icon: 'ti-puzzle', name: a.name, sub: [a.mount ? dt(`mount_${a.mount}`) : '', (a.pins ?? []).join(' ')].filter(Boolean).join(' · '),
+        right: a.price_usd != null ? usd(a.price_usd) : undefined, tag: 'hand',
+        node: { kind: 'accessory', accessory: a.key, label: a.name, ...(a.mount === 'cable' ? { edge: '-y' as const } : {}) },
+      })),
+  );
   const basics = $derived<Item[]>(
     BASICS.filter((b) => matches(`${dt(`k_${b.kind}`)} ${b.words}`)).map((b) => ({
       key: `b:${b.kind}`, icon: ICON[b.kind], name: dt(`k_${b.kind}`), sub: DEFAULT[b.kind] ?? '', node: { kind: b.kind, ...(b.extra ?? {}) },
@@ -105,6 +116,7 @@
   const sections = $derived(
     [
       { title: dt('lib_modules'), items: modules },
+      { title: dt('lib_accessories'), items: accessories },
       { title: dt('lib_basics'), items: basics },
       { title: dt('lib_lcsc'), items: parts, lcsc: true },
     ].filter((s) => s.items.length || (s.lcsc && q.trim().length >= 2)),
@@ -150,7 +162,7 @@
           <i class="ti {it.icon}" aria-hidden="true"></i>
           <span class="nm">{it.name}</span>
           <span class="sub">{it.sub}</span>
-          {#if it.tag}<span class="tag" class:ext={it.tag === 'ext'}>{it.tag === 'basic' ? dt('basic') : dt('extended')}</span>{/if}
+          {#if it.tag}<span class="tag" class:ext={it.tag === 'ext'} class:hand={it.tag === 'hand'}>{it.tag === 'basic' ? dt('basic') : it.tag === 'hand' ? dt('fitted_hand_short') : dt('extended')}</span>{/if}
           {#if it.right}<span class="rt">{it.right}</span>{/if}
         </button>
       {/each}
@@ -278,6 +290,9 @@
   }
   .tag.ext {
     color: var(--warn-text);
+  }
+  .tag.hand {
+    color: #2bb3a3;
   }
   .rt {
     flex: none;

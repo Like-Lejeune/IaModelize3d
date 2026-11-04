@@ -1,0 +1,234 @@
+{
+ "schema": "fw.device/1",
+ "title": "Home Weather Station",
+ "summary": "Home weather station: BME280 + OLED + Wi-Fi",
+ "board": {
+  "holes": true,
+  "w": 46.0,
+  "h": 50.0
+ },
+ "nodes": [
+  {
+   "id": "U1",
+   "kind": "module",
+   "label": "MCU",
+   "module": "113991054",
+   "edge": "-y"
+  },
+  {
+   "id": "U2",
+   "kind": "chip",
+   "label": "BME280 climate sensor",
+   "lcsc": "C92489"
+  },
+  {
+   "id": "C1",
+   "kind": "capacitor",
+   "label": "U2 decoupling",
+   "value": "100nF",
+   "package": "0603"
+  },
+  {
+   "id": "R1",
+   "kind": "resistor",
+   "label": "SDA pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  },
+  {
+   "id": "R2",
+   "kind": "resistor",
+   "label": "SCL pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  },
+  {
+   "id": "R3",
+   "kind": "resistor",
+   "label": "LED resistor",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "LED1",
+   "kind": "led",
+   "label": "status",
+   "color": "green",
+   "place": {
+    "x": -14.0,
+    "y": -12.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "SW1",
+   "kind": "button",
+   "label": "page",
+   "place": {
+    "x": 14.0,
+    "y": -12.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "DS1",
+   "kind": "accessory",
+   "label": "display",
+   "accessory": "oled_096_i2c",
+   "place": {
+    "x": 0.0,
+    "y": 10.0,
+    "rot": 0.0
+   }
+  }
+ ],
+ "nets": [
+  {
+   "pins": [
+    "U1.GND",
+    "U2.GND",
+    "U2.SDO",
+    "C1.2",
+    "LED1.K",
+    "SW1.B",
+    "DS1.GND"
+   ]
+  },
+  {
+   "pins": [
+    "U1.V3V3",
+    "U2.VDD",
+    "U2.VDDIO",
+    "U2.CSB",
+    "C1.1",
+    "R1.1",
+    "R2.1",
+    "DS1.VCC"
+   ],
+   "name": "V3V3"
+  },
+  {
+   "pins": [
+    "U1.SDA",
+    "U2.SDI",
+    "R1.2",
+    "DS1.SDA"
+   ],
+   "name": "SDA"
+  },
+  {
+   "pins": [
+    "U1.SCL",
+    "U2.SCK",
+    "R2.2",
+    "DS1.SCL"
+   ],
+   "name": "SCL"
+  },
+  {
+   "pins": [
+    "U1.MOSI",
+    "R3.1"
+   ]
+  },
+  {
+   "pins": [
+    "R3.2",
+    "LED1.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D1",
+    "SW1.A"
+   ]
+  }
+ ],
+ "requirements": [
+  {
+   "id": "R1",
+   "text": "measure temperature, humidity and pressure",
+   "parts": [
+    "U2"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R2",
+   "text": "show readings on OLED display, pages flipped by button",
+   "parts": [
+    "DS1"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R3",
+   "text": "serve readings over Wi-Fi web page",
+   "parts": [
+    "U1"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R4",
+   "text": "status LED blinks on every reading",
+   "parts": [
+    "LED1"
+   ],
+   "firmware": true
+  }
+ ],
+ "concept": {
+  "uses": [
+   "on a living-room shelf powered from USB: readings on OLED and phone over Wi-Fi",
+   "in a bedroom at night: check temperature/humidity at a glance, flip display pages with button"
+  ],
+  "options": [
+   {
+    "name": "Shelf block",
+    "look": "small soft block standing on a shelf, OLED on lid, button below it",
+    "panel": "OLED centred on lid, status LED left, page button right below display",
+    "form": "soft",
+    "stance": "desk",
+    "mounting": "none",
+    "module_edge": "-y",
+    "board": {
+     "shape": "rect",
+     "w": 46.0,
+     "h": 50.0
+    }
+   },
+   {
+    "name": "Wall tile",
+    "look": "flat tile on two screws at eye height, cable leaving at bottom",
+    "panel": "OLED at top, LED under it, button beside it, sensor vent at bottom far from module",
+    "form": "box",
+    "stance": "wall",
+    "mounting": "ears",
+    "module_edge": "-y",
+    "board": {
+     "shape": "rect",
+     "w": 30.0,
+     "h": 45.0
+    }
+   },
+   {
+    "name": "Fridge puck",
+    "look": "round puck on magnets on a fridge",
+    "panel": "round OLED window centre, LED ring around it, button at bottom of circle",
+    "form": "round",
+    "stance": "upright",
+    "mounting": "magnets",
+    "module_edge": "-y",
+    "board": {
+     "shape": "round",
+     "w": 42.0,
+     "h": 42.0
+    }
+   }
+  ],
+  "chosen": "Shelf block",
+  "why": "Shelf block keeps the OLED facing the room, fits the display plus button, and needs no mounting."
+ },
+ "_version": 2
+}

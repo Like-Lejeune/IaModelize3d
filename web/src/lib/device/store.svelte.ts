@@ -18,8 +18,10 @@ export type BuildInfo = {
 
 const PREFIX: Record<string, string> = {
   module: 'U', chip: 'U', resistor: 'R', capacitor: 'C', led: 'LED', diode: 'D', button: 'SW', header: 'J', usb_c: 'J', jst: 'J', hole: 'H',
+  accessory: 'A',
 };
-export const EDGE_KINDS = ['usb_c', 'header', 'jst', 'module'];
+// an accessory on a cable takes an edge too: its connector sits there and the case lets the cable out on that side
+export const EDGE_KINDS = ['usb_c', 'header', 'jst', 'module', 'accessory'];
 // supply and ground nets are labels on their pins rather than wires (device.py POWER_NET)
 export const POWER_NET = /^(GND|AGND|V3V3|V3V|V1V8|V5|V5V|VBUS|VSYS|VBAT|VIN|VCC|VDD|V12|V9)$/i;
 
@@ -30,6 +32,8 @@ export class DeviceStore {
   selected = $state<string | null>(null);
   /** The net picked in the Outliner (its name, or '#<index>' for an unnamed one): its wires and pins light up. */
   selectedNet = $state<string | null>(null);
+  /** Parts lit as a group: those serving a requirement, or laid out in one pattern (key: 'R1', 'layout:0'). */
+  lit = $state<{ key: string; ids: string[] } | null>(null);
   /** Earlier documents of this sitting, for undo (Ctrl+Z) and redo. */
   private past: DeviceDoc[] = [];
   private future: DeviceDoc[] = [];
@@ -137,10 +141,19 @@ export class DeviceStore {
   pickNode(id: string | null) {
     this.selected = id;
     if (id) this.selectedNet = null;
+    else this.lit = null;
   }
   pickNet(key: string | null) {
     this.selectedNet = key;
     if (key) this.selected = null;
+  }
+  /** Light a group of parts on the schematic (picking it again puts the light out); the selection goes. */
+  light(key: string | null, ids: string[] = []) {
+    this.lit = key && this.lit?.key !== key ? { key, ids } : null;
+    if (this.lit) {
+      this.selected = null;
+      this.selectedNet = null;
+    }
   }
 
   nextId(kind: string): string {

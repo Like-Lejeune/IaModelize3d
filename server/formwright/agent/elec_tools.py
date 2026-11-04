@@ -93,10 +93,18 @@ _PARAM_LINES = {
     "port_fit": "{{ value: {v}, min: 0.1, max: 1.0, step: 0.05, unit: 'mm', label: 'Gap around plugs', source: 'design', group: 'Fit' }}",
     "lights": "{{ value: {v}, options: ['hole', 'skin'], label: 'LED window', source: 'design', group: 'Access' }}",
     "mount": "{{ value: {v}, options: ['peg', 'auto', 'screw'], label: 'Board mount', source: 'design', group: 'Fit' }}",
+    "form": "{{ value: {v}, options: ['soft', 'round', 'box'], label: 'Shape', source: 'design', group: 'Shell' }}",
+    "mounting": "{{ value: {v}, options: ['none', 'ears', 'strap', 'lanyard', 'stake', 'magnets', 'contacts'], label: 'Mounting', source: 'design', group: 'Shell' }}",
+    "mount_edge": "{{ value: {v}, options: ['auto', '+x', '-x', '+y', '-y'], label: 'Mounting wall', source: 'design', group: 'Shell' }}",
+    "min_height": "{{ value: {v}, min: 0, max: 120, step: 1, unit: 'mm', label: 'Height at least', source: 'design', group: 'Shell' }}",
+    "stance": "{{ value: {v}, options: ['auto', 'desk', 'tilt', 'upright', 'wall', 'hand'], label: 'How it sits', source: 'design', group: 'Shell' }}",
 }
-DEFAULTS: dict[str, Any] = {"wall": 2.0, "floor": 1.6, "lid": 1.6, "clear": 0.5, "standoff": 2.5, "port_fit": 0.3, "lights": "hole", "mount": "peg"}
-CHOICES = {"lights": ("hole", "skin"), "mount": ("peg", "auto", "screw")}
-PRINT_NOTES = "Base floor-down, lid top-down; PETG for the snap hooks (PLA works), 0.2 mm layers, no supports."
+DEFAULTS: dict[str, Any] = {"wall": 2.0, "floor": 1.6, "lid": 1.6, "clear": 0.5, "standoff": 2.5, "port_fit": 0.3, "lights": "hole", "mount": "peg",
+                            "form": "soft", "mounting": "none", "mount_edge": "auto", "min_height": 0.0, "stance": "auto"}
+CHOICES = {"lights": ("hole", "skin"), "mount": ("peg", "auto", "screw"), "form": ("soft", "round", "box"),
+           "mounting": ("none", "ears", "strap", "lanyard", "stake", "magnets", "contacts"), "mount_edge": ("auto", "+x", "-x", "+y", "-y"),
+           "stance": ("auto", "desk", "tilt", "upright", "wall", "hand")}
+PRINT_NOTES = "Base floor-down, lid top-down, a stand as it lies; PETG for the snap hooks (PLA works), 0.2 mm layers, no supports."
 
 
 def _js(v: Any) -> str:
@@ -153,7 +161,8 @@ def enclosure_program(board: str = "board", *, title: str = "Board snap case", m
         f"  lib.assert(spec, 'attach the board JSON as inputs.boards.{board}');",
         "  const b = E.board(spec);",
         "  const enc = E.enclosure(b, { wall: p.wall, floor: p.floor, lid: p.lid, clear: p.clear, standoff: p.standoff,",
-        "    portFit: p.port_fit, lights: p.lights, mount: p.mount });",
+        "    portFit: p.port_fit, lights: p.lights, mount: p.mount, form: p.form,",
+        "    mounting: p.mounting, mountEdge: p.mount_edge, minHeight: p.min_height, stance: p.stance });",
     ]
     if mockup:
         lines += [
@@ -173,6 +182,16 @@ def enclosure_program(board: str = "board", *, title: str = "Board snap case", m
 
 EXAMPLE = enclosure_program()
 
+
+def case_options(source: str) -> dict[str, Any]:
+    """The case options a case program was written with (its param defaults), so a rebuild of the case keeps them."""
+    out: dict[str, Any] = {}
+    for k in DEFAULTS:
+        m = re.search(rf"^\s*{re.escape(k)}: \{{ value: (?:'([^']*)'|(-?[0-9.]+))", source or "", re.M)
+        if m:
+            out[k] = m.group(1) if m.group(1) is not None else float(m.group(2))
+    return {k: v for k, v in out.items() if k not in CHOICES or v in CHOICES[k]}
+
 PACK_TEXT = """
 # Pack: enclosures for electronics (a case around a board)
 - The board comes first, as JSON in inputs.boards.board (fw.board/1: mm, origin at the PCB's bottom-left corner seen from the
@@ -184,8 +203,12 @@ PACK_TEXT = """
   check and the studio flip them, printing and export always use the print layout. Options: wall, floor, lid, clear (gap around
   the board), standoff (space under it), portFit (gap around plugs), mount 'peg'|'auto'|'screw' (+ screw 'M2'), lights
   'hole'|'skin', buttons 'flex'|'none', lidStyle 'hooks'|'plain', hookL/hookT/hookOver/hookW, tabLen, pressGap, chamfer, clips
-  'edge'|'none' (lid clips that hold a board without mount holes down at its edges; default 'edge'). Expose
-  wall, clear, standoff, port_fit, mount and lights as params. Extra features (a logo, a strap slot, feet) go on enc.base / enc.lid
+  'edge'|'none' (lid clips that hold a board without mount holes down at its edges; default 'edge'), form 'soft'|'round'|'box'
+  (the plan shape: 'soft' rounds every corner as far as the parts allow, 'round' makes a pebble up to 3 mm larger per side,
+  'box' keeps small corners; pick it for how the thing is used and held; a round or rounded PCB's case follows its outline),
+  stance 'tilt'|'upright' (E.parts adds a printed stand the case leans in, lid to the person) or 'wall' (screw ears), mounting
+  'ears'|'strap'|'lanyard'|'stake'|'magnets'|'contacts' (on walls free of ports). Expose wall, clear, standoff, port_fit, mount,
+  lights and form as params. Extra features (a logo, a strap slot, feet) go on enc.base / enc.lid
   before E.parts and must stay clear of the port windows and the press tabs.
 - Wall: 2.0 mm by default. Every wall from 1.2 mm prints clean, but the snap hooks hold firmer from 1.3 mm: their catch is
   0.28 mm at 1.3 and up, 0.20 mm at 1.2 (lid_fit says it). For a slim case choose 1.3; 1.2 only when every tenth counts, and
@@ -415,6 +438,12 @@ HINTS = {
     "snap_strain": "longer hooks (hookL), less hookOver, or lidStyle 'plain'",
     "metal_in_keepout": "mount 'peg' or 'auto': no metal screws in no_metal keep-outs",
     "board_retained": "keep clips 'edge' (default) and clear at most 0.5 mm; free part of the board rim of parts so a clip fits",
+    "display_window": "move the display or what blocks its window (a hook, a post, a tongue); give the accessory its window size",
+    "sensor_window": "move the sensor out from under the module and away from hooks and posts; set its window/shape",
+    "sound_grille": "keep tongues, posts and modules off the buzzer: move it or them",
+    "cable_exit": "free part of that wall of port windows, or change the accessory's edge/at",
+    "battery_space": "give the cell its w/d/h and leave one side of the board free of ports",
+    "mounting": "another mounting, or mount_edge on a wall free of port windows and cable exits (or move the ports off it)",
 }
 # a top button whose plunger is there but misses it (gap, a blocked tongue, too much strain) is an error, not the side-button note
 PLUNGER_HINT = "change pressGap so the plunger sits 0.1-0.8 mm over the button, keep the tongue's slots clear of the lid, or lengthen tabLen until the bending strain is under 2 %"

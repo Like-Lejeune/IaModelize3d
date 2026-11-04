@@ -248,6 +248,16 @@ def test_the_case_program_and_the_model_facing_text():
     assert [t["name"] for t in et.tools(photos=False)] == ["use_board", "check_enclosure"]
 
 
+def test_how_the_case_mounts_and_sits_reaches_the_program_and_survives_a_rebuild():
+    src = et.enclosure_program(mounting="stake", mount_edge="-y", min_height=30, stance="upright", form="round")
+    assert "mounting: p.mounting, mountEdge: p.mount_edge, minHeight: p.min_height, stance: p.stance" in src
+    assert et.case_options(src) == {**et.DEFAULTS, "mounting": "stake", "mount_edge": "-y", "min_height": 30.0, "stance": "upright", "form": "round"}
+    # a program from before these options keeps what it has; nothing unknown comes back
+    assert et.case_options(et.enclosure_program(form="box").replace("mounting:", "fixing:")).get("mounting") is None
+    with pytest.raises(ValueError):
+        et.enclosure_program(mounting="glue")
+
+
 # ---------------------------------------------------------------- the real engine
 
 

@@ -196,6 +196,16 @@ test('warning hints: a squeezed power trace gets room, a style note is left alon
   assert.match(hintFor('source_pin_missing_trace_warning', 'Port pin2 on R7 is missing a trace'), /connect R7\.pin2/);
 });
 
+test('courtyard margins: a catalogue body far wider than its pads is what the packer sees; an inward connector gets its turn', async () => {
+  // MLT-9650 buzzer (C96127): two pads 9 mm apart along x, a 9.6 mm round body around them
+  const raw = JSON.parse(fs.readFileSync(path.join(PKG, 'test', 'fixtures', 'C96127.easyeda.json'), 'utf8'));
+  const { courtyardMargins } = await import('../src/build.mjs');
+  assert.deepEqual(courtyardMargins({ C96127: { easyeda: raw } }), { C96127: { left: 0.25, bottom: 4.15, right: 0.25, top: 4.15 } });
+  assert.deepEqual(courtyardMargins({ C1: { easyeda: null } }), {});
+  assert.match(hintFor('pcb_connector_not_in_accessible_orientation_warning', 'J_BAT is inferred to face x- from its cable insertion center because no explicit footprint insertionDirection is defined, but should face x+ so the connector is accessible from the board edge.'),
+    /^J_BAT opens towards the board \(x-\), not out of its edge \(x\+\): turn it by 180°/);
+});
+
 test('edge intent: a plain part at its edge passes; one inside still gets a move', { timeout: 120000 }, async () => {
   // a Pico placed as a plain dip40: no port rule, so it never becomes a port and only has to sit at the edge
   const pico = (y) => `export const meta = { intent: { edge: { U1: '+y' } } }
@@ -212,6 +222,32 @@ export default () => (<board width="30mm" height="60mm"><chip name="U1" footprin
       assert.equal(r.intent.ok, true, `pcbY ${y}: ${JSON.stringify(r.intent.issues)}`);
       assert.equal(r.intent.checked, 1);
     }
+  } finally {
+    w.close();
+  }
+});
+
+test('a shaped board: the outline reaches board.json as a polygon, a connector off the middle of a round rim is still at its edge', { timeout: 120000 }, async () => {
+  const R = 25;
+  const ring = Array.from({ length: 72 }, (_, i) => `{ x: ${(R * Math.cos((i * Math.PI) / 36)).toFixed(3)}, y: ${(R * Math.sin((i * Math.PI) / 36)).toFixed(3)} }`).join(', ');
+  // a USB-C 10 mm along the -y side, its outer corner on the rim: 5.2 mm above the bounding box's bottom
+  const y = -Math.sqrt(R ** 2 - 15.2 ** 2) + 5.5;
+  const source = `export const meta = { intent: { edge: { J1: '-y' } } }
+export default () => (<board outline={[${ring}]}><chip name="J1" footprint="usbcmidmount" pcbX={10} pcbY={${y}} /></board>)`;
+  const w = worker(path.join(PKG, 'src', 'worker.mjs'));
+  try {
+    const r = (await w.call('build', { source })).result;
+    const ol = r.board.pcb.outline;
+    assert.equal(ol.kind, 'poly');
+    assert.equal(ol.points.length, 72);
+    assert.deepEqual([ol.w, ol.h], [2 * R, 2 * R]);
+    assert.ok(new Ajv({ strict: false, allErrors: true }).compile(SCHEMA)(r.board), 'schema');
+    const j1 = r.board.components.find((c) => c.id === 'J1');
+    assert.equal(j1.access, 'port', JSON.stringify(j1));
+    assert.equal(j1.edge, '-y');
+    assert.equal(r.intent.ok, true, JSON.stringify(r.intent.issues));
+    // measured from the rim under the part's middle, which lies 3 mm further out than at its outer corner
+    assert.ok(j1.protrude < -1 && j1.protrude > -4, String(j1.protrude));
   } finally {
     w.close();
   }

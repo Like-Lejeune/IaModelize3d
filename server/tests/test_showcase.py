@@ -56,6 +56,27 @@ async def test_example_builds_without_errors(fresh_db, key):
     assert await showcase.prepared(showcase.BY_KEY[key]) == ready
 
 
+async def test_a_device_example_opens_as_the_finished_run_with_its_numbers(client):
+    # the cards under the device mode: a kept run opens in the device studio with its document, board and case, nothing spent
+    devices = [e for e in showcase.EXAMPLES if e["pack"] == "device"]
+    assert [e["key"] for e in devices] == ["device-weather", "device-plant", "device-timer"]
+    for ex in devices:
+        run = showcase._device_run(ex["device"])
+        p = (await client.post(f"/api/examples/{ex['key']}", json={"lang": "en"})).json()
+        assert p["pack"] == "device" and p["version"] == run["program"]["version"] and p["cover"]
+        d = (await client.get(f"/api/projects/{p['id']}")).json()
+        assert d["program"]["source"] == run["program"]["source"] and d["job"] is None
+        assert [m["text"] for m in d["messages"]] == [ex["prompt"]["en"], ex["intro"]["en"]]
+        s = (await client.get(f"/api/projects/{p['id']}/device")).json()
+        assert s["version"] == run["doc"]["version"] and len(s["doc"]["nodes"]) == len(run["doc"]["doc"]["nodes"])
+        assert s["pcb"]["version"] == run["pcb"]["version"] and s["pcb"]["ok"] and not s["pcb"]["stale"]
+        assert (s["doc"]["firmware"] or {}).get("check", {}).get("ok")
+        # the case still names the board it was made for
+        assert run["pcb"]["version"] == int(run["program"]["inputs"]["boards"]["board"]["source"]["pcb_job"].removeprefix("pcb:v"))
+        names = {v["version"]: v["artifacts"] for v in (await client.get(f"/api/projects/{p['id']}/pcb")).json()}
+        assert "board.glb" in names[run["pcb"]["version"]]
+
+
 async def test_opening_an_example_gives_a_ready_project(client):
     listed = (await client.get("/api/examples")).json()
     assert [e["key"] for e in listed] == SHOWN
@@ -166,7 +187,7 @@ async def test_the_pcb_example_opens_with_its_routed_board_and_the_case_made_fro
     listed = (await client.get("/api/examples")).json()
     card = next(e for e in listed if e["key"] == "xiao-carrier")
     assert card["pack"] == "pcb" and card["title"]["ru"] == "Плата для XIAO ESP32-C3 + корпус" and card["cover"].startswith("/files/examples/")
-    assert len(listed) == 6  # two rows of three on the home page
+    assert len([e for e in listed if e["pack"] != "device"]) == 6  # two rows of three on the home page
 
     # routed once at warm-up: opening only copies the version, so it is instant and never runs the PCB worker
     async def routed_again(*a, **k):

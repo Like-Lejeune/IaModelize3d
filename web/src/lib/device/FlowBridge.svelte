@@ -2,11 +2,13 @@
   // Inside <SvelteFlow>: the viewport helpers the editor's toolbar needs (fit, the centre of the view for a new part).
   import { useSvelteFlow } from '@xyflow/svelte';
 
-  let { arrived, bridge = $bindable() }: { arrived: number; bridge?: { fit: () => void; centre: () => [number, number] } } = $props();
+  let { arrived, bridge = $bindable() }: { arrived: number; bridge?: { fit: () => void; fitTo: (ids: string[]) => void; centre: () => [number, number] } } = $props();
   const flow = useSvelteFlow();
 
   bridge = {
     fit: () => flow.fitView({ padding: 0.18, duration: 350 }),
+    // a group of parts (a requirement's, a layout's), not closer than the whole schematic would be
+    fitTo: (ids) => flow.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.35, duration: 350, maxZoom: 1.1 }),
     centre: () => {
       const el = document.querySelector('.device-editor .svelte-flow') as HTMLElement | null;
       const r = el?.getBoundingClientRect();

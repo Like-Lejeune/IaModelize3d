@@ -34,11 +34,14 @@
   import NetInspector from '$lib/device/NetInspector.svelte';
   import BomCanvas from '$lib/device/BomCanvas.svelte';
   import BoardEditor from '$lib/device/BoardEditor.svelte';
+  import ConceptPanel from '$lib/device/ConceptPanel.svelte';
   import { bomOf, bomCsv } from '$lib/device/bom';
   import AddMenu from '$lib/device/ui/AddMenu.svelte';
   import { QuoteState } from '$lib/device/quote.svelte';
-  import type { DevNode } from '$lib/device/api';
-  import { dt, usd } from '$lib/device/i18n';
+  import type { Accessory, DevNode, Review } from '$lib/device/api';
+  import { loadLibrary } from '$lib/device/PartLibrary.svelte';
+  import { accessoriesOf, placedBy, sizeText, sortChecks } from '$lib/device/facets';
+  import { dt, patternName, usd } from '$lib/device/i18n';
 
   type Stage = 'schematic' | 'board' | 'case' | 'firmware' | 'bom' | 'make';
   type Status = 'empty' | 'run' | 'ok' | 'warn' | 'stale' | 'err' | 'locked';
@@ -106,8 +109,21 @@
   const pcbV = $derived(store?.pcb.versions.at(-1) ?? null);
   const locked = $derived(!!store?.running && !store.readonly);
   const readonly = $derived(!!store && (store.readonly || store.replaying || locked));
-  const lintN = $derived((ds?.issues.length ?? 0) + (ds?.lint.length ?? 0));
-  const bom = $derived(bomOf(ds));
+  const checks = $derived(sortChecks(ds));
+  const lintN = $derived(checks.errors.length + checks.warnings.length);
+  // the library's accessories: the BOM prices a module fitted by hand before the server's view of it is in
+  let accessories = $state<Record<string, Accessory>>({});
+  loadLibrary().then((l) => (accessories = Object.fromEntries(accessoriesOf(l).map((a) => [a.key, a])))).catch(() => {});
+  const bom = $derived(bomOf(ds, accessories));
+  // the device review: kept with the document, else the latest reviewer's verdict in this project's history
+  const review = $derived.by<Review | null>(() => {
+    if (ds?.review) return ds.review;
+    const c = store?.timeline.findLast((i) => i.kind === 'critic');
+    return c && c.kind === 'critic' ? { verdict: c.verdict, match_score: c.score, issues: c.issues, model: c.model, version: c.version } : null;
+  });
+  const caseMm = $derived((store?.enclosure?.check.summary as { case_mm?: number[] } | undefined)?.case_mm ?? null);
+  const reqs = $derived(ds?.doc.requirements ?? []);
+  const concept = $derived(ds?.doc.concept ?? null);
   const routing = $derived(!!dev?.build.running || !!store?.pcb.live);
   const caseOf = $derived(store?.casePcbVersion ?? null);
   const fw = $derived(ds?.doc.firmware ?? null);
@@ -126,10 +142,10 @@
     const stale = !!dev?.stale;
     const hasCase = !!store?.source && caseOf != null;
     return {
-      schematic: nodes ? (lintN ? 'warn' : 'ok') : 'empty',
+      schematic: nodes ? (checks.errors.length ? 'err' : lintN ? 'warn' : 'ok') : 'empty',
       board: routing ? 'run' : !pcbV ? 'empty' : stale ? 'stale' : pcbErr ? 'err' : 'ok',
-      case: !hasCase ? (pcbV ? 'empty' : 'locked') : caseOf !== pcbV?.version ? 'stale' : 'ok',
-      firmware: fw ? 'ok' : nodes ? 'empty' : 'locked',
+      case: !hasCase ? (pcbV ? 'empty' : 'locked') : caseOf !== pcbV?.version ? 'stale' : store?.enclosure?.check.ok === false ? 'err' : 'ok',
+      firmware: fw ? (fw.check?.ok === false ? 'err' : 'ok') : nodes ? 'empty' : 'locked',
       bom: !nodes ? 'locked' : bom.some((r) => r.stock === 0) ? 'warn' : 'ok',
       make: !pcbV ? 'locked' : pcbErr || stale ? 'warn' : 'ok',
     };
@@ -318,7 +334,7 @@
     {:else if stage === 'board' && pcbV}
       <span class="meta">v{pcbV.version} · {pcbV.counts.components ?? '—'} {dt('pcs')} · {pcbV.counts.traces ?? 0} {dt('traces')} · {pcbV.counts.vias ?? 0} {dt('vias')}</span>
     {:else if stage === 'case' && store.source}
-      <span class="meta">v{store.version}{store.checks?.stats?.estGrams ? ` · ${Math.round(store.checks.stats.estGrams)} ${dt('g')}` : ''}</span>
+      <span class="meta">v{store.version}{caseMm ? ` · ${sizeText(caseMm)} ${dt('mm')}` : ''}{store.checks?.stats?.estGrams ? ` · ${Math.round(store.checks.stats.estGrams)} ${dt('g')}` : ''}</span>
     {:else if stage === 'firmware' && fw}
       <span class="meta">{fw.lang}</span>
     {:else if stage === 'bom' && bom.length}
@@ -455,7 +471,7 @@
           {:else if stage === 'firmware'}
             <FirmwareCode device={dev} projectId={store.id} {readonly} onSend={readonly ? undefined : send} />
           {:else if stage === 'bom'}
-            <BomCanvas device={dev} />
+            <BomCanvas device={dev} {accessories} />
           {:else if quote}
             <OrderCanvas q={quote} built={!!pcbV && !pcbV.drc.errors} />
           {/if}
@@ -484,13 +500,44 @@
                     <dt>{dt('kv_nets')}</dt><dd>{ds?.doc.nets.length ?? 0}</dd>
                     <dt>{dt('stage_board')}</dt><dd class:warnc={dev.stale} class:okc={!!pcbV && !dev.stale}>{pcbV ? (dev.stale ? dt('kv_stale') : `v${pcbV.version}`) : '—'}</dd>
                     <dt>{dt('version')}</dt><dd>{ds?.version ?? '—'}{dev.saving ? ` · ${dt('saving')}` : ''}</dd>
+                    {#each ds?.doc.layouts ?? [] as l, i (i)}
+                      <dt>{patternName(l.pattern)}</dt><dd><button class="lk" onclick={() => dev.light(`layout:${i}`, l.nodes ?? [])}>{(l.nodes ?? []).join(' ')}</button></dd>
+                    {/each}
                   </dl>
                   {#if ds?.doc.summary}<p class="note">{ds.doc.summary}</p>{/if}
                 </Panel>
+                {#if concept?.options?.length || concept?.uses?.length}
+                  <!-- how it is used and what it looks like, brainstormed before the parts: the chosen option marked -->
+                  <Panel name="concept" title={dt('concept')}>
+                    {#snippet right()}{(concept?.chosen ?? '').slice(0, 28)}{/snippet}
+                    <ConceptPanel concept={concept!} />
+                  </Panel>
+                {/if}
+                {#if reqs.length}
+                  <!-- what the device must do, as the designer wrote it first: a click lights the parts serving each -->
+                  <Panel name="reqs" title={dt('reqs')}>
+                    {#snippet right()}{reqs.length}{/snippet}
+                    <ul class="reqs">
+                      {#each reqs as r (r.id)}
+                        <li>
+                          <button class="rq" class:on={dev.lit?.key === r.id} onclick={() => dev.light(r.id, r.parts ?? [])} title={dt('reqs_light')}>
+                            <span class="mono rid">{r.id}</span>
+                            <span class="rt">{r.text}{#if r.firmware}{' '}<i class="ti ti-code" title={dt('reqs_fw')} aria-hidden="true"></i>{/if}
+                              <span class="mono rp">{r.parts?.length ? r.parts.join(' ') : dt('reqs_none')}</span></span>
+                          </button>
+                        </li>
+                      {/each}
+                    </ul>
+                  </Panel>
+                {/if}
               {/if}
               <Panel name="checks" title={dt('side_checks')}>
-                {#snippet right()}{#if lintN}<span class="badge">{lintN}</span>{:else}<i class="ti ti-check okc" aria-hidden="true"></i>{/if}{/snippet}
-                <DesignChecks device={dev} onSend={readonly ? undefined : send} />
+                {#snippet right()}
+                  {#if checks.errors.length}<span class="badge err">{checks.errors.length}</span>{/if}
+                  {#if checks.warnings.length}<span class="badge">{checks.warnings.length}</span>{/if}
+                  {#if !lintN}<i class="ti ti-check okc" aria-hidden="true"></i>{/if}
+                {/snippet}
+                <DesignChecks device={dev} {review} onSend={readonly ? undefined : send} />
               </Panel>
 
             {:else if stage === 'board'}
@@ -499,6 +546,7 @@
                   <p class="note">{dt('ed_d')}</p>
                   <dl class="kv">
                     <dt>{dt('place_pinned')}</dt><dd>{ds?.doc.nodes.filter((n) => n.pcb).length ?? 0}</dd>
+                    {#if ds?.doc.nodes.some((n) => placedBy(ds.doc, n) === 'designer')}<dt>{dt('kv_designer')}</dt><dd>{ds.doc.nodes.filter((n) => placedBy(ds.doc, n) === 'designer').length}</dd>{/if}
                     <dt>{dt('route_count')}</dt><dd>{ds?.doc.routes?.length ?? 0}</dd>
                     <dt>{dt('ed_zones')}</dt><dd>{ds?.doc.zones?.length ?? 0}</dd>
                   </dl>
@@ -553,7 +601,8 @@
                   <dt>{dt('kv_lines')}</dt><dd>{bom.length}</dd>
                   <dt>{dt('kv_count')}</dt><dd>{bom.reduce((n, r) => n + r.qty, 0)}</dd>
                   <dt>{dt('kv_smt')}</dt><dd>{bom.filter((r) => !r.hand).length}</dd>
-                  <dt>{dt('kv_hand')}</dt><dd>{bom.filter((r) => r.hand).length}</dd>
+                  <dt>{dt('kv_hand')}</dt><dd>{bom.filter((r) => r.hand && !r.fitted).length}</dd>
+                  {#if bom.some((r) => r.fitted)}<dt>{dt('fitted_title')}</dt><dd>{bom.filter((r) => r.fitted).length}</dd>{/if}
                   <dt>basic</dt><dd class="okc">{bom.filter((r) => r.basic === true && !r.hand).length}</dd>
                   <dt>extended</dt><dd class="warnc">{bom.filter((r) => r.basic === false && !r.hand).length}</dd>
                   <dt>{dt('kv_cost')}</dt><dd>{usd(bom.reduce((n, r) => n + (r.sum ?? 0), 0))}</dd>
@@ -1046,6 +1095,62 @@
     background: color-mix(in srgb, var(--warn) 28%, transparent);
     color: var(--warn-text);
     text-align: center;
+  }
+  .badge.err {
+    background: color-mix(in srgb, var(--error) 24%, transparent);
+    color: var(--error);
+  }
+  .lk {
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .reqs {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .rq {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    align-items: baseline;
+    width: 100%;
+    padding: 4px 5px;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: var(--on-surface);
+    font: inherit;
+    font-size: 12.5px;
+    line-height: 1.35;
+    text-align: left;
+    cursor: pointer;
+  }
+  .rq:hover {
+    background: color-mix(in srgb, var(--on-surface) 7%, transparent);
+  }
+  .rq.on {
+    background: color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+  .rq i {
+    font-size: 12px;
+    color: var(--on-surface-var);
+  }
+  .rid {
+    font-size: 11px;
+    color: var(--on-surface-var);
+  }
+  .rp {
+    display: block;
+    font-size: 11px;
+    color: var(--on-surface-var);
   }
   .okc {
     color: var(--ok);

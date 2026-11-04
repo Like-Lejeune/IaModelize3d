@@ -1,0 +1,330 @@
+{
+ "schema": "fw.device/1",
+ "title": "Kitchen Timer",
+ "summary": "Kitchen timer with display, 3 buttons, buzzer and battery",
+ "board": {
+  "holes": true,
+  "w": 76.0,
+  "h": 68.0
+ },
+ "nodes": [
+  {
+   "id": "U1",
+   "kind": "module",
+   "label": "MCU",
+   "module": "113991054",
+   "edge": "-y"
+  },
+  {
+   "id": "DS1",
+   "kind": "accessory",
+   "label": "timer display",
+   "accessory": "oled_096_i2c",
+   "place": {
+    "x": -12.0,
+    "y": 14.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "SW1",
+   "kind": "button",
+   "label": "start/stop",
+   "place": {
+    "x": -16.0,
+    "y": -10.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "SW2",
+   "kind": "button",
+   "label": "plus",
+   "place": {
+    "x": 0.0,
+    "y": -10.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "SW3",
+   "kind": "button",
+   "label": "minus",
+   "place": {
+    "x": 16.0,
+    "y": -10.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "BZ1",
+   "kind": "chip",
+   "label": "alarm buzzer",
+   "lcsc": "C781847",
+   "place": {
+    "x": -31.0,
+    "y": -2.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "Q1",
+   "kind": "chip",
+   "label": "buzzer switch",
+   "lcsc": "C2146"
+  },
+  {
+   "id": "RB",
+   "kind": "resistor",
+   "label": "base resistor",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "D1",
+   "kind": "diode",
+   "label": "flyback diode"
+  },
+  {
+   "id": "LED1",
+   "kind": "led",
+   "label": "alarm flash",
+   "color": "green",
+   "place": {
+    "x": 30.0,
+    "y": 2.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "R4",
+   "kind": "resistor",
+   "label": "LED resistor",
+   "value": "1k",
+   "package": "0603"
+  },
+  {
+   "id": "R1",
+   "kind": "resistor",
+   "label": "SDA pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  },
+  {
+   "id": "R2",
+   "kind": "resistor",
+   "label": "SCL pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  },
+  {
+   "id": "BT1",
+   "kind": "accessory",
+   "label": "battery",
+   "accessory": "lipo_1s_500",
+   "place": {
+    "x": 20.0,
+    "y": 14.0,
+    "rot": 0.0
+   }
+  }
+ ],
+ "nets": [
+  {
+   "pins": [
+    "U1.GND",
+    "DS1.GND",
+    "SW1.B",
+    "SW2.B",
+    "SW3.B",
+    "Q1.E",
+    "LED1.K"
+   ],
+   "name": "GND"
+  },
+  {
+   "pins": [
+    "U1.V3V3",
+    "DS1.VCC",
+    "R1.1",
+    "R2.1",
+    "BZ1.POS",
+    "D1.K"
+   ],
+   "name": "V3V3"
+  },
+  {
+   "pins": [
+    "U1.SDA",
+    "DS1.SDA",
+    "R1.2"
+   ],
+   "name": "SDA"
+  },
+  {
+   "pins": [
+    "U1.SCL",
+    "DS1.SCL",
+    "R2.2"
+   ],
+   "name": "SCL"
+  },
+  {
+   "pins": [
+    "U1.D1",
+    "SW1.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D2",
+    "SW2.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D3",
+    "SW3.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.MOSI",
+    "RB.1"
+   ]
+  },
+  {
+   "pins": [
+    "RB.2",
+    "Q1.B"
+   ]
+  },
+  {
+   "pins": [
+    "Q1.C",
+    "BZ1.NEG",
+    "D1.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.RX",
+    "R4.1"
+   ]
+  },
+  {
+   "pins": [
+    "R4.2",
+    "LED1.A"
+   ]
+  }
+ ],
+ "requirements": [
+  {
+   "id": "R1",
+   "text": "show remaining time with big digits on the display",
+   "parts": [
+    "DS1"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R2",
+   "text": "set minutes/seconds with + / - and start / stop / reset with one button",
+   "parts": [
+    "SW1",
+    "SW2",
+    "SW3"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R3",
+   "text": "loud beeping alarm with flashing LED when time is up",
+   "parts": [
+    "BZ1",
+    "Q1",
+    "LED1"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R4",
+   "text": "runs on LiPo charged from USB, deep sleep after idle, any button wakes it",
+   "parts": [
+    "U1",
+    "BT1"
+   ],
+   "firmware": true
+  }
+ ],
+ "concept": {
+  "uses": [
+   "on the kitchen counter near the stove, powered by battery or USB: set minutes with + / - and start, read big digits across the kitchen",
+   "loud beep when time is up, stop with one press, status LED flashes with the beep",
+   "in a drawer between uses: sleeps, wakes on any button"
+  ],
+  "options": [
+   {
+    "name": "Tilted desk wedge",
+    "look": "small wedge leaning 25 deg, display facing the cook, three buttons below it",
+    "panel": "OLED display centred on lid top, three buttons in a row below it, status LED beside buzzer grille",
+    "form": "box",
+    "stance": "tilt",
+    "mounting": "none",
+    "module_edge": "-y",
+    "board": {
+     "shape": "rect",
+     "w": 76.0,
+     "h": 68.0
+    }
+   },
+   {
+    "name": "Fridge puck",
+    "look": "round puck held by magnets on the fridge, display in centre, ring of buttons",
+    "panel": "display centre, three buttons around bottom arc, buzzer behind grille",
+    "form": "round",
+    "stance": "upright",
+    "mounting": "magnets",
+    "module_edge": "-y",
+    "board": {
+     "shape": "round",
+     "w": 44.0,
+     "h": 44.0
+    }
+   },
+   {
+    "name": "Hand pebble",
+    "look": "pebble held in the hand with lanyard, display on top, buttons on side",
+    "panel": "display on top, buttons on side edge, buzzer at bottom",
+    "form": "soft",
+    "stance": "hand",
+    "mounting": "lanyard",
+    "module_edge": "-y",
+    "board": {
+     "shape": "rect",
+     "w": 32.0,
+     "h": 55.0
+    }
+   }
+  ],
+  "chosen": "Tilted desk wedge",
+  "why": "A counter timer is read at a distance while cooking: the tilted wedge faces the display up to the cook and keeps buttons in reach."
+ },
+ "firmware": {
+  "lang": "arduino",
+  "files": {
+   "kitchen_timer.ino": "#include <Wire.h>\n#include <Adafruit_GFX.h>\n#include <Adafruit_SSD1306.h>\n\n// Wiring (see device graph):\n// DS1 OLED 0.96\" SSD1306 128x64 on SDA=GPIO6, SCL=GPIO7 (XIAO ESP32-C3 D4/D5), addr 0x3C\n// SW1 start/stop on D1=GPIO3 (INPUT_PULLUP, LOW=pressed, wake-capable)\n// SW2 plus      on D2=GPIO4 (INPUT_PULLUP, wake-capable)\n// SW3 minus     on D3=GPIO5 (INPUT_PULLUP, wake-capable)\n// Buzzer BZ1 active 3V via NPN Q1: base via 1k from D10=GPIO10; HIGH = beep ON\n// LED1 green via 1k from RX=GPIO20; HIGH = on\n// BT1 LiPo 500mAh on module BAT pads, charged from USB-C\n\n#define PIN_SW1 3    // D1\n#define PIN_SW2 4    // D2\n#define PIN_SW3 5    // D3\n#define PIN_BUZZ 10  // D10\n#define PIN_LED 20   // RX\n\n#define SCREEN_W 128\n#define SCREEN_H 64\nAdafruit_SSD1306 display(SCREEN_W, SCREEN_H, &Wire, -1);\n\n// Timer state\nlong setSeconds = 5 * 60;      // adjustable preset when idle\nlong remainMs = 0;\nbool running = false;\nbool ringing = false;\nunsigned long lastTick = 0;\nunsigned long lastActivity = 0;\nunsigned long ringStart = 0;\nconst unsigned long IDLE_SLEEP_MS = 60000; // sleep after 60 s idle\n\nstruct Btn { int pin; bool last; unsigned long lastChange; bool pressed; };\nBtn b1{PIN_SW1, HIGH, 0, false}, b2{PIN_SW2, HIGH, 0, false}, b3{PIN_SW3, HIGH, 0, false};\n\nbool pollBtn(Btn &b) {\n  bool r = digitalRead(b.pin);\n  unsigned long now = millis();\n  bool event = false;\n  if (r != b.last && (now - b.lastChange) > 40) { // 40 ms debounce\n    b.lastChange = now;\n    b.last = r;\n    if (r == LOW) event = true; // press edge\n  }\n  return event;\n}\n\nvoid beep(bool on) {\n  digitalWrite(PIN_BUZZ, on ? HIGH : LOW);\n  digitalWrite(PIN_LED, on ? HIGH : LOW);\n}\n\nvoid showIdle() {\n  display.clearDisplay();\n  display.setTextSize(3);\n  display.setTextColor(SSD1306_WHITE);\n  display.setCursor(8, 8);\n  int m = setSeconds / 60, s = setSeconds % 60;\n  char buf[8]; snprintf(buf, sizeof(buf), \"%02d:%02d\", m, s);\n  display.print(buf);\n  display.setTextSize(1);\n  display.setCursor(8, 48);\n  display.print(\"+/- set  START stop\");\n  display.display();\n}\n\nvoid showRunning() {\n  long ms = remainMs;\n  int m = ms / 60000, s = (ms % 60000) / 1000;\n  display.clearDisplay();\n  display.setTextSize(3);\n  display.setTextColor(SSD1306_WHITE);\n  display.setCursor(8, 8);\n  char buf[8]; snprintf(buf, sizeof(buf), \"%02d:%02d\", m, s);\n  display.print(buf);\n  display.setTextSize(1);\n  display.setCursor(8, 48);\n  display.print(running ? \"RUN  STOP\" : \"PAUSE  START\");\n  display.display();\n}\n\nvoid showRing() {\n  display.clearDisplay();\n  display.setTextSize(3);\n  display.setTextColor(SSD1306_WHITE);\n  display.setCursor(4, 8);\n  display.print(\"TIME!\");\n  display.setTextSize(1);\n  display.setCursor(8, 48);\n  display.print(\"press START\");\n  display.display();\n}\n\nvoid goSleep() {\n  beep(false);\n  display.ssd1306_command(SSD1306_DISPLAYOFF);\n  // Wake on any of the three buttons (active LOW, GPIO3/4/5)\n  esp_deep_sleep_enable_gpio_wakeup((1ULL<<PIN_SW1)|(1ULL<<PIN_SW2)|(1ULL<<PIN_SW3), ESP_GPIO_WAKEUP_GPIO_LOW);\n  esp_deep_sleep_start();\n}\n\nvoid setup() {\n  pinMode(PIN_SW1, INPUT_PULLUP);\n  pinMode(PIN_SW2, INPUT_PULLUP);\n  pinMode(PIN_SW3, INPUT_PULLUP);\n  pinMode(PIN_BUZZ, OUTPUT);\n  pinMode(PIN_LED, OUTPUT);\n  beep(false);\n  Wire.begin(); // module default I2C pins SDA/SCL\n  bool ok = display.begin(SSD1306_SWITCHCAPVCC, 0x3C);\n  if (!ok) {\n    // Missing display fallback: beep a SOS so the timer still works\n    for (int i=0;i<3;i++){ beep(true); delay(150); beep(false); delay(150); }\n  }\n  remainMs = (long)setSeconds * 1000;\n  lastActivity = millis();\n  showIdle();\n}\n\nvoid loop() {\n  unsigned long now = millis();\n  bool e1 = pollBtn(b1), e2 = pollBtn(b2), e3 = pollBtn(b3);\n  if (e1 || e2 || e3) lastActivity = now;\n\n  if (ringing) {\n    // 2.8 kHz active buzzer: pulse 500 ms on/off + LED flash\n    bool phase = ((now - ringStart) / 500) % 2 == 0;\n    beep(phase);\n    showRing();\n    if (e1) { ringing = false; beep(false); running = false; remainMs = (long)setSeconds*1000; showIdle(); }\n    if (now - ringStart > 120000) { ringing=false; beep(false); goSleep(); } // stop after 2 min\n    return;\n  }\n\n  if (!running) {\n    if (e2) { setSeconds += 60; if (setSeconds > 99*60+59) setSeconds = 99*60+59; remainMs = (long)setSeconds*1000; showIdle(); }\n    if (e3) { setSeconds -= 60; if (setSeconds < 0) setSeconds = 0; remainMs = (long)setSeconds*1000; showIdle(); }\n    // long-press style: holding + / - adds seconds via repeat\n    if (e1 && setSeconds > 0) { running = true; remainMs = (long)setSeconds*1000; lastTick = now; showRunning(); }\n    else if (e1 && setSeconds == 0) { setSeconds = 60; remainMs = 60000; showIdle(); }\n    if (!running && (now - lastActivity > IDLE_SLEEP_MS)) goSleep();\n  } else {\n    // countdown\n    unsigned long dt = now - lastTick;\n    lastTick = now;\n    remainMs -= (long)dt;\n    if (remainMs <= 0) { remainMs = 0; running = false; ringing = true; ringStart = now; }\n    else showRunning();\n    if (e1) { running = false; showRunning(); } // pause\n    if (e2) { remainMs += 60000; showRunning(); }\n    if (e3) { remainMs -= 60000; if (remainMs < 0) remainMs = 0; showRunning(); }\n  }\n  delay(50);\n}\n"
+  },
+  "notes": "XIAO ESP32-C3, libraries Adafruit GFX + Adafruit SSD1306, flash via Arduino IDE USB-C",
+  "check": {
+   "ok": true,
+   "tool": "g++ 14.2.0 compile, no link (arduino-esp32 3.x stubs, Seeed ",
+   "errors": [],
+   "warnings": [],
+   "wiring": "dfbeeaddadb3bbf1",
+   "asks": "318e85eea91b"
+  }
+ },
+ "_version": 6
+}

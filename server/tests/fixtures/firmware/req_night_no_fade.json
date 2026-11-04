@@ -1,0 +1,310 @@
+{
+ "project": "p_c05072e060b04ac5",
+ "version": 6,
+ "doc": {
+  "schema": "fw.device/1",
+  "title": "Ночник с датчиком движения",
+  "summary": "Включает тёплый свет при движении в темноте, автоотключение через 30с, 4 адресуемых светодиода",
+  "board": {
+   "holes": true,
+   "w": 52.0,
+   "h": 62.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "U2",
+    "kind": "chip",
+    "label": "PIR AM312",
+    "lcsc": "C114881",
+    "place": {
+     "x": 0.0,
+     "y": -12.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "C1",
+    "kind": "capacitor",
+    "label": "U2 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "ALS1",
+    "kind": "chip",
+    "label": "Фоторезистор GL5516",
+    "lcsc": "C10077",
+    "place": {
+     "x": 16.0,
+     "y": -14.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "R_ALS",
+    "kind": "resistor",
+    "label": "Делитель ALS",
+    "value": "10k",
+    "package": "0603"
+   },
+   {
+    "id": "LED1",
+    "kind": "chip",
+    "label": "WS2812B 1",
+    "lcsc": "C52917433"
+   },
+   {
+    "id": "LED2",
+    "kind": "chip",
+    "label": "WS2812B 2",
+    "lcsc": "C52917433"
+   },
+   {
+    "id": "LED3",
+    "kind": "chip",
+    "label": "WS2812B 3",
+    "lcsc": "C52917433"
+   },
+   {
+    "id": "LED4",
+    "kind": "chip",
+    "label": "WS2812B 4",
+    "lcsc": "C52917433"
+   },
+   {
+    "id": "C2",
+    "kind": "capacitor",
+    "label": "LED1 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C3",
+    "kind": "capacitor",
+    "label": "LED2 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C4",
+    "kind": "capacitor",
+    "label": "LED3 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C5",
+    "kind": "capacitor",
+    "label": "LED4 decoupling",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C6",
+    "kind": "capacitor",
+    "label": "LED chain bulk",
+    "value": "10uF",
+    "package": "0603"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "диод питания ленты"
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "DIN резистор",
+    "value": "330R",
+    "package": "0603"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "Режим",
+    "place": {
+     "x": -16.0,
+     "y": -18.0,
+     "rot": 0.0
+    }
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "U2.GND",
+     "C1.2",
+     "C2.2",
+     "C3.2",
+     "C4.2",
+     "C5.2",
+     "C6.2",
+     "LED1.VSS",
+     "LED2.VSS",
+     "LED3.VSS",
+     "LED4.VSS",
+     "R_ALS.2",
+     "SW1.B"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "U2.VCC",
+     "C1.1",
+     "ALS1.P1"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.V5",
+     "D1.A"
+    ],
+    "name": "V5"
+   },
+   {
+    "pins": [
+     "D1.K",
+     "LED1.VDD",
+     "LED2.VDD",
+     "LED3.VDD",
+     "LED4.VDD",
+     "C2.1",
+     "C3.1",
+     "C4.1",
+     "C5.1",
+     "C6.1"
+    ],
+    "name": "VLED"
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "U2.OUT"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "ALS1.P2",
+     "R_ALS.1"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R1.1"
+    ]
+   },
+   {
+    "pins": [
+     "R1.2",
+     "LED1.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "LED1.DOUT",
+     "LED2.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "LED2.DOUT",
+     "LED3.DIN"
+    ]
+   },
+   {
+    "pins": [
+     "LED3.DOUT",
+     "LED4.DIN"
+    ]
+   }
+  ],
+  "layouts": [
+   {
+    "pattern": "row",
+    "nodes": [
+     "LED1",
+     "LED2",
+     "LED3",
+     "LED4"
+    ],
+    "center": [
+     0.0,
+     0.0
+    ],
+    "pitch": 10.0,
+    "rot": 0.0
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "Обнаружение движения человека (PIR)",
+    "parts": [
+     "U2"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "Измерение освещённости (темно/светло) для включения только в темноте",
+    "parts": [
+     "ALS1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "Тёплая подсветка, видимая через крышку корпуса",
+    "parts": [
+     "LED1",
+     "LED2",
+     "LED3",
+     "LED4"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "Автовыключение по таймеру и плавное затухание",
+    "parts": [
+     "U1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "Кнопка смены режима (авто/всегда вкл/выкл)",
+    "parts": [
+     "SW1"
+    ],
+    "firmware": true
+   }
+  ],
+  "firmware": {
+   "lang": "arduino",
+   "files": {
+    "night_light.ino": "#include <Adafruit_NeoPixel.h>\n#define PIR_PIN D3\n#define LDR_PIN D1  // A0 equivalent = GPIO3, analog read\n#define BTN_PIN D2\n#define LED_PIN D10\n#define NUM_LEDS 4\nAdafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);\nint mode = 0; // 0 auto, 1 always on, 2 off\nunsigned long lightUntil = 0;\nunsigned long lastBtn = 0;\nbool lastPir = false;\nvoid setup(){\n  pinMode(PIR_PIN, INPUT);\n  pinMode(BTN_PIN, INPUT_PULLUP);\n  pinMode(LDR_PIN, INPUT);\n  strip.begin(); strip.clear(); strip.show(); strip.setBrightness(80);\n}\nbool isDark(){\n  int v = analogRead(LDR_PIN); // photoresistor divider: low light -> high resistance -> low voltage? depending wiring; calibrate threshold\n  // GL5516 +10k to GND: bright -> resistance ~5k -> voltage ~1.1V -> ADC ~ 1400; dark -> 200k -> ~3.1V -> ~3800\n  // So dark = high value\n  return v > 2000; // threshold adjustable\n}\nvoid loop(){\n  // button with debounce\n  if(digitalRead(BTN_PIN)==LOW && millis()-lastBtn>500){\n    lastBtn=millis();\n    mode=(mode+1)%3;\n    // brief feedback: blink\n    strip.fill(strip.Color(0,50,0)); strip.show(); delay(150);\n  }\n  bool pir = digitalRead(PIR_PIN);\n  unsigned long now = millis();\n  if(mode==0){\n    if(pir && isDark()){\n      lightUntil = now + 30000; // 30 sec\n    }\n    if(now < lightUntil){\n      // warm white\n      strip.fill(strip.Color(255,140,40));\n      strip.show();\n    } else {\n      // fade out\n      strip.clear(); strip.show();\n    }\n  } else if(mode==1){\n    strip.fill(strip.Color(255,140,40)); strip.show();\n  } else {\n    strip.clear(); strip.show();\n  }\n  delay(50);\n}\n"
+   },
+   "notes": "Плата: XIAO ESP32-C3, Arduino core. Библиотека Adafruit NeoPixel. Пины: PIR D3 (GPIO4), LDR D1 (GPIO3 ADC), кнопка D2 (GPIO5), лента D10 (GPIO10). Прошивка через USB-C."
+  }
+ }
+}

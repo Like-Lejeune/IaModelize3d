@@ -1,0 +1,149 @@
+{
+ "project": "p_5753a2f9f1a64e37",
+ "version": 8,
+ "doc": {
+  "schema": "fw.device/1",
+  "title": "Датчик протечки воды",
+  "summary": "WiFi датчик протечки: контакты на полу, сирена, LED и оповещение в web-интерфейсе",
+  "board": {
+   "holes": true,
+   "w": 52.0,
+   "h": 46.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU ESP32-C3",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "Зуммер активный 3V",
+    "lcsc": "C96127"
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "Тревога LED",
+    "color": "red"
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "LED резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "Подтяжка щупов",
+    "value": "100k",
+    "package": "0603"
+   },
+   {
+    "id": "R4",
+    "kind": "resistor",
+    "label": "Ограничитель щупов",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "Сброс/Тест"
+   },
+   {
+    "id": "J_PROBE",
+    "kind": "header",
+    "label": "Щупы воды",
+    "pins": [
+     "SENSE",
+     "GND"
+    ],
+    "edge": "-y"
+   },
+   {
+    "id": "J_BAT",
+    "kind": "jst",
+    "label": "Батарея 3.7В",
+    "edge": "+x"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "LED1.K",
+     "SW1.B",
+     "J_PROBE.GND",
+     "J_BAT.P2"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "BZ1.P1",
+     "R3.1"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.V5",
+     "J_BAT.P1"
+    ],
+    "name": "VBAT"
+   },
+   {
+    "pins": [
+     "U1.D0",
+     "R3.2",
+     "R4.1"
+    ],
+    "name": "SENSE"
+   },
+   {
+    "pins": [
+     "R4.2",
+     "J_PROBE.SENSE"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "BZ1.P2"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "R1.1"
+    ]
+   },
+   {
+    "pins": [
+     "R1.2",
+     "LED1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "SW1.A"
+    ]
+   }
+  ],
+  "firmware": {
+   "lang": "arduino",
+   "files": {
+    "leak_detector.ino": "#include <WiFi.h>\n#include <WebServer.h>\n\n// Настройки WiFi - замените на свои\nconst char* WIFI_SSID = \"YOUR_SSID\";\nconst char* WIFI_PASS = \"YOUR_PASSWORD\";\n\n// Пины (согласно схеме)\nconst int PIN_SENSE = D0; // щупы -> 100k подтяжка к 3V3, через 1k к разъему J_PROBE\nconst int PIN_BUZZER = D1; // активный зуммер C96127 (низкий уровень = звук, т.к. P1 на 3V3)\nconst int PIN_LED = D2;    // красный LED\nconst int PIN_BUTTON = D10; // кнопка SW1 к GND, INPUT_PULLUP\n\nWebServer server(80);\nbool leakDetected = false;\nbool muted = false;\nunsigned long lastRead = 0;\nunsigned long lastAlarm = 0;\n\nvoid handleRoot(){\n  String html = \"<!DOCTYPE html><html><head><meta charset=utf-8><meta name='viewport' content='width=device-width,initial-scale=1'>\";\n  html += \"<title>Датчик протечки</title>\";\n  html += \"<meta http-equiv='refresh' content='5'>\";\n  html += \"<style>body{font-family:sans-serif;text-align:center;padding:20px} .ok{color:green} .alarm{color:red;font-size:1.5em;animation:blink 1s infinite} @keyframes blink{50%{opacity:0}} button{padding:12px 24px;font-size:16px}</style></head><body>\";\n  html += \"<h1>💧 Датчик протечки воды</h1>\";\n  if(leakDetected) html += \"<p class='alarm'>🚨 ПРОТЕЧКА ОБНАРУЖЕНА!</p>\";\n  else html += \"<p class='ok'>✅ Сухо — протечек нет</p>\";\n  html += \"<p>Зуммер: \" + String((leakDetected && !muted)?\"ВКЛ\":\"ВЫКЛ\") + \" | Приглушен: \" + String(muted?\"Да\":\"Нет\") + \"</p>\";\n  html += \"<p><a href='/mute'><button>\" + String(muted?\"Включить звук\":\"Приглушить\") + \"</button></a> <a href='/test'><button>Тест сирены</button></a></p>\";\n  html += \"<p>IP: \" + WiFi.localIP().toString() + \" | Uptime: \" + String(millis()/1000) + \"c</p>\";\n  html += \"</body></html>\";\n  server.send(200,\"text/html\",html);\n}\nvoid handleApi(){\n  String j = \"{\\\"leak\\\":\" + String(leakDetected?\"true\":\"false\") + \",\\\"muted\\\":\" + String(muted?\"true\":\"false\") + \",\\\"buzzer\\\":\" + String((leakDetected && !muted)?\"true\":\"false\") + \"}\";\n  server.send(200,\"application/json\",j);\n}\nvoid handleMute(){ muted=!muted; server.sendHeader(\"Location\",\"/\"); server.send(303);}\nvoid handleTest(){ // короткий тест 1 сек\n  digitalWrite(PIN_BUZZER, LOW); digitalWrite(PIN_LED, HIGH); delay(1000);\n  digitalWrite(PIN_BUZZER, HIGH); digitalWrite(PIN_LED, LOW);\n  server.sendHeader(\"Location\",\"/\"); server.send(303);\n}\n\nvoid setup(){\n  pinMode(PIN_SENSE, INPUT); // внешняя подтяжка 100k к 3.3В, вода стягивает к GND\n  pinMode(PIN_BUZZER, OUTPUT); digitalWrite(PIN_BUZZER, HIGH); // выкл (активный зуммер: HIGH=тишина)\n  pinMode(PIN_LED, OUTPUT); digitalWrite(PIN_LED, LOW);\n  pinMode(PIN_BUTTON, INPUT_PULLUP);\n\n  Serial.begin(115200);\n  delay(300);\n  Serial.println(\"Leak detector start\");\n\n  WiFi.begin(WIFI_SSID, WIFI_PASS);\n  unsigned long t0=millis();\n  while(WiFi.status()!=WL_CONNECTED && millis()-t0<15000) delay(500);\n  if(WiFi.status()==WL_CONNECTED) Serial.println(WiFi.localIP());\n  else Serial.println(\"WiFi not connected - работа автономно\");\n\n  server.on(\"/\", handleRoot);\n  server.on(\"/api\", handleApi);\n  server.on(\"/mute\", handleMute);\n  server.on(\"/test\", handleTest);\n  server.begin();\n}\n\nvoid loop(){\n  server.handleClient();\n\n  // опрос датчика с антидребезгом: вода = низкий уровень (сопротивление воды ~10-100к замыкает на GND)\n  bool raw = (digitalRead(PIN_SENSE)==LOW); // LOW = вода\n  // простой фильтр: считаем протечкой если 3 подряд чтения LOW с интервалом 50мс\n  static uint8_t cnt=0;\n  if(millis()-lastRead>50){\n    lastRead=millis();\n    if(raw) { if(cnt<10) cnt++; } else { if(cnt>0) cnt--; }\n    bool newLeak = (cnt>=3);\n    if(newLeak != leakDetected){\n      leakDetected = newLeak;\n      if(leakDetected) { muted=false; Serial.println(\"LEAK!\"); }\n      else Serial.println(\"DRY\");\n    }\n  }\n\n  // управление сиреной и LED\n  if(leakDetected && !muted){\n    // прерывистый сигнал 0.5с вкл / 0.5с выкл\n    bool on = (millis()%1000 < 500);\n    digitalWrite(PIN_BUZZER, on?LOW:HIGH);\n    digitalWrite(PIN_LED, on?HIGH:LOW);\n  } else {\n    digitalWrite(PIN_BUZZER, HIGH);\n    digitalWrite(PIN_LED, LOW);\n  }\n\n  // кнопка: короткое нажатие - приглушить/снять, длинное 3с - тест\n  static unsigned long pressStart=0;\n  if(digitalRead(PIN_BUTTON)==LOW){\n    if(pressStart==0) pressStart=millis();\n    if(millis()-pressStart>2000 && millis()-lastAlarm>3000){\n      lastAlarm=millis();\n      // тест\n      digitalWrite(PIN_BUZZER, LOW); delay(200); digitalWrite(PIN_BUZZER, HIGH);\n    }\n  } else {\n    if(pressStart!=0 && millis()-pressStart<1000){\n      // короткое нажатие\n      if(leakDetected) muted=!muted;\n      delay(200);\n    }\n    pressStart=0;\n  }\n}\n"
+   },
+   "notes": "Плата: Seeed XIAO ESP32-C3 (выберите в Arduino IDE: XIAO_ESP32C3). Библиотеки: WiFi (в составе ESP32), WebServer. В начале скетча замените YOUR_SSID/YOUR_PASSWORD на свой WiFi — устройство поднимет страницу http://<IP>/ и /api {\"leak\":true/false}. Питание: USB-C модуля или LiPo 3.7В на JST J_BAT (на V5). Щупы воды: два провода/винта в разъём J_PROBE (SENSE и GND) — положите на пол; 100k подтяжка к 3V3, вода замыкает на GND. Кнопка — приглушить сирену."
+  }
+ }
+}

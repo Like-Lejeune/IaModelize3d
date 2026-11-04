@@ -161,6 +161,13 @@ class OrderRequest(BaseModel):
     comment: str | None = None
 
 
+class AxoCartRequest(BaseModel):
+    """A version into the Axo shop's cart (integrations/axo.add_to_cart): the newest when none is named. `replace` is
+    the design Axo sent the buyer back to edit (?axo=<design id>), whose cart line the new design takes."""
+    version: int | None = None
+    replace: str | None = None
+
+
 class AnswerRequest(BaseModel):
     answer: str
 
@@ -194,3 +201,5 @@ class Usage(BaseModel):
     jobs_today: int
     contributor_consent: bool
     models: list[ModelOption] = []
+    # the Axo shop is connected (FW_AXO_API_URL): the studio offers "Add to Axo cart"
+    axo_cart: bool = False

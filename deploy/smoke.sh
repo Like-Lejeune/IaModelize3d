@@ -5,7 +5,7 @@
 # opens the PCB example as a project (its board, Gerbers, BOM and previews), asks that project for an instant quote,
 # and loads the web app's routes and scripts. Each run leaves one anonymous user with one example project on the
 # server. Exit status: 0 when every check passed, else the number of failed checks.
-#   FW_SMOKE_EXAMPLES=6        how many example cards the home page must show
+#   FW_SMOKE_EXAMPLES=9        how many example cards the home page must show
 #   FW_SMOKE_PCB_KEY=<key>     the PCB example's key (default: the card whose pack is 'pcb')
 #   FW_SMOKE_FEATURED=0        fail when fewer featured runs are listed (0: only report them)
 #   PYTHON=python3             the interpreter for reading JSON
@@ -17,7 +17,7 @@ if [ -z "$BASE" ]; then
   echo "usage: bash deploy/smoke.sh https://your.domain" >&2
   exit 2
 fi
-EXAMPLES=${FW_SMOKE_EXAMPLES:-6}
+EXAMPLES=${FW_SMOKE_EXAMPLES:-9}
 FEATURED=${FW_SMOKE_FEATURED:-0}
 PY=${PYTHON:-$(command -v python3 || command -v python || true)}
 if [ -z "$PY" ]; then
@@ -62,6 +62,7 @@ if [ "$code" = 200 ]; then
   if [ "$n" = "$EXAMPLES" ]; then ok "/api/examples: $n cards"; else bad "/api/examples: $n cards, expected $EXAMPLES"; fi
   PCB_KEY=${FW_SMOKE_PCB_KEY:-$(js 'next((e["key"] for e in d if e.get("pack") == "pcb"), "")')}
   FIRST_KEY=$(js 'd[0]["key"] if d else ""')
+  DEVICE_KEY=$(js 'next((e["key"] for e in d if e.get("pack") == "device"), "")')
   covers=$(js '" ".join(e["cover"] for e in d if e.get("cover"))')
   before=$FAILED
   for cover in $covers; do
@@ -73,6 +74,7 @@ else
   bad "/api/examples: $code $type"
   PCB_KEY=${FW_SMOKE_PCB_KEY:-}
   FIRST_KEY=""
+  DEVICE_KEY=""
 fi
 
 read -r code type <<<"$(req GET /api/featured)"
@@ -127,6 +129,24 @@ for name, url in sorted(d[-1]["artifacts"].items()):
     [ "$FAILED" = "$before" ] && ok "artifacts served: $have"
   else
     bad "GET /api/projects/$PROJECT/pcb: $code, no version"
+  fi
+fi
+
+echo "the device example"
+if [ -z "$DEVICE_KEY" ]; then
+  bad "no example card with pack 'device'"
+else
+  read -r code type <<<"$(req POST "/api/examples/$DEVICE_KEY" '{"lang":"en"}')"
+  if [ "$code" = 200 ]; then
+    DEVICE=$(js 'd["id"]')
+    read -r code type <<<"$(req GET "/api/projects/$DEVICE/device")"
+    if [ "$code" = 200 ] && [ "$(js 'len(d["doc"]["nodes"]) > 0 and d["pcb"]["ok"] and not d["pcb"]["stale"]')" = True ] || [ "$(js 'len(d["doc"]["nodes"]) > 0 and d["pcb"]["ok"] and not d["pcb"]["stale"]')" = true ]; then
+      ok "$DEVICE_KEY opens with its parts and its board ($(js 'len(d["doc"]["nodes"])') parts, board v$(js 'd["pcb"]["version"]'))"
+    else
+      bad "GET /api/projects/$DEVICE/device: $code"
+    fi
+  else
+    bad "POST /api/examples/$DEVICE_KEY: $code $(head -c 200 "$BODY")"
   fi
 fi
 

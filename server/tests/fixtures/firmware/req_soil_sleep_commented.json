@@ -1,0 +1,337 @@
+{
+ "project": "p_81425bc28f294ce3",
+ "version": 3,
+ "doc": {
+  "schema": "fw.device/1",
+  "title": "Датчик влажности почвы",
+  "summary": "Измеряет влажность почвы емкостным датчиком, показывает на OLED, светодиодами и звуком подсказывает когда поливать",
+  "board": {
+   "holes": true,
+   "w": 58.0,
+   "h": 58.0
+  },
+  "nodes": [
+   {
+    "id": "U1",
+    "kind": "module",
+    "label": "MCU",
+    "module": "113991054",
+    "edge": "+y"
+   },
+   {
+    "id": "P1",
+    "kind": "accessory",
+    "label": "датчик почвы",
+    "accessory": "soil_capacitive_v12",
+    "edge": "-y"
+   },
+   {
+    "id": "DS1",
+    "kind": "accessory",
+    "label": "OLED 0.96\"",
+    "accessory": "oled_096_i2c",
+    "place": {
+     "x": 0.0,
+     "y": -8.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "LED1",
+    "kind": "led",
+    "label": "сухо",
+    "color": "red",
+    "place": {
+     "x": -14.0,
+     "y": 8.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "LED2",
+    "kind": "led",
+    "label": "норма",
+    "color": "green",
+    "place": {
+     "x": 0.0,
+     "y": 8.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "LED3",
+    "kind": "led",
+    "label": "влажно",
+    "color": "blue",
+    "place": {
+     "x": 14.0,
+     "y": 8.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "R1",
+    "kind": "resistor",
+    "label": "LED1 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R2",
+    "kind": "resistor",
+    "label": "LED2 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "R3",
+    "kind": "resistor",
+    "label": "LED3 резистор",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "BZ1",
+    "kind": "chip",
+    "label": "buzzer 3V",
+    "lcsc": "C781847"
+   },
+   {
+    "id": "Q1",
+    "kind": "chip",
+    "label": "NPN для зуммера",
+    "lcsc": "C2146"
+   },
+   {
+    "id": "R4",
+    "kind": "resistor",
+    "label": "база Q1",
+    "value": "1k",
+    "package": "0603"
+   },
+   {
+    "id": "D1",
+    "kind": "diode",
+    "label": "диод зуммера"
+   },
+   {
+    "id": "SW1",
+    "kind": "button",
+    "label": "проверка",
+    "place": {
+     "x": 18.0,
+     "y": -18.0,
+     "rot": 0.0
+    }
+   },
+   {
+    "id": "BT1",
+    "kind": "accessory",
+    "label": "батарея",
+    "accessory": "lipo_1s_500"
+   },
+   {
+    "id": "R5",
+    "kind": "resistor",
+    "label": "SDA pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "R6",
+    "kind": "resistor",
+    "label": "SCL pull-up",
+    "value": "4.7k",
+    "package": "0603"
+   },
+   {
+    "id": "C1",
+    "kind": "capacitor",
+    "label": "декаплинг OLED",
+    "value": "100nF",
+    "package": "0603"
+   },
+   {
+    "id": "C2",
+    "kind": "capacitor",
+    "label": "декаплинг датчика",
+    "value": "100nF",
+    "package": "0603"
+   }
+  ],
+  "nets": [
+   {
+    "pins": [
+     "U1.GND",
+     "DS1.GND",
+     "P1.GND",
+     "LED1.K",
+     "LED2.K",
+     "LED3.K",
+     "Q1.E",
+     "SW1.B",
+     "C1.2",
+     "C2.2"
+    ],
+    "name": "GND"
+   },
+   {
+    "pins": [
+     "U1.V3V3",
+     "DS1.VCC",
+     "P1.VCC",
+     "R5.1",
+     "R6.1",
+     "C1.1",
+     "C2.1",
+     "BZ1.P1",
+     "D1.K"
+    ],
+    "name": "V3V3"
+   },
+   {
+    "pins": [
+     "U1.SDA",
+     "DS1.SDA",
+     "R5.2"
+    ],
+    "name": "SDA"
+   },
+   {
+    "pins": [
+     "U1.SCL",
+     "DS1.SCL",
+     "R6.2"
+    ],
+    "name": "SCL"
+   },
+   {
+    "pins": [
+     "U1.D2",
+     "P1.AOUT"
+    ]
+   },
+   {
+    "pins": [
+     "U1.MOSI",
+     "R1.1"
+    ]
+   },
+   {
+    "pins": [
+     "R1.2",
+     "LED1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D3",
+     "R2.1"
+    ]
+   },
+   {
+    "pins": [
+     "R2.2",
+     "LED2.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.TX",
+     "R3.1"
+    ]
+   },
+   {
+    "pins": [
+     "R3.2",
+     "LED3.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.D1",
+     "SW1.A"
+    ]
+   },
+   {
+    "pins": [
+     "U1.RX",
+     "R4.1"
+    ]
+   },
+   {
+    "pins": [
+     "R4.2",
+     "Q1.B"
+    ]
+   },
+   {
+    "pins": [
+     "Q1.C",
+     "BZ1.P2",
+     "D1.A"
+    ]
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R1",
+    "text": "измерять влажность почвы емкостным датчиком",
+    "parts": [
+     "P1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R2",
+    "text": "показывать влажность в % на OLED экране",
+    "parts": [
+     "DS1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R3",
+    "text": "3 светодиода: сухо / норма / влажно",
+    "parts": [
+     "LED1",
+     "LED2",
+     "LED3"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R4",
+    "text": "звуковой сигнал когда почва слишком сухая",
+    "parts": [
+     "BZ1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R5",
+    "text": "кнопка для проверки и сброса сигнала",
+    "parts": [
+     "SW1"
+    ],
+    "firmware": true
+   },
+   {
+    "id": "R6",
+    "text": "питание от LiPo с зарядкой через USB-C модуля, сон для экономии",
+    "parts": [
+     "U1",
+     "BT1"
+    ],
+    "firmware": true
+   }
+  ],
+  "firmware": {
+   "lang": "arduino",
+   "files": {
+    "soil_sensor.ino": "#include <Wire.h>\n#include <Adafruit_GFX.h>\n#include <Adafruit_SSD1306.h>\n\n#define OLED_W 128\n#define OLED_H 64\nAdafruit_SSD1306 display(OLED_W, OLED_H, &Wire, -1);\n\n// Пины по схеме\nconst int PIN_SOIL = D2; // GPIO4 ADC - емкостный датчик AOUT (делитель: датчик питается от 3.3В, на выходе ~0-3В)\nconst int PIN_LED_RED = D10; // GPIO10\nconst int PIN_LED_GREEN = D3; // GPIO5\nconst int PIN_LED_BLUE = D6; // GPIO21 (TX)\nconst int PIN_BUZZER = D7; // GPIO20 (RX) через NPN\nconst int PIN_BTN = D1; // GPIO3, кнопка на GND (внутренняя подтяжка)\n\n// Калибровка: подобрать под грунт. Сухой воздух ~ 2800, в воде ~ 1200 (для данного датчика)\nint VAL_DRY = 2600;\nint VAL_WET = 1300;\nint THRESH_DRY = 30; // % ниже - сухо\nint THRESH_WET = 70; // % выше - влажно\n\nunsigned long lastMeasure = 0;\nbool buzzerMuted = false;\nunsigned long muteUntil = 0;\n\nint readMoisturePercent() {\n  long sum=0;\n  for(int i=0;i<16;i++){ sum+=analogRead(PIN_SOIL); delay(5); }\n  int raw = sum/16;\n  // raw выше когда сухо, ниже когда влажно -> инвертируем\n  int pct = map(raw, VAL_DRY, VAL_WET, 0, 100);\n  pct = constrain(pct, 0, 100);\n  return pct;\n}\n\nvoid updateLeds(int pct){\n  digitalWrite(PIN_LED_RED, pct < THRESH_DRY ? HIGH : LOW);\n  digitalWrite(PIN_LED_GREEN, (pct >= THRESH_DRY && pct <= THRESH_WET) ? HIGH : LOW);\n  digitalWrite(PIN_LED_BLUE, pct > THRESH_WET ? HIGH : LOW);\n}\n\nvoid setup(){\n  pinMode(PIN_LED_RED, OUTPUT);\n  pinMode(PIN_LED_GREEN, OUTPUT);\n  pinMode(PIN_LED_BLUE, OUTPUT);\n  pinMode(PIN_BUZZER, OUTPUT);\n  pinMode(PIN_BTN, INPUT_PULLUP);\n  pinMode(PIN_SOIL, INPUT);\n  digitalWrite(PIN_BUZZER, LOW);\n\n  Wire.begin(); // SDA=D4 GPIO6, SCL=D5 GPIO7 на XIAO ESP32-C3\n  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);\n  display.clearDisplay();\n  display.setTextSize(1);\n  display.setTextColor(SSD1306_WHITE);\n  display.setCursor(0,10);\n  display.println(\"Datchik vlazhnosti\");\n  display.println(\"Zapusk...\");\n  display.display();\n  delay(1000);\n}\n\nvoid loop(){\n  // кнопка: короткое нажатие - измерить сейчас и приглушить на 1ч\n  if(digitalRead(PIN_BTN)==LOW){\n    delay(50);\n    if(digitalRead(PIN_BTN)==LOW){\n      buzzerMuted = true;\n      muteUntil = millis() + 3600000UL;\n      // писк подтверждения\n      digitalWrite(PIN_BUZZER, HIGH); delay(120); digitalWrite(PIN_BUZZER, LOW);\n      while(digitalRead(PIN_BTN)==LOW) delay(10);\n      lastMeasure = 0; // форсировать измерение\n    }\n  }\n  if(buzzerMuted && millis() > muteUntil) buzzerMuted = false;\n\n  if(millis() - lastMeasure > 5000){\n    lastMeasure = millis();\n    int pct = readMoisturePercent();\n    updateLeds(pct);\n    bool isDry = pct < THRESH_DRY;\n    bool isWet = pct > THRESH_WET;\n\n    display.clearDisplay();\n    display.setTextSize(2);\n    display.setCursor(0,0);\n    display.print(pct); display.print(\" %\");\n    display.setTextSize(1);\n    display.setCursor(0,22);\n    if(isDry) display.println(\"SUHO - POLEI!\");\n    else if(isWet) display.println(\"Vlazhno - OK\");\n    else display.println(\"Normalno\");\n    display.setCursor(0,36);\n    display.print(\"Syro: \"); display.print(analogRead(PIN_SOIL));\n    display.setCursor(0,48);\n    if(buzzerMuted) display.print(\"Zvuk: pauza 1h\");\n    else display.print(isDry ? \"Zvuk: signal!\" : \"Zvuk: tikho\");\n    display.display();\n\n    if(isDry && !buzzerMuted){\n      // 3 коротких писка\n      for(int i=0;i<3;i++){ digitalWrite(PIN_BUZZER,HIGH); delay(200); digitalWrite(PIN_BUZZER,LOW); delay(200); }\n    }\n    // глубокий сон можно включить раскомментировав (проснется по кнопке D1):\n    // esp_sleep_enable_ext1_wakeup(1ULL<<3, ESP_EXT1_WAKEUP_ALL_LOW); esp_deep_sleep(10*60*1000000ULL);\n  }\n}\n"
+   },
+   "notes": "Плата XIAO ESP32-C3, библиотеки Adafruit GFX и SSD1306. Пины как на схеме."
+  }
+ }
+}

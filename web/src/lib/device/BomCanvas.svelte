@@ -1,11 +1,13 @@
 <script lang="ts">
-  // The BOM workspace's main view: every part of one device, as a table to read, sort and check against stock.
+  // The BOM workspace's main view: every part of one device, as a table to read, sort and check against stock. Modules
+  // fitted by hand (an OLED, a probe, a LiPo) are lines of their own: priced, not bought from LCSC, not soldered by the fab.
   import type { DeviceStore } from './store.svelte';
+  import type { Accessory } from './api';
   import { bomOf, type BomRow } from './bom';
   import { dt, usd } from './i18n';
 
-  let { device }: { device: DeviceStore } = $props();
-  const rows = $derived(bomOf(device.state));
+  let { device, accessories = {} }: { device: DeviceStore; accessories?: Record<string, Accessory> } = $props();
+  const rows = $derived(bomOf(device.state, accessories));
   let sort = $state<'ref' | 'sum' | 'stock'>('ref');
   const sorted = $derived(
     sort === 'ref' ? rows : [...rows].sort((a, b) => (sort === 'sum' ? (b.sum ?? 0) - (a.sum ?? 0) : (a.stock ?? 1e12) - (b.stock ?? 1e12))),
@@ -36,12 +38,12 @@
         </thead>
         <tbody>
           {#each sorted as r (r.key)}
-            <tr class:out={r.stock === 0}>
+            <tr class:out={r.stock === 0} class:fitted={r.fitted}>
               <td class="mono refs"><button onclick={() => device.pickNode(r.refs[0])}>{r.refs.join(', ')}</button></td>
-              <td class="partcell"><span class="pn">{r.part}</span>{#if r.role}<span class="muted role">{r.role}</span>{/if}</td>
+              <td class="partcell"><span class="pn">{#if r.fitted}<i class="ti ti-puzzle" aria-hidden="true"></i>{' '}{/if}{r.part}</span>{#if r.role && r.role !== r.part}<span class="muted role">{r.role}</span>{/if}</td>
               <td class="muted pkg" title={r.pkg}>{r.pkg}</td>
-              <td class="mono">{#if r.lcsc && r.url}<a href={r.url} target="_blank" rel="noopener noreferrer">{r.lcsc}</a>{:else}{r.lcsc ?? '—'}{/if}</td>
-              <td>{#if r.hand}<span class="tag hand">{dt('hand')}</span>{:else if r.basic === true}<span class="tag basic">basic</span>{:else if r.basic === false}<span class="tag ext">extended</span>{:else}—{/if}</td>
+              <td class="mono">{#if r.fitted}{#if r.url}<a href={r.url} target="_blank" rel="noopener noreferrer">{dt('acc_page')}</a>{:else}—{/if}{:else if r.lcsc && r.url}<a href={r.url} target="_blank" rel="noopener noreferrer">{r.lcsc}</a>{:else}{r.lcsc ?? '—'}{/if}</td>
+              <td>{#if r.fitted}<span class="tag fit" title={dt('accessory_d')}>{dt('fitted_hand')}</span>{:else if r.hand}<span class="tag hand">{dt('hand')}</span>{:else if r.basic === true}<span class="tag basic">basic</span>{:else if r.basic === false}<span class="tag ext">extended</span>{:else}—{/if}</td>
               <td class="r mono" class:warn={low(r)}>{r.stock == null ? '—' : r.stock.toLocaleString()}</td>
               <td class="r mono">{r.qty}</td>
               <td class="r mono">{usd(r.unit, 3)}</td>
@@ -154,6 +156,13 @@
   .hand {
     color: var(--on-surface-var);
     background: var(--surface-container-high, var(--surface-high));
+  }
+  .fit {
+    color: #2bb3a3;
+    background: color-mix(in srgb, #2bb3a3 14%, transparent);
+  }
+  tr.fitted .pn i {
+    color: #2bb3a3;
   }
   .warn {
     color: var(--warn-text);

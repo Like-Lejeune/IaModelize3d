@@ -1,0 +1,868 @@
+{
+ "schema": "fw.board/1",
+ "id": "pcb",
+ "name": "Кухонный таймер",
+ "aliases": [],
+ "frame": "mm. Origin at the bottom-left corner of the PCB seen from the component (top) side; x right, y up, z up from the PCB bottom face. Component z values are heights above the face they sit on. Generated from the routed circuit.",
+ "source": {
+  "kind": "pcb",
+  "pcb_job": "pcb:v1"
+ },
+ "sources": {
+  "circuit": "circuit.json",
+  "typical": "packages/geom/src/boards.json#typical",
+  "modules": "packages/pcb/src/modules.json"
+ },
+ "uncertainty_mm": 0,
+ "pcb": {
+  "outline": {
+   "kind": "rect",
+   "w": 69,
+   "h": 69,
+   "r": 0,
+   "src": "circuit"
+  },
+  "thickness": 1.6,
+  "layers": 2,
+  "holes": [
+   {
+    "x": 26.88,
+    "y": 66.12,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 26.88,
+    "y": 63.58,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 26.88,
+    "y": 61.04,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 26.88,
+    "y": 58.5,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 26.88,
+    "y": 55.96,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 26.88,
+    "y": 53.42,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 26.88,
+    "y": 50.88,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 42.12,
+    "y": 50.88,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 42.12,
+    "y": 53.42,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 42.12,
+    "y": 55.96,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 42.12,
+    "y": 58.5,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 42.12,
+    "y": 61.04,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 42.12,
+    "y": 63.58,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 42.12,
+    "y": 66.12,
+    "d": 0.8,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "U1"
+   },
+   {
+    "x": 42.19,
+    "y": 2.5,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "J2"
+   },
+   {
+    "x": 44.73,
+    "y": 2.5,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "J2"
+   },
+   {
+    "x": 47.27,
+    "y": 2.5,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "J2"
+   },
+   {
+    "x": 49.81,
+    "y": 2.5,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "J2"
+   },
+   {
+    "x": 32.25,
+    "y": 37.75,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW1"
+   },
+   {
+    "x": 32.25,
+    "y": 31.25,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW1"
+   },
+   {
+    "x": 36.75,
+    "y": 31.25,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW1"
+   },
+   {
+    "x": 36.75,
+    "y": 37.75,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW1"
+   },
+   {
+    "x": 16.25,
+    "y": 7.75,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW2"
+   },
+   {
+    "x": 16.25,
+    "y": 14.25,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW2"
+   },
+   {
+    "x": 11.75,
+    "y": 14.25,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW2"
+   },
+   {
+    "x": 11.75,
+    "y": 7.75,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW2"
+   },
+   {
+    "x": 47.35,
+    "y": 39.85,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW3"
+   },
+   {
+    "x": 40.85,
+    "y": 39.85,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW3"
+   },
+   {
+    "x": 40.85,
+    "y": 35.35,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW3"
+   },
+   {
+    "x": 47.35,
+    "y": 35.35,
+    "d": 1,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "SW3"
+   },
+   {
+    "x": 3.5,
+    "y": 65.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 65.5,
+    "y": 65.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 3.5,
+    "y": 3.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 65.5,
+    "y": 3.5,
+    "d": 3.2,
+    "plated": false,
+    "use": "mount",
+    "src": "circuit"
+   },
+   {
+    "x": 10.15,
+    "y": 32.62,
+    "d": 1.1000231999999999,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "BZ1"
+   },
+   {
+    "x": 25.15,
+    "y": 32.62,
+    "d": 1.1000231999999999,
+    "plated": true,
+    "use": "pin",
+    "src": "circuit",
+    "ref": "BZ1"
+   }
+  ]
+ },
+ "components": [
+  {
+   "id": "U1",
+   "type": "xiao_esp32c3",
+   "side": "top",
+   "access": "none",
+   "x": 34.5,
+   "y": 58.5,
+   "w": 17.8,
+   "d": 21,
+   "z0": 2.5,
+   "h": 1.2,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "Seeed XIAO ESP32-C3: module PCB 1.2 mm on 2.5 mm header spacers"
+  },
+  {
+   "id": "U1_hdr_1",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 26.9,
+   "y": 58.5,
+   "w": 2.5,
+   "d": 17.78,
+   "h": 2.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   }
+  },
+  {
+   "id": "U1_hdr_2",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "x": 42.1,
+   "y": 58.5,
+   "w": 2.5,
+   "d": 17.78,
+   "h": 2.5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   }
+  },
+  {
+   "id": "U1_usb",
+   "type": "usb_c",
+   "side": "top",
+   "access": "port",
+   "edge": "+y",
+   "at": 34.5,
+   "w": 8.94,
+   "h": 3.2,
+   "d": 7.3,
+   "z0": 3.7,
+   "protrude": 1,
+   "plug": [
+    12.4,
+    6.5
+   ],
+   "src": "modules",
+   "verify": [
+    "h",
+    "d",
+    "protrude",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "Seeed XIAO ESP32-C3 usb, z 3.7-6.9 over the carrier"
+  },
+  {
+   "id": "U1_btn_boot",
+   "type": "tact_3x4_smd",
+   "side": "top",
+   "access": "press",
+   "x": 28.8,
+   "y": 65.8,
+   "w": 2.5,
+   "d": 3,
+   "z0": 3.7,
+   "h": 1.4,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "BOOT button beside the USB connector (pinout image)"
+  },
+  {
+   "id": "U1_btn_reset",
+   "type": "tact_3x4_smd",
+   "side": "top",
+   "access": "press",
+   "x": 40.2,
+   "y": 65.8,
+   "w": 2.5,
+   "d": 3,
+   "z0": 3.7,
+   "h": 1.4,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "RESET button"
+  },
+  {
+   "id": "U1_can",
+   "type": "shield",
+   "side": "top",
+   "access": "none",
+   "x": 34.5,
+   "y": 56.5,
+   "w": 13,
+   "d": 12,
+   "z0": 3.7,
+   "h": 1.8,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "w",
+    "d",
+    "h",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   }
+  },
+  {
+   "id": "U1_ufl",
+   "type": "ufl",
+   "side": "top",
+   "access": "cable",
+   "x": 28.1,
+   "y": 50.5,
+   "w": 3,
+   "d": 3,
+   "z0": 3.7,
+   "h": 1.25,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "modules",
+   "verify": [
+    "x",
+    "y",
+    "z0"
+   ],
+   "evidence": {
+    "ref": "U1",
+    "footprint": "dip14_w15.24mm",
+    "module": "Seeed XIAO ESP32-C3"
+   },
+   "note": "U.FL antenna connector (bottom-left of the front); the flat antenna cable must exit the case"
+  },
+  {
+   "id": "J2",
+   "type": "pin_header_2_54",
+   "side": "top",
+   "access": "none",
+   "w": 10.16,
+   "h": 8.5,
+   "d": 2.54,
+   "z0": 0,
+   "src": "circuit",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "J2",
+    "footprint": "pinrow4_p2.54_nopinlabels"
+   },
+   "x": 46,
+   "y": 2.5
+  },
+  {
+   "id": "BZ1",
+   "type": "chip",
+   "side": "top",
+   "access": "sound",
+   "x": 17.65,
+   "y": 32.62,
+   "w": 23.5,
+   "d": 23.48,
+   "h": 16,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "BZ1",
+    "footprint": ""
+   },
+   "shape": "round"
+  },
+  {
+   "id": "SW1",
+   "type": "tact_6x6",
+   "side": "top",
+   "access": "press",
+   "x": 34.5,
+   "y": 34.5,
+   "w": 7,
+   "d": 9,
+   "h": 5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "SW1",
+    "footprint": "pushbutton"
+   }
+  },
+  {
+   "id": "SW2",
+   "type": "tact_6x6",
+   "side": "top",
+   "access": "press",
+   "x": 14,
+   "y": 11,
+   "w": 7,
+   "d": 9,
+   "h": 5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "SW2",
+    "footprint": "pushbutton"
+   }
+  },
+  {
+   "id": "SW3",
+   "type": "tact_6x6",
+   "side": "top",
+   "access": "press",
+   "x": 44.1,
+   "y": 37.6,
+   "w": 9,
+   "d": 7,
+   "h": 5,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "SW3",
+    "footprint": "pushbutton"
+   }
+  },
+  {
+   "id": "R1",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 34.5,
+   "y": 27.67,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R1",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "R2",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 33.67,
+   "y": 23.86,
+   "w": 1.46,
+   "d": 2.96,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R2",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "R3",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 36.57,
+   "y": 20.05,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "R3",
+    "footprint": "res0603"
+   }
+  },
+  {
+   "id": "LED1",
+   "type": "led_0603",
+   "side": "top",
+   "access": "light",
+   "x": 24,
+   "y": 10,
+   "w": 1.46,
+   "d": 2.96,
+   "h": 0.6,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [
+    "h"
+   ],
+   "evidence": {
+    "ref": "LED1",
+    "footprint": "0603_color(red)"
+   }
+  },
+  {
+   "id": "C1",
+   "type": "passive_0603",
+   "side": "top",
+   "access": "none",
+   "x": 36.57,
+   "y": 16.99,
+   "w": 2.96,
+   "d": 1.46,
+   "h": 0.55,
+   "normal": [
+    0,
+    0,
+    1
+   ],
+   "src": "circuit",
+   "verify": [],
+   "evidence": {
+    "ref": "C1",
+    "footprint": "cap0603"
+   }
+  }
+ ],
+ "keepouts": [],
+ "heights": {
+  "top_max": 16,
+  "bottom_max": 2,
+  "verify": [
+   "top_max",
+   "bottom_max"
+  ]
+ },
+ "mount": {
+  "preferred": "screw",
+  "screw": "M3",
+  "holes": 4
+ },
+ "note": "fixture: data/files/p_a04813e3e1c74f6a/pcb/v1/board.json of 2026-11-03 with the fw.board/1 C2 fields added by hand: BZ1 sound round; J2 (a header out of the -y wall) becomes the socket of an OLED1 display accessory, moved to x 46 so the module clears the 16 mm buzzer; SW2 to 14, 11 and LED1 to 24, 10 from under the module",
+ "accessories": [
+  {
+   "id": "OLED1",
+   "key": "oled_ssd1306_096",
+   "name": "0.96\" OLED 128x64 I2C (SSD1306)",
+   "kind": "display",
+   "mount": "board",
+   "x": 46,
+   "y": 15.1,
+   "w": 27.3,
+   "d": 27.8,
+   "h": 3.7,
+   "z0": 8.5,
+   "window": [
+    23,
+    12
+   ],
+   "window_dx": 0,
+   "window_dy": 1.0,
+   "holes": [
+    {
+     "x": 34.35,
+     "y": 3.2,
+     "d": 2.0
+    },
+    {
+     "x": 34.35,
+     "y": 27.0,
+     "d": 2.0
+    },
+    {
+     "x": 57.65,
+     "y": 3.2,
+     "d": 2.0
+    },
+    {
+     "x": 57.65,
+     "y": 27.0,
+     "d": 2.0
+    }
+   ]
+  }
+ ]
+}

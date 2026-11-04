@@ -1,0 +1,230 @@
+{
+ "schema": "fw.device/1",
+ "title": "Houseplant Soil Moisture Sensor",
+ "summary": "Soil moisture sensor staked in the pot, OLED reading, battery powered",
+ "board": {
+  "holes": true,
+  "w": 46.0,
+  "h": 58.0
+ },
+ "nodes": [
+  {
+   "id": "U1",
+   "kind": "module",
+   "label": "MCU",
+   "module": "113991054",
+   "edge": "+y"
+  },
+  {
+   "id": "DS1",
+   "kind": "accessory",
+   "label": "display",
+   "accessory": "oled_096_i2c",
+   "place": {
+    "x": 0.0,
+    "y": -8.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "PR1",
+   "kind": "accessory",
+   "label": "soil probe",
+   "accessory": "soil_capacitive_v12",
+   "edge": "-y"
+  },
+  {
+   "id": "SW1",
+   "kind": "button",
+   "label": "read",
+   "place": {
+    "x": 14.0,
+    "y": 12.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "BT1",
+   "kind": "accessory",
+   "label": "battery",
+   "accessory": "lipo_1s_500",
+   "place": {
+    "x": -7.0,
+    "y": -1.0,
+    "rot": 0.0
+   }
+  },
+  {
+   "id": "R1",
+   "kind": "resistor",
+   "label": "SDA pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  },
+  {
+   "id": "R2",
+   "kind": "resistor",
+   "label": "SCL pull-up",
+   "value": "4.7k",
+   "package": "0603"
+  }
+ ],
+ "nets": [
+  {
+   "pins": [
+    "U1.GND",
+    "DS1.GND",
+    "PR1.GND",
+    "SW1.B"
+   ],
+   "name": "GND"
+  },
+  {
+   "pins": [
+    "U1.V3V3",
+    "DS1.VCC",
+    "R1.2",
+    "R2.2"
+   ],
+   "name": "V3V3"
+  },
+  {
+   "pins": [
+    "U1.SDA",
+    "DS1.SDA",
+    "R1.1"
+   ],
+   "name": "SDA"
+  },
+  {
+   "pins": [
+    "U1.SCL",
+    "DS1.SCL",
+    "R2.1"
+   ],
+   "name": "SCL"
+  },
+  {
+   "pins": [
+    "U1.D2",
+    "PR1.AOUT"
+   ]
+  },
+  {
+   "pins": [
+    "U1.D1",
+    "SW1.A"
+   ]
+  },
+  {
+   "pins": [
+    "U1.MOSI",
+    "PR1.VCC"
+   ]
+  }
+ ],
+ "requirements": [
+  {
+   "id": "R1",
+   "text": "measure soil moisture with the capacitive probe",
+   "parts": [
+    "PR1"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R2",
+   "text": "show moisture level and water/dry hint on the OLED",
+   "parts": [
+    "DS1"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R3",
+   "text": "a button wakes it and takes a reading",
+   "parts": [
+    "SW1"
+   ],
+   "firmware": true
+  },
+  {
+   "id": "R4",
+   "text": "runs on a LiPo charged from USB-C, deep sleep between readings",
+   "parts": [
+    "U1",
+    "BT1"
+   ],
+   "firmware": true
+  }
+ ],
+ "concept": {
+  "uses": [
+   "in a potted houseplant at home, staked into the soil: glance at the display to see if watering is needed",
+   "on a windowsill with several pots: moved from pot to pot, one press wakes it and shows the moisture level",
+   "left alone for days on its battery: sleeps between readings, charged over USB-C"
+  ],
+  "options": [
+   {
+    "name": "Soil stake",
+    "look": "a small soft block on a spike in the pot, display facing up-out",
+    "panel": "0.96in OLED centred on the lid, page button beside it, probe cable exits the bottom into the soil",
+    "form": "soft",
+    "stance": "auto",
+    "mounting": "stake",
+    "module_edge": "+y",
+    "board": {
+     "shape": "rect",
+     "w": 46.0,
+     "h": 58.0
+    }
+   },
+   {
+    "name": "Pot clip",
+    "look": "a small clip block hooked over the pot rim, probe lead drops into the soil",
+    "panel": "OLED in the centre of the lid, button under it, probe cable exits the side",
+    "form": "soft",
+    "stance": "desk",
+    "mounting": "strap",
+    "module_edge": "+y",
+    "board": {
+     "shape": "rounded",
+     "w": 50.0,
+     "h": 35.0
+    }
+   },
+   {
+    "name": "Desk puck",
+    "look": "a round puck next to the pot with a wired probe in the soil",
+    "panel": "OLED in the centre, button beside it, probe cable exits the back",
+    "form": "round",
+    "stance": "desk",
+    "mounting": "none",
+    "module_edge": "+y",
+    "board": {
+     "shape": "round",
+     "w": 42.0,
+     "h": 42.0
+    }
+   }
+  ],
+  "chosen": "Soil stake",
+  "why": "It lives where it measures, needs no extra stand, and the display faces the person while the probe stays in the soil."
+ },
+ "firmware": {
+  "lang": "arduino",
+  "files": {
+   "soil_sensor.ino": "#include <Wire.h>\n#include <Adafruit_GFX.h>\n#include <Adafruit_SSD1306.h>\n\n#define SCREEN_W 128\n#define SCREEN_H 64\n#define OLED_ADDR 0x3C\nAdafruit_SSD1306 display(SCREEN_W, SCREEN_H, &Wire, -1);\n\n// Wiring: probe AOUT -> D2 (GPIO4, ADC1); probe VCC -> D10 (GPIO10) so it is off in sleep, GND -> GND.\n// Probe output falls when wet (dry ~2700, wet ~1200 on ESP32-C3 ADC): higher ADC = drier.\n// Button SW1: D1 (GPIO3) to GND with internal pull-up, LOW when pressed.\n// Display: SDA=D4(GPIO6), SCL=D5(GPIO7), VCC=V3V3.\nconst int PIN_PROBE = D2;\nconst int PIN_PROBE_PWR = D10;\nconst int PIN_BUTTON = D1;\n\nconst int ADC_DRY = 2700;\nconst int ADC_WET = 1200;\n\nint readProbe() {\n  digitalWrite(PIN_PROBE_PWR, HIGH);\n  delay(100);\n  long sum = 0;\n  for (int i = 0; i < 16; i++) { sum += analogRead(PIN_PROBE); delay(10); }\n  digitalWrite(PIN_PROBE_PWR, LOW);\n  return sum / 16;\n}\n\nvoid showReading(int adc, int pct, const char* hint) {\n  display.clearDisplay();\n  display.setTextSize(2);\n  display.setTextColor(SSD1306_WHITE);\n  display.setCursor(0, 0);\n  display.print(pct);\n  display.print(\"%\");\n  display.setTextSize(1);\n  display.setCursor(0, 24);\n  display.print(hint);\n  display.setCursor(0, 40);\n  display.print(\"ADC:\");\n  display.print(adc);\n  display.setCursor(0, 52);\n  display.print(\"press=read\");\n  display.display();\n}\n\nvoid setup() {\n  pinMode(PIN_BUTTON, INPUT_PULLUP);\n  pinMode(PIN_PROBE, INPUT);\n  pinMode(PIN_PROBE_PWR, OUTPUT);\n  Wire.begin();\n  bool dispOk = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);\n  int adc = readProbe();\n  // re-enable power for possible re-reads while awake\n  digitalWrite(PIN_PROBE_PWR, HIGH);\n  int pct = constrain(map(adc, ADC_DRY, ADC_WET, 0, 100), 0, 100);\n  const char* hint = (pct < 30) ? \"WATER ME\" : (pct < 60) ? \"ok\" : \"too wet\";\n  if (dispOk) showReading(adc, pct, hint);\n  unsigned long t0 = millis();\n  int lastBtn = HIGH;\n  while (millis() - t0 < 15000) {\n    int b = digitalRead(PIN_BUTTON);\n    if (lastBtn == HIGH && b == LOW && dispOk) {\n      int a2 = readProbe();\n      digitalWrite(PIN_PROBE_PWR, HIGH);\n      int p2 = constrain(map(a2, ADC_DRY, ADC_WET, 0, 100), 0, 100);\n      const char* h2 = (p2 < 30) ? \"WATER ME\" : (p2 < 60) ? \"ok\" : \"too wet\";\n      showReading(a2, p2, h2);\n      t0 = millis();\n    }\n    lastBtn = b;\n    delay(30);\n  }\n  digitalWrite(PIN_PROBE_PWR, LOW);\n  pinMode(PIN_PROBE_PWR, OUTPUT);\n  digitalWrite(PIN_PROBE_PWR, LOW);\n  if (dispOk) display.ssd1306_command(SSD1306_DISPLAYOFF);\n  esp_deep_sleep_enable_gpio_wakeup(1ULL << 3, ESP_GPIO_WAKEUP_GPIO_LOW);\n  esp_sleep_enable_timer_wakeup(10ULL * 60ULL * 1000000ULL);\n  esp_deep_sleep_start();\n}\n\nvoid loop() {}\n"
+  },
+  "notes": "XIAO ESP32-C3, libraries Adafruit GFX + Adafruit SSD1306, flash via Arduino IDE",
+  "check": {
+   "ok": true,
+   "tool": "g++ 14.2.0 compile, no link (arduino-esp32 3.x stubs, Seeed ",
+   "errors": [],
+   "warnings": [],
+   "wiring": "9b0e554e32ca1bf9",
+   "asks": "dda66a1c09c7"
+  }
+ },
+ "_version": 7
+}

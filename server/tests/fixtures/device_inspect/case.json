@@ -1,0 +1,458 @@
+{
+ "params": {
+  "wall": 2,
+  "floor": 1.6,
+  "lid": 1.6,
+  "clear": 0.5,
+  "standoff": 2.5,
+  "port_fit": 0.3,
+  "lights": "hole",
+  "mount": "peg",
+  "form": "soft",
+  "mockup": true,
+  "layout": "print",
+  "show_board": false
+ },
+ "enclosure": {
+  "op": "enclosure",
+  "board": "board",
+  "findings": [
+   {
+    "code": "port_clear",
+    "severity": "info",
+    "msg": "U1_usb: a 12.4x6.5 mm plug reaches the connector; 0.29 mm clearance all round",
+    "part": "U1_usb",
+    "value": 0.291,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "U1: nearest wall 1.10 mm",
+    "part": "U1",
+    "value": 1.1,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "U1_hdr_1: nearest wall 2.71 mm",
+    "part": "U1_hdr_1",
+    "value": 2.71,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "U1_hdr_2: nearest wall 2.71 mm",
+    "part": "U1_hdr_2",
+    "value": 2.71,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "U1_usb: nearest wall 0.40 mm",
+    "part": "U1_usb",
+    "value": 0.4,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "U1_btn_boot: nearest wall 0.30 mm",
+    "part": "U1_btn_boot",
+    "value": 0.3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "U1_btn_reset: nearest wall 0.30 mm",
+    "part": "U1_btn_reset",
+    "value": 0.3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "U1_can: nearest wall 2.47 mm",
+    "part": "U1_can",
+    "value": 2.47,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "U1_ufl: nearest wall 3.00 mm",
+    "part": "U1_ufl",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "PIR1: nearest wall 3.00 mm",
+    "part": "PIR1",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "R1: nearest wall 3.00 mm",
+    "part": "R1",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "R2: nearest wall 3.00 mm",
+    "part": "R2",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "LED1: nearest wall 3.00 mm",
+    "part": "LED1",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "LED2: nearest wall 3.00 mm",
+    "part": "LED2",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "LED3: nearest wall 3.00 mm",
+    "part": "LED3",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "R3: nearest wall 3.00 mm",
+    "part": "R3",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "R4: nearest wall 3.00 mm",
+    "part": "R4",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "R5: nearest wall 3.00 mm",
+    "part": "R5",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "Q1: nearest wall 3.00 mm",
+    "part": "Q1",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "R6: nearest wall 3.00 mm",
+    "part": "R6",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "R7: nearest wall 3.00 mm",
+    "part": "R7",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "U2: nearest wall 3.00 mm",
+    "part": "U2",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "C1: nearest wall 3.00 mm",
+    "part": "C1",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "C2: nearest wall 3.00 mm",
+    "part": "C2",
+    "value": 3,
+    "unit": "mm"
+   },
+   {
+    "code": "component_clear",
+    "severity": "info",
+    "msg": "PIR1: nearest wall 1.20 mm",
+    "part": "PIR1",
+    "value": 1.2,
+    "unit": "mm"
+   },
+   {
+    "code": "pcb_seated",
+    "severity": "info",
+    "msg": "PCB: sits on 4 supports and is held down at 4; 0.000 mm3 overlap (pegs pass the holes)",
+    "part": "pcb",
+    "value": 4
+   },
+   {
+    "code": "board_retained",
+    "severity": "info",
+    "msg": "PCB: held down by 4 posts over its 4 mount holes; pegs locate it",
+    "part": "pcb",
+    "value": 4
+   },
+   {
+    "code": "button_reach",
+    "severity": "info",
+    "msg": "U1_btn_boot: plunger 0.30 mm above the button, tongue 10 mm free, bending strain 1.32 % (PLA limit ~2 %)",
+    "part": "U1_btn_boot",
+    "value": 0.3,
+    "unit": "mm"
+   },
+   {
+    "code": "button_reach",
+    "severity": "info",
+    "msg": "U1_btn_reset: plunger 0.30 mm above the button, tongue 10 mm free, bending strain 1.32 % (PLA limit ~2 %)",
+    "part": "U1_btn_reset",
+    "value": 0.3,
+    "unit": "mm"
+   },
+   {
+    "code": "light_window",
+    "severity": "info",
+    "msg": "LED1: open window",
+    "part": "LED1",
+    "value": 0,
+    "unit": "mm"
+   },
+   {
+    "code": "light_window",
+    "severity": "info",
+    "msg": "LED2: open window",
+    "part": "LED2",
+    "value": 0,
+    "unit": "mm"
+   },
+   {
+    "code": "light_window",
+    "severity": "info",
+    "msg": "LED3: open window",
+    "part": "LED3",
+    "value": 0,
+    "unit": "mm"
+   },
+   {
+    "code": "sensor_window",
+    "severity": "info",
+    "msg": "U2: sensor window 4.46 x 2.72 mm open",
+    "part": "U2",
+    "value": 2.72,
+    "unit": "mm"
+   },
+   {
+    "code": "sensor_window",
+    "severity": "info",
+    "msg": "PIR1: round sensor window 23.8 mm open",
+    "part": "PIR1",
+    "value": 23.8,
+    "unit": "mm"
+   },
+   {
+    "code": "lid_fit",
+    "severity": "info",
+    "msg": "lid vs base overlap 0.000 mm3; 4 snap hooks, catch 0.28 mm",
+    "part": "lid",
+    "value": 0,
+    "unit": "mm3"
+   },
+   {
+    "code": "snap_strain",
+    "severity": "info",
+    "msg": "snap hooks bend 1.67 % going in (PLA ~2 %, PETG ~4 %); print in PETG for a lid that opens often",
+    "part": "lid",
+    "value": 1.67,
+    "unit": "%"
+   }
+  ],
+  "rays": [
+   {
+    "port": "U1_usb",
+    "from": [
+     29,
+     67.05,
+     11.1
+    ],
+    "to": [
+     29,
+     72.1,
+     11.1
+    ],
+    "hit": false
+   },
+   {
+    "port": "U1_usb",
+    "from": [
+     35.024,
+     67.05,
+     14.174
+    ],
+    "to": [
+     35.024,
+     72.1,
+     14.174
+    ],
+    "hit": false
+   },
+   {
+    "port": "U1_usb",
+    "from": [
+     22.976,
+     67.05,
+     14.174
+    ],
+    "to": [
+     22.976,
+     72.1,
+     14.174
+    ],
+    "hit": false
+   },
+   {
+    "port": "U1_usb",
+    "from": [
+     22.976,
+     67.05,
+     8.026
+    ],
+    "to": [
+     22.976,
+     72.1,
+     8.026
+    ],
+    "hit": false
+   },
+   {
+    "port": "U1_usb",
+    "from": [
+     35.024,
+     67.05,
+     8.026
+    ],
+    "to": [
+     35.024,
+     72.1,
+     8.026
+    ],
+    "hit": false
+   },
+   {
+    "port": "U1_usb",
+    "from": [
+     29,
+     67.05,
+     14.35
+    ],
+    "to": [
+     29,
+     72.1,
+     14.35
+    ],
+    "hit": false
+   },
+   {
+    "port": "U1_usb",
+    "from": [
+     29,
+     67.05,
+     7.85
+    ],
+    "to": [
+     29,
+     72.1,
+     7.85
+    ],
+    "hit": false
+   },
+   {
+    "port": "U1_usb",
+    "from": [
+     35.2,
+     67.05,
+     11.1
+    ],
+    "to": [
+     35.2,
+     72.1,
+     11.1
+    ],
+    "hit": false
+   },
+   {
+    "port": "U1_usb",
+    "from": [
+     22.8,
+     67.05,
+     11.1
+    ],
+    "to": [
+     22.8,
+     72.1,
+     11.1
+    ],
+    "hit": false
+   }
+  ],
+  "clearance": {
+   "U1_usb": 0.291
+  },
+  "size": [
+   68.05,
+   72.2,
+   18.7
+  ],
+  "ms": 487,
+  "ok": true,
+  "summary": {
+   "usb_clearance_mm": 0.291,
+   "button_gap_mm": 0.3,
+   "snap_strain_pct": 1.67,
+   "case_mm": [
+    68.05,
+    72.2,
+    18.7
+   ]
+  },
+  "version": 1,
+  "board_name": "Ночник с датчиком движения"
+ }
+}

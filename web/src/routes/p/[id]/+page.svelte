@@ -12,7 +12,7 @@
   import MeshOpsPanel from '$lib/components/MeshOpsPanel.svelte';
   import ChecksPanel from '$lib/components/ChecksPanel.svelte';
   import PrintPanel from '$lib/components/PrintPanel.svelte';
-  import GetItPanel from '$lib/components/GetItPanel.svelte';
+  import GetItPanel, { rememberAxoDesign } from '$lib/components/GetItPanel.svelte';
   import MorePanel from '$lib/components/MorePanel.svelte';
   import PcbPanel from '$lib/components/PcbPanel.svelte';
   import SnapHighlight from '$lib/components/SnapHighlight.svelte';
@@ -66,12 +66,21 @@
     const first = takeFirst(id);
     // "Ideas first" from the home page: open the sketches with that text, once (a reload must not start them again)
     const idea = untrack(() => page.url.searchParams.get('ideas'))?.trim();
+    // back from the Axo shop's cart to edit this design (?axo=<design id>): "Update in Axo cart" replaces that line
+    const axo = untrack(() => page.url.searchParams.get('axo'));
+    rememberAxoDesign(id, axo);
     s.load().then(() => {
       // a device has its own workspace: its first message goes along
       if (s.detail?.pack === 'device') {
         if (first) stashFirst(id, first.text, first.files);
         goto(`/d/${id}`, { replaceState: true });
         return;
+      }
+      // remembered for this tab: a reload or Back must not bring back a line an update has replaced since
+      if (axo && !idea) {
+        const u = new URL(location.href);
+        u.searchParams.delete('axo');
+        replaceState(u.pathname + u.search + u.hash, {});
       }
       if (first) s.sendFiles(first.text, first.files);
       // a board project without a 3D model yet: its PCB is the picture

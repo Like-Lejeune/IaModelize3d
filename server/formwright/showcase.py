@@ -6,7 +6,11 @@ measures: the wheel's hole, neck and play on its axle, which its opening message
 circuit once (in the sandboxed PCB worker, keyed by the circuit and the worker bundle) and keeps the whole version
 under data/files/examples/pcb; every project opened from it gets a copy of that version and a case made from its board.
 Its circuit is its own (XIAO_CARRIER), not the designer's reference board: the agent learns from a different board
-(agent/pcb_prompt.EXAMPLE), so a XIAO brief gets designed rather than copied."""
+(agent/pcb_prompt.EXAMPLE), so a XIAO brief gets designed rather than copied.
+
+The device examples are finished runs of the device pack, kept in the repo as they ended (example_devices/<key>, written
+by scripts/device_example.py): nothing is built again, a project opened from one gets the run's document, board and case
+under the numbers they had, and opens in the device studio."""
 from __future__ import annotations
 
 import asyncio
@@ -15,6 +19,7 @@ import hashlib
 import json
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 from . import storage
@@ -308,8 +313,27 @@ if elec_tools:
         log.exception("showcase: the board examples could not be made")
         PICO_W = PICO_W_CASE = XIAO_CASE = XIAO_COVER = None
 
+DEVICES_DIR = Path(__file__).resolve().parent / "example_devices"
+
+
+def _device_run(key: str) -> dict[str, Any] | None:
+    """A kept run (scripts/device_example.py), None without one or without the electronics modules: its card stays off."""
+    if not elec_tools:
+        return None
+    try:
+        return json.loads((DEVICES_DIR / key / "example.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.warning("device example %s is not there: %s", key, e)
+        return None
+
+
+def _device_example(key: str, **card: Any) -> dict[str, Any]:
+    run = _device_run(key)
+    return {"key": f"device-{key}", "device": key, "pack": "device", "source": run and run["program"]["source"], **card}
+
+
 # Order is the order on the home page (two rows of three): the spare part first, since that is what the Axo farm prints
-# for people, then the striking forms, the boards and an everyday fit.
+# for people, then the striking forms, the boards and an everyday fit. The device examples show under the device mode.
 EXAMPLES: list[dict[str, Any]] = [e for e in [
     {
         "key": "rack-wheel", "source": RACK_WHEEL, "pack": "household", "fit": {"axle": "axle", "diameter": "diameter", "width": "width"},
@@ -356,6 +380,52 @@ EXAMPLES: list[dict[str, Any]] = [e for e in [
         "caption": {"en": "Lean angle and slot for your phone and case", "ru": "Наклон и паз под ваш телефон в чехле"},
         "prompt": {"en": "A desk stand for my phone in a case, leaning at about 68°", "ru": "Подставка на стол для телефона в чехле, наклон около 68°"},
     },
+    _device_example(
+        "weather",
+        title={"en": "Home weather station", "ru": "Домашняя метеостанция"},
+        caption={"en": "BME280 and an OLED, readings over Wi-Fi: board, case and firmware", "ru": "BME280 и OLED, показания по Wi-Fi: плата, корпус и прошивка"},
+        prompt={"en": "Make a device: a home weather station with an OLED display and Wi-Fi.", "ru": "Сделай устройство: домашняя метеостанция с OLED-дисплеем и Wi-Fi."},
+        intro={"en": "This is a ready example, a finished run of the agent. A BME280 on a 46x50 mm board with a XIAO ESP32-C3, a 0.96 inch OLED, a status LED and a "
+                     "page button; the readings show on the display (two pages) and on a Wi-Fi web page. A soft desk case, 56x56x15.5 mm, with a display window, a "
+                     "button tab and the USB-C port. It runs from a USB charger, and you add your Wi-Fi name and password to the firmware. The firmware ran on a "
+                     "virtual board (8 scenarios), not on real hardware. Open the Schematic, Board, Case and Firmware tabs, or tell me what to change.",
+               "ru": "Это готовый пример, завершённый запуск агента. BME280 на плате 46x50 мм с XIAO ESP32-C3, OLED 0,96 дюйма, светодиод статуса и кнопка страниц; "
+                     "показания видны на экране (две страницы) и на веб-странице по Wi-Fi. Мягкий настольный корпус 56x56x15,5 мм с окном экрана, толкателем кнопки "
+                     "и разъёмом USB-C. Питание от USB-зарядки, имя и пароль Wi-Fi вы добавляете в прошивку. Прошивка прошла на виртуальной плате (8 сценариев), на "
+                     "реальном железе не проверялась. Откройте вкладки «Схема», «Плата», «Корпус» и «Прошивка» или напишите, что поменять."},
+    ),
+    _device_example(
+        "plant",
+        title={"en": "Houseplant soil moisture stake", "ru": "Датчик влажности для цветка"},
+        caption={"en": "A stake in the pot, an OLED hint, weeks on a LiPo with deep sleep", "ru": "Колышек в горшок, подсказка на OLED, недели на LiPo с глубоким сном"},
+        prompt={"en": "Make a device: a soil moisture sensor for a potted houseplant.", "ru": "Сделай устройство: датчик влажности почвы для комнатного цветка."},
+        intro={"en": "This is a ready example, a finished run of the agent. A capacitive probe in the soil, a 0.96 inch OLED with the percentage and a hint (WATER ME, ok, "
+                     "too wet) and a button on a XIAO ESP32-C3, with a 500 mAh LiPo charged over USB-C. The board is 46x58 mm, the soft case 126x68x23 mm with its soil "
+                     "stake, a display window and a cable exit for the probe. It wakes on the button or every 10 minutes; on the virtual board (8 scenarios) it draws "
+                     "0.064 mA asleep and, left alone, the cell lasts about 16 days. Not tried on real hardware, and you calibrate the dry and wet values in your own "
+                     "soil. Open the Schematic, Board, Case and Firmware tabs, or tell me what to change.",
+               "ru": "Это готовый пример, завершённый запуск агента. Ёмкостный щуп в земле, OLED 0,96 дюйма с процентами и подсказкой (WATER ME, ok, too wet) и кнопка на "
+                     "XIAO ESP32-C3, питание от LiPo 500 мА·ч с зарядкой по USB-C. Плата 46x58 мм, мягкий корпус 126x68x23 мм с колышком, окном экрана и выходом кабеля "
+                     "щупа. Просыпается по кнопке или раз в 10 минут; на виртуальной плате (8 сценариев) потребляет 0,064 мА во сне, и без действий аккумулятора хватает "
+                     "примерно на 16 дней. На реальном железе не проверялся, значения «сухо» и «влажно» нужно откалибровать в своей почве. Откройте вкладки «Схема», "
+                     "«Плата», «Корпус» и «Прошивка» или напишите, что поменять."},
+    ),
+    _device_example(
+        "timer",
+        title={"en": "Kitchen timer", "ru": "Кухонный таймер"},
+        caption={"en": "Big digits, three buttons, a loud buzzer, months on a LiPo", "ru": "Крупные цифры, три кнопки, громкая пищалка, месяцы на LiPo"},
+        prompt={"en": "Make a device: a kitchen timer.", "ru": "Сделай устройство: кухонный таймер."},
+        intro={"en": "This is a ready example, a finished run of the agent. A XIAO ESP32-C3 with a 0.96 inch OLED showing big MM:SS, three buttons (start/stop, +, -), an "
+                     "active 3 V buzzer behind a transistor with a flyback diode, a flashing LED and a 500 mAh LiPo charged over USB-C. The board is 76x72 mm, the snap-fit "
+                     "case 104x81x15.5 mm with a tilt stand, a display window, a buzzer grille and three press tabs. It sleeps after 60 s and wakes on any button; on the "
+                     "virtual board (11 scenarios) it draws 0.064 mA asleep and, left alone, the cell lasts about 4 months. Not tried on real hardware. Open the "
+                     "Schematic, Board, Case and Firmware tabs, or tell me what to change.",
+               "ru": "Это готовый пример, завершённый запуск агента. XIAO ESP32-C3 с OLED 0,96 дюйма и крупными цифрами ММ:СС, три кнопки (старт/стоп, +, -), активная "
+                     "пищалка 3 В через транзистор с защитным диодом, мигающий светодиод и LiPo 500 мА·ч с зарядкой по USB-C. Плата 76x72 мм, корпус на защёлках "
+                     "104x81x15,5 мм с подставкой, окном экрана, решёткой пищалки и тремя толкателями. Засыпает через 60 с и просыпается от любой кнопки; на виртуальной "
+                     "плате (11 сценариев) потребляет 0,064 мА во сне, и без действий аккумулятора хватает примерно на 4 месяца. На реальном железе не проверялся. "
+                     "Откройте вкладки «Схема», «Плата», «Корпус» и «Прошивка» или напишите, что поменять."},
+    ),
 ] if e["source"]]
 BY_KEY = {e["key"]: e for e in EXAMPLES}
 
@@ -504,6 +574,8 @@ async def prepared(ex: dict[str, Any]) -> dict[str, Any] | None:
     from it gets them as its program's inputs."""
     from .geom import GeomError, geom
 
+    if ex.get("device"):
+        return _prepared_device(ex)
     if ex.get("circuit"):
         return await _prepared_pcb(ex)
     meta = storage.abs_path(f"examples/covers/{_stem(ex)}.json")
@@ -577,6 +649,32 @@ async def _prepared_pcb(ex: dict[str, Any]) -> dict[str, Any] | None:
         return out
 
 
+def _prepared_device(ex: dict[str, Any]) -> dict[str, Any] | None:
+    """A device example: the kept run's program as it ended, its cover copied to where the site serves covers from."""
+    run = _device_run(ex["device"])
+    if not run:
+        return None
+    name = f"{_stem(ex)}.png"
+    cover = f"examples/covers/{name}"
+    if not storage.abs_path(cover).exists():
+        cover = storage.save_bytes("examples", "covers", name, (DEVICES_DIR / ex["device"] / "cover.png").read_bytes())
+    p = run["program"]
+    return {"cover": cover, "version": p["version"], "params": p["params"], "inputs": p["inputs"], "checks": p["checks"]}
+
+
+async def add_device(project_id: str, ex: dict[str, Any]) -> None:
+    """The kept run's document and board in a project opened from its example, under the numbers they had."""
+    from . import device_store, pcb_store
+
+    run = _device_run(ex["device"])
+    if not run:
+        raise ValueError(f"device example {ex['device']} is not there")
+    d, b = run["doc"], run["pcb"]
+    await device_store.add_version(project_id, d["version"], d["doc"], author="example", summary=d["summary"])
+    files: dict[str, bytes | str] = {n: (DEVICES_DIR / ex["device"] / n).read_bytes() for n in b["files"]}
+    await pcb_store.add(project_id, {"source": b["source"], "intent": b["intent"], "checks": b["checks"], "files": files}, version=b["version"])
+
+
 async def add_pcb(project_id: str, ready: dict[str, Any]) -> int:
     """The PCB example's routed board as the next PCB version of a project opened from it: the cached files are copied,
     nothing is routed again. Returns the version (1 in a new project, which is what the case's board.json names)."""
@@ -590,6 +688,8 @@ async def add_pcb(project_id: str, ready: dict[str, Any]) -> int:
 
 def intro(ex: dict[str, Any], ready: dict[str, Any], lang: str) -> str:
     """The studio's first agent message in a project opened from an example."""
+    if ex.get("device"):
+        return ex["intro"][lang]
     p = ready.get("pcb")
     if ready.get("fit"):
         return _intro_part(ready["fit"], ready["params"], ex, lang) or INTRO[lang]
