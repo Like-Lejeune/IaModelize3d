@@ -1,6 +1,7 @@
 # Formwright
 
 [![Live app](https://img.shields.io/badge/live_app-formwright.axo.kz-a6c84b?style=flat-square)](https://formwright.axo.kz)
+[![Video](https://img.shields.io/badge/video-YouTube-FF0000?style=flat-square&logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=yIW7dZEq8gQ)
 [![Real runs](https://img.shields.io/badge/watch-real_runs-a6c84b?style=flat-square)](https://formwright.axo.kz/replays)
 [![Meta models](https://img.shields.io/badge/Meta_models-Muse_Spark_%C2%B7_Wonder_%C2%B7_SAM_3.1-0866FF?style=flat-square)](#meta-models)
 [![Hackathon](https://img.shields.io/badge/hackathon-Meta_Global_AI_Developer-555?style=flat-square)](#built-during-the-hackathon)
@@ -28,7 +29,7 @@ agent writes a short parametric program, a geometry kernel builds it, and a slic
 A printed part also passes an independent critic. A device has to pass electrical and design rules, and its firmware
 runs against its own circuit on a virtual board; the model's "done" is not accepted until those checks are.
 
-**[Live app](https://formwright.axo.kz)** · **[Watch real runs](https://formwright.axo.kz/replays)** · Startups track ·
+**[Live app](https://formwright.axo.kz)** · **[Video](https://www.youtube.com/watch?v=yIW7dZEq8gQ)** · **[Watch real runs](https://formwright.axo.kz/replays)** · Startups track ·
 Push the Frontier · Built 27 Oct – 4 Nov 2026 for the Meta Global AI Developer Hackathon
 
 ## One real run
