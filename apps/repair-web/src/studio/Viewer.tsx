@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { BuildResult } from "../geom/types";
+import { useLang, type Lang } from "../i18n";
 
 const PART = new THREE.Color("#4f7cac");
 const HOT = new THREE.Color("#f2b705");
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export default function Viewer({ build, busy }: Props) {
+  const { lang, tr } = useLang();
   const host = useRef<HTMLDivElement>(null);
   const three = useRef<{ renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls; model: THREE.Group; framed: boolean } | null>(null);
   const [heat, setHeat] = useState(false);
@@ -146,30 +148,30 @@ export default function Viewer({ build, busy }: Props) {
     t.framed = true;
   }
 
-  const size = build ? sizeOf(build) : null;
+  const size = build ? sizeOf(build, lang) : null;
 
   return (
     <div className="viewer">
-      <div ref={host} className="viewer-canvas" role="img" aria-label={build ? `Modèle 3D${size ? `, ${size}` : ""}` : "Aucun modèle pour l'instant"} />
-      {noGl && <p className="viewer-empty">Votre navigateur n'affiche pas la 3D (WebGL désactivé).</p>}
-      {!build && !noGl && <p className="viewer-empty">{busy ? "Le modèle se construit…" : "Le modèle apparaîtra ici dès que l'IA aura une première version."}</p>}
+      <div ref={host} className="viewer-canvas" role="img" aria-label={build ? `${tr("Modèle 3D", "3D model")}${size ? `, ${size}` : ""}` : tr("Aucun modèle pour l'instant", "No model yet")} />
+      {noGl && <p className="viewer-empty">{tr("Votre navigateur n'affiche pas la 3D (WebGL désactivé).", "Your browser cannot show 3D (WebGL is off).")}</p>}
+      {!build && !noGl && <p className="viewer-empty">{busy ? tr("Le modèle se construit…", "Building the model…") : tr("Le modèle apparaîtra ici dès que l'IA aura une première version.", "The model will show here as soon as the AI has a first version.")}</p>}
       {build && (
         <div className="viewer-bar">
           {size && <span className="viewer-size">{size}</span>}
-          <button type="button" className="btn quiet small" onClick={frame}>Recentrer</button>
-          <button type="button" className={`btn small ${heat ? "" : "quiet"}`} aria-pressed={heat} onClick={() => setHeat(!heat)}>Porte-à-faux</button>
-          {busy && <span className="viewer-busy">Mise à jour…</span>}
+          <button type="button" className="btn quiet small" onClick={frame}>{tr("Recentrer", "Recenter")}</button>
+          <button type="button" className={`btn small ${heat ? "" : "quiet"}`} aria-pressed={heat} onClick={() => setHeat(!heat)}>{tr("Porte-à-faux", "Overhangs")}</button>
+          {busy && <span className="viewer-busy">{tr("Mise à jour…", "Updating…")}</span>}
         </div>
       )}
     </div>
   );
 }
 
-function sizeOf(b: BuildResult): string | null {
+function sizeOf(b: BuildResult, lang: Lang): string | null {
   const parts = b.parts.filter((p) => p.role === "model" || !p.role);
   if (!parts.length) return null;
   const min = [0, 1, 2].map((i) => Math.min(...parts.map((p) => p.bbox.min[i])));
   const max = [0, 1, 2].map((i) => Math.max(...parts.map((p) => p.bbox.max[i])));
-  const nf = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+  const nf = new Intl.NumberFormat(lang === "fr" ? "fr-FR" : "en-GB", { maximumFractionDigits: 1 });
   return `${nf.format(max[0] - min[0])} × ${nf.format(max[1] - min[1])} × ${nf.format(max[2] - min[2])} mm`;
 }

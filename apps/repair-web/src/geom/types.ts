@@ -11,6 +11,8 @@ export interface ParamSpec {
   step?: number;
   options?: string[];
   label?: string;
+  label_en?: string; // the English label, when the program gives one
+  group_en?: string;
   unit?: string;
   source?: string;
   group?: string;

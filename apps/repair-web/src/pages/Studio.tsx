@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Conversation from "../studio/Conversation";
 import { OrderPanel, ParamsPanel, VersionsPanel } from "../studio/Panels";
+import { useLang } from "../i18n";
 import { useStudio } from "../studio/store";
 import Viewer from "../studio/Viewer";
 
@@ -9,6 +10,7 @@ type Side = "params" | "versions" | "order";
 type Pane = "chat" | "model" | "side"; // on a phone, one pane at a time
 
 export default function Studio() {
+  const { tr } = useLang();
   const { id = "" } = useParams();
   const store = useStudio(id);
   const [side, setSide] = useState<Side>("params");
@@ -18,52 +20,52 @@ export default function Studio() {
   if (store.loadError) {
     return (
       <main className="narrow">
-        <h1>Projet introuvable</h1>
+        <h1>{tr("Projet introuvable", "Project not found")}</h1>
         <p>{store.loadError}</p>
-        <Link to="/">Créer un nouvel objet</Link>
+        <Link to="/">{tr("Créer un nouvel objet", "Create a new object")}</Link>
       </main>
     );
   }
-  const title = store.build?.meta?.title || d?.title || "Nouvel objet";
+  const title = store.build?.meta?.title || d?.title || tr("Nouvel objet", "New object");
   const issues = (store.checks?.issues ?? []).filter((i) => i.severity !== "info");
 
   return (
     <div className="studio" data-pane={pane}>
       <div className="studio-head">
         <h1>{title}</h1>
-        <span className="help">{store.version ? `Version ${store.version}` : "Pas encore de modèle"}</span>
+        <span className="help">{store.version ? `Version ${store.version}` : tr("Pas encore de modèle", "No model yet")}</span>
         <div className="studio-tools">
-          {store.build && <button type="button" className="btn quiet small" onClick={() => store.exportStl(title)}>Télécharger le STL</button>}
+          {store.build && <button type="button" className="btn quiet small" onClick={() => store.exportStl(title)}>{tr("Télécharger le STL", "Download the STL")}</button>}
         </div>
       </div>
-      <nav className="studio-tabs" aria-label="Volets du studio">
+      <nav className="studio-tabs" aria-label={tr("Volets du studio", "Studio panes")}>
         {(["chat", "model", "side"] as Pane[]).map((p) => (
           <button key={p} type="button" aria-pressed={pane === p} onClick={() => setPane(p)}>
-            {p === "chat" ? "Discussion" : p === "model" ? "Modèle 3D" : "Réglages"}
+            {p === "chat" ? tr("Discussion", "Chat") : p === "model" ? tr("Modèle 3D", "3D model") : tr("Réglages", "Settings")}
           </button>
         ))}
       </nav>
 
-      <section className="studio-chat" aria-label="Discussion avec l'IA">
+      <section className="studio-chat" aria-label={tr("Discussion avec l'IA", "Chat with the AI")}>
         <Conversation store={store} />
       </section>
 
-      <section className="studio-model" aria-label="Modèle 3D">
+      <section className="studio-model" aria-label={tr("Modèle 3D", "3D model")}>
         <Viewer build={store.build} busy={store.building} />
-        {store.buildError && <p className="alert error viewer-alert">Le modèle ne se construit pas : {store.buildError}</p>}
+        {store.buildError && <p className="alert error viewer-alert">{tr("Le modèle ne se construit pas :", "The model does not build:")} {store.buildError}</p>}
         {issues.length > 0 && (
           <details className="checks">
-            <summary>{issues.length} point{issues.length > 1 ? "s" : ""} à surveiller pour l'impression</summary>
+            <summary>{tr(`${issues.length} point${issues.length > 1 ? "s" : ""} à surveiller pour l'impression`, `${issues.length} thing${issues.length > 1 ? "s" : ""} to watch for printing`)}</summary>
             <ul>{issues.slice(0, 8).map((i, n) => <li key={n} className={i.severity}>{i.message}</li>)}</ul>
           </details>
         )}
       </section>
 
-      <aside className="studio-side" aria-label="Réglages, versions et commande">
+      <aside className="studio-side" aria-label={tr("Réglages, versions et commande", "Settings, versions and order")}>
         <div className="side-tabs" role="tablist">
           {(["params", "versions", "order"] as Side[]).map((s) => (
             <button key={s} role="tab" type="button" aria-selected={side === s} onClick={() => setSide(s)}>
-              {s === "params" ? "Réglages" : s === "versions" ? `Versions${store.versions.length ? ` (${store.versions.length})` : ""}` : "Commander"}
+              {s === "params" ? tr("Réglages", "Settings") : s === "versions" ? `Versions${store.versions.length ? ` (${store.versions.length})` : ""}` : tr("Commander", "Order")}
             </button>
           ))}
         </div>

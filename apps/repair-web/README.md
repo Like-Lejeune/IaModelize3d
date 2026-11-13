@@ -1,9 +1,21 @@
-# Atelier 3D — front React + TypeScript
+# IaModelize3d — front React + TypeScript
 
 Un studio de conception d'objets imprimés en 3D, sur le moteur IaModelize3d. La personne décrit ce qu'elle veut
 créer (ou montre une pièce en photo), l'IA lui pose les questions utiles, dessine un modèle paramétrique, et la
 personne l'ajuste elle-même (réglages, versions) ou en demandant une modification dans la discussion. Ensuite elle
 le télécharge en STL ou le fait imprimer par l'atelier : prix en FCFA, Mobile Money, suivi de la commande.
+
+## Langues : français et anglais
+
+- Le sélecteur **FR / EN** est dans l'en-tête. Au premier passage, la langue suit celle du navigateur (anglais si le
+  navigateur est en anglais, français sinon) ; le choix est ensuite gardé sur l'appareil (`localStorage`,
+  clé `iamodelize3d.lang`).
+- `src/i18n.tsx` : la langue courante (`useLang()` donne `lang` et `tr(fr, en)`), le sélecteur `LangSwitch`.
+- `src/texts.ts` : les textes partagés dans les deux langues (statuts, livraison, matières, journal de la commande,
+  messages d'erreur), les montants et les dates au format de la langue.
+- Les réglages d'un modèle affichent `label_en` / `group_en` en anglais quand le programme les donne.
+- L'IA répond dans la langue du message, quelle que soit la langue de l'interface. La démo sans clé fait de même
+  (français ou anglais).
 
 ## Pages
 

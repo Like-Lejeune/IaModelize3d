@@ -7,7 +7,8 @@ played by stand-ins, so the React front (apps/repair-web) can be tried end to en
 In the studio (/studio/<id>), the designer agent is played too (scripts/demo_designs.py): it picks one of five real
 parametric models from the words of the request (a box, a stand, a wall hook, a knob, a pot), asks its first question
 when no size was given, and reads a change asked in the chat with keywords ("plus haut", "largeur 90 mm", "plus
-solide"...). The model is built in the browser by the real geometry kernel, the sliders and versions are real.
+solide", "taller", "width 90 mm", "stronger"...). It answers in French or in English, the language of the message.
+The model is built in the browser by the real geometry kernel, the sliders and versions are real.
 
 What is played in the shop: the intake (a French reading of the request; a request that mentions gas is refused, one that says
 "vérifier" is held for the workshop), the designer (a version appears about 8 s later), the slicer (fixed grams and
@@ -44,7 +45,7 @@ from iamodelize3d.shop.intake import combine  # noqa: E402
 from iamodelize3d.agent import loop as agent_loop  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from demo_designs import DESIGNS, adjust, defaults, pick  # noqa: E402
+from demo_designs import DESIGNS, adjust, defaults, key_of, lang_of, option_values, options, pick, source  # noqa: E402
 
 DESIGN_SECONDS = 8.0
 FARM = ("org_demo_atelier", "Atelier de démonstration")
@@ -129,6 +130,41 @@ async def _save_version(ctx, source: str, params: dict[str, Any], summary: str, 
     return version
 
 
+# what the played designer says, in the request's language
+SAY = {
+    "fr": {
+        "reading": "Je lis votre demande…", "precision": "Une précision avant de dessiner.", "drawing": "Je dessine une première version.",
+        "written": "modèle paramétrique écrit", "looked": "vérifié sous six angles", "printable": "imprimable sans support",
+        "first": "Première version", "resume": "Je reprends le modèle.", "nothing": "rien à changer", "changed": "Modifié : ",
+        "intro": ("Voici une première version ({title}). Ajustez les cotes dans « Réglages » : le modèle se met à jour "
+                  "tout de suite. Vous pouvez aussi me demander une modification, par exemple « plus haut », « largeur 90 mm » "
+                  "ou « plus solide »."),
+        "unclear": ("Je n'ai pas trouvé quoi changer dans ce message (cette démonstration ne comprend que des demandes simples : "
+                    "« plus grand », « plus haut », « hauteur 60 mm », « plus solide », « coins arrondis »...). "
+                    "Les réglages à droite permettent aussi d'ajuster chaque cote."),
+        "done": "C'est fait : {what}. La version {version} est affichée.",
+    },
+    "en": {
+        "reading": "Reading your request…", "precision": "One detail before drawing.", "drawing": "Drawing a first version.",
+        "written": "parametric model written", "looked": "checked from six angles", "printable": "prints without supports",
+        "first": "First version", "resume": "Picking the model up again.", "nothing": "nothing to change", "changed": "Changed: ",
+        "intro": ("Here is a first version ({title}). Adjust the dimensions under \"Settings\": the model updates right away. "
+                  "You can also ask me for a change, for example \"taller\", \"width 90 mm\" or \"stronger\"."),
+        "unclear": ("I could not find what to change in this message (this demo only understands simple requests: \"bigger\", "
+                    "\"taller\", \"height 60 mm\", \"stronger\", \"rounded corners\"...). The settings on the right also "
+                    "adjust each dimension."),
+        "done": "Done: {what}. Version {version} is on screen.",
+    },
+}
+
+
+async def _language(ctx, text: str) -> str:
+    """The message's language; a message with no telling words (a number, an option) keeps the project's first one."""
+    db = await get_db()
+    first = await db.one("SELECT text FROM messages WHERE project_id = ? AND role = 'user' ORDER BY created_at LIMIT 1", ctx.project_id)
+    return lang_of(text, lang_of(f"{(first or {}).get('text') or ''} {ctx.project.get('title') or ''}"))
+
+
 async def _step(ctx, name: str, summary: str, seconds: float = 1.2) -> None:
     tid = new_id("t_")
     await ctx.emit("tool.call", {"id": tid, "name": name})
@@ -136,55 +172,49 @@ async def _step(ctx, name: str, summary: str, seconds: float = 1.2) -> None:
     await ctx.emit("tool.result", {"id": tid, "name": name, "ok": True, "summary": summary})
 
 
-def _key_of(source: str) -> str:
-    return next((k for k, d in DESIGNS.items() if d["source"].strip() == source.strip()), "box")
-
-
 async def demo_design(ctx, body) -> str:
     db = await get_db()
     text = body.text or ""
     prog = await db.one("SELECT * FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", ctx.project_id)
+    lang = await _language(ctx, text)
+    say = SAY[lang]
     if not prog:
-        await ctx.status("Je lis votre demande…")
+        await ctx.status(say["reading"])
         await asyncio.sleep(1.0)
         key = pick(f"{text} {ctx.project.get('title') or ''}")
         d = DESIGNS[key]
         values = defaults(key)
         said: list[str] = []
         if any(ch.isdigit() for ch in text):
-            values, said = adjust(key, values, text)
+            values, said = adjust(key, values, text, lang)
         else:
-            await ctx.status("Une précision avant de dessiner.")
-            answer = await ctx.ask(d["ask"], list(d["options"]), True, timeout=900)
-            if answer in d["options"]:
-                values.update(d["options"][answer])
+            await ctx.status(say["precision"])
+            answer = await ctx.ask(d["ask"][lang], options(key, lang), True, timeout=900)
+            picked = option_values(key, answer) if answer else None
+            if picked is not None:
+                values.update(picked)
                 said.append(answer)
             elif answer:
-                values, said = adjust(key, values, answer)
-        await ctx.status("Je dessine une première version.")
-        await _step(ctx, "write_program", "modèle paramétrique écrit", 2.0)
-        await _step(ctx, "look", "vérifié sous six angles", 1.2)
-        await _step(ctx, "finish", "imprimable sans support", 1.0)
-        title = d["source"].split("title: '")[1].split("'")[0]
-        version = await _save_version(ctx, d["source"], values, f"Première version{f' : {said[0]}' if said else ''}", title)
-        await ctx.emit("agent.message", {"text": (
-            f"Voici une première version ({title.lower()}). Ajustez les cotes dans « Réglages » : le modèle se met à jour "
-            "tout de suite. Vous pouvez aussi me demander une modification, par exemple « plus haut », « largeur 90 mm » "
-            "ou « plus solide ».")})
+                values, said = adjust(key, values, answer, lang_of(answer, lang))
+        await ctx.status(say["drawing"])
+        await _step(ctx, "write_program", say["written"], 2.0)
+        await _step(ctx, "look", say["looked"], 1.2)
+        await _step(ctx, "finish", say["printable"], 1.0)
+        title = d["title"][lang]
+        sep = " : " if lang == "fr" else ": "
+        version = await _save_version(ctx, source(key, lang), values, f"{say['first']}{f'{sep}{said[0]}' if said else ''}", title)
+        await ctx.emit("agent.message", {"text": say["intro"].format(title=title.lower())})
         return f"version {version}"
-    key = _key_of(prog["source"])
-    await ctx.status("Je reprends le modèle.")
+    key = key_of(prog["source"])
+    await ctx.status(say["resume"])
     await asyncio.sleep(0.8)
-    values, said = adjust(key, prog["params"] or {}, text)
+    values, said = adjust(key, prog["params"] or {}, text, lang)
     if not said:
-        await ctx.emit("agent.message", {"text": (
-            "Je n'ai pas trouvé quoi changer dans ce message (cette démonstration ne comprend que des demandes simples : "
-            "« plus grand », « plus haut », « hauteur 60 mm », « plus solide », « coins arrondis »...). "
-            "Les réglages à droite permettent aussi d'ajuster chaque cote.")})
-        return "rien à changer"
+        await ctx.emit("agent.message", {"text": say["unclear"]})
+        return say["nothing"]
     await _step(ctx, "edit_program", ", ".join(said), 1.5)
-    version = await _save_version(ctx, prog["source"], values, "Modifié : " + ", ".join(said))
-    await ctx.emit("agent.message", {"text": f"C'est fait : {', '.join(said)}. La version {version} est affichée."})
+    version = await _save_version(ctx, prog["source"], values, say["changed"] + ", ".join(said))
+    await ctx.emit("agent.message", {"text": say["done"].format(what=", ".join(said), version=version)})
     return f"version {version}"
 
 

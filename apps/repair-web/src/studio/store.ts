@@ -3,10 +3,14 @@
 // React (useStudio below); a simplified port of web/src/lib/project.svelte.ts (IaModelize3d).
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { ApiError } from "../api";
+import { currentLang } from "../i18n";
 import { GeomClient } from "../geom/client";
 import type { BuildResult, CheckReport, EventRow, ParamSpec, ProjectDetail, VersionRow } from "../geom/types";
 import { projects } from "./api";
 import { streamEvents, type EventStream } from "./sse";
+
+// messages built outside React follow the language chosen in the header
+const t = (fr: string, en: string) => (currentLang === "fr" ? fr : en);
 
 type Base = { key: string; ts: number; job?: string | null };
 export type Item =
@@ -112,7 +116,7 @@ export class StudioStore {
       this.stream = streamEvents(this.id, 0, (e) => this.onEvent(e));
       this.loadVersions();
     } catch (e) {
-      this.loadError = e instanceof ApiError && e.status === 404 ? "Ce projet n'existe pas ou n'est pas à vous." : "Le projet n'a pas pu être chargé.";
+      this.loadError = e instanceof ApiError && e.status === 404 ? t("Ce projet n'existe pas ou n'est pas à vous.", "This project does not exist or is not yours.") : t("Le projet n'a pas pu être chargé.", "The project could not be loaded.");
       this.changed();
     }
   }
@@ -264,13 +268,13 @@ export class StudioStore {
     if (rev !== this.rev || this.disposed) return;
     this.building = false;
     if (r.ok) this.checks = r.checks;
-    else if ((r as any).stage !== "superseded") this.buildError = (r as any).message ?? "La construction du modèle a échoué.";
+    else if ((r as any).stage !== "superseded") this.buildError = (r as any).message ?? t("La construction du modèle a échoué.", "Building the model failed.");
     this.changed();
   }
 
   private took(r: BuildResult | { ok: false; stage?: string; message?: string }) {
     if (!r.ok) {
-      if (r.stage !== "superseded") this.buildError = r.message ?? "La construction du modèle a échoué.";
+      if (r.stage !== "superseded") this.buildError = r.message ?? t("La construction du modèle a échoué.", "Building the model failed.");
       this.building = false;
       this.changed();
       return;
@@ -317,7 +321,7 @@ export class StudioStore {
       this.saveError = null;
       void this.loadVersions();
     } catch (e) {
-      this.saveError = e instanceof ApiError ? e.message : "Le réglage n'a pas pu être enregistré.";
+      this.saveError = e instanceof ApiError ? e.message : t("Le réglage n'a pas pu être enregistré.", "The setting could not be saved.");
     } finally {
       this.saving = false;
       this.changed();
@@ -341,9 +345,9 @@ export class StudioStore {
     } catch (e) {
       const a = e as ApiError;
       const text =
-        a.code === "job_running" ? "L'IA travaille déjà sur ce projet. Attendez la fin ou arrêtez-la."
-        : a.status === 429 ? "La limite d'utilisation du jour est atteinte. Réessayez demain."
-        : a.message || "Le message n'a pas pu être envoyé.";
+        a.code === "job_running" ? t("L'IA travaille déjà sur ce projet. Attendez la fin ou arrêtez-la.", "The AI is already working on this project. Wait for it to finish or stop it.")
+        : a.status === 429 ? t("La limite d'utilisation du jour est atteinte. Réessayez demain.", "Today's usage limit is reached. Try again tomorrow.")
+        : a.message || t("Le message n'a pas pu être envoyé.", "The message could not be sent.");
       this.push({ kind: "error", key: `err${Date.now()}`, ts: Date.now() / 1000, text, code: a.code });
     } finally {
       this.sending = false;
@@ -356,7 +360,7 @@ export class StudioStore {
       await projects.answer(item.jobId, text);
       this.items = this.items.map((x) => (x.key === item.key ? { ...item, answered: text } : x));
     } catch {
-      this.push({ kind: "error", key: `err${Date.now()}`, ts: Date.now() / 1000, text: "La réponse n'a pas pu être envoyée." });
+      this.push({ kind: "error", key: `err${Date.now()}`, ts: Date.now() / 1000, text: t("La réponse n'a pas pu être envoyée.", "The answer could not be sent.") });
     }
     this.changed();
   }
@@ -381,7 +385,7 @@ export class StudioStore {
     this.values = { ...p.params };
     this.changed();
     await this.rebuild("final");
-    const r = await projects.saveProgram(this.id, { source: p.source, params: p.params, summary: `version ${version} restaurée`, client: this.clientId });
+    const r = await projects.saveProgram(this.id, { source: p.source, params: p.params, summary: t(`version ${version} restaurée`, `version ${version} restored`), client: this.clientId });
     this.version = r.version;
     void this.loadVersions();
     this.changed();

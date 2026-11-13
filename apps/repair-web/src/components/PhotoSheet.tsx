@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { useLang } from "../i18n";
 
 interface Props {
   files: File[];
@@ -9,6 +10,7 @@ interface Props {
 /** The drop zone drawn as the A4 sheet the customer puts the part on: the ruler on its edges is what lets the
  *  workshop measure the part in millimetres. */
 export default function PhotoSheet({ files, onChange, max = 6 }: Props) {
+  const { tr } = useLang();
   const id = useId();
   const [over, setOver] = useState(false);
   const urls = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
@@ -34,27 +36,33 @@ export default function PhotoSheet({ files, onChange, max = 6 }: Props) {
           accept="image/*"
           capture="environment"
           multiple
-          aria-label="Ajouter des photos de la pièce"
+          aria-label={tr("Ajouter des photos de la pièce", "Add photos of the part")}
           onChange={(e) => { add(e.target.files); e.target.value = ""; }}
         />
         <div>
-          <strong>Photographiez la pièce sur une feuille A4</strong>
-          <span>Toute la feuille dans le cadre, prise bien d'en haut. Touchez ici ou déposez vos photos.</span>
+          <strong>{tr("Photographiez la pièce sur une feuille A4", "Photograph the part on an A4 sheet")}</strong>
+          <span>{tr(
+            "Toute la feuille dans le cadre, prise bien d'en haut. Touchez ici ou déposez vos photos.",
+            "The whole sheet in the frame, shot from straight above. Tap here or drop your photos.",
+          )}</span>
         </div>
       </div>
       {files.length > 0 && (
         <div className="thumbs">
           {files.map((f, i) => (
             <div className="thumb" key={urls[i]}>
-              <img src={urls[i]} alt={`Photo ${i + 1} : ${f.name}`} />
-              <button type="button" aria-label={`Retirer la photo ${i + 1}`} onClick={() => onChange(files.filter((_, j) => j !== i))}>
+              <img src={urls[i]} alt={`Photo ${i + 1}: ${f.name}`} />
+              <button type="button" aria-label={tr(`Retirer la photo ${i + 1}`, `Remove photo ${i + 1}`)} onClick={() => onChange(files.filter((_, j) => j !== i))}>
                 ×
               </button>
             </div>
           ))}
         </div>
       )}
-      <p className="help">{files.length} / {max} photos. Une vue de dessus suffit souvent ; ajoutez une vue de côté pour une pièce épaisse.</p>
+      <p className="help">{files.length} / {max} photos. {tr(
+        "Une vue de dessus suffit souvent ; ajoutez une vue de côté pour une pièce épaisse.",
+        "A top view is often enough; add a side view for a thick part.",
+      )}</p>
     </div>
   );
 }
