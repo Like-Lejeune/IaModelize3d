@@ -1,4 +1,4 @@
-// Mirrors server/formwright/models.py and the agent's SSE event payloads.
+// Mirrors server/iamodelize3d/models.py and the agent's SSE event payloads.
 
 export interface AssetOut {
   id: string;
@@ -53,7 +53,7 @@ export interface ProjectOut {
   updated_at: number;
 }
 
-/** A ready example on the home page (server/formwright/showcase.py); texts come in both UI languages. */
+/** A ready example on the home page (server/iamodelize3d/showcase.py); texts come in both UI languages. */
 export interface ExampleOut {
   key: string;
   pack: string;
@@ -83,7 +83,7 @@ export interface FeaturedRun {
   featured?: boolean;
 }
 
-/** What a job's meter spent ('cost' and 'job.finished' events, server/formwright/llm/client.py CostMeter). */
+/** What a job's meter spent ('cost' and 'job.finished' events, server/iamodelize3d/llm/client.py CostMeter). */
 export interface JobCost {
   usd: number;
   tokens_in?: number;
@@ -96,7 +96,7 @@ export interface JobCost {
   purposes_by_model?: Record<string, Record<string, number>>; // model id -> purpose -> calls
 }
 
-/** The independent reviewer's verdict on one version ('critic' event, server/formwright/agent/critic.py). */
+/** The independent reviewer's verdict on one version ('critic' event, server/iamodelize3d/agent/critic.py). */
 export interface CriticVerdict {
   verdict?: string; // pass | revise
   match_score?: number | null;
@@ -111,7 +111,7 @@ export interface CriticVerdict {
   note?: string;
 }
 
-/** The hand-over card at the end of a design job ('result' event, server/formwright/agent/loop.py result_card). */
+/** The hand-over card at the end of a design job ('result' event, server/iamodelize3d/agent/loop.py result_card). */
 export interface ResultCard {
   version?: number;
   title?: string;
@@ -220,7 +220,7 @@ export interface CheckReport {
   by?: string;
 }
 
-// ---- electronics: a case around a board (packages/geom/src/enclosure.ts, server/formwright/agent/elec_tools.py)
+// ---- electronics: a case around a board (packages/geom/src/enclosure.ts, server/iamodelize3d/agent/elec_tools.py)
 export type EnclosureCode =
   | 'port_clear' | 'port_blocked' | 'component_clear' | 'board_collision' | 'pcb_seated' | 'button_reach' | 'button_unreachable'
   | 'light_window' | 'lid_fit' | 'snap_strain' | 'metal_in_keepout' | 'keepout_ok' | 'board_retained'
@@ -298,7 +298,7 @@ export interface ScanBox {
   emphasis?: 'strong' | 'normal' | 'dim';
 }
 
-// ---- PCB versions (server/formwright/pcbapi.py, C8)
+// ---- PCB versions (server/iamodelize3d/pcbapi.py, C8)
 export interface PcbCounts {
   components?: number;
   nets?: number;
@@ -455,7 +455,7 @@ export interface Calibration {
   mm_per_px?: number;
 }
 
-// ---- snap & collect (server/formwright/vision/snap.py)
+// ---- snap & collect (server/iamodelize3d/vision/snap.py)
 export interface SnapObject {
   label: string;
   bbox: [number, number, number, number]; // image pixels

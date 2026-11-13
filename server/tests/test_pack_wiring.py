@@ -8,9 +8,9 @@ import sys
 
 import pytest
 
-from formwright.agent import device_inspect, device_tools, elec_tools, examples, loop, pcb_tools, pictures, prompts, tools
-from formwright.config import REPO_DIR
-from formwright.llm.english import is_english
+from iamodelize3d.agent import device_inspect, device_tools, elec_tools, examples, loop, pcb_tools, pictures, prompts, tools
+from iamodelize3d.config import REPO_DIR
+from iamodelize3d.llm.english import is_english
 
 HUB = {t["name"] for t in (tools.WRITE, tools.EDIT, tools.SET_PARAMS, tools.SET_PROCESS, tools.INSPECT, tools.LOOK, tools.DIMENSIONS, tools.ASK, tools.FINISH,
                             tools.MEASURE, tools.FIT, tools.REMEMBER, tools.PROBE, tools.CONCEPTS, tools.TERRAIN, tools.COMPARE_PRINT,
@@ -88,9 +88,9 @@ def test_a_missing_pack_module_takes_only_its_pack_away():
     r = _python(
         "import logging, sys\n"
         "logging.basicConfig(level=logging.ERROR, stream=sys.stdout, format='%(levelname)s %(message)s')\n"
-        "sys.modules['formwright.agent.pcb_tools'] = None\n"
-        "import formwright.app\n"
-        "from formwright.agent import examples, loop, prompts, tools\n"
+        "sys.modules['iamodelize3d.agent.pcb_tools'] = None\n"
+        "import iamodelize3d.app\n"
+        "from iamodelize3d.agent import examples, loop, prompts, tools\n"
         "print('PACKS', sorted(prompts.PACKS))\n"
         "print('PCB', [t['name'] for t in tools.tools_for('pcb', photos=False, prints=False)])\n"
         "print('EXAMPLES', sorted(examples.PACK_EXAMPLES))\n")
@@ -100,8 +100,8 @@ def test_a_missing_pack_module_takes_only_its_pack_away():
     assert "PCB ['write_program'," in r.stdout and "EXAMPLES ['enclosure']" in r.stdout
     r = _python(
         "import sys\n"
-        "sys.modules['formwright.agent.elec_tools'] = None\n"
-        "from formwright.agent import loop, prompts, tools\n"
+        "sys.modules['iamodelize3d.agent.elec_tools'] = None\n"
+        "from iamodelize3d.agent import loop, prompts, tools\n"
         "print('PACKS', sorted(prompts.PACKS))\n"
         "print('ENC', [t['name'] for t in tools.tools_for('enclosure', photos=True, prints=False)])\n")
     assert r.returncode == 0, r.stderr[-2000:]

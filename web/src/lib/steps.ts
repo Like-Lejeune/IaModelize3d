@@ -308,7 +308,7 @@ function enResult(name: string, r: Record<string, any>): string {
 
 // ------------------------------------------------------------------ electronics
 // The board, the case checked against it and the PCB read the same in both languages: built here from the args
-// and the summary (cut at 600 characters, so only its front is sure), the way server/formwright/agent/narrate.py
+// and the summary (cut at 600 characters, so only its front is sure), the way server/iamodelize3d/agent/narrate.py
 // builds them. A replay in the other UI language, or a run from before the server named these steps, still says
 // what happened, with its numbers.
 const ELEC_TOOLS = new Set(['scan_board', 'use_board', 'check_enclosure', 'write_circuit', 'check_pcb', 'export_fab', 'make_enclosure',

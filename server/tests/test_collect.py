@@ -1,4 +1,4 @@
-"""Snap & collect without the agent (formwright/collect.py): the sticker payload, "keep" as an instant version and the
+"""Snap & collect without the agent (iamodelize3d/collect.py): the sticker payload, "keep" as an instant version and the
 collection plate on one bed. SAM, the namer and the geometry pool are fakes; the relief is real."""
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ import httpx
 import numpy as np
 import pytest
 
-from formwright import collect, db as dbmod
-from formwright.config import settings
-from formwright.geom import GeomError
-from formwright.vision import ingest, snap
-from formwright.vision.sam import Mask
+from iamodelize3d import collect, db as dbmod
+from iamodelize3d.config import settings
+from iamodelize3d.geom import GeomError
+from iamodelize3d.vision import ingest, snap
+from iamodelize3d.vision.sam import Mask
 
 PNG = base64.b64encode(cv2.imencode(".png", np.zeros((4, 4, 3), np.uint8))[1].tobytes()).decode()
 
@@ -81,7 +81,7 @@ async def env(tmp_path, monkeypatch):
     monkeypatch.setattr(ingest, "_blur", no_blur)
     pool = FakePool()
     monkeypatch.setattr(collect, "geom", lambda: pool)
-    from formwright.app import app
+    from iamodelize3d.app import app
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         yield c, db, pool, named

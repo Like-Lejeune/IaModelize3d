@@ -1,5 +1,5 @@
 // Subsets the Tabler Icons webfont to the `ti-*` glyphs referenced in src/, so the app ships a few KB instead of ~800.
-// Needs fontTools (`pip install fonttools brotli`). Run: npm run icons -w @formwright/web
+// Needs fontTools (`pip install fonttools brotli`). Run: npm run icons -w @iamodelize3d/web
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, statSync } from 'node:fs';

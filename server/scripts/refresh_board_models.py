@@ -14,9 +14,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from formwright import catalog, device, deviceapi, pcb  # noqa: E402
-from formwright.config import settings  # noqa: E402
-from formwright.showcase import DEVICES_DIR  # noqa: E402
+from iamodelize3d import catalog, device, deviceapi, pcb  # noqa: E402
+from iamodelize3d.config import settings  # noqa: E402
+from iamodelize3d.showcase import DEVICES_DIR  # noqa: E402
 
 
 async def redraw(folder: Path) -> str:
@@ -39,7 +39,7 @@ async def redraw(folder: Path) -> str:
 
 def folders(asked: list[str]) -> list[Path]:
     data = settings().data_dir
-    con = sqlite3.connect(f"file:{(data / 'formwright.db').as_posix()}?mode=ro", uri=True)
+    con = sqlite3.connect(f"file:{(data / 'iamodelize3d.db').as_posix()}?mode=ro", uri=True)
     rows = con.execute("SELECT project_id, MAX(version) FROM pcb_boards GROUP BY project_id").fetchall()
     con.close()
     out = [] if asked else sorted(p for p in DEVICES_DIR.iterdir() if (p / "device.json").is_file())

@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from formwright.config import settings
-from formwright.printing import presets, service
+from iamodelize3d.config import settings
+from iamodelize3d.printing import presets, service
 
 FIXTURES = (Path(__file__).resolve().parents[2] / "packages" / "geom" / "test" / "fixtures.ts").read_text(encoding="utf-8")
 
@@ -44,7 +44,7 @@ def test_list_printers_popular_first():
 
 @needs_orca
 def test_the_default_printer_is_the_farm_preset(monkeypatch):
-    from formwright.shop import quote
+    from iamodelize3d.shop import quote
 
     assert service.DEFAULT_PRINTER == quote.ShopSettings.model_fields["farm_preset"].default
     assert service.resolve_printer(None).id == "bambu-lab-a1-0-4-nozzle"
@@ -78,7 +78,7 @@ def test_gcode_header_parsing():
 @needs_orca
 async def test_slice_bag_hook(monkeypatch, tmp_path):
     monkeypatch.setattr(settings(), "data_dir", tmp_path)
-    from formwright.geom import geom
+    from iamodelize3d.geom import geom
 
     try:
         r = await service.slice(None, project_id="p_t", source=fixture("BAG_HOOK"), params={}, inputs={}, title="Bag hook",
@@ -116,7 +116,7 @@ def test_filament_choice_avoids_random_brands():
 @needs_orca
 async def test_slice_petg_picks_a_plate_that_works(monkeypatch, tmp_path):
     monkeypatch.setattr(settings(), "data_dir", tmp_path)
-    from formwright.geom import geom
+    from iamodelize3d.geom import geom
 
     try:
         r = await service.slice(None, project_id="p_t", source=fixture("BAG_HOOK"), params={}, inputs={}, title="hook",

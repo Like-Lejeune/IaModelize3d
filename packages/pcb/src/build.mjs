@@ -2,7 +2,7 @@
 // @tscircuit/core's render loop. The source is untrusted (the model writes it): it is transpiled with sucrase and
 // evaluated in a vm context whose only host object is React, string/wasm code generation is off and `require` admits
 // nothing but react. The vm timeout guards the top level only; component functions run later inside the reconciler,
-// so a hang there is caught by the server pool, which kills the worker (server/formwright/pcb.py).
+// so a hang there is caught by the server pool, which kills the worker (server/iamodelize3d/pcb.py).
 import vm from 'node:vm';
 import { transform } from 'sucrase';
 import * as React from 'react';

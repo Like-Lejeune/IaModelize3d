@@ -13,10 +13,10 @@ import httpx
 import numpy as np
 import pytest
 
-from formwright import db as dbmod, quotas, sessions
-from formwright.config import settings
-from formwright.llm.client import CostMeter
-from formwright.vision import ingest, video
+from iamodelize3d import db as dbmod, quotas, sessions
+from iamodelize3d.config import settings
+from iamodelize3d.llm.client import CostMeter
+from iamodelize3d.vision import ingest, video
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ async def fresh_db(tmp_path, monkeypatch):
 
 @pytest.fixture
 async def client(fresh_db):
-    from formwright.app import app
+    from iamodelize3d.app import app
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test", cookies={sessions.COOKIE: await sessions.issue("u1")}) as c:
         yield c
@@ -81,7 +81,7 @@ async def test_a_snap_over_the_limit_leaves_no_draft(client, fresh_db):
 
 
 async def test_a_snap_whose_face_blur_hits_the_limit_leaves_no_draft(client, fresh_db, monkeypatch):
-    from formwright.vision import privacy
+    from iamodelize3d.vision import privacy
 
     async def blur(meter, img):
         raise AssertionError("over the limit nothing may be called")
@@ -97,8 +97,8 @@ async def test_a_snap_whose_face_blur_hits_the_limit_leaves_no_draft(client, fre
 
 # ------------------------------------------------------------------ printer fingerprint
 async def test_measuring_a_coupon_does_not_wait_for_a_design_job(client, fresh_db, monkeypatch):
-    from formwright.agent import runner
-    from formwright.printing import fingerprint
+    from iamodelize3d.agent import runner
+    from iamodelize3d.printing import fingerprint
 
     async def measure(meter, user, asset):
         meter.add("sam", 0.01, purpose="measure")

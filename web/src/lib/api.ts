@@ -1,5 +1,5 @@
 // Typed client for the FastAPI backend (same origin; the httpOnly cookie `fw_session` holds an opaque session token,
-// see server/formwright/sessions.py).
+// see server/iamodelize3d/sessions.py).
 import { t } from './i18n.svelte';
 import type { AssetOut, EventRow, ExampleOut, FeaturedRun, ProjectDetail, ProjectOut, SelectionOut, Usage, Printer, ProgramOut, SnapResult, SnapObject, SpotResult, CollectionItem } from './types';
 

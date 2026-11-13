@@ -12,9 +12,9 @@ import httpx
 import pytest
 from starlette.requests import Request
 
-from formwright import db as dbmod, quotas, sessions
-from formwright.app import _safe_next, app, client_ip
-from formwright.config import SERVER_DIR, settings
+from iamodelize3d import db as dbmod, quotas, sessions
+from iamodelize3d.app import _safe_next, app, client_ip
+from iamodelize3d.config import SERVER_DIR, settings
 
 JUDGE = "u_judge_0123456789abcdef"
 
@@ -92,7 +92,7 @@ async def test_a_cookie_from_before_sessions_is_swapped_once(tmp_path, monkeypat
     (tmp_path / "files").mkdir()
     old = "u_0123456789abcdef"
     # a database from before sessions: its browsers hold fw_uid=<user id>
-    con = sqlite3.connect(tmp_path / "formwright.db")
+    con = sqlite3.connect(tmp_path / "iamodelize3d.db")
     con.execute("CREATE TABLE users (id TEXT PRIMARY KEY, tier TEXT NOT NULL DEFAULT 'anon', name TEXT, "
                 "contributor_consent INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL)")
     con.executemany("INSERT INTO users (id, tier, created_at) VALUES (?, ?, 0)", [(old, "anon"), (JUDGE, "pro"), ("tg_77", "free")])
@@ -181,7 +181,7 @@ async def test_the_sign_in_page_speaks_russian_and_expired_links_say_so(fresh_db
     await _link(fresh_db, "l_old", ttl=-1)
     async with _client() as c:
         page = await c.get("/api/login/l_ru", headers={"accept-language": "ru-RU,ru;q=0.9,en;q=0.8"})
-        assert "Вход в Formwright" in page.text and 'lang="ru"' in page.text and "Продолжить" in page.text
+        assert "Вход в IaModelize3d" in page.text and 'lang="ru"' in page.text and "Продолжить" in page.text
         gone = await c.get("/api/login/l_old")
         assert gone.status_code == 404 and "expired" in gone.text and 'href="/"' in gone.text
 
@@ -203,7 +203,7 @@ async def test_revoking_judges_signs_their_browsers_out(fresh_db, tmp_path):
     await _user(fresh_db, JUDGE, tier="pro")
     token = await sessions.issue(JUDGE)
     await _link(fresh_db, "l_unused")
-    conn = sqlite3.connect(tmp_path / "formwright.db")
+    conn = sqlite3.connect(tmp_path / "iamodelize3d.db")
     conn.row_factory = sqlite3.Row
     with conn:
         _judge_link().revoke(conn, True)

@@ -100,7 +100,7 @@
   }
 </script>
 
-<svelte:head><title>{t('collection')} · Formwright</title></svelte:head>
+<svelte:head><title>{t('collection')} · IaModelize3d</title></svelte:head>
 
 {#snippet body(it: CollectionItem)}
   <div class="pic" class:model={it.state === 'ready' && it.cover}>

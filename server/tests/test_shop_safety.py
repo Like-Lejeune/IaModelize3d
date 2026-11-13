@@ -8,9 +8,9 @@ import asyncio
 
 import pytest
 
-from formwright import quotas
-from formwright.db import new_id, now
-from formwright.shop import autoquote, routes, store
+from iamodelize3d import quotas
+from iamodelize3d.db import new_id, now
+from iamodelize3d.shop import autoquote, routes, store
 
 from shop_fakes import add_program, answer, setup, teardown, wait_for
 
@@ -205,7 +205,7 @@ async def test_a_ru_customers_design_runs_in_russian(env):
 
 
 async def test_the_real_hook_passes_the_language_to_the_run(monkeypatch):
-    from formwright.agent import runner
+    from iamodelize3d.agent import runner
 
     seen = {}
 
@@ -214,8 +214,8 @@ async def test_the_real_hook_passes_the_language_to_the_run(monkeypatch):
         return "j_x"
 
     monkeypatch.setattr(runner, "start_design_job", fake_start)
-    assert await routes.Hooks().start_design({"id": "u"}, {"id": "p"}, "Spare part order FW-1001", ["a_1"], "ru") == "j_x"
-    assert seen["body"].language == "ru" and seen["body"].text == "Spare part order FW-1001" and seen["body"].asset_ids == ["a_1"]
+    assert await routes.Hooks().start_design({"id": "u"}, {"id": "p"}, "Spare part order IM-1001", ["a_1"], "ru") == "j_x"
+    assert seen["body"].language == "ru" and seen["body"].text == "Spare part order IM-1001" and seen["body"].asset_ids == ["a_1"]
 
 
 async def test_choose_for_me_keeps_pay_closed_until_the_intakes_material_is_quoted(env):
@@ -267,7 +267,7 @@ async def test_the_operator_cannot_approve_before_the_intake_has_answered(env):
 
 
 async def _telegram_order(env, monkeypatch, case: str, user: str) -> tuple:
-    from formwright.integrations import telegram
+    from iamodelize3d.integrations import telegram
 
     sent: list[str] = []
 

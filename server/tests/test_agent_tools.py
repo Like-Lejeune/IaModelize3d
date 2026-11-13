@@ -5,16 +5,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from formwright import db as dbmod
-from formwright.agent import critic, tools
-from formwright.agent.prompts import CRITIC
-from formwright.agent.tools import DesignState, _apply_edits, _finish
-from formwright.config import settings
-from formwright.geom import GeomError
-from formwright.llm.client import CostMeter
-from formwright.llm.english import is_english
-from formwright.memory import store as memory
-from formwright.printing.profile import features, rule_diff
+from iamodelize3d import db as dbmod
+from iamodelize3d.agent import critic, tools
+from iamodelize3d.agent.prompts import CRITIC
+from iamodelize3d.agent.tools import DesignState, _apply_edits, _finish
+from iamodelize3d.config import settings
+from iamodelize3d.geom import GeomError
+from iamodelize3d.llm.client import CostMeter
+from iamodelize3d.llm.english import is_english
+from iamodelize3d.memory import store as memory
+from iamodelize3d.printing.profile import features, rule_diff
 
 OPEN = "meta-models/muse-spark-open-1026"
 
@@ -189,7 +189,7 @@ async def test_finish_without_a_reviewer_still_ships_and_says_so(monkeypatch):
 
 
 async def test_the_case_gate_runs_after_printability_and_before_the_review(monkeypatch):
-    from formwright.agent import elec_tools
+    from iamodelize3d.agent import elec_tools
 
     calls = stub_review(monkeypatch, [{"verdict": "pass", "match_score": 9, "issues": []}])
     gate = [["port_blocked (usb): the plug hits the case -> raise port_fit"], []]
@@ -208,7 +208,7 @@ async def test_the_case_gate_runs_after_printability_and_before_the_review(monke
 
 
 async def test_a_case_build_is_checked_against_its_board_at_once(fresh_db, monkeypatch):
-    from formwright.agent import elec_tools
+    from iamodelize3d.agent import elec_tools
 
     checked = []
 
@@ -381,7 +381,7 @@ async def test_dimensions_search_the_web_when_the_tables_only_half_answer(monkey
 
 
 async def test_likeness_panels_reuse_the_build(fresh_db, monkeypatch):
-    from formwright.agent import compare
+    from iamodelize3d.agent import compare
 
     fake = FakeGeom()
     seen = []

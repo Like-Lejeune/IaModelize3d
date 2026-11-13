@@ -1,4 +1,4 @@
-// The studio's types: the Formwright API's project objects and events (server/formwright/models.py) and the
+// The studio's types: the IaModelize3d API's project objects and events (server/iamodelize3d/models.py) and the
 // geometry worker's build results (packages/geom). Mirrors web/src/lib/types.ts, trimmed to what the studio uses.
 
 export type Vec3 = [number, number, number];

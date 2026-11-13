@@ -15,8 +15,8 @@ from pathlib import Path
 import pytest
 from test_device_compile import RAW, catalogue, dice_doc, needs_bundle, real_pcb, timer_doc  # noqa: F401 - fixtures
 
-from formwright import device, pcb
-from formwright.config import REPO_DIR
+from iamodelize3d import device, pcb
+from iamodelize3d.config import REPO_DIR
 
 FIX = Path(__file__).parent / "fixtures" / "device_shapes"
 GRAPHS = {k: v for k, v in json.loads((FIX / "graphs.json").read_text(encoding="utf-8")).items() if not k.startswith("_")}
@@ -279,7 +279,7 @@ def round_night_light() -> dict:
 
 @pytest.fixture
 def no_store(monkeypatch):
-    from formwright import deviceapi
+    from iamodelize3d import deviceapi
 
     async def nothing(*a, **k):
         return None

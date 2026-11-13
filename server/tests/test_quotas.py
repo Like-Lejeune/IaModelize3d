@@ -8,10 +8,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from formwright import db as dbmod, quotas
-from formwright.agent import runner
-from formwright.config import settings
-from formwright.models import SendMessage
+from iamodelize3d import db as dbmod, quotas
+from iamodelize3d.agent import runner
+from iamodelize3d.config import settings
+from iamodelize3d.models import SendMessage
 
 
 @pytest.fixture
@@ -148,7 +148,7 @@ async def test_every_plan_picks_every_designer(fresh_db, monkeypatch):
 
 
 async def test_a_job_has_no_cap_but_what_is_left_today(fresh_db, monkeypatch):
-    from formwright.agent import loop
+    from iamodelize3d.agent import loop
 
     s = settings()
     monkeypatch.setattr(s, "daily_budget_usd", 4.0)

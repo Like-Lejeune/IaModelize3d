@@ -1,5 +1,5 @@
 // Meta models by the names people know, and what each one did in a run. The job meter
-// (server/formwright/llm/client.py CostMeter) counts calls and purposes per model id.
+// (server/iamodelize3d/llm/client.py CostMeter) counts calls and purposes per model id.
 import type { JobCost } from './types';
 
 const NAMES: [RegExp, string | ((m: RegExpMatchArray) => string)][] = [
@@ -35,7 +35,7 @@ export const isContributor = (id: string) => /-contributor$/i.test(id);
 export const ROLES = ['designer', 'critic', 'measure', 'search', 'image', 'voice', 'classify', 'task', 'translate'] as const;
 export type ModelRole = (typeof ROLES)[number];
 
-// purposes the server tags its calls with (server/formwright/llm/client.py: the json() name or purpose)
+// purposes the server tags its calls with (server/iamodelize3d/llm/client.py: the json() name or purpose)
 // -> the role shown on the chip (i18n `model_role.*`)
 const ROLE_OF: Record<string, ModelRole> = {
   designer: 'designer', video: 'designer', critic: 'critic', search: 'search', facts: 'search',

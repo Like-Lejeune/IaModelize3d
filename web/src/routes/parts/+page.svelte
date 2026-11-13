@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Formwright Parts: the catalog of parts that were designed, checked and (most) printed and QC'd already, searched
+  // IaModelize3d Parts: the catalog of parts that were designed, checked and (most) printed and QC'd already, searched
   // by brand, model or part number, ordered with no design step; below it, your own parts and your orders. A delivered
   // order the farm shows to everyone is one click away ('See a delivered order').
   import { onMount } from 'svelte';
@@ -176,7 +176,7 @@
   const ordersOf = (n: number) => plural(n, ['order', 'orders'], ['заказ', 'заказа', 'заказов']);
 </script>
 
-<svelte:head><title>{st('parts.title')} · Formwright</title></svelte:head>
+<svelte:head><title>{st('parts.title')} · IaModelize3d</title></svelte:head>
 
 {#snippet card(li: Listing, where: Where)}
   {@const key = `${where}:${li.id}`}

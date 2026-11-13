@@ -10,8 +10,8 @@ import sqlite3
 
 import pytest
 
-from formwright import db as dbmod, pcb_store
-from formwright.config import REPO_DIR, SERVER_DIR, settings
+from iamodelize3d import db as dbmod, pcb_store
+from iamodelize3d.config import REPO_DIR, SERVER_DIR, settings
 
 DIST = REPO_DIR / "packages" / "pcb" / "dist"
 XIAO = (REPO_DIR / "packages" / "pcb" / "test" / "fixtures" / "xiao_carrier.tsx").read_text(encoding="utf-8")
@@ -100,7 +100,7 @@ def conn(tmp_path, monkeypatch):
         await dbmod.close_db()
 
     asyncio.run(make())
-    c = sqlite3.connect(tmp_path / "formwright.db")
+    c = sqlite3.connect(tmp_path / "iamodelize3d.db")
     c.row_factory = sqlite3.Row
     yield c
     c.close()
@@ -235,7 +235,7 @@ def test_a_finish_that_ran_no_review_keeps_the_versions_open_notes(conn, curate,
 
 
 def test_a_board_todays_engine_cannot_build_is_refused_even_with_force(conn, curate, capsys):
-    from formwright.pcb import PcbError
+    from iamodelize3d.pcb import PcbError
 
     def rejects(source, intent):
         raise PcbError("compile", "Unexpected token (2:5)")

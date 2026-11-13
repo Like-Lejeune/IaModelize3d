@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from formwright.shop import flow, intake, quote
+from iamodelize3d.shop import flow, intake, quote
 
 from shop_fakes import answer, finish_design, jpeg, setup, teardown, wait_for
 

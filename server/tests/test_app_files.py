@@ -5,10 +5,10 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from formwright import db as dbmod, sessions
-from formwright.app import app
-from formwright.config import settings
-from formwright.shop import store
+from iamodelize3d import db as dbmod, sessions
+from iamodelize3d.app import app
+from iamodelize3d.config import settings
+from iamodelize3d.shop import store
 
 
 @pytest.fixture
@@ -86,7 +86,7 @@ async def test_a_private_projects_files_go_to_its_owner_only(fresh_db):
     assert await _get(None, "examples/covers/x.png") == 200
     # traversal from an open folder into a private one, or out of data/files (the SQLite file sits next to it), is a 404
     # (raw ASGI paths, as a client that does not normalise them would send; the server sees them decoded)
-    for rel in ("p_pub/../p_a/secret.txt", "examples/../p_a/secret.txt", "p_pub\\..\\p_a\\secret.txt", "../formwright.db", "p_pub/../../formwright.db"):
+    for rel in ("p_pub/../p_a/secret.txt", "examples/../p_a/secret.txt", "p_pub\\..\\p_a\\secret.txt", "../iamodelize3d.db", "p_pub/../../iamodelize3d.db"):
         status, body = await _raw(f"/files/{rel}")
         assert status == 404 and b"PRIVATE" not in body and not body.startswith(b"SQLite"), rel
 
@@ -175,9 +175,9 @@ async def test_a_showcase_order_opens_its_cover_and_qc_photo_to_anyone(fresh_db)
     sdb = await store.shop_db()
     t = dbmod.now()
     qc = {"pass": True, "photo_url": "/files/p_ops/a_qc.jpg", "mask_url": "/files/p_ops/a_qc_mask.png"}
-    await sdb.insert("shop_orders", {"id": "o_show", "ref": "FW-1", "user_id": "u_owner", "project_id": "p_part", "version": 1, "status": "delivered",
+    await sdb.insert("shop_orders", {"id": "o_show", "ref": "IM-1", "user_id": "u_owner", "project_id": "p_part", "version": 1, "status": "delivered",
                                      "qc": qc, "created_at": t, "updated_at": t})
-    await sdb.insert("shop_orders", {"id": "o_other", "ref": "FW-2", "user_id": "u_owner", "project_id": "p_part", "status": "delivered",
+    await sdb.insert("shop_orders", {"id": "o_other", "ref": "IM-2", "user_id": "u_owner", "project_id": "p_part", "status": "delivered",
                                      "qc": {"pass": True, "photo_url": "/files/p_ops/b_qc.jpg"}, "created_at": t, "updated_at": t})
     assert await _get(None, "p_ops/a_qc.jpg") == 404 and await _get(None, "p_part/renders/v1_iso.png") == 404  # not shown yet
     await sdb.update("shop_orders", "id", "o_show", {"showcase": 1})
@@ -197,7 +197,7 @@ async def test_a_showcase_order_opens_its_cover_and_qc_photo_to_anyone(fresh_db)
 async def test_a_showcase_opens_the_version_it_printed_not_the_customers_later_one(fresh_db):
     """The customer took the studio project on to v3 after v1 was printed and shipped: the public page shows v1's
     render, and v3 (the project's cover now) and its title stay theirs."""
-    from formwright.shop import routes
+    from iamodelize3d.shop import routes
 
     await _project(fresh_db, "p_studio", "u_cust", cover="p_studio/renders/v3_iso.png")
     await fresh_db.execute("UPDATE projects SET version = 3, title = 'Подарок для Айгуль' WHERE id = 'p_studio'")
@@ -207,7 +207,7 @@ async def test_a_showcase_opens_the_version_it_printed_not_the_customers_later_o
     t = dbmod.now()
     intake = {"request": {"kind": "project"}, "refuse": False, "language": "ru",
               "classify": {"title_en": "Dishwasher basket wheel", "title_ru": "Колёсико корзины посудомойки", "safety_critical": False}}
-    await sdb.insert("shop_orders", {"id": "o_show", "ref": "FW-1", "user_id": "u_cust", "project_id": "p_studio", "version": 1,
+    await sdb.insert("shop_orders", {"id": "o_show", "ref": "IM-1", "user_id": "u_cust", "project_id": "p_studio", "version": 1,
                                      "status": "delivered", "showcase": 1, "intake": intake, "qc": {"pass": True}, "created_at": t, "updated_at": t})
     assert await _get(None, "p_studio/renders/v1_iso.png") == 200
     assert await _get(None, "p_studio/renders/v3_iso.png") == 404 and await _get(None, "p_studio/renders/v2_iso.png") == 404
@@ -234,7 +234,7 @@ async def test_a_catalog_buyer_opens_the_cards_picture_not_the_owners_later_cove
     t = dbmod.now()
     await sdb.insert("shop_listings", {"id": "l_1", "project_id": "p_part", "version": 1, "owner_id": "u_owner", "title": "Wheel",
                                        "cover": "p_part/renders/v1_iso.png", "public": 1, "created_at": t, "updated_at": t})
-    await sdb.insert("shop_orders", {"id": "o_b", "ref": "FW-9", "user_id": "u_buyer", "project_id": "p_part", "version": 1, "listing_id": "l_1",
+    await sdb.insert("shop_orders", {"id": "o_b", "ref": "IM-9", "user_id": "u_buyer", "project_id": "p_part", "version": 1, "listing_id": "l_1",
                                      "status": "cancelled", "created_at": t, "updated_at": t})
     assert await _get("u_buyer", "p_part/renders/v2_iso.png") == 404  # was 200, also after cancelling
     assert await _get("u_buyer", "p_part/renders/v1_iso.png") == 200

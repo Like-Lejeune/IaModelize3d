@@ -1,6 +1,6 @@
-# Formwright: API + agent + geometry workers + OrcaSlicer CLI in one image.
-#   docker build -f Containerfile -t formwright .
-#   docker run -d -p 127.0.0.1:8000:8000 -e META_API_KEY=... -e FW_PUBLIC_URL=https://<your host> -v formwright-data:/app/data formwright
+# IaModelize3d: API + agent + geometry workers + OrcaSlicer CLI in one image.
+#   docker build -f Containerfile -t iamodelize3d .
+#   docker run -d -p 127.0.0.1:8000:8000 -e META_API_KEY=... -e FW_PUBLIC_URL=https://<your host> -v iamodelize3d-data:/app/data iamodelize3d
 # A VPS with HTTPS in front: deploy/compose.yaml (it builds this file).
 # Slicing needs OrcaSlicer: the Ubuntu 24.04 build of v2.4.2, the version the farm's A1 0.4 quotes were calibrated
 # on (glibc 2.38+ and webkit2gtk-4.1, so the runtime below is Debian 13 trixie). v2.3.0 cannot slice the A1 preset
@@ -44,7 +44,7 @@ RUN if [ -n "$ORCA_APPIMAGE_URL" ]; then \
 ENV FW_ORCA_BIN=/opt/orca/AppRun FW_ORCA_PROFILES=/opt/orca/resources/profiles FW_DATA_DIR=/app/data
 WORKDIR /app
 # the dependencies only, cached until pyproject.toml or constraints.txt changes; the code runs from /app/server
-# (PYTHONPATH), so however formwright is started it finds the repo around it (config.REPO_DIR: packages/, web/build),
+# (PYTHONPATH), so however iamodelize3d is started it finds the repo around it (config.REPO_DIR: packages/, web/build),
 # not a copy in site-packages. constraints.txt pins every version to the tested venv's, so a rebuild cannot pull a
 # breaking fastapi/openai/pydantic release; a new dependency in pyproject.toml needs its pin there too
 COPY server/pyproject.toml server/constraints.txt server/
@@ -73,4 +73,4 @@ WORKDIR /app/server
 ENV FW_PROXY_HOPS=1 FORWARDED_ALLOW_IPS="127.0.0.1,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 CMD curl -fs http://localhost:8000/api/examples >/dev/null || exit 1
-CMD ["python", "-m", "uvicorn", "formwright.app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+CMD ["python", "-m", "uvicorn", "iamodelize3d.app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

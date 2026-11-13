@@ -14,11 +14,11 @@ import httpx
 import pytest
 from PIL import Image
 
-from formwright import db as dbmod, sessions
-from formwright.app import app
-from formwright.config import settings
-from formwright.integrations import axo
-from formwright.shop import store
+from iamodelize3d import db as dbmod, sessions
+from iamodelize3d.app import app
+from iamodelize3d.config import settings
+from iamodelize3d.integrations import axo
+from iamodelize3d.shop import store
 
 KEY = "axo-test-key-not-for-logs"
 DESIGN = "0123456789abcdef0123456789abcdef"
@@ -73,7 +73,7 @@ async def env(tmp_path, monkeypatch):
     render = tmp_path / "files" / "p_axo" / "renders" / "v1_iso.png"
     render.parent.mkdir(parents=True)
     render.write_bytes(_png(512))
-    # a Formwright Parts quote sliced v1 on Orca (autoquote stamps the slice with its version); an older one of v1 lacks the stamp
+    # a IaModelize3d Parts quote sliced v1 on Orca (autoquote stamps the slice with its version); an older one of v1 lacks the stamp
     sdb = await store.shop_db()
     for oid, sl, ts in (("o_new", {"version": 1, "stats": {"grams": 41.19, "minutes": 126.43}}, t + 5),
                         ("o_old", {"stats": {"grams": 99.0, "minutes": 999.0}}, t + 9)):

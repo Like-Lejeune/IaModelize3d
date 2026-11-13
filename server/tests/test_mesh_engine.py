@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from formwright.agent.tools import is_mesh_doc, mesh_markers, op_anchor, tools_for
-from formwright.geom import GeomError, GeomPool
+from iamodelize3d.agent.tools import is_mesh_doc, mesh_markers, op_anchor, tools_for
+from iamodelize3d.geom import GeomError, GeomPool
 
 DOC = {
     "engine": "mesh", "meta": {"title": "pebble cat"}, "symmetry": "x",
@@ -61,7 +61,7 @@ def test_markers_and_tools():
 
 
 async def test_empty_mesh_edit_is_refused():
-    from formwright.agent.tools import DesignState, _mesh_edit
+    from iamodelize3d.agent.tools import DesignState, _mesh_edit
 
     state = DesignState(pack="stylize", source=json.dumps(DOC))
     r, images = await _mesh_edit(None, state, {"summary": "details"})  # type: ignore[arg-type]

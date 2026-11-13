@@ -25,8 +25,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from formwright import device, device_concept, deviceapi, pcb
-from formwright.config import REPO_DIR
+from iamodelize3d import device, device_concept, deviceapi, pcb
+from iamodelize3d.config import REPO_DIR
 
 BENCH = ("p_c37992a561a1490e p_676f80c60e764971 p_2ef9024d09344d35 p_1c771479691b4af7 p_5112fdf17cc74558 p_56ccba999cd84e2c p_fa119f02a7ac426c "
          "p_706cd44da00b4f13 p_08bf1a5e5f6a4d81 p_139d712e8d3e40fb p_75c8f7520c014bd8 p_7a4af5e28ada4f46 p_988e972430b84bc8 p_5196dae28c314a26 "
@@ -120,7 +120,7 @@ async def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--ids", nargs="*", default=BENCH)
     ap.add_argument("--modes", nargs="*", default=["doc", "concept"], choices=["doc", "concept", "auto"])
     ap.add_argument("--jobs", type=int, default=3)
-    ap.add_argument("--db", default=str(REPO_DIR / "data" / "formwright.db"))
+    ap.add_argument("--db", default=str(REPO_DIR / "data" / "iamodelize3d.db"))
     ap.add_argument("--gap", type=float, help="the placer's gap between free parts, mm (else device.ARRANGE_GAPS_MM)")
     ap.add_argument("--json")
     ap.add_argument("--render")

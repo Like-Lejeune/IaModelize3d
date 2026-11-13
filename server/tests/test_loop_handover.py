@@ -13,13 +13,13 @@ import pytest
 from openai import APIStatusError
 from PIL import Image
 
-from formwright import db as dbmod, events, storage
-from formwright.agent import compare, loop, narrate, side
-from formwright.agent.runner import JobContext
-from formwright.config import settings
-from formwright.llm.client import BudgetExceeded, CostMeter
-from formwright.models import SendMessage
-from formwright.quotas import ModelChoice
+from iamodelize3d import db as dbmod, events, storage
+from iamodelize3d.agent import compare, loop, narrate, side
+from iamodelize3d.agent.runner import JobContext
+from iamodelize3d.config import settings
+from iamodelize3d.llm.client import BudgetExceeded, CostMeter
+from iamodelize3d.models import SendMessage
+from iamodelize3d.quotas import ModelChoice
 
 
 @pytest.fixture
@@ -287,7 +287,7 @@ async def test_concepts_are_marked_as_generated(fresh_db, monkeypatch):
 
 
 async def test_a_picked_concept_becomes_a_cut_out_target_with_a_silhouette_check(fresh_db, offline, monkeypatch):
-    from formwright.vision import scene
+    from iamodelize3d.vision import scene
 
     ctx = await _project(fresh_db)
     t = dbmod.now()

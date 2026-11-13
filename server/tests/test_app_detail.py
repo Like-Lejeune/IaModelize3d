@@ -4,9 +4,9 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from formwright import db as dbmod, sessions
-from formwright.app import app
-from formwright.config import settings
+from iamodelize3d import db as dbmod, sessions
+from iamodelize3d.app import app
+from iamodelize3d.config import settings
 
 
 @pytest.fixture

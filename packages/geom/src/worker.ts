@@ -1,6 +1,6 @@
 // Server-side geometry worker: JSON lines on stdin -> JSON lines on stdout.
 // Programs run inside a `vm` context with a per-call timeout. The process is started with the Node
-// permission model (see server/formwright/geom.py), so even a program that escapes the vm realm
+// permission model (see server/iamodelize3d/geom.py), so even a program that escapes the vm realm
 // cannot read the repo/.env/data, write files, spawn processes, start worker threads or load addons.
 // The permission model does NOT cover network, so severNetwork() below cuts every outbound route
 // reachable from this realm; in production the container also has no network (defense in depth).

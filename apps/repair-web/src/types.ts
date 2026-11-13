@@ -1,4 +1,4 @@
-// The shapes the Formwright shop API answers with (server/formwright/shop/routes.py, present()).
+// The shapes the IaModelize3d shop API answers with (server/iamodelize3d/shop/routes.py, present()).
 // Only the fields this front reads are typed; the API sends more.
 
 export type Status =

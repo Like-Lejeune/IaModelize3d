@@ -16,7 +16,7 @@ from test_vision_pipeline import env, jpeg_with_exif  # noqa: F401 (fixture)
 
 
 def _live() -> bool:
-    from formwright.config import Settings
+    from iamodelize3d.config import Settings
 
     return os.environ.get("FW_LIVE_TESTS") == "1" and bool(Settings().meta_api_key)
 
@@ -37,10 +37,10 @@ def caliper_image() -> np.ndarray:
 
 
 async def test_live_calibrate_select_detect_caliper(env):  # noqa: F811
-    from formwright.db import get_db
-    from formwright.llm.client import CostMeter
-    from formwright.models import Point, SelectRequest
-    from formwright.vision import ingest, scene
+    from iamodelize3d.db import get_db
+    from iamodelize3d.llm.client import CostMeter
+    from iamodelize3d.models import Point, SelectRequest
+    from iamodelize3d.vision import ingest, scene
 
     db = await get_db()
     await db.insert("users", {"id": "u1", "tier": "admin", "created_at": 0})

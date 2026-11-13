@@ -63,7 +63,7 @@
   }
 </script>
 
-<svelte:head><title>{store?.detail ? projectTitle(store.detail.title) : t('recipe')} · Formwright</title></svelte:head>
+<svelte:head><title>{store?.detail ? projectTitle(store.detail.title) : t('recipe')} · IaModelize3d</title></svelte:head>
 
 <Header>
   {#if store?.detail}<strong class="ttl">{projectTitle(store.detail.title)}</strong>{/if}

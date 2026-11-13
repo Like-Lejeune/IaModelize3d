@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from formwright.geom import GeomError, GeomPool, _Worker
+from iamodelize3d.geom import GeomError, GeomPool, _Worker
 
 FIXTURES = (Path(__file__).resolve().parents[2] / "packages" / "geom" / "test" / "fixtures.ts").read_text(encoding="utf-8")
 

@@ -47,11 +47,11 @@
   }
 </script>
 
-<svelte:head><title>{t('capture_title')} · Formwright</title></svelte:head>
+<svelte:head><title>{t('capture_title')} · IaModelize3d</title></svelte:head>
 
 <main class="cap">
   <div class="top">
-    <strong>Formwright</strong>
+    <strong>IaModelize3d</strong>
     <button class="btn ghost small" onclick={toggleLang}>{t('lang')}</button>
   </div>
   <h1>{t('capture_title')}</h1>

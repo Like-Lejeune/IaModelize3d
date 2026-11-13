@@ -5,9 +5,9 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from formwright import db as dbmod, sessions
-from formwright.app import app
-from formwright.config import settings
+from iamodelize3d import db as dbmod, sessions
+from iamodelize3d.app import app
+from iamodelize3d.config import settings
 
 
 @pytest.fixture
@@ -57,7 +57,7 @@ async def test_can_edit_follows_the_message_routes_403(fresh_db):
 
 async def test_send_message_takes_a_language(fresh_db):
     """CONTRACTS: SendMessage.language reaches the run (a shop order passes its intake's language); None by default."""
-    from formwright.models import SendMessage
+    from iamodelize3d.models import SendMessage
 
     assert SendMessage(text="x").language is None
     assert SendMessage(text="колесо", language="ru").language == "ru"

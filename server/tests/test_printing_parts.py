@@ -5,11 +5,11 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from formwright.geom import GeomPool
-from formwright.printing import fingerprint
-from formwright.printing.compare import compare_outlines
-from formwright.printing.fingerprint import classify, compute_fingerprint, coupon_source
-from formwright.printing.probes import apply_choice, make_probe
+from iamodelize3d.geom import GeomPool
+from iamodelize3d.printing import fingerprint
+from iamodelize3d.printing.compare import compare_outlines
+from iamodelize3d.printing.fingerprint import classify, compute_fingerprint, coupon_source
+from iamodelize3d.printing.probes import apply_choice, make_probe
 
 
 @pytest.fixture
@@ -87,7 +87,7 @@ def test_classify_coupon_from_outlines():
 
 
 async def test_fingerprint_save_and_load(monkeypatch, tmp_path):
-    from formwright.db import Database
+    from iamodelize3d.db import Database
 
     db = Database(str(tmp_path / "t.db"))
     await db.open()
@@ -135,8 +135,8 @@ async def test_measure_uses_calibration_and_sam(monkeypatch, tmp_path):
     import cv2
     import meta_sam_parser as msp
 
-    from formwright.config import settings
-    from formwright.vision import maskcodec
+    from iamodelize3d.config import settings
+    from iamodelize3d.vision import maskcodec
 
     monkeypatch.setattr(settings(), "data_dir", tmp_path)
     (tmp_path / "files" / "p").mkdir(parents=True)
@@ -195,7 +195,7 @@ async def test_measure_uses_calibration_and_sam(monkeypatch, tmp_path):
         assert url.startswith("data:image/jpeg;base64,") and base64.b64decode(url.split(",", 1)[1])
         return "raw"
 
-    from formwright.llm import client
+    from iamodelize3d.llm import client
 
     monkeypatch.setattr(client, "meta", lambda: SimpleNamespace(sam=fake_sam))
     out = await fingerprint.measure(SimpleNamespace(), {"id": "u"}, asset)

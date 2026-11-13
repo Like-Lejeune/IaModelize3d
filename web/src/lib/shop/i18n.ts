@@ -1,4 +1,4 @@
-// Strings of Formwright Parts in English and Russian. The language is the app's (i18n.lang, read only here);
+// Strings of IaModelize3d Parts in English and Russian. The language is the app's (i18n.lang, read only here);
 // prices are in tenge with US dollars in brackets, since the farm (Axo) is in Kazakhstan. The server sends the order's
 // journal, its pauses and its QC errors as codes (shop/notes.py); noteText, problemText and qcError say them here.
 import { i18n } from '$lib/i18n.svelte';
@@ -11,7 +11,7 @@ const en: Dict = {
   'nav.parts': 'Parts',
   'nav.orders': 'Orders',
   'nav.ops': 'Ops',
-  'nav.menu': 'Formwright Parts',
+  'nav.menu': 'IaModelize3d Parts',
   'getit.quote': 'Get a quote',
 
   'status.requested': 'Request received',
@@ -28,9 +28,9 @@ const en: Dict = {
   'status.expired': 'Price expired',
   'actor.customer': 'Customer',
   'actor.operator': 'Axo farm',
-  'actor.system': 'Formwright',
+  'actor.system': 'IaModelize3d',
 
-  'parts.title': 'Formwright Parts',
+  'parts.title': 'IaModelize3d Parts',
   'parts.lead': 'The spare part nobody stocks: measured from a photo, checked before you pay, printed by the Axo farm in Kazakhstan and checked again before it ships.',
   'parts.search_ph': 'Part, brand, model or part number, e.g. dishwasher wheel',
   'parts.search': 'Search the catalog',
@@ -68,7 +68,7 @@ const en: Dict = {
   'badge.qc': 'QC {n} mm',
 
   'new.title': 'New part',
-  'new.lead': 'Put the part on a sheet of A4 paper and take the photo from above. Formwright measures it in millimetres, designs the replacement and checks it before you pay.',
+  'new.lead': 'Put the part on a sheet of A4 paper and take the photo from above. IaModelize3d measures it in millimetres, designs the replacement and checks it before you pay.',
   'new.part_photo': 'Part on A4',
   'new.part_hint': 'The whole sheet in the frame, the camera straight above',
   'new.plate_photo': 'Rating plate',
@@ -249,7 +249,7 @@ const en: Dict = {
   'order.received': 'I got it',
   'order.received_hint': 'Once it fits, tap here: the part stays under "Your parts" for a one-tap reorder.',
   'order.not_found': 'No such order, or it belongs to someone else.',
-  'order.working': 'Formwright is on it…',
+  'order.working': 'IaModelize3d is on it…',
   'order.paused': 'Paused',
   'order.back': 'Parts and orders',
   'order.pickup_ready': 'Ready for pickup',
@@ -284,7 +284,7 @@ const en: Dict = {
   'qc.photo': 'QC photo',
 
   'ops.title': 'Axo farm',
-  'ops.lead': 'Formwright designs and checks each part; the Axo farm prints, checks it again and ships it.',
+  'ops.lead': 'IaModelize3d designs and checks each part; the Axo farm prints, checks it again and ships it.',
   'ops.col.upstream': 'Upstream',
   'ops.col.paid': 'Paid',
   'ops.col.printing': 'Printing',
@@ -361,7 +361,7 @@ const ru: Dict = {
   'nav.parts': 'Детали',
   'nav.orders': 'Заказы',
   'nav.ops': 'Ферма',
-  'nav.menu': 'Formwright Parts',
+  'nav.menu': 'IaModelize3d Parts',
   'getit.quote': 'Получить котировку',
 
   'status.requested': 'Заявка принята',
@@ -378,9 +378,9 @@ const ru: Dict = {
   'status.expired': 'Цена истекла',
   'actor.customer': 'Клиент',
   'actor.operator': 'ферма Axo',
-  'actor.system': 'Formwright',
+  'actor.system': 'IaModelize3d',
 
-  'parts.title': 'Formwright Parts',
+  'parts.title': 'IaModelize3d Parts',
   'parts.lead': 'Запчасть, которой нет на складе: обмер по фото, проверка до оплаты, печать на ферме Axo в Казахстане и ещё одна проверка перед отправкой.',
   'parts.search_ph': 'Деталь, бренд, модель или номер, например колесо посудомойки',
   'parts.search': 'Поиск по каталогу',
@@ -418,7 +418,7 @@ const ru: Dict = {
   'badge.qc': 'QC {n} мм',
 
   'new.title': 'Новая деталь',
-  'new.lead': 'Положите деталь на лист бумаги A4 и сфотографируйте сверху. Formwright измерит её в миллиметрах, спроектирует замену и проверит до оплаты.',
+  'new.lead': 'Положите деталь на лист бумаги A4 и сфотографируйте сверху. IaModelize3d измерит её в миллиметрах, спроектирует замену и проверит до оплаты.',
   'new.part_photo': 'Деталь на листе A4',
   'new.part_hint': 'Весь лист в кадре, камера прямо сверху',
   'new.plate_photo': 'Табличка прибора',
@@ -597,7 +597,7 @@ const ru: Dict = {
   'order.received': 'Получил',
   'order.received_hint': 'Когда деталь встанет на место, нажмите: она останется в «Ваших деталях» для повторного заказа в одно касание.',
   'order.not_found': 'Такого заказа нет, или он чужой.',
-  'order.working': 'Formwright работает…',
+  'order.working': 'IaModelize3d работает…',
   'order.paused': 'Пауза',
   'order.back': 'Детали и заказы',
   'order.pickup_ready': 'Можно забирать',
@@ -632,7 +632,7 @@ const ru: Dict = {
   'qc.photo': 'QC-фото',
 
   'ops.title': 'Ферма Axo',
-  'ops.lead': 'Formwright проектирует и проверяет деталь; ферма Axo печатает, проверяет ещё раз и отправляет.',
+  'ops.lead': 'IaModelize3d проектирует и проверяет деталь; ферма Axo печатает, проверяет ещё раз и отправляет.',
   'ops.col.upstream': 'В работе',
   'ops.col.paid': 'Оплачено',
   'ops.col.printing': 'Печать',

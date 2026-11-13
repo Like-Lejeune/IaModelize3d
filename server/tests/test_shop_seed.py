@@ -10,9 +10,9 @@ import sqlite3
 
 import pytest
 
-from formwright import db as dbmod
-from formwright.config import SERVER_DIR, settings
-from formwright.shop import store
+from iamodelize3d import db as dbmod
+from iamodelize3d.config import SERVER_DIR, settings
+from iamodelize3d.shop import store
 
 
 def _seed():
@@ -45,7 +45,7 @@ async def _db(tmp_path, monkeypatch, *, farm: bool = True):
         await db.insert("shop_orgs", {"id": "org_axo", "name": "Axo", "kind": "farm", "tier": "farm", "created_at": t})
         await db.insert("shop_members", {"org_id": "org_axo", "user_id": "u_op", "role": "operator"})
     await dbmod.close_db()
-    conn = sqlite3.connect(tmp_path / "formwright.db")
+    conn = sqlite3.connect(tmp_path / "iamodelize3d.db")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -86,7 +86,7 @@ async def test_cards_get_both_names_and_what_they_fit(tmp_path, monkeypatch, cap
     """The names come from the intake of the order the part was born from (the open model's catalog titles), else the
     project's title on the side of its script; --title-en/--title-ru/--brand/--models/--part-numbers name one part, also
     one listed before. The catalog shows a card in the UI's language whenever a name in it exists."""
-    from formwright.shop.routes import card_titles, listing_out
+    from iamodelize3d.shop.routes import card_titles, listing_out
 
     seed = _seed()
     conn = await _db(tmp_path, monkeypatch)
@@ -98,7 +98,7 @@ async def test_cards_get_both_names_and_what_they_fit(tmp_path, monkeypatch, cap
         intake = {"request": {"kind": "photo"}, "language": "ru", "part": {"name_user": "колёсико", "name_en": "dishwasher lower basket wheel"},
                   "classify": {"title_en": "Dishwasher lower basket wheel", "title_ru": "Колёсико нижней корзины посудомойки", "safety_critical": False}}
         conn.execute("INSERT INTO shop_orders (id, ref, user_id, project_id, status, intake, created_at, updated_at) "
-                     "VALUES ('so_1', 'FW-1001', 'u_op', 'p_farm', 'delivered', ?, ?, ?)", (json.dumps(intake, ensure_ascii=False), t, t))
+                     "VALUES ('so_1', 'IM-1001', 'u_op', 'p_farm', 'delivered', ?, ?, ?)", (json.dumps(intake, ensure_ascii=False), t, t))
         seed.listings(conn, _args(limit=5))
         rows = {r["project_id"]: r for r in conn.execute("SELECT * FROM shop_listings")}
         # from the intake of the order the wheel was born from; the Russian project's own title names its Russian side

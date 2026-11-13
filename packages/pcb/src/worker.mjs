@@ -1,7 +1,7 @@
 // PCB worker: JSON lines on stdin -> JSON lines on stdout, the same protocol as packages/geom (id, result | error
 // {stage, message, hint}, ms). While a build routes it also writes {id, frame} lines for the live animation.
 // The server starts the bundle (dist/pcb-worker.mjs) with the Node permission model and read access to dist/ only:
-// no file writes, no child processes, no worker threads, no addons (server/formwright/pcb.py). The permission model
+// no file writes, no child processes, no worker threads, no addons (server/iamodelize3d/pcb.py). The permission model
 // does not cover the network, so it is cut here, before any tscircuit code loads: a circuit that reaches for
 // jlcpcb:/kicad: footprints or the parts engine fails loudly instead of quietly going online. A circuit that escapes
 // its vm realm (React is a host object) still lands in this process, hence both layers.

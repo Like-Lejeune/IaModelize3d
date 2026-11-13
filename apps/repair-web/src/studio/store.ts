@@ -1,6 +1,6 @@
 // The studio's state for one project: the conversation with the designer agent (from the project's event stream),
 // the current program and its parameters, the model built in the browser, the versions. A plain class that notifies
-// React (useStudio below); a simplified port of web/src/lib/project.svelte.ts (Formwright).
+// React (useStudio below); a simplified port of web/src/lib/project.svelte.ts (IaModelize3d).
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { ApiError } from "../api";
 import { GeomClient } from "../geom/client";

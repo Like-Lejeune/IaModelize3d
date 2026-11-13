@@ -22,6 +22,6 @@ export default defineConfig({
     },
   },
   worker: { format: 'es' },
-  optimizeDeps: { exclude: ['manifold-3d', '@formwright/geom'] },
+  optimizeDeps: { exclude: ['manifold-3d', '@iamodelize3d/geom'] },
   build: { target: 'es2022', chunkSizeWarningLimit: 1500 },
 });

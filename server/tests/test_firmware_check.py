@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from formwright import firmware_check as fc
+from iamodelize3d import firmware_check as fc
 
 FIX = Path(__file__).parent / "fixtures" / "firmware"
 needs_gxx = pytest.mark.skipif(not fc.gxx(), reason="no g++ on this machine")

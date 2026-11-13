@@ -28,7 +28,7 @@ from typing import Any
 SERVER_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SERVER_DIR))
 
-# before formwright is imported: its settings are read once
+# before iamodelize3d is imported: its settings are read once
 os.environ.setdefault("FW_SHOP_TARIFF", "cm")
 os.environ.setdefault("FW_DATA_DIR", str(SERVER_DIR.parent / "data-demo"))
 os.environ.setdefault("FW_BLUR_FACES", "0")
@@ -36,12 +36,12 @@ os.environ.setdefault("FW_PUBLIC_URL", "http://localhost:5410")
 
 from fastapi import Request, Response  # noqa: E402
 
-from formwright import events  # noqa: E402
-from formwright.app import app  # noqa: E402
-from formwright.db import get_db, new_id, now  # noqa: E402
-from formwright.shop import routes, store  # noqa: E402
-from formwright.shop.intake import combine  # noqa: E402
-from formwright.agent import loop as agent_loop  # noqa: E402
+from iamodelize3d import events  # noqa: E402
+from iamodelize3d.app import app  # noqa: E402
+from iamodelize3d.db import get_db, new_id, now  # noqa: E402
+from iamodelize3d.shop import routes, store  # noqa: E402
+from iamodelize3d.shop.intake import combine  # noqa: E402
+from iamodelize3d.agent import loop as agent_loop  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from demo_designs import DESIGNS, adjust, defaults, pick  # noqa: E402

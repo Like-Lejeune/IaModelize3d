@@ -1,5 +1,5 @@
 // Instant collectibles (lib.collect): a snapped object becomes a 3D sticker in a second or two, and a
-// walk's worth of them shares one print bed. The inputs come from server/formwright/vision/relief.py:
+// walk's worth of them shares one print bed. The inputs come from server/iamodelize3d/vision/relief.py:
 //   inputs.outlines[key]    loops of the SAM mask in photo pixels (outer loops and holes, even-odd)
 //   inputs.heightmaps[key]  relief over the crop, 0..~1.3: a dome from the outline plus a little photo detail
 //   inputs.values[key_x0, key_y0, key_x1, key_y1]  that crop in photo pixels; [key_name] the name on the tab

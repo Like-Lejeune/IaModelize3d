@@ -13,13 +13,13 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from formwright import db as dbmod
-from formwright import geom as geommod
-from formwright import storage
-from formwright.agent import narrate, pictures, tools
-from formwright.agent.tools import DesignState
-from formwright.config import REPO_DIR, settings
-from formwright.geom import GeomPool
+from iamodelize3d import db as dbmod
+from iamodelize3d import geom as geommod
+from iamodelize3d import storage
+from iamodelize3d.agent import narrate, pictures, tools
+from iamodelize3d.agent.tools import DesignState
+from iamodelize3d.config import REPO_DIR, settings
+from iamodelize3d.geom import GeomPool
 
 PID = "p_pictures"
 # a block 40 x 20 x 10 mm whose corner is away from the origin, so a wrong sign or offset cannot pass (the engine lands it on z = 0)

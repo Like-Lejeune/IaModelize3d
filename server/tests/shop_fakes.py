@@ -14,11 +14,11 @@ import httpx
 import numpy as np
 from fastapi import Request, Response
 
-from formwright import db as dbmod, events
-from formwright.app import app
-from formwright.config import settings
-from formwright.db import get_db, new_id, now
-from formwright.shop import autoquote, intake, routes, store
+from iamodelize3d import db as dbmod, events
+from iamodelize3d.app import app
+from iamodelize3d.config import settings
+from iamodelize3d.db import get_db, new_id, now
+from iamodelize3d.shop import autoquote, intake, routes, store
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "shop"
 CALIB = json.loads((FIXTURES / "calibration.json").read_text(encoding="utf-8"))["points"]

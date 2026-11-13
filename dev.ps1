@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Runs Formwright for development: the API (uvicorn) and the web app (vite) in one console.
+  Runs IaModelize3d for development: the API (uvicorn) and the web app (vite) in one console.
 
 .DESCRIPTION
   Both logs go to this window with [api] and [web] prefixes; Ctrl+C stops both.
@@ -8,7 +8,7 @@
   -Setup reinstalls them and rebuilds the PCB worker when its sources are newer.
   Open http://localhost:5400: vite serves the UI and proxies /api and /files to the API.
   Edits apply on their own: vite updates the page as web files change, and the API restarts once
-  server\formwright or packages\geom\src change. Pages opened on the API port go to vite as well.
+  server\iamodelize3d or packages\geom\src change. Pages opened on the API port go to vite as well.
 
 .EXAMPLE
   .\dev.ps1
@@ -26,7 +26,7 @@ param(
     # not vite's and uvicorn's usual 5173 and 8000, which other local projects take
     [int]$ApiPort = 8400,
     [int]$WebPort = 5400,
-    # Do not restart the API when server\formwright or packages\geom\src change; by default it restarts,
+    # Do not restart the API when server\iamodelize3d or packages\geom\src change; by default it restarts,
     # cutting a running agent job short.
     [switch]$NoReload,
     # Make the web app reachable from other devices on the network.
@@ -44,7 +44,7 @@ $webDir = Join-Path $root 'web'
 $pcbDir = Join-Path $root 'packages\pcb'
 $python = Join-Path $serverDir '.venv\Scripts\python.exe'
 $vite = Join-Path $root 'node_modules\vite\bin\vite.js'
-$watched = (Join-Path $serverDir 'formwright'), (Join-Path $root 'packages\geom\src')
+$watched = (Join-Path $serverDir 'iamodelize3d'), (Join-Path $root 'packages\geom\src')
 $runApi = $Only -ne 'web'
 $runWeb = $Only -ne 'api'
 $utf8 = New-Object Text.UTF8Encoding $false
@@ -97,7 +97,7 @@ function Start-Api {
     # with vite running, a page opened on the API port is sent to it instead of an outdated web\build
     if ($runWeb) { $environment.FW_WEB_DEV_PORT = "$WebPort" }
     # vite passes the visitor's address in X-Forwarded-For; it is trusted from vite (local) only
-    $arguments = @('-m', 'uvicorn', 'formwright.app:app', '--port', $ApiPort, '--proxy-headers', '--forwarded-allow-ips', '127.0.0.1')
+    $arguments = @('-m', 'uvicorn', 'iamodelize3d.app:app', '--port', $ApiPort, '--proxy-headers', '--forwarded-allow-ips', '127.0.0.1')
     Start-Child 'api' Magenta 'Application startup complete' $python $arguments $serverDir $environment
 }
 
@@ -232,7 +232,7 @@ try {
         if (-not $announced -and -not ($children | Where-Object { -not $_.Ready })) {
             $announced = $true
             $url = if ($runWeb) { "http://localhost:$WebPort" } else { "http://localhost:$ApiPort" }
-            Say "`nFormwright is up: $url   (Ctrl+C stops it)"
+            Say "`nIaModelize3d is up: $url   (Ctrl+C stops it)"
             if ($reloading) { Say "Edits apply on their own; the API restarts after server or geometry changes (-NoReload turns that off).`n" DarkGray }
             else { Write-Host '' }
             if ($Open) { Start-Process $url }

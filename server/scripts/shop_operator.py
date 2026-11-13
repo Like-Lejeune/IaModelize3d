@@ -1,4 +1,4 @@
-"""Farm operators for Formwright Parts: the Axo farm's people who work the /ops board (assign printers, QC, ship).
+"""Farm operators for IaModelize3d Parts: the Axo farm's people who work the /ops board (assign printers, QC, ship).
 
 An operator is a member of the farm organisation (shop_orgs kind 'farm'). Each run can create one, or make an existing
 user one, and print a sign-in link the way judge_link.py does (it opens /ops after the button is pressed).
@@ -9,8 +9,8 @@ Dry run by default; --apply writes.
     python scripts/shop_operator.py --user u_op_... --link --apply    # one more link for an operator (another browser)
     python scripts/shop_operator.py --list                            # the farm, its operators, their unused links
     python scripts/shop_operator.py --remove u_op_... --apply         # no longer an operator (the user stays)
-    python scripts/shop_operator.py --showcase FW-1001 --apply        # anyone may read this delivered order (/parts links it)
-    python scripts/shop_operator.py --showcase FW-1001 --off --apply  # back to its customer and the farm only
+    python scripts/shop_operator.py --showcase IM-1001 --apply        # anyone may read this delivered order (/parts links it)
+    python scripts/shop_operator.py --showcase IM-1001 --off --apply  # back to its customer and the farm only
     python scripts/shop_operator.py --workshop org_... --apply        # a repair shop the farm checked: the workshop tariff
     python scripts/shop_operator.py --workshop org_... --off --apply  # back to the consumer price
 
@@ -21,7 +21,7 @@ A repair shop's account (POST /api/shop/orgs) starts 'pending': its people share
 consumer price until the farm has checked the workshop and set it here (--list shows the pending ones).
 
 The link is FW_PUBLIC_URL/api/login/<token>?next=/ops and works once. Send it privately.
-In the container: docker exec formwright python scripts/shop_operator.py --apply
+In the container: docker exec iamodelize3d python scripts/shop_operator.py --apply
 """
 from __future__ import annotations
 
@@ -43,9 +43,9 @@ TIER = "pro"  # QC photos and calibration coupons are model calls on the operato
 
 
 def ensure_tables(conn: sqlite3.Connection) -> None:
-    """The shop's tables as the server creates them (formwright.shop.store.SCHEMA), for a database the shop never ran on,
+    """The shop's tables as the server creates them (iamodelize3d.shop.store.SCHEMA), for a database the shop never ran on,
     and the columns added since (store.MIGRATIONS) for one it ran on before them."""
-    from formwright.shop.store import MIGRATIONS, SCHEMA
+    from iamodelize3d.shop.store import MIGRATIONS, SCHEMA
 
     if not has_table(conn, "shop_orgs"):
         conn.executescript(SCHEMA)
@@ -133,7 +133,7 @@ def remove(conn: sqlite3.Connection, uid: str, apply: bool) -> None:
 def showcase(conn: sqlite3.Connection, base: str, order: str, on: bool, apply: bool) -> None:
     row = conn.execute("SELECT id, ref, status FROM shop_orders WHERE id = ? OR ref = ?", (order, order)).fetchone()         if has_table(conn, "shop_orders") else None
     if not row:
-        sys.exit(f"no order {order} (an id so_... or a ref FW-...)")
+        sys.exit(f"no order {order} (an id so_... or a ref IM-...)")
     if on and row["status"] not in ("shipped", "delivered"):
         sys.exit(f"{row['ref']} is {row['status']}: only a shipped or delivered order can be shown")
     if apply:
@@ -157,7 +157,7 @@ def workshop(conn: sqlite3.Connection, org: str, on: bool, apply: bool) -> None:
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--db", type=Path, default=None, help="formwright.db (default: FW_DATA_DIR or data/ in the repo)")
+    ap.add_argument("--db", type=Path, default=None, help="iamodelize3d.db (default: FW_DATA_DIR or data/ in the repo)")
     ap.add_argument("--public-url", default=None, help="the app's public address (default: FW_PUBLIC_URL)")
     ap.add_argument("--farm", default=FARM, help="the farm organisation's name")
     ap.add_argument("--name", default="operator", help="name of a new operator user")
@@ -168,7 +168,7 @@ def main() -> None:
     act = ap.add_mutually_exclusive_group()
     act.add_argument("--list", action="store_true", help="show the farm, its operators and printers")
     act.add_argument("--remove", metavar="USER", default=None, help="take the operator role away from this user")
-    act.add_argument("--showcase", metavar="ORDER", default=None, help="show this shipped or delivered order to anyone (id or FW- ref)")
+    act.add_argument("--showcase", metavar="ORDER", default=None, help="show this shipped or delivered order to anyone (id or IM- ref)")
     act.add_argument("--workshop", metavar="ORG", default=None, help="the workshop tariff for this repair shop, once the farm checked it")
     ap.add_argument("--off", action="store_true", help="with --showcase: stop showing it; with --workshop: back to the consumer price")
     args = ap.parse_args()

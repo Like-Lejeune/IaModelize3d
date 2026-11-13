@@ -6,9 +6,9 @@ import asyncio
 
 import pytest
 
-from formwright import db as dbmod, quotas
-from formwright.config import settings
-from formwright.vision import scene, spot
+from iamodelize3d import db as dbmod, quotas
+from iamodelize3d.config import settings
+from iamodelize3d.vision import scene, spot
 
 
 async def test_one_automatic_calibration_for_concurrent_callers(monkeypatch):

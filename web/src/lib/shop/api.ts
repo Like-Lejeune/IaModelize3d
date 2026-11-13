@@ -1,4 +1,4 @@
-// Client for /api/shop (Formwright Parts). Same origin and cookie session as $lib/api, with the shop's own error codes.
+// Client for /api/shop (IaModelize3d Parts). Same origin and cookie session as $lib/api, with the shop's own error codes.
 import { ApiError, errorText, req as apiReq } from '$lib/api';
 import { st } from './i18n';
 import type { DeliveryMethod, Listing, OpsQueue, Order, Quote, ShopMe, ShopPrinter, ShowcaseCard, Tariff } from './types';

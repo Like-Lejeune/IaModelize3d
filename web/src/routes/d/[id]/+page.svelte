@@ -347,7 +347,7 @@
   }
 </script>
 
-<svelte:head><title>{store?.detail ? projectTitle(store.detail.title) : dt('workspace')} · Formwright</title></svelte:head>
+<svelte:head><title>{store?.detail ? projectTitle(store.detail.title) : dt('workspace')} · IaModelize3d</title></svelte:head>
 <svelte:window onkeydown={onKey} bind:innerWidth={dock.viewport} />
 
 {#snippet chatArea()}
@@ -428,7 +428,7 @@
 
 <div class="bw" class:replay={!!player} style:--replay-h="{player ? barH : 0}px">
   <header class="top">
-    <a class="logo" href="/" title="Formwright" aria-label="Formwright"><Logo size={20} /></a>
+    <a class="logo" href="/" title="IaModelize3d" aria-label="IaModelize3d"><Logo size={20} /></a>
     {#if store?.detail}
       {#if store.readonly}<strong class="pname">{projectTitle(store.detail.title)}</strong>
       {:else}<input class="pname" value={projectTitle(store.detail.title)} onchange={rename} aria-label={t('name')} />{/if}

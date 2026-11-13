@@ -8,17 +8,17 @@ from types import SimpleNamespace
 
 import pytest
 
-from formwright import catalog, events, idempotency, storage
-from formwright.agent import critic, narrate
-from formwright.agent.tools import DesignState, _finish
-from formwright.db import close_db, get_db
-from formwright.deviceapi import bom_of
-from formwright.geom import CRASHED, GeomError, _Worker
+from iamodelize3d import catalog, events, idempotency, storage
+from iamodelize3d.agent import critic, narrate
+from iamodelize3d.agent.tools import DesignState, _finish
+from iamodelize3d.db import close_db, get_db
+from iamodelize3d.deviceapi import bom_of
+from iamodelize3d.geom import CRASHED, GeomError, _Worker
 
 
 @pytest.fixture
 async def db(tmp_path, monkeypatch):
-    from formwright.config import settings
+    from iamodelize3d.config import settings
 
     monkeypatch.setattr(settings(), "data_dir", tmp_path)
     (tmp_path / "files").mkdir(exist_ok=True)
@@ -175,7 +175,7 @@ async def test_an_unavailable_reviewer_is_no_pass_and_is_said(monkeypatch):
 
 
 async def test_a_check_that_could_not_run_is_no_approval(monkeypatch):
-    from formwright.agent import elec_tools
+    from iamodelize3d.agent import elec_tools
 
     async def crashed(ctx, state):
         state.unchecked.append("case_check")
@@ -193,8 +193,8 @@ async def test_a_check_that_could_not_run_is_no_approval(monkeypatch):
 
 
 async def test_rules_that_crash_say_they_did_not_run(monkeypatch):
-    from formwright import device_rules
-    from formwright.agent import device_tools
+    from iamodelize3d import device_rules
+    from iamodelize3d.agent import device_tools
 
     def boom(*_):
         raise RuntimeError("bug")

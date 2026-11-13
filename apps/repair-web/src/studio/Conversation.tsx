@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { when } from "../fr";
 import type { Item, StudioStore } from "./store";
 
-// the agent's tools, in words a person understands (server/formwright/agent/tools.py)
+// the agent's tools, in words a person understands (server/iamodelize3d/agent/tools.py)
 const TOOL: Record<string, string> = {
   measure: "Mesure la pièce sur la photo",
   fit_to_photo: "Compare le modèle à la photo",

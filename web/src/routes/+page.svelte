@@ -157,7 +157,7 @@
   }
 </script>
 
-<svelte:head><title>Formwright</title></svelte:head>
+<svelte:head><title>IaModelize3d</title></svelte:head>
 
 <div class="page">
   <DevicePattern />
@@ -167,7 +167,7 @@
       <h1 id="home-title" class="sr-only">{mode === 'device' ? dt('home_title') : t('tagline')}</h1>
       <div class="brand">
         <Logo size={36} />
-        <span>Formwright</span>
+        <span>IaModelize3d</span>
       </div>
       <div
         class="create"

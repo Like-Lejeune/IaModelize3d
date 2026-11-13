@@ -353,7 +353,7 @@
   }
 </script>
 
-<svelte:head><title>{t('snap_title')} · Formwright</title></svelte:head>
+<svelte:head><title>{t('snap_title')} · IaModelize3d</title></svelte:head>
 
 <main class="snap" class:sheet style:--sheet="{sheet ? sheetH : 0}px">
   <div class="stage">

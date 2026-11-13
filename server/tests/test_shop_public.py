@@ -7,8 +7,8 @@ import sqlite3
 
 import pytest
 
-from formwright.db import new_id, now
-from formwright.shop import autoquote, flow, routes, store
+from iamodelize3d.db import new_id, now
+from iamodelize3d.shop import autoquote, flow, routes, store
 
 from shop_fakes import add_program, setup, teardown, wait_for
 from test_shop_showcase import _operator_script

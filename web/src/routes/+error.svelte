@@ -4,7 +4,7 @@
   import { t } from '$lib/i18n.svelte';
 </script>
 
-<svelte:head><title>{page.status} · Formwright</title></svelte:head>
+<svelte:head><title>{page.status} · IaModelize3d</title></svelte:head>
 
 <main class="fail" role="alert">
   <p class="code mono">{page.status}</p>

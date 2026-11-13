@@ -8,9 +8,9 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from formwright import app as appmod, db as dbmod, sessions
-from formwright.app import ROUTERS, app, include_routers
-from formwright.config import settings
+from iamodelize3d import app as appmod, db as dbmod, sessions
+from iamodelize3d.app import ROUTERS, app, include_routers
+from iamodelize3d.config import settings
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ def _paths(route) -> list[str]:
 
 
 def test_registry_names_the_three_feature_routers():
-    assert ROUTERS == ("formwright.shop.routes", "formwright.pcbapi", "formwright.deviceapi", "formwright.collect")
+    assert ROUTERS == ("iamodelize3d.shop.routes", "iamodelize3d.pcbapi", "iamodelize3d.deviceapi", "iamodelize3d.collect")
 
 
 def test_feature_routes_come_before_the_catch_all():
@@ -65,11 +65,11 @@ def test_missing_feature_is_skipped(caplog, tmp_path, monkeypatch):
     (tmp_path / "fw_no_router_feature.py").write_text("x = 1\n", encoding="utf-8")
     monkeypatch.syspath_prepend(str(tmp_path))
     target = FastAPI()
-    with caplog.at_level(logging.ERROR, logger="formwright"):
-        mounted = include_routers(target, ("formwright.no_such_feature", "fw_broken_feature", "fw_no_router_feature", "formwright.shop.routes"))
-    assert mounted == ["formwright.shop.routes"]
+    with caplog.at_level(logging.ERROR, logger="iamodelize3d"):
+        mounted = include_routers(target, ("iamodelize3d.no_such_feature", "fw_broken_feature", "fw_no_router_feature", "iamodelize3d.shop.routes"))
+    assert mounted == ["iamodelize3d.shop.routes"]
     text = caplog.text
-    assert "formwright.no_such_feature is not there" in text and "fw_broken_feature failed to import" in text and "has no `router`" in text
+    assert "iamodelize3d.no_such_feature is not there" in text and "fw_broken_feature failed to import" in text and "has no `router`" in text
     assert any(p.startswith("/api/shop/") for r in target.routes for p in _paths(r))
 
 

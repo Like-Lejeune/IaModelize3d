@@ -19,15 +19,15 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from formwright import catalog, device_store, pcb, pcb_store, storage
-from formwright import db as dbmod
-from formwright import geom as geommod
-from formwright.agent import device_inspect as di
-from formwright.agent import device_prompt, device_tools, tools
-from formwright.agent.tools import DesignState
-from formwright.config import REPO_DIR, settings
-from formwright.geom import GeomPool
-from formwright.llm.client import CostMeter
+from iamodelize3d import catalog, device_store, pcb, pcb_store, storage
+from iamodelize3d import db as dbmod
+from iamodelize3d import geom as geommod
+from iamodelize3d.agent import device_inspect as di
+from iamodelize3d.agent import device_prompt, device_tools, tools
+from iamodelize3d.agent.tools import DesignState
+from iamodelize3d.config import REPO_DIR, settings
+from iamodelize3d.geom import GeomPool
+from iamodelize3d.llm.client import CostMeter
 
 FIX = Path(__file__).parent / "fixtures" / "device_inspect"
 PID = "p_inspect"

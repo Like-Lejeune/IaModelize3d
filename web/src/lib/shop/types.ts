@@ -1,4 +1,4 @@
-// Formwright Parts: the shapes server/formwright/shop/routes.py answers with (orders, quotes, QC, the catalog, the farm).
+// IaModelize3d Parts: the shapes server/iamodelize3d/shop/routes.py answers with (orders, quotes, QC, the catalog, the farm).
 // Money is in tenge (KZT), the binding figure; every amount also comes in US dollars at a fixed demo rate.
 
 export type OrderStatus =

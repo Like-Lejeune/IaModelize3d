@@ -8,15 +8,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from formwright import db as dbmod
-from formwright import geom as geommod
-from formwright.agent import elec_tools as et
-from formwright.agent import tools
-from formwright.agent.tools import DesignState
-from formwright.config import settings
-from formwright.geom import GeomError, GeomPool
-from formwright.llm.client import CostMeter
-from formwright.llm.english import is_english
+from iamodelize3d import db as dbmod
+from iamodelize3d import geom as geommod
+from iamodelize3d.agent import elec_tools as et
+from iamodelize3d.agent import tools
+from iamodelize3d.agent.tools import DesignState
+from iamodelize3d.config import settings
+from iamodelize3d.geom import GeomError, GeomPool
+from iamodelize3d.llm.client import CostMeter
+from iamodelize3d.llm.english import is_english
 
 PICO = et.dataset_board("rpi-pico-w")
 
@@ -197,7 +197,7 @@ async def test_a_new_board_rebuilds_the_case_that_reads_it(fresh_db, monkeypatch
 
 
 async def test_scan_board_attaches_the_board_and_shows_its_boxes(fresh_db, monkeypatch):
-    from formwright.vision import board as vb
+    from iamodelize3d.vision import board as vb
 
     await fresh_db.insert("assets", {"id": "a1", "project_id": "p_case", "kind": "photo", "path": "p_case/a1.jpg", "width": 1600, "height": 678,
                                      "meta": {}, "created_at": 0})

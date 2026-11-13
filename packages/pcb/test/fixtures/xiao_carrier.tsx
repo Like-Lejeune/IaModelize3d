@@ -1,4 +1,4 @@
-// The home page's PCB example (server/formwright/showcase.py XIAO_CARRIER, the same code): a carrier board for a Seeed
+// The home page's PCB example (server/iamodelize3d/showcase.py XIAO_CARRIER, the same code): a carrier board for a Seeed
 // XIAO ESP32-C3 with USB-C power input, status LED, push button and a 4-pin I2C header. 0 DRC errors, 0 warnings.
 // Only offline footprinter strings are used (no jlcpcb:/kicad: footprints, no network).
 // What the design promises, checked by the build next to DRC (src/intent.mjs).

@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from formwright import app as appmod, db as dbmod, events
-from formwright.config import settings
+from iamodelize3d import app as appmod, db as dbmod, events
+from iamodelize3d.config import settings
 
 
 @pytest.fixture

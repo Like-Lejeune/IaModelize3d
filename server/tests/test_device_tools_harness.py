@@ -17,14 +17,14 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-import formwright
-from formwright import catalog, device, device_concept, device_store, pcb, pcb_store
-from formwright import db as dbmod
-from formwright.agent import critic, device_prompt, device_review, device_tools, narrate, pcb_tools, tools
-from formwright.agent.tools import DesignState
-from formwright.config import settings
-from formwright.llm.client import CostMeter
-from formwright.llm.english import is_english
+import iamodelize3d
+from iamodelize3d import catalog, device, device_concept, device_store, pcb, pcb_store
+from iamodelize3d import db as dbmod
+from iamodelize3d.agent import critic, device_prompt, device_review, device_tools, narrate, pcb_tools, tools
+from iamodelize3d.agent.tools import DesignState
+from iamodelize3d.config import settings
+from iamodelize3d.llm.client import CostMeter
+from iamodelize3d.llm.english import is_english
 
 FIX = Path(__file__).parent / "fixtures" / "device"
 BME = json.loads((FIX.parent / "easyeda" / "C92489.json").read_text(encoding="utf-8"))
@@ -131,22 +131,22 @@ def offline(monkeypatch):
 
 
 def plug(monkeypatch, name: str, module: types.ModuleType | None) -> None:
-    """Put a stand-in where formwright.<name> goes (None: the module is missing), whether or not the real one exists."""
-    monkeypatch.setitem(sys.modules, f"formwright.{name}", module)
+    """Put a stand-in where iamodelize3d.<name> goes (None: the module is missing), whether or not the real one exists."""
+    monkeypatch.setitem(sys.modules, f"iamodelize3d.{name}", module)
     if module is None:
-        monkeypatch.delattr(formwright, name, raising=False)
+        monkeypatch.delattr(iamodelize3d, name, raising=False)
     else:
-        monkeypatch.setattr(formwright, name, module, raising=False)
+        monkeypatch.setattr(iamodelize3d, name, module, raising=False)
 
 
 def rules(items) -> types.ModuleType:
-    m = types.ModuleType("formwright.device_rules")
+    m = types.ModuleType("iamodelize3d.device_rules")
     m.check = lambda doc, parts: [dict(i) for i in items]  # type: ignore[attr-defined]
     return m
 
 
 def checker(result) -> types.ModuleType:
-    m = types.ModuleType("formwright.firmware_check")
+    m = types.ModuleType("iamodelize3d.firmware_check")
     m.calls = []  # type: ignore[attr-defined]
 
     async def check(doc, files, lang):
@@ -260,7 +260,7 @@ async def test_write_device_needs_a_concept_keeps_it_and_names_the_chosen_one(fr
     assert device_tools.concept_problems({}) and device_tools.concept_problems(doc()) == []
     # the editor's normalize keeps it, and the self-check asks whether the uses are served and the chosen one was built
     assert device.normalize(doc())[0]["concept"]["chosen"] == "Shelf block"
-    from formwright import device_checklists as dc
+    from iamodelize3d import device_checklists as dc
     assert "the concept's uses is served" in dc.for_kinds(["device"]) and "What was built is the chosen concept" in dc.for_kinds(["device"])
 
 
@@ -336,7 +336,7 @@ async def test_the_layout_is_asked_about_once_when_all_else_is_ready(fresh_db, o
 
 
 async def test_the_built_board_and_the_case_are_held_to_the_concept(fresh_db, offline, monkeypatch):
-    from formwright.agent import elec_tools
+    from iamodelize3d.agent import elec_tools
 
     plug(monkeypatch, "device_rules", None)
     monkeypatch.setattr(pcb, "pool", lambda: FakePcb(CLEAN, CLEAN))
@@ -391,7 +391,7 @@ async def test_the_built_board_and_the_case_are_held_to_the_concept(fresh_db, of
 # ---------------------------------------------------------------- the catalogue
 async def test_search_names_the_accessory_for_a_ready_made_module(monkeypatch):
     lib = {"hc_sr501_pir": {"name": "HC-SR501 PIR motion module"}, "oled_096_i2c": {"name": "0.96\" OLED 128x64 I2C (SSD1306)"}}
-    acc = types.ModuleType("formwright.accessories")
+    acc = types.ModuleType("iamodelize3d.accessories")
     acc.get = lib.get  # type: ignore[attr-defined]
     # as loose as a substring match: 'led' is in 'oled'
     acc.find = lambda q: next((k for k, a in lib.items() if any(w in f"{k} {a['name']}".lower() for w in q.lower().split())), None)  # type: ignore[attr-defined]
@@ -617,7 +617,7 @@ async def test_the_device_reviewer_reads_the_board_the_firmware_and_the_order(fr
     async def quote(project_id, qty):
         return copy.deepcopy(QUOTE)
 
-    from formwright import deviceapi
+    from iamodelize3d import deviceapi
 
     monkeypatch.setattr(critic, "answered", no_questions)
     monkeypatch.setattr(deviceapi, "quote_for", quote)
@@ -666,7 +666,7 @@ async def test_the_device_reviewer_reads_the_board_the_firmware_and_the_order(fr
 def test_the_reviewer_knows_a_module_bat_cell_has_no_nets_and_what_each_pin_is(monkeypatch):
     lib = {"lipo_1s_1000": {"name": "LiPo cell 3.7 V 1000 mAh", "kind": "battery", "connect": "module_bat", "mount": "inside", "supply": "3V3"},
            "oled_096_i2c": {"name": "OLED", "kind": "display", "connect": "header", "mount": "board", "supply": "3V3-5V", "current_ma": 20}}
-    acc = types.ModuleType("formwright.accessories")
+    acc = types.ModuleType("iamodelize3d.accessories")
     acc.get = lib.get  # type: ignore[attr-defined]
     plug(monkeypatch, "accessories", acc)
     assert device_review.accessory_text("lipo_1s_1000") == (
@@ -714,7 +714,7 @@ async def test_a_device_that_runs_out_of_turns_says_where_the_device_stands(fres
 
 
 def test_the_device_pack_gets_more_turns():
-    from formwright.agent import loop
+    from iamodelize3d.agent import loop
 
     assert loop.PACK_TURNS.get("device", 0) >= 6 and not loop.PACK_TURNS.get("household")
 

@@ -23,11 +23,11 @@ import numpy as np
 SERVER_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SERVER_DIR))
 
-from formwright.agent.device_inspect import case_program  # noqa: E402
-from formwright.geom import geom  # noqa: E402
+from iamodelize3d.agent.device_inspect import case_program  # noqa: E402
+from iamodelize3d.geom import geom  # noqa: E402
 
-EXAMPLES = SERVER_DIR / "formwright" / "example_devices"
-DEFAULT_DB = SERVER_DIR.parent / "data" / "formwright.db"
+EXAMPLES = SERVER_DIR / "iamodelize3d" / "example_devices"
+DEFAULT_DB = SERVER_DIR.parent / "data" / "iamodelize3d.db"
 OUT = SERVER_DIR.parent / "web" / "src" / "lib" / "pattern" / "deviceGlyphs.json"
 
 # view directions: the covers' corner (packages/geom engine.render, view 'iso') and the opposite front corner

@@ -1,4 +1,4 @@
-"""Formwright Parts (shop): prices, the order lifecycle, the farm board, QC, the catalog and the intake safety gate.
+"""IaModelize3d Parts (shop): prices, the order lifecycle, the farm board, QC, the catalog and the intake safety gate.
 Offline: a temp database, the slicer answers with real OrcaSlicer numbers and the intake with real Muse Spark answers."""
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from formwright.shop import flow, intake, qc, quote, store
+from iamodelize3d.shop import flow, intake, qc, quote, store
 
 from shop_fakes import CALIB, CASES, WHEEL, finish_design, jpeg, setup, teardown, wait_for
 
@@ -208,7 +208,7 @@ async def test_full_order_lifecycle(env):
     assert (await c.post(report, json={"reason": "mine"}, headers=H("u_a4"))).json()["flagged"]
     assert len((await store.get_listing(env.db, li["id"]))["reports"]) == 5
     # and nobody files more than REPORTS_PER_DAY a day
-    from formwright.shop import routes
+    from iamodelize3d.shop import routes
 
     await env.db.execute("INSERT INTO shop_listings (id, project_id, version, owner_id, title, public, created_at, updated_at) "
                          "VALUES ('l_other', 'p_other', 1, 'u_other', 'Other part', 1, 0, 0)")
@@ -320,8 +320,8 @@ def test_open_model_never_decides_refuse():
     wheel = CASES["voice_wheel_plate_a4"]
     out = intake.combine(wheel["spark"], CASES["open_model_wrong_object"]["open"])
     assert out["refuse"] is False and out["review"] is None and out["classify"]["error"]
-    brief = intake.design_brief(out, "колёсико", "FW-1001")
-    assert "FW-1001" in brief and "dishwasher lower basket wheel" in brief and "compatible part" in brief
+    brief = intake.design_brief(out, "колёсико", "IM-1001")
+    assert "IM-1001" in brief and "dishwasher lower basket wheel" in brief and "compatible part" in brief
 
 
 # ------------------------------------------------------------------ QC report (contract C10)

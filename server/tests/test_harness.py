@@ -4,9 +4,9 @@ import base64
 import numpy as np
 import pytest
 
-from formwright.agent.compare import silhouette_agreement, view_camera
-from formwright.agent.tools import tools_for
-from formwright.geom import GeomPool
+from iamodelize3d.agent.compare import silhouette_agreement, view_camera
+from iamodelize3d.agent.tools import tools_for
+from iamodelize3d.geom import GeomPool
 
 CYLINDER = "return { params: {}, build: (p, lib) => lib.std.cyl(80, 100) };"
 CONE = "return { params: {}, build: (p, lib) => lib.std.cyl(80, 100, { d2: 50 }) };"

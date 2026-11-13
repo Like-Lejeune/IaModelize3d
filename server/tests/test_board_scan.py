@@ -11,12 +11,12 @@ import numpy as np
 import pytest
 
 import test_vision_synth as syn
-from formwright import db as dbmod
-from formwright.config import settings
-from formwright.llm.client import CostMeter
-from formwright.vision import board as vb
-from formwright.vision import sam as vsam
-from formwright.vision.sam import Mask
+from iamodelize3d import db as dbmod
+from iamodelize3d.config import settings
+from iamodelize3d.llm.client import CostMeter
+from iamodelize3d.vision import board as vb
+from iamodelize3d.vision import sam as vsam
+from iamodelize3d.vision.sam import Mask
 
 FIX = Path(__file__).parent / "fixtures" / "board_scan"
 
@@ -212,7 +212,7 @@ def test_the_hole_fit_finds_the_board_turned_any_way(turn):
 
 async def test_an_unknown_board_on_an_a4_sheet(fresh_db, monkeypatch):
     """The A4 path: the sheet gives the plane, SAM's board mask the outline, its hole and port masks the rest."""
-    from formwright.vision import scene
+    from iamodelize3d.vision import scene
 
     img, sheet, _, R, t = syn.scene()
     x0, y0, bw, bh = 70.0, 110.0, 50.0, 30.0  # the board on the sheet, mm

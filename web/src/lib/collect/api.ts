@@ -1,4 +1,4 @@
-// Snap & collect without the agent (server/formwright/collect.py): the instant sticker, "keep" and the
+// Snap & collect without the agent (server/iamodelize3d/collect.py): the instant sticker, "keep" and the
 // collection plate. Over $lib/api's request; errors are its ApiError, so errorText() still applies.
 import { ApiError, errorText, req as apiReq } from '$lib/api';
 import type { ProjectOut } from '$lib/types';

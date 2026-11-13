@@ -4,9 +4,9 @@ import json
 import httpx
 import pytest
 
-from formwright import db as dbmod, events, pcb_store, pcbapi, sessions
-from formwright.app import app
-from formwright.config import settings
+from iamodelize3d import db as dbmod, events, pcb_store, pcbapi, sessions
+from iamodelize3d.app import app
+from iamodelize3d.config import settings
 
 BOARD = {"schema": "fw.board/1", "id": "pcb", "name": "carrier", "source": {"kind": "pcb"}, "frame": "mm",
          "pcb": {"outline": {"kind": "rect", "w": 44, "h": 36}, "thickness": 1.6, "holes": []}, "components": []}
@@ -58,7 +58,7 @@ async def test_save_writes_a_version_with_its_files(fresh_db, tmp_path):
     frames = json.loads(pcb_store.artifact_path("p1", 1, "route_frames.json").read_text())
     assert frames["total"] == 1 and frames["board"] == {"w": 44, "h": 36} and frames["svg_map"]["pcb_top.svg"]["matrix"]
     assert pcb_store.artifact_path("p1", 1, "gerbers.zip").read_bytes() == b"PK\x03\x04zip"
-    assert pcb_store.artifact_path("p1", 1, "../formwright.db") is None
+    assert pcb_store.artifact_path("p1", 1, "../iamodelize3d.db") is None
     assert pcb_store.artifact_path("..", 1, "board.json") is None
     assert [r["version"] for r in await pcb_store.versions("p1")] == [1, 2]
     assert await pcb_store.get("p1", 9) is None and await pcb_store.versions("nope") == []
@@ -102,7 +102,7 @@ async def test_versions_and_artifacts_over_http(fresh_db):
 async def test_names_outside_the_list_never_reach_the_disk(fresh_db):
     await pcb_store.save("p1", source="tsx", intent=None, build=BUILD, files=EXPORT)
     async with await _client() as c:
-        for path in ("/api/projects/p1/pcb/1/..%2F..%2F..%2Fformwright.db", "/api/projects/p1/pcb/1/..%5Cformwright.db",
+        for path in ("/api/projects/p1/pcb/1/..%2F..%2F..%2Fiamodelize3d.db", "/api/projects/p1/pcb/1/..%5Ciamodelize3d.db",
                      "/api/projects/p1/pcb/1/evil.sh", "/api/projects/p1/pcb/x/board.json",
                      "/api/projects/p1/pcb/7/board.json", "/api/projects/p1/pcb/-1/board.json"):
             r = await c.get(path)
@@ -131,7 +131,7 @@ async def test_build_version_streams_frames_and_announces_the_version(fresh_db, 
         async def export(self, circuit_json):
             return EXPORT
 
-    monkeypatch.setattr("formwright.pcb.pool", lambda: FakePool())
+    monkeypatch.setattr("iamodelize3d.pcb.pool", lambda: FakePool())
     build, version = await pcbapi.build_version("p1", "good", job_id="j1")
     assert build["ok"] and version == 1
     evs = await events.since("p1", 0)

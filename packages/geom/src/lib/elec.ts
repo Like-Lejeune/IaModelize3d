@@ -80,7 +80,7 @@ export type BoardOutline = ({ kind: 'rect'; w: number; h: number; r?: number } |
   verify?: string[];
 };
 
-// A ready-made module the fab does not solder (device accessories, server/formwright/accessories.py): on a header over
+// A ready-made module the fab does not solder (device accessories, server/iamodelize3d/accessories.py): on a header over
 // the board (mount 'board': an OLED), out of the case on a cable (a probe: a wall exit at edge/at) or loose in the case
 // (mount 'inside': a LiPo cell, placed by the case beside or under the board). Board frame, mm.
 export interface BoardAccessory {

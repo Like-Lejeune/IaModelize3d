@@ -19,11 +19,11 @@ from typing import Any
 SERVER_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SERVER_DIR))
 
-from formwright.agent.device_inspect import cover_render  # noqa: E402
-from formwright.geom import GeomError, geom  # noqa: E402
+from iamodelize3d.agent.device_inspect import cover_render  # noqa: E402
+from iamodelize3d.geom import GeomError, geom  # noqa: E402
 
 DEFAULT_DATA = SERVER_DIR.parent / "data"
-EXAMPLES = SERVER_DIR / "formwright" / "example_devices"
+EXAMPLES = SERVER_DIR / "iamodelize3d" / "example_devices"
 
 
 async def cover(source: str, params: dict[str, Any], inputs: dict[str, Any]) -> bytes:
@@ -40,7 +40,7 @@ async def examples() -> None:
 
 
 async def projects(data_dir: Path) -> None:
-    conn = sqlite3.connect(f"file:{(data_dir / 'formwright.db').as_posix()}?mode=ro", uri=True)
+    conn = sqlite3.connect(f"file:{(data_dir / 'iamodelize3d.db').as_posix()}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     rows = conn.execute("SELECT id, cover FROM projects WHERE pack = 'device' AND cover IS NOT NULL").fetchall()
     for row in rows:

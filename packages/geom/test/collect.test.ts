@@ -14,7 +14,7 @@ const CAT = JSON.parse(readFileSync(new URL('./data/cat_relief.json', import.met
   name: string;
 };
 
-// the program /api/snap/{id}/keep saves (server/formwright/collect.py STICKER_SOURCE)
+// the program /api/snap/{id}/keep saves (server/iamodelize3d/collect.py STICKER_SOURCE)
 const STICKER = `
 const meta = { title: 'Snap sticker', pack: 'collect' };
 const params = {

@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import pytest
 
-from formwright.vision import relief
+from iamodelize3d.vision import relief
 
 
 def _disk_with_hole(detail_texture: bool = False) -> tuple[np.ndarray, np.ndarray]:

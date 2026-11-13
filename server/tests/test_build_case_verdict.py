@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-from formwright.agent import narrate, tools
+from iamodelize3d.agent import narrate, tools
 
 PARAMS = {f"param_{i}": i * 1.5 for i in range(30)}
 

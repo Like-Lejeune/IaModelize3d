@@ -351,7 +351,7 @@
   }
 </script>
 
-<svelte:head><title>{store?.detail ? projectTitle(store.detail.title) : t('studio')} · Formwright</title></svelte:head>
+<svelte:head><title>{store?.detail ? projectTitle(store.detail.title) : t('studio')} · IaModelize3d</title></svelte:head>
 
 <svelte:window onkeydown={onKey} onclick={(e) => menu && menuWrap && !e.composedPath().includes(menuWrap) && (menu = false)} bind:innerWidth={dock.viewport} />
 
@@ -415,7 +415,7 @@
 
 <div class="bw" class:replay={!!player} class:chatting={!wide && tab === 'chat'} style:--replay-h="{player ? barH : 0}px">
   <header class="top">
-    <a class="logo" href="/" title="Formwright" aria-label="Formwright"><Logo size={20} /></a>
+    <a class="logo" href="/" title="IaModelize3d" aria-label="IaModelize3d"><Logo size={20} /></a>
     {#if wide}{@render projectName()}{/if}
     {#if store?.detail}
       <nav class="wtabs" role="tablist" aria-label={t('studio')}>

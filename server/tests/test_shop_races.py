@@ -7,9 +7,9 @@ import asyncio
 
 import pytest
 
-from formwright import events
-from formwright.db import new_id, now
-from formwright.shop import autoquote, routes, store
+from iamodelize3d import events
+from iamodelize3d.db import new_id, now
+from iamodelize3d.shop import autoquote, routes, store
 
 from shop_fakes import add_program, answer, jpeg, setup, teardown, wait_for
 

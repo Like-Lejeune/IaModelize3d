@@ -1,4 +1,4 @@
-// Client for a project's PCB versions (contract C8, server/formwright/pcbapi.py): the list of versions and
+// Client for a project's PCB versions (contract C8, server/iamodelize3d/pcbapi.py): the list of versions and
 // their files by URL. Same origin and cookie session as $lib/api; errors come back as its ApiError.
 import { apiError, deadline } from '$lib/api';
 import type { PcbDrc, PcbVersion, RouteFrames } from '$lib/types';

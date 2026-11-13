@@ -9,18 +9,18 @@ import asyncio
 
 import pytest
 
-from formwright import db as dbmod, events, storage
-from formwright.agent import critic, loop, runner, tools
-from formwright.agent.tools import DesignState
-from formwright.llm.client import CostMeter
-from formwright.models import SendMessage
-from formwright.quotas import ModelChoice
+from iamodelize3d import db as dbmod, events, storage
+from iamodelize3d.agent import critic, loop, runner, tools
+from iamodelize3d.agent.tools import DesignState
+from iamodelize3d.llm.client import CostMeter
+from iamodelize3d.models import SendMessage
+from iamodelize3d.quotas import ModelChoice
 
 from test_loop_handover import FakeMeta, _png, _use, call, fake_tools, fresh_db, offline  # noqa: F401 (fixtures)
 
 QUESTION = "Сколько колёс нужно напечатать для нижней корзины?"
 OWN = "Колесо для нижней корзины посудомойки Bosch: диаметр 25 мм, ширина 8 мм, ось 5 мм, надевается со щелчком"
-BRIEF = ("Spare part order FW-1002: design a printable replacement part from the photos.\n"
+BRIEF = ("Spare part order IM-1002: design a printable replacement part from the photos.\n"
          "The part: dishwasher lower basket wheel.\nMaterial: PETG. Quantity: 1.\n"
          "The intake desk could not tell: Сколько колёс нужно напечатать? If the photos do not answer it, ask the customer.\n"
          "The customer's request:\n" + OWN)
@@ -195,10 +195,10 @@ async def test_the_reviewer_reads_briefs_and_the_persons_own_words(fresh_db, mon
     """A catalog order's shown line is not inside its brief: the reviewer gets it as the person's own words. A studio
     message from before shown existed reads as it always did."""
     seen = await _review(fresh_db, monkeypatch, ("a wheel", {"asset_ids": []}),
-                         ("Заказ FW-1002: Колёсико нижней корзины", {"asset_ids": [], "brief": "Spare part order FW-1002: print listing L1."}))
+                         ("Заказ IM-1002: Колёсико нижней корзины", {"asset_ids": [], "brief": "Spare part order IM-1002: print listing L1."}))
     lines = seen.split("\n")
-    assert lines[0] == "Request: a wheel / Spare part order FW-1002: print listing L1."
-    assert lines[1] == 'The person\'s own words: "Заказ FW-1002: Колёсико нижней корзины"'
+    assert lines[0] == "Request: a wheel / Spare part order IM-1002: print listing L1."
+    assert lines[1] == 'The person\'s own words: "Заказ IM-1002: Колёсико нижней корзины"'
     assert lines[2] == "Request language: ru (write text_user in it)"
     assert "Questions the designer asked" not in seen
 
@@ -235,7 +235,7 @@ async def _crash(db, pid: str, payload: dict, brief: dict | None = None) -> str:
     ({"text": "a wheel", "language": "ru-RU"}, None, True),
     ({"text": "a wheel", "language": "en"}, {"language": "ru"}, False),
     ({"text": "a wheel", "language": "not a language"}, {"language": "ru"}, True),  # not a language: the brief decides
-    ({"text": "Spare part order FW-1002", "shown": "Колесо для корзины"}, None, True),  # the person's own words
+    ({"text": "Spare part order IM-1002", "shown": "Колесо для корзины"}, None, True),  # the person's own words
     ({"text": "Колесо для корзины"}, None, True),
     ({"text": "a wheel"}, None, False),
 ])
@@ -249,8 +249,8 @@ async def test_the_loop_answers_in_the_language_of_the_persons_own_words(fresh_d
     ctx = runner.JobContext(job_id="j1", kind="design", project=await _project(fresh_db), user={"id": "u1"},
                             meter=CostMeter(budget_usd=0.6), models=MODELS)
     _use(monkeypatch, FakeMeta([[call("write_program", {"source": "x", "summary": "колесо"})], [call("finish", {"summary": "Готово"}, "c2")]]))
-    await loop.design(ctx, SendMessage(text="Spare part order FW-1002: print the basket wheel.", shown="Заказ FW-1002: Колёсико корзины"))
+    await loop.design(ctx, SendMessage(text="Spare part order IM-1002: print the basket wheel.", shown="Заказ IM-1002: Колёсико корзины"))
     brief = (await fresh_db.one("SELECT brief FROM projects WHERE id = 'p1'"))["brief"]
     assert brief["language"] == "ru"
     # the model's own text is what the brief keeps as the request
-    assert brief["turns"] == ["Spare part order FW-1002: print the basket wheel."]
+    assert brief["turns"] == ["Spare part order IM-1002: print the basket wheel."]

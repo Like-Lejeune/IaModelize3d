@@ -7,8 +7,8 @@ import base64
 import httpx
 import pytest
 
-from formwright.db import new_id, now
-from formwright.shop import notes, routes, store
+from iamodelize3d.db import new_id, now
+from iamodelize3d.shop import notes, routes, store
 
 from shop_fakes import add_program, finish_design, setup, teardown, wait_for
 
@@ -144,7 +144,7 @@ async def test_an_operators_own_order_answers_as_the_customers(env):
 
 
 def test_titles_follow_the_language_and_the_safety_model():
-    from formwright.shop.intake import titles
+    from iamodelize3d.shop.intake import titles
 
     from shop_fakes import answer
 
@@ -189,9 +189,9 @@ def test_old_english_notes_read_back_as_codes():
 
 
 async def test_axo_export_takes_the_pinned_version(env, monkeypatch):
-    from formwright.config import settings
-    from formwright.integrations import axo
-    from formwright.models import OrderRequest
+    from iamodelize3d.config import settings
+    from iamodelize3d.integrations import axo
+    from iamodelize3d.models import OrderRequest
 
     pid = await _project(env, "u_eve", "Wheel")
     await add_program(env.db, pid, 1)
@@ -253,7 +253,7 @@ async def test_catalog_cards_carry_both_titles(env):
 
 
 async def test_older_databases_get_the_listing_title_columns(tmp_path):
-    from formwright.db import Database
+    from iamodelize3d.db import Database
 
     db = Database(str(tmp_path / "old.db"))
     await db.open()

@@ -9,9 +9,9 @@ import httpx
 import openai
 import pytest
 
-from formwright.config import settings
-from formwright.llm import client, pricing
-from formwright.llm.client import CostMeter, MetaClient, parse_json_object
+from iamodelize3d.config import settings
+from iamodelize3d.llm import client, pricing
+from iamodelize3d.llm.client import CostMeter, MetaClient, parse_json_object
 
 OPEN = "meta-models/muse-spark-open-1026"
 

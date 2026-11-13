@@ -1,5 +1,5 @@
 {
-  "name": "@formwright/repair-web",
+  "name": "@iamodelize3d/repair-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -12,7 +12,7 @@
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@fontsource/atkinson-hyperlegible": "^5.3.0",
-    "@formwright/geom": "file:../../packages/geom",
+    "@iamodelize3d/geom": "file:../../packages/geom",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5",

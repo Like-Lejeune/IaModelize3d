@@ -1,11 +1,11 @@
-"""Defects read from the real chats on formwright.axo.kz of 2026-11-04, each kept as a case of the general mechanism that fixes it."""
+"""Defects read from the real chats on iamodelize3d.axo.kz of 2026-11-04, each kept as a case of the general mechanism that fixes it."""
 from __future__ import annotations
 
 import pytest
 
-from formwright import device, firmware_check
-from formwright.agent import device_inspect, device_tools, loop, narrate
-from formwright.agent.tools import DesignState, _hand_values, _source_value, _unstrung, tools_for
+from iamodelize3d import device, firmware_check
+from iamodelize3d.agent import device_inspect, device_tools, loop, narrate
+from iamodelize3d.agent.tools import DesignState, _hand_values, _source_value, _unstrung, tools_for
 
 XIAO_S3 = "113991114"
 XIAO_C3 = "113991054"

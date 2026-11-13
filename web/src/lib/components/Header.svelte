@@ -16,7 +16,7 @@
   let open = $state(false);
   let wrap = $state<HTMLElement>();
 
-  // Formwright Parts: the board link only for the Axo farm's operators
+  // IaModelize3d Parts: the board link only for the Axo farm's operators
   let operator = $state(false);
   const path = $derived(page.url.pathname);
   const at = (p: string) => path === p || path.startsWith(`${p}/`);
@@ -56,9 +56,9 @@
 <header class="hd" class:bare bind:this={headerEl}>
   <div class="hd-inner">
     {#if !bare}
-      <a class="brand" href="/" aria-label="Formwright">
+      <a class="brand" href="/" aria-label="IaModelize3d">
         <Logo size={26} />
-        <span class="name">Formwright</span>
+        <span class="name">IaModelize3d</span>
       </a>
       <nav class="nav" aria-label={st('nav.menu')}>
         <a href="/replays" class:on={at('/replays')}><Icon name="play" size={16} /><span>{t('replays')}</span></a>

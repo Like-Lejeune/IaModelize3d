@@ -7,7 +7,7 @@ from meta_sam_parser import _mask_codec as ref
 from meta_sam_parser import _segmentation
 from meta_sam_parser._types import SegmentationMask
 
-from formwright.vision import maskcodec
+from iamodelize3d.vision import maskcodec
 
 
 def _shapes(w: int, h: int, seed: int) -> np.ndarray:

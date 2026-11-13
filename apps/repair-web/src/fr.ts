@@ -1,4 +1,4 @@
-// Everything the customer and the workshop read, in French. The API journal speaks in codes (server/formwright/shop/
+// Everything the customer and the workshop read, in French. The API journal speaks in codes (server/iamodelize3d/shop/
 // notes.py); each code has its sentence here, and an unknown code falls back to the API's own English line.
 import type { Delivery, Material, Status, TimelineEntry } from "./types";
 

@@ -6,10 +6,10 @@ import asyncio
 
 import pytest
 
-from formwright import events
-from formwright.db import new_id, now
-from formwright.printing.service import SliceError
-from formwright.shop import autoquote, store
+from iamodelize3d import events
+from iamodelize3d.db import new_id, now
+from iamodelize3d.printing.service import SliceError
+from iamodelize3d.shop import autoquote, store
 
 from shop_fakes import CALIB, WHEEL, add_program, finish_design, setup, teardown, wait_for
 

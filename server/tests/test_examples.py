@@ -2,10 +2,10 @@
 own examples too: the Pico W case passes its own check, the carrier board routes with 0 DRC errors and a met intent."""
 import pytest
 
-from formwright.agent import elec_tools, examples, pcb_prompt
-from formwright.config import REPO_DIR
-from formwright.geom import GeomPool
-from formwright.pcb import PcbPool
+from iamodelize3d.agent import elec_tools, examples, pcb_prompt
+from iamodelize3d.config import REPO_DIR
+from iamodelize3d.geom import GeomPool
+from iamodelize3d.pcb import PcbPool
 
 OUTLINE = {"outlines": {"part": [[[70, 110], [140, 110], [140, 128], [88, 128], [88, 155], [70, 155]]]}}
 
@@ -27,7 +27,7 @@ async def test_example_builds_without_warnings(pool, name):
 
 
 def test_pack_examples_sit_in_their_packs():
-    from formwright.agent import device_prompt
+    from iamodelize3d.agent import device_prompt
 
     assert set(examples.PACK_EXAMPLES) == {"enclosure", "pcb", "device"}
     assert elec_tools.EXAMPLE in examples.PACK_EXAMPLES["enclosure"] and pcb_prompt.EXAMPLE in examples.PACK_EXAMPLES["pcb"]

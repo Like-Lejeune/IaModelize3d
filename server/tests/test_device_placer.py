@@ -12,13 +12,13 @@ import pytest
 from test_device_compile import RAW, catalogue, needs_bundle, real_pcb  # noqa: F401 - fixtures
 from test_device_shapes import GRAPHS, XIAO, doc_of, no_store, resolved  # noqa: F401 - fixtures
 
-from formwright import db as dbmod
-from formwright import device, device_store, geom as geommod, pcb, pcb_store
-from formwright.agent import device_inspect as di
-from formwright.agent import elec_tools as et
-from formwright.agent.tools import DesignState
-from formwright.config import settings
-from formwright.geom import GeomPool
+from iamodelize3d import db as dbmod
+from iamodelize3d import device, device_store, geom as geommod, pcb, pcb_store
+from iamodelize3d.agent import device_inspect as di
+from iamodelize3d.agent import elec_tools as et
+from iamodelize3d.agent.tools import DesignState
+from iamodelize3d.config import settings
+from iamodelize3d.geom import GeomPool
 
 BENCH = sorted(k for k in GRAPHS if k.startswith("bench_"))
 LED_NETS = [{"name": "GND", "pins": ["U1.GND", "LED1.K", "LED2.K", "LED3.K"]}, {"pins": ["U1.D0", "R1.1"]}, {"pins": ["R1.2", "LED1.A"]},
@@ -231,7 +231,7 @@ async def test_the_boards_that_grew_for_the_packer_build_clean_at_the_size_they_
 @pytest.fixture
 async def store(tmp_path, monkeypatch):
     """A scratch store, so that the build's PCB version is what inspect_board reads."""
-    from formwright import deviceapi
+    from iamodelize3d import deviceapi
 
     async def nothing(*a, **k):
         return None

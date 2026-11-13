@@ -6,9 +6,9 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from formwright import db as dbmod, sessions, showcase
-from formwright.app import app
-from formwright.config import settings
+from iamodelize3d import db as dbmod, sessions, showcase
+from iamodelize3d.app import app
+from iamodelize3d.config import settings
 
 
 @pytest.fixture
@@ -59,14 +59,14 @@ async def test_an_example_run_carries_the_example_titles_and_others_keep_their_o
 async def test_a_run_born_from_a_shop_order_reads_in_both_languages(client, fresh_db):
     """A Russian order's design run, featured: the English home page gets the intake's English catalog title, the
     Russian one the run's own title (wave-6 video dry run)."""
-    from formwright.shop import store
+    from iamodelize3d.shop import store
 
     await _run(fresh_db, "p_order", "Колесо для нижней корзины посудомойки · Bosch", 1)
     sdb = await store.shop_db()
     t = dbmod.now()
     intake = {"request": {"kind": "photo"}, "refuse": False, "language": "ru",
               "classify": {"title_en": "Dishwasher lower basket wheel", "title_ru": "Колёсико нижней корзины посудомойки", "safety_critical": False}}
-    await sdb.insert("shop_orders", {"id": "so_1", "ref": "FW-1002", "user_id": "u1", "project_id": "p_order", "status": "delivered",
+    await sdb.insert("shop_orders", {"id": "so_1", "ref": "IM-1002", "user_id": "u1", "project_id": "p_order", "status": "delivered",
                                      "intake": intake, "created_at": t, "updated_at": t})
     item = (await client.get("/api/featured")).json()[0]
     assert (item["title_en"], item["title_ru"]) == ("Dishwasher lower basket wheel", "Колесо для нижней корзины посудомойки · Bosch")

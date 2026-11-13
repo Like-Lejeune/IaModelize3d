@@ -99,7 +99,7 @@
   const calibrated = (p: ShopPrinter) => !!p.fingerprint && Object.keys(p.fingerprint).length > 0;
 </script>
 
-<svelte:head><title>{st('ops.title')} · Formwright</title></svelte:head>
+<svelte:head><title>{st('ops.title')} · IaModelize3d</title></svelte:head>
 
 <div class="page">
   <Header />

@@ -9,11 +9,11 @@ import sys
 import httpx
 import pytest
 
-from formwright import db as dbmod
-from formwright import geom as geommod
-from formwright import pcb as pcbmod
-from formwright import pcb_store, showcase
-from formwright.config import REPO_DIR, settings
+from iamodelize3d import db as dbmod
+from iamodelize3d import geom as geommod
+from iamodelize3d import pcb as pcbmod
+from iamodelize3d import pcb_store, showcase
+from iamodelize3d.config import REPO_DIR, settings
 
 HAVE_PCB = (pcbmod.dist_dir() / pcbmod.WORKER).exists()
 needs_bundle = pytest.mark.skipif(not HAVE_PCB, reason="run `npm ci --ignore-scripts && npm run bundle` in packages/pcb")
@@ -36,7 +36,7 @@ async def fresh_db(tmp_path, monkeypatch):
 
 @pytest.fixture
 async def client(fresh_db):
-    from formwright.app import app
+    from iamodelize3d.app import app
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         yield c
@@ -164,7 +164,7 @@ async def test_the_board_case_comes_checked_against_its_board(fresh_db):
 
 async def test_the_board_case_builds_even_without_its_inputs(fresh_db):
     # a project whose inputs went missing (opened before app.py stored them): the program's own copy of the board
-    from formwright.geom import geom
+    from iamodelize3d.geom import geom
 
     built = await geom().build(showcase.PICO_W_CASE, {}, analyze="full")
     assert built["checks"]["ok"] and [p["name"] for p in built["parts"]] == ["base", "lid"]
@@ -274,9 +274,9 @@ def test_a_broken_case_module_takes_only_the_board_examples_away():
     env = {**os.environ, "META_API_KEY": "", "META_KEY": "", "FW_META_API_KEY": "", "FW_OPEN_BASE_URL": "", "FW_TELEGRAM_TOKEN": ""}
     code = ("import logging, sys\n"
             "logging.basicConfig(level=logging.ERROR, stream=sys.stdout, format='%(levelname)s %(message)s')\n"
-            "sys.modules['formwright.agent.elec_tools'] = None\n"
-            "import formwright.app\n"
-            "from formwright import showcase\n"
+            "sys.modules['iamodelize3d.agent.elec_tools'] = None\n"
+            "import iamodelize3d.app\n"
+            "from iamodelize3d import showcase\n"
             "print('KEYS', [e['key'] for e in showcase.EXAMPLES])\n")
     r = subprocess.run([sys.executable, "-c", code], cwd=str(REPO_DIR / "server"), env=env, capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stderr[-2000:]

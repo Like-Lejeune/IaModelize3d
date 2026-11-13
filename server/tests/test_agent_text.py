@@ -12,12 +12,12 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from formwright import geom as geommod, storage
-from formwright.agent import critic, elec_tools as et, loop, narrate as n
-from formwright.agent.tools import DesignState
-from formwright.config import settings
-from formwright.geom import GeomPool
-from formwright.models import SendMessage
+from iamodelize3d import geom as geommod, storage
+from iamodelize3d.agent import critic, elec_tools as et, loop, narrate as n
+from iamodelize3d.agent.tools import DesignState
+from iamodelize3d.config import settings
+from iamodelize3d.geom import GeomPool
+from iamodelize3d.models import SendMessage
 
 from test_elec_tools import PICO, FakeCtx
 from test_loop_handover import FakeMeta, _events, _png, _project, _use, call, fake_tools, fresh_db, offline, say  # noqa: F401 (fixtures)
@@ -266,7 +266,7 @@ def _scan_result(*, ok: bool = True) -> dict:
 
 
 async def test_the_scan_puts_what_it_read_and_the_scale_before_the_board(fresh_db, monkeypatch):
-    from formwright.vision import board as vb
+    from iamodelize3d.vision import board as vb
 
     await fresh_db.insert("assets", {"id": "a1", "project_id": "p_case", "kind": "photo", "path": "p_case/a1.jpg", "width": 1600, "height": 678,
                                      "meta": {}, "created_at": 0})

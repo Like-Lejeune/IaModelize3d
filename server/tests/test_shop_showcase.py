@@ -10,9 +10,9 @@ import sys
 
 import pytest
 
-from formwright.config import SERVER_DIR
-from formwright.db import new_id, now
-from formwright.shop import store
+from iamodelize3d.config import SERVER_DIR
+from iamodelize3d.db import new_id, now
+from iamodelize3d.shop import store
 
 from shop_fakes import add_program, jpeg, setup, teardown, wait_for
 
@@ -135,12 +135,12 @@ def test_the_operator_script_switches_a_showcase(tmp_path, capsys):
     # a database from before the column: the shop's tables without showcase
     conn.executescript(store.SCHEMA.replace("showcase INTEGER NOT NULL DEFAULT 0,", ""))
     t = now()
-    for oid, ref, status in (("so_1", "FW-1001", "delivered"), ("so_2", "FW-1002", "paid")):
+    for oid, ref, status in (("so_1", "IM-1001", "delivered"), ("so_2", "IM-1002", "paid")):
         conn.execute("INSERT INTO shop_orders (id, ref, user_id, project_id, status, created_at, updated_at) VALUES (?, ?, 'u', 'p', ?, ?, ?)",
                      (oid, ref, status, t, t))
-    op.showcase(conn, "https://fw.test", "FW-1001", True, False)  # a dry run writes nothing
+    op.showcase(conn, "https://fw.test", "IM-1001", True, False)  # a dry run writes nothing
     assert "showcase" not in {r[1] for r in conn.execute("PRAGMA table_info(shop_orders)")}
-    op.showcase(conn, "https://fw.test", "FW-1001", True, True)
+    op.showcase(conn, "https://fw.test", "IM-1001", True, True)
     assert conn.execute("SELECT showcase FROM shop_orders WHERE id = 'so_1'").fetchone()[0] == 1
     assert "https://fw.test/orders/so_1" in capsys.readouterr().out
     with pytest.raises(SystemExit):

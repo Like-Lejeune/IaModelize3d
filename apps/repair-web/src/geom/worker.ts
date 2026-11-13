@@ -1,5 +1,5 @@
 // Browser geometry worker for the studio: compiles and builds the agent's parametric programs locally, so a slider
-// updates the model at interactive rates. Adapted from web/src/lib/geom/worker.ts (Formwright), without the
+// updates the model at interactive rates. Adapted from web/src/lib/geom/worker.ts (IaModelize3d), without the
 // electronics case check. Network APIs are removed before any program runs; the main thread kills this worker if a
 // build hangs.
 //
@@ -22,7 +22,7 @@ import {
   hashString,
   loadKernel,
   type DisplayBuffers,
-} from "@formwright/geom";
+} from "@iamodelize3d/geom";
 
 type Common = { id: number; source: string; params?: Record<string, any>; inputsKey?: string; printer?: any };
 type Req =

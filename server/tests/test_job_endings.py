@@ -8,10 +8,10 @@ import re
 import httpx
 import pytest
 
-from formwright import db as dbmod, events, sessions
-from formwright.agent import narrate, runner
-from formwright.config import settings
-from formwright.geom import GeomError
+from iamodelize3d import db as dbmod, events, sessions
+from iamodelize3d.agent import narrate, runner
+from iamodelize3d.config import settings
+from iamodelize3d.geom import GeomError
 
 
 @pytest.fixture
@@ -78,7 +78,7 @@ async def test_a_crash_speaks_the_persons_language(fresh_db, text, brief):
 
 @pytest.fixture
 async def client(fresh_db):
-    from formwright.app import app
+    from iamodelize3d.app import app
 
     await fresh_db.insert("users", {"id": "u1", "tier": "anon", "created_at": dbmod.now()})
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test", cookies={sessions.COOKIE: await sessions.issue("u1")}) as c:

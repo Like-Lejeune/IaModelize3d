@@ -8,9 +8,9 @@ import httpx
 import pytest
 from openai import APIConnectionError, APIStatusError, APITimeoutError
 
-from formwright.agent import loop
-from formwright.agent.runner import kept_request
-from formwright.llm.client import service_outage
+from iamodelize3d.agent import loop
+from iamodelize3d.agent.runner import kept_request
+from iamodelize3d.llm.client import service_outage
 
 
 def status_error(code: int) -> APIStatusError:

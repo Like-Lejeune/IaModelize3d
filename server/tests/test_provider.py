@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import pytest
 
-from formwright import config
-from formwright.agent import tools
-from formwright.config import Settings
-from formwright.llm import client, pricing
-from formwright.llm.client import CostMeter, FeatureUnavailable, MetaClient
-from formwright.shop import intake
+from iamodelize3d import config
+from iamodelize3d.agent import tools
+from iamodelize3d.config import Settings
+from iamodelize3d.llm import client, pricing
+from iamodelize3d.llm.client import CostMeter, FeatureUnavailable, MetaClient
+from iamodelize3d.shop import intake
 
 
 def make(**env) -> Settings:
@@ -91,9 +91,9 @@ def test_the_designer_gets_no_measuring_tools_without_sam(use):
 def test_the_brief_asks_for_dimensions_without_sam(use):
     data = {"part": {"name_en": "knob"}, "material": "PLA"}
     use(make(meta_api_key="mk"))
-    assert "Measure the part from the photo on the A4 sheet" in intake.design_brief(data, "", "FW-1")
+    assert "Measure the part from the photo on the A4 sheet" in intake.design_brief(data, "", "IM-1")
     use(make(llm_provider="openai", llm_api_key="sk-test"))
-    brief = intake.design_brief(data, "", "FW-1")
+    brief = intake.design_brief(data, "", "IM-1")
     assert "No measuring tool" in brief and "ask the customer" in brief
 
 

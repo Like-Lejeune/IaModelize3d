@@ -1,4 +1,4 @@
-// From web/src/lib/sse.ts (Formwright).
+// From web/src/lib/sse.ts (IaModelize3d).
 // Server-sent events over fetch: catches every named event type, resumes from the
 // last seq after network drops (server also honours Last-Event-ID).
 import type { EventRow } from '../geom/types';

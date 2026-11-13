@@ -6,9 +6,9 @@ import asyncio
 
 import pytest
 
-from formwright import db as dbmod, events
-from formwright.agent import runner
-from formwright.config import settings
+from iamodelize3d import db as dbmod, events
+from iamodelize3d.agent import runner
+from iamodelize3d.config import settings
 
 
 @pytest.fixture

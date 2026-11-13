@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from formwright.printing import profile
-from formwright.printing.profile import apply_diff, features, propose_with_report, rule_diff
+from iamodelize3d.printing import profile
+from iamodelize3d.printing.profile import apply_diff, features, propose_with_report, rule_diff
 
 BASE = {
     "material": "PLA",

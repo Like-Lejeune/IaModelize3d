@@ -14,10 +14,10 @@ from pathlib import Path
 
 import pytest
 
-from formwright import accessories, catalog, device, pcb
-from formwright.config import REPO_DIR
-from formwright.deviceapi import bom_of, pad_count
-from formwright.pcb import PcbPool
+from iamodelize3d import accessories, catalog, device, pcb
+from iamodelize3d.config import REPO_DIR
+from iamodelize3d.deviceapi import bom_of, pad_count
+from iamodelize3d.pcb import PcbPool
 
 FIX = Path(__file__).parent / "fixtures" / "device"
 RAW = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in (FIX.parent / "easyeda").glob("C*.json")}
@@ -340,7 +340,7 @@ async def test_the_graphs_whose_parts_were_packed_onto_each_other_build_clean(na
     """2026-11-03: a TO-5 PIR, a 9.6 mm buzzer and 5050 LEDs in a group with their capacitors were packed by their pads
     alone, onto their neighbours and over the edge; growing the board 44 -> 74 mm did not help. Through the attempt loop: the
     router may hang a net off a capacitor's far pad (night_light_2, 34 mm), which lifts that limit on the same board."""
-    from formwright import deviceapi
+    from iamodelize3d import deviceapi
 
     async def nothing(*a, **k):
         return None
@@ -528,7 +528,7 @@ async def test_the_quote_says_what_each_device_arrives_with(catalogue):
 async def test_a_capacitor_trace_over_its_limit_is_a_warning_and_never_grows_the_board(name, catalogue, real_pcb, monkeypatch):
     """p_e09652612ee046f8: the router took 31.9 mm between two capacitor pads 1.6 mm apart beside U2, so every build failed
     on 'PCB trace is 31.90mm long, exceeding the 10mm maximum' (hint null) and the board grew 52 -> 88 x 100 mm."""
-    from formwright import deviceapi
+    from iamodelize3d import deviceapi
 
     async def nothing(*a, **k):
         return None

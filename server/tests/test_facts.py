@@ -2,10 +2,10 @@
 query names it. The queries are the ones that went wrong in real runs."""
 import pytest
 
-from formwright import db as dbmod
-from formwright.config import settings
-from formwright.knowledge import facts
-from formwright.llm.client import CostMeter
+from iamodelize3d import db as dbmod
+from iamodelize3d.config import settings
+from iamodelize3d.knowledge import facts
+from iamodelize3d.llm.client import CostMeter
 
 
 @pytest.fixture

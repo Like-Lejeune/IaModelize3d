@@ -30,9 +30,9 @@ import {
   type DisplayBuffers,
   type Part,
   type Wasm,
-} from '@formwright/geom';
-import { checkEnclosure, type EnclosureCheck } from '@formwright/geom/enclosure.ts';
-import { boardGhost, boardModel, type BoardSpec } from '@formwright/geom/lib/elec.ts';
+} from '@iamodelize3d/geom';
+import { checkEnclosure, type EnclosureCheck } from '@iamodelize3d/geom/enclosure.ts';
+import { boardGhost, boardModel, type BoardSpec } from '@iamodelize3d/geom/lib/elec.ts';
 
 type Common = { id: number; source: string; params?: Record<string, any>; inputsKey?: string; printer?: any };
 /** Which board to check a case against: a name under inputs.boards, or a board the program carries itself (spec). */

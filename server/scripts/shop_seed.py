@@ -1,4 +1,4 @@
-"""Seed Formwright Parts for a demo: the Axo farm, its printer (a Bambu Lab A1 with the 0.4 mm nozzle, the OrcaSlicer
+"""Seed IaModelize3d Parts for a demo: the Axo farm, its printer (a Bambu Lab A1 with the 0.4 mm nozzle, the OrcaSlicer
 preset the farm slices with), and catalog listings made from projects that already passed the build checks.
 
 Dry run by default: it opens the database read-only and prints what it would add. --apply writes. Nothing is deleted
@@ -202,7 +202,7 @@ def listings(conn: sqlite3.Connection, args: argparse.Namespace) -> None:
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--db", type=Path, default=None, help="formwright.db (default: FW_DATA_DIR or data/ in the repo)")
+    ap.add_argument("--db", type=Path, default=None, help="iamodelize3d.db (default: FW_DATA_DIR or data/ in the repo)")
     ap.add_argument("--farm", default=FARM, help="the farm organisation's name")
     ap.add_argument("--printer-name", default="Bambu Lab A1 · Axo #1")
     ap.add_argument("--preset", default=PRESET, help="OrcaSlicer machine preset id (slug of its name)")

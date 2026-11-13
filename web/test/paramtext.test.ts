@@ -5,7 +5,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { paramGroup, paramLabel, paramOption, ruLabel } from '../src/lib/paramtext.ts';
 
-const SERVER = join(import.meta.dirname, '..', '..', 'server', 'formwright');
+const SERVER = join(import.meta.dirname, '..', '..', 'server', 'iamodelize3d');
 
 function pyFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((f) => {

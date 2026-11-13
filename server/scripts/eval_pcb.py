@@ -23,13 +23,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from formwright import pcb  # noqa: E402
-from formwright.agent.loop import PACK_LLM  # noqa: E402
-from formwright.agent.pcb_prompt import EXAMPLE, PACK_TEXT  # noqa: E402
-from formwright.config import settings  # noqa: E402
-from formwright.llm import pricing  # noqa: E402
-from formwright.llm.client import CostMeter, _usage, meta  # noqa: E402
-from formwright.pcb import PcbError  # noqa: E402
+from iamodelize3d import pcb  # noqa: E402
+from iamodelize3d.agent.loop import PACK_LLM  # noqa: E402
+from iamodelize3d.agent.pcb_prompt import EXAMPLE, PACK_TEXT  # noqa: E402
+from iamodelize3d.config import settings  # noqa: E402
+from iamodelize3d.llm import pricing  # noqa: E402
+from iamodelize3d.llm.client import CostMeter, _usage, meta  # noqa: E402
+from iamodelize3d.pcb import PcbError  # noqa: E402
 
 MAX_CALLS = 8
 BRIEFS = {

@@ -113,7 +113,7 @@
   }
 </script>
 
-<svelte:head><title>{order ? st('order.title', { ref: order.ref }) : st('parts.title')} · Formwright</title></svelte:head>
+<svelte:head><title>{order ? st('order.title', { ref: order.ref }) : st('parts.title')} · IaModelize3d</title></svelte:head>
 
 <div class="page">
   <Header />

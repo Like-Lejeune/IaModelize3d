@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "formwright"
+name = "iamodelize3d"
 version = "0.1.0"
 description = "Agent that designs printable 3D models from photos, measurements and ideas"
 requires-python = ">=3.12"
@@ -30,11 +30,11 @@ dependencies = [
 dev = ["pytest", "pytest-asyncio"]
 
 [tool.setuptools.packages.find]
-include = ["formwright*"]
+include = ["iamodelize3d*"]
 
 [tool.setuptools.package-data]
 # the Arduino core and library headers the firmware check compiles against (firmware_check.py)
-formwright = ["firmware_stubs/*.h", "firmware_stubs/*/*.h", "firmware_sim/*.cpp"]
+iamodelize3d = ["firmware_stubs/*.h", "firmware_stubs/*/*.h", "firmware_sim/*.cpp"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

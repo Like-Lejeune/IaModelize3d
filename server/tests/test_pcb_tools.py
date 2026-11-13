@@ -11,16 +11,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from formwright import db as dbmod
-from formwright import geom as geommod
-from formwright import pcb, pcb_store, pcbapi, showcase
-from formwright.agent import critic, device_tools, elec_tools, pcb_prompt, pcb_tools, tools
-from formwright.agent.tools import DesignState
-from formwright.config import REPO_DIR, settings
-from formwright.geom import GeomPool
-from formwright.llm.client import CostMeter
-from formwright.llm.english import is_english
-from formwright.pcb import PcbError, PcbPool
+from iamodelize3d import db as dbmod
+from iamodelize3d import geom as geommod
+from iamodelize3d import pcb, pcb_store, pcbapi, showcase
+from iamodelize3d.agent import critic, device_tools, elec_tools, pcb_prompt, pcb_tools, tools
+from iamodelize3d.agent.tools import DesignState
+from iamodelize3d.config import REPO_DIR, settings
+from iamodelize3d.geom import GeomPool
+from iamodelize3d.llm.client import CostMeter
+from iamodelize3d.llm.english import is_english
+from iamodelize3d.pcb import PcbError, PcbPool
 
 SRC = 'export const meta = { title: "Test carrier" }\nexport default () => (<board width="44mm" height="36mm"><resistor name="R1" resistance="1k" footprint="0603" pcbX={0} pcbY={0} /></board>)'
 BOARD = {"schema": "fw.board/1", "id": "pcb", "name": "Test carrier", "source": {"kind": "pcb"}, "frame": "mm",

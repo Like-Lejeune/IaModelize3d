@@ -12,15 +12,15 @@ from pathlib import Path
 
 import pytest
 
-from formwright import device, device_checklists as dc, firmware_check as fc
-from formwright.agent import device_prompt, device_review, device_tools, prompts, tools
-from formwright.agent.tools import DesignState
-from formwright.config import settings
-from formwright.llm.english import is_english
+from iamodelize3d import device, device_checklists as dc, firmware_check as fc
+from iamodelize3d.agent import device_prompt, device_review, device_tools, prompts, tools
+from iamodelize3d.agent.tools import DesignState
+from iamodelize3d.config import settings
+from iamodelize3d.llm.english import is_english
 
 from test_device_tools_harness import FakeCtx
 
-SERVER = Path(__file__).resolve().parent.parent / "formwright"
+SERVER = Path(__file__).resolve().parent.parent / "iamodelize3d"
 FIX = Path(__file__).parent / "fixtures" / "firmware"
 C3 = {"id": "U1", "kind": "module", "module": "113991054"}
 
@@ -158,7 +158,7 @@ async def test_a_device_finish_returns_its_self_check_then_accepts_the_answers(d
     assert state.self_check["passed"] is True and len(state.self_check["checked"]) == 6
     # no reviewer by default: nothing called, no 'critic' event, narrate sees no review
     assert device_finish == [] and not [t for t, _ in ctx.events if t == "critic"] and state.critic is None
-    from formwright.agent import narrate
+    from iamodelize3d.agent import narrate
 
     assert narrate.review_of(state.critic, state.version) is None and narrate.review_notes(state.critic, state.version, "ru") == ""
 

@@ -3,9 +3,9 @@ import asyncio
 
 import pytest
 
-from formwright import db as dbmod, events, quotas
-from formwright.app import _replay
-from formwright.config import settings
+from iamodelize3d import db as dbmod, events, quotas
+from iamodelize3d.app import _replay
+from iamodelize3d.config import settings
 
 
 @pytest.fixture

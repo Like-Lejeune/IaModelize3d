@@ -71,7 +71,7 @@
   }
 </script>
 
-<svelte:head><title>{t('replays')} · Formwright</title></svelte:head>
+<svelte:head><title>{t('replays')} · IaModelize3d</title></svelte:head>
 
 <Header />
 

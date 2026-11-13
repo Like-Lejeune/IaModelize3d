@@ -7,9 +7,9 @@ import cv2
 import numpy as np
 import pytest
 
-from formwright.vision import geometry as g
-from formwright.vision.scene import calibration_from_mask, measure_mask, offset_px
-from formwright.vision.sam import object_prompt, polygons
+from iamodelize3d.vision import geometry as g
+from iamodelize3d.vision.scene import calibration_from_mask, measure_mask, offset_px
+from iamodelize3d.vision.sam import object_prompt, polygons
 
 import test_vision_synth as syn
 
@@ -152,7 +152,7 @@ def test_edge_snap_removes_sam_halo():
 
 def test_trim_shadow_removes_cast_shadow():
     import numpy as np
-    from formwright.vision.refine import trim_shadow
+    from iamodelize3d.vision.refine import trim_shadow
 
     img = np.full((300, 400, 3), 220, np.uint8)            # paper
     img[100:200, 150:300] = 150                             # shadow, offset down-right

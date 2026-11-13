@@ -10,10 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from formwright import catalog, device, pcb
-from formwright.agent import device_prompt, device_tools
-from formwright.config import REPO_DIR
-from formwright.pcb import PcbPool
+from iamodelize3d import catalog, device, pcb
+from iamodelize3d.agent import device_prompt, device_tools
+from iamodelize3d.config import REPO_DIR
+from iamodelize3d.pcb import PcbPool
 
 FIX = Path(__file__).parent / "fixtures" / "device"
 BME = json.loads((FIX.parent / "easyeda" / "C92489.json").read_text(encoding="utf-8"))
@@ -162,7 +162,7 @@ def test_board_key_ignores_where_nodes_are_drawn():
 
 
 def test_prompt_lists_the_modules_and_stays_english():
-    from formwright.llm.english import is_english
+    from iamodelize3d.llm.english import is_english
 
     for mpn, m in device.MODULES.items():
         assert mpn in device_prompt.PACK_TEXT and m["name"] in device_prompt.PACK_TEXT
@@ -185,7 +185,7 @@ async def real_pcb():
 
 @pytest.fixture
 def no_store(monkeypatch):
-    from formwright import deviceapi
+    from iamodelize3d import deviceapi
 
     async def nothing(*a, **k):
         return None
@@ -303,7 +303,7 @@ def test_changes_say_what_the_person_did():
 
 
 async def test_quote_counts_the_joints_of_a_resolved_chip(offline):
-    from formwright.deviceapi import pad_count
+    from iamodelize3d.deviceapi import pad_count
 
     doc, _ = device.normalize(DOC)
     parts, _ = await device.resolve(doc)
@@ -440,7 +440,7 @@ def test_model_primitives_are_cleaned_and_an_unknown_switch_is_said():
 
 @needs_bundle
 async def test_key_switches_build_and_the_board_tells_the_case(offline, real_pcb):
-    from formwright import deviceapi
+    from iamodelize3d import deviceapi
 
     doc, issues = device.normalize(KEYPAD)
     assert not issues
@@ -461,7 +461,7 @@ async def test_key_switches_build_and_the_board_tells_the_case(offline, real_pcb
 
 @needs_bundle
 async def test_the_board_view_draws_real_models_and_the_module_as_itself(offline, real_pcb, monkeypatch):
-    from formwright import deviceapi
+    from iamodelize3d import deviceapi
 
     async def model_obj(raw):
         return ("uuid-in-test", "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
@@ -496,7 +496,7 @@ def test_trace_width_follows_ipc_2221():
 
 
 async def test_a_stated_current_is_held_to_the_contacts_and_the_copper(offline):
-    from formwright import device_rules
+    from iamodelize3d import device_rules
 
     doc, _ = device.normalize(_power_doc(amps=10))
     assert next(n for n in doc["nets"] if n.get("name") == "VLOAD")["amps"] == 10
@@ -513,7 +513,7 @@ async def test_a_stated_current_is_held_to_the_contacts_and_the_copper(offline):
 
 
 async def test_named_currents_mains_and_unwired_inputs_are_errors(offline):
-    from formwright import device_rules
+    from iamodelize3d import device_rules
 
     raw = _power_doc()
     raw["requirements"] = [{"id": "R1", "text": "тянет ток до 10 А", "parts": ["U1"]}]

@@ -1,4 +1,4 @@
-# Caddy in front of Formwright (compose.yaml): a Let's Encrypt certificate for FW_DOMAIN, http:// redirected to
+# Caddy in front of IaModelize3d (compose.yaml): a Let's Encrypt certificate for FW_DOMAIN, http:// redirected to
 # https://, and every request passed to the API on 127.0.0.1:8000. Caddy replaces whatever X-Forwarded-For a visitor
 # sends with the address it sees and sets X-Forwarded-Proto, which is what the API expects with FW_PROXY_HOPS=1.
 {$FW_DOMAIN} {

@@ -1,7 +1,7 @@
 {
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "fw.board/1",
- "title": "Formwright board: one shape for a dataset board, a board measured from a photo and a PCB from the PCB pipeline",
+ "title": "IaModelize3d board: one shape for a dataset board, a board measured from a photo and a PCB from the PCB pipeline",
  "type": "object",
  "required": ["schema", "id", "name", "source", "frame", "pcb", "components"],
  "properties": {

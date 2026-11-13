@@ -3,8 +3,8 @@
     modal secret create glimmer-api-key VLLM_API_KEY=<a long random string>
     modal deploy infra/modal_glimmer.py
 
-Then point Formwright at it (the independent critic runs on open weights):
-    FW_OPEN_BASE_URL=https://<workspace>--formwright-glimmer-serve.modal.run/v1
+Then point IaModelize3d at it (the independent critic runs on open weights):
+    FW_OPEN_BASE_URL=https://<workspace>--iamodelize3d-glimmer-serve.modal.run/v1
     FW_OPEN_API_KEY=<the same string>
     FW_OPEN_MODEL=meta-models/Muse-Glimmer-30B
     FW_MODEL_CRITIC=meta-models/Muse-Glimmer-30B
@@ -26,7 +26,7 @@ image = (
     .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
 )
 weights = modal.Volume.from_name("glimmer-weights", create_if_missing=True)
-app = modal.App("formwright-glimmer")
+app = modal.App("iamodelize3d-glimmer")
 
 
 @app.function(image=image, gpu="H100", volumes={"/models": weights}, secrets=[modal.Secret.from_name("glimmer-api-key")],

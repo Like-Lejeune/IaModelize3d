@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from formwright import pcb
-from formwright.config import REPO_DIR, settings
-from formwright.pcb import PcbError, PcbPool
+from iamodelize3d import pcb
+from iamodelize3d.config import REPO_DIR, settings
+from iamodelize3d.pcb import PcbError, PcbPool
 
 DIST = REPO_DIR / "packages" / "pcb" / "dist"
 # the home page's XIAO carrier (showcase.XIAO_CARRIER)

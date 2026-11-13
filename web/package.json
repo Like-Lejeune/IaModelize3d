@@ -1,5 +1,5 @@
 {
-  "name": "@formwright/web",
+  "name": "@iamodelize3d/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "icons": "node scripts/subset-icons.mjs"
   },
   "dependencies": {
-    "@formwright/geom": "^0.1.0",
+    "@iamodelize3d/geom": "^0.1.0",
     "@material/material-color-utilities": "^0.3.0",
     "@xyflow/svelte": "1.7.1",
     "qrcode-generator": "^2.0.4",

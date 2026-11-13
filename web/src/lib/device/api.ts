@@ -1,4 +1,4 @@
-// Client for devices (server/formwright/deviceapi.py): the device graph (fw.device/1) of a project, its build into a
+// Client for devices (server/iamodelize3d/deviceapi.py): the device graph (fw.device/1) of a project, its build into a
 // board, the LCSC catalogue, the quote and the order. Same origin and cookie session as $lib/api.
 import { req } from '$lib/api';
 

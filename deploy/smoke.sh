@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Smoke test of a deployed Formwright, from any machine with bash, curl and python3:
-#   bash deploy/smoke.sh https://formwright.example.com
+# Smoke test of a deployed IaModelize3d, from any machine with bash, curl and python3:
+#   bash deploy/smoke.sh https://iamodelize3d.example.com
 # It calls no model and pays for nothing. It checks the home page data (the example cards and the featured runs),
 # opens the PCB example as a project (its board, Gerbers, BOM and previews), asks that project for an instant quote,
 # and loads the web app's routes and scripts. Each run leaves one anonymous user with one example project on the
@@ -53,7 +53,7 @@ r = eval(sys.argv[2])
 print(r if isinstance(r, str) else json.dumps(r))' "$BODY" "$1" 2>/dev/null
 }
 
-echo "Formwright smoke test: $BASE"
+echo "IaModelize3d smoke test: $BASE"
 
 echo "home page data"
 read -r code type <<<"$(req GET /api/examples)"

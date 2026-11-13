@@ -10,7 +10,7 @@ Dry run by default; --apply writes the users and logins rows. Standard library o
 
 The link is FW_PUBLIC_URL/api/login/<token>. It works once: the page it opens has a button that signs that
 browser in with a session of its own and uses the link up (link previews only see the page). Until then anyone who
-has it can use it, so send it privately. In the container: docker exec formwright python scripts/judge_link.py --apply
+has it can use it, so send it privately. In the container: docker exec iamodelize3d python scripts/judge_link.py --apply
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def env_setting(name: str) -> str | None:
 
 def default_db() -> Path:
     data = Path(env_setting("FW_DATA_DIR") or REPO_DIR / "data")
-    return (data if data.is_absolute() else SERVER_DIR / data) / "formwright.db"
+    return (data if data.is_absolute() else SERVER_DIR / data) / "iamodelize3d.db"
 
 
 def connect(path: Path, write: bool) -> sqlite3.Connection:
@@ -137,7 +137,7 @@ def revoke(conn: sqlite3.Connection, apply: bool) -> None:
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--db", type=Path, default=None, help="formwright.db (default: FW_DATA_DIR or data/ in the repo)")
+    ap.add_argument("--db", type=Path, default=None, help="iamodelize3d.db (default: FW_DATA_DIR or data/ in the repo)")
     ap.add_argument("--public-url", default=None, help="the app's public address (default: FW_PUBLIC_URL)")
     ap.add_argument("--count", type=int, default=1, help="how many judges, one user and link each")
     ap.add_argument("--days", type=float, default=14, help="how long the links work")

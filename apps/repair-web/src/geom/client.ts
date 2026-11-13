@@ -1,4 +1,4 @@
-// Adapted from web/src/lib/geom/client.ts (Formwright): the same two worker lanes, for the React studio.
+// Adapted from web/src/lib/geom/client.ts (IaModelize3d): the same two worker lanes, for the React studio.
 // Main-thread side of the geometry workers. Two lanes, each its own worker and WASM heap:
 //   live  - previews while a slider or handle moves (latest wins, never blocked by checks)
 //   final - full-quality build for display, then the full printability report; a stale

@@ -8,10 +8,10 @@ import httpx
 import openai
 import pytest
 
-from formwright import app as appmod, db as dbmod, events, quotas, sessions
-from formwright.app import BodyLimit, _save_user_version, _spa_file, app, recover_interrupted, share_page
-from formwright.config import REPO_DIR, settings
-from formwright.printing.service import slug
+from iamodelize3d import app as appmod, db as dbmod, events, quotas, sessions
+from iamodelize3d.app import BodyLimit, _save_user_version, _spa_file, app, recover_interrupted, share_page
+from iamodelize3d.config import REPO_DIR, settings
+from iamodelize3d.printing.service import slug
 
 
 @pytest.fixture
@@ -56,11 +56,11 @@ def test_spa_fallback_never_leaves_the_build(tmp_path):
     (root / "index.html").write_text("<html></html>")
     (root / "favicon.svg").write_text("<svg/>")
     (tmp_path / "data").mkdir()
-    (tmp_path / "data" / "formwright.db").write_bytes(b"SQLite format 3\0")
+    (tmp_path / "data" / "iamodelize3d.db").write_bytes(b"SQLite format 3\0")
     (tmp_path / ".env").write_text("META_KEY=secret")
     (tmp_path / "x").write_text("x")
     index = root / "index.html"
-    for path in ["../../data/formwright.db", "../../.env", "../.env", "..\\..\\x", "..\\..\\.env", "C:/Windows/win.ini", "/etc/passwd",
+    for path in ["../../data/iamodelize3d.db", "../../.env", "../.env", "..\\..\\x", "..\\..\\.env", "C:/Windows/win.ini", "/etc/passwd",
                  str(tmp_path / ".env"), "_app", "_app/../../../x", "nope.js", "a\x00b", ""]:
         assert _spa_file(root, path) == index, path
     assert _spa_file(root, "favicon.svg") == root / "favicon.svg"
@@ -229,12 +229,12 @@ async def test_share_page_fills_previews_for_public_projects(fresh_db):
         return re.search(rf'<meta (?:property|name)="{re.escape(key)}" content="([^"]*)"', page).group(1)
 
     home = await share_page(template, "", "https://fw.example.org")
-    assert meta(home, "og:image") == "https://fw.example.org/og.png" and meta(home, "og:title") == "Formwright"
+    assert meta(home, "og:image") == "https://fw.example.org/og.png" and meta(home, "og:title") == "IaModelize3d"
     page = await share_page(template, "r/p_pub", "https://fw.example.org")
     assert meta(page, "og:image") == "https://fw.example.org/files/p_pub/renders/v2_iso.png"
     assert meta(page, "og:title") == "Owl &quot;Hoot&quot; &lt;b&gt;"
     assert meta(page, "og:description") == "A stylized owl &amp; stand"
-    assert "<title>Owl &quot;Hoot&quot; &lt;b&gt; · Formwright</title>" in page
+    assert "<title>Owl &quot;Hoot&quot; &lt;b&gt; · IaModelize3d</title>" in page
     assert meta(await share_page(template, "p/p_pub/", "http://h"), "og:title").startswith("Owl")
     private = await share_page(template, "r/p_priv", "https://fw.example.org")
     assert "Secret" not in private and meta(private, "og:image") == "https://fw.example.org/og.png"
@@ -248,7 +248,7 @@ async def test_phone_capture_link_is_absolute_and_tags_uploads(client, fresh_db,
     token = (await client.post("/api/projects/p1/capture-token")).json()
     assert token["url"] == f"https://fw.example.org/c/p1?t={token['token']}"
 
-    from formwright.vision import ingest
+    from iamodelize3d.vision import ingest
 
     async def fake_ingest(project_id, kind, filename, data, mime):
         row = {"id": "a1", "project_id": project_id, "kind": kind, "path": f"{project_id}/a1.jpg", "mime": mime, "width": 4, "height": 3,

@@ -1,12 +1,12 @@
 {
-  "name": "formwright",
+  "name": "iamodelize3d",
   "private": true,
   "type": "module",
   "workspaces": ["packages/geom", "web"],
   "scripts": {
     "dev": "npm run dev -w web",
     "build": "npm run build -w web",
-    "test": "npm run test -w @formwright/geom",
+    "test": "npm run test -w @iamodelize3d/geom",
     "check": "tsc -p packages/geom --noEmit"
   }
 }

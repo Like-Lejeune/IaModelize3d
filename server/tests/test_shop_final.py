@@ -8,8 +8,8 @@ import copy
 
 import pytest
 
-from formwright.db import new_id, now
-from formwright.shop import autoquote, flow, intake, routes, store
+from iamodelize3d.db import new_id, now
+from iamodelize3d.shop import autoquote, flow, intake, routes, store
 
 from shop_fakes import CASES, add_program, answer, setup, teardown, wait_for
 
@@ -50,15 +50,15 @@ def test_the_intake_and_the_brief_drop_quantity_questions_and_name_the_orders_qu
     spark["questions"] = ["Сколько колёс нужно напечатать?", "Уточните диаметр колеса?"]
     out = intake.combine(spark, None, spark_model="spark")
     assert out["questions"] == ["Уточните диаметр колеса?"]
-    brief = intake.design_brief(out, "колёсико", "FW-1001", quantity=2, material="PETG")
+    brief = intake.design_brief(out, "колёсико", "IM-1001", quantity=2, material="PETG")
     assert "Quantity: 2, set on the order: never ask the customer how many they need." in brief
     assert "Уточните диаметр колеса?" in brief and "Сколько" not in brief
     # an intake stored before the filter still has the question: the brief leaves it out
     old = {**out, "questions": ["How many wheels do you need?"]}
-    brief = intake.design_brief(old, "", "FW-1002")
+    brief = intake.design_brief(old, "", "IM-1002")
     assert "How many" not in brief and "could not tell" not in brief and "Quantity: 4," in brief  # the intake's own reading, without an order
     # the customer's own material against the intake's pick: the designer knows both
-    brief = intake.design_brief(out, "", "FW-1003", quantity=1, material="PLA")
+    brief = intake.design_brief(out, "", "IM-1003", quantity=1, material="PLA")
     assert "Material: PLA (up to 70 C, wet" in brief and "the customer's choice (the intake desk would pick PETG)" in brief
 
 
@@ -198,7 +198,7 @@ async def test_an_expired_choose_for_me_quote_comes_back_in_the_intakes_material
 
 
 async def test_telegram_waits_for_the_price_in_the_intakes_material(env, monkeypatch):
-    from formwright.integrations import telegram
+    from iamodelize3d.integrations import telegram
 
     sent: list[str] = []
 
@@ -237,15 +237,15 @@ async def test_telegram_waits_for_the_price_in_the_intakes_material(env, monkeyp
 def test_the_shown_line_is_the_customers_own_words_or_a_short_line_in_their_language():
     req = {"kind": "photo", "text": "Сломалась ручка\nAppliance: Gorenje\nQuantity: 2\nVoice note: она треснула", "words": "Сломалась ручка",
            "appliance": "Gorenje", "part_number": "", "transcript": "она треснула"}
-    assert intake.shown_line({"request": req, "language": "ru"}, "FW-1004") == "Сломалась ручка\nGorenje\nона треснула"
+    assert intake.shown_line({"request": req, "language": "ru"}, "IM-1004") == "Сломалась ручка\nGorenje\nона треснула"
     # an order from before 'words': the request text without the form's labelled lines
     old = {k: v for k, v in req.items() if k != "words"}
     assert intake.customer_words(old) == "Сломалась ручка\nGorenje\nона треснула"
     # photos alone: the ref and the part's name in the customer's language
     data = answer("voice_wheel_plate_a4")
     data["request"] = {"kind": "photo", "text": "", "words": "", "photos": [{"id": "a_1"}]}
-    assert intake.shown_line(data, "FW-1005") == "Заказ FW-1005: Колёсико нижней корзины · BOSCH SMS46GI01E/09"
-    assert intake.shown_line({"request": {"kind": "listing"}, "language": "en"}, "FW-1006") == "Order FW-1006: Spare part"
+    assert intake.shown_line(data, "IM-1005") == "Заказ IM-1005: Колёсико нижней корзины · BOSCH SMS46GI01E/09"
+    assert intake.shown_line({"request": {"kind": "listing"}, "language": "en"}, "IM-1006") == "Order IM-1006: Spare part"
 
 
 async def test_the_design_run_opens_with_the_customers_words(env):
@@ -258,7 +258,7 @@ async def test_the_design_run_opens_with_the_customers_words(env):
 
 
 async def test_the_real_hook_passes_shown(monkeypatch):
-    from formwright.agent import runner
+    from iamodelize3d.agent import runner
 
     seen = {}
 
@@ -267,6 +267,6 @@ async def test_the_real_hook_passes_shown(monkeypatch):
         return "j_x"
 
     monkeypatch.setattr(runner, "start_design_job", fake_start)
-    assert await routes.Hooks().start_design({"id": "u"}, {"id": "p"}, "Spare part order FW-1001", ["a_1"], "ru", shown="колёсико") == "j_x"
-    assert seen["body"].text == "Spare part order FW-1001" and seen["body"].language == "ru"
+    assert await routes.Hooks().start_design({"id": "u"}, {"id": "p"}, "Spare part order IM-1001", ["a_1"], "ru", shown="колёсико") == "j_x"
+    assert seen["body"].text == "Spare part order IM-1001" and seen["body"].language == "ru"
     assert getattr(seen["body"], "shown", "колёсико") == "колёсико"  # SendMessage.shown (agent-answers' field)

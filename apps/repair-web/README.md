@@ -1,6 +1,6 @@
 # Atelier 3D — front React + TypeScript
 
-Un studio de conception d'objets imprimés en 3D, sur le moteur Formwright. La personne décrit ce qu'elle veut
+Un studio de conception d'objets imprimés en 3D, sur le moteur IaModelize3d. La personne décrit ce qu'elle veut
 créer (ou montre une pièce en photo), l'IA lui pose les questions utiles, dessine un modèle paramétrique, et la
 personne l'ajuste elle-même (réglages, versions) ou en demandant une modification dans la discussion. Ensuite elle
 le télécharge en STL ou le fait imprimer par l'atelier : prix en FCFA, Mobile Money, suivi de la commande.
@@ -21,7 +21,7 @@ le télécharge en STL ou le fait imprimer par l'atelier : prix en FCFA, Mobile 
   (`GET /api/projects/:id/events`, SSE) : messages et questions de l'IA, étapes de travail, nouvelles versions.
   Une question se répond d'un clic ou avec ses mots.
 - **Le modèle 3D** (`src/studio/Viewer.tsx`, three.js) est construit **dans le navigateur** par le noyau géométrique
-  de Formwright (`packages/geom`, manifold en WebAssembly) dans un worker (`src/geom/worker.ts`). Un curseur met
+  de IaModelize3d (`packages/geom`, manifold en WebAssembly) dans un worker (`src/geom/worker.ts`). Un curseur met
   à jour le modèle en direct ; « Porte-à-faux » montre les faces qui demanderaient des supports.
 - **Les réglages** sont les paramètres que l'IA a exposés dans son programme (plage, unité, origine de la valeur).
   Relâcher un curseur enregistre une version (`PUT /api/projects/:id/params`).
@@ -29,7 +29,7 @@ le télécharge en STL ou le fait imprimer par l'atelier : prix en FCFA, Mobile 
 - **Commander** envoie la version affichée au calcul de prix de l'atelier (`POST /api/shop/requests` avec
   `project_id`), puis ouvre la commande.
 
-L'état du studio est dans `src/studio/store.ts` (adapté du studio Svelte de Formwright, `web/src/lib/project.svelte.ts`).
+L'état du studio est dans `src/studio/store.ts` (adapté du studio Svelte de IaModelize3d, `web/src/lib/project.svelte.ts`).
 
 ## Lancer en local sans clé d'IA
 
@@ -58,11 +58,11 @@ FW_SHOP_TARIFF=cm                 # tarif en FCFA
 FW_USD_RATE=600                   # FCFA par dollar, pour l'équivalent affiché
 FW_PUBLIC_URL=http://localhost:5410
 
-cd server && .venv/bin/python -m uvicorn formwright.app:app --port 8400
+cd server && .venv/bin/python -m uvicorn iamodelize3d.app:app --port 8400
 cd apps/repair-web && npm run dev
 ```
 
-Le vrai concepteur (`server/formwright/agent/`) écrit n'importe quel objet, mesure les pièces sur les photos (avec
+Le vrai concepteur (`server/iamodelize3d/agent/`) écrit n'importe quel objet, mesure les pièces sur les photos (avec
 SAM, chez Meta), cherche des cotes standard, se relit sous plusieurs angles et passe une relecture indépendante.
 
 Numéros Mobile Money affichés au client (facultatif), dans `apps/repair-web/.env` :

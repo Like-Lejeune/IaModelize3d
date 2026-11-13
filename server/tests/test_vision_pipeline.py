@@ -16,7 +16,7 @@ import test_vision_synth as syn
 async def env(tmp_path, monkeypatch):
     monkeypatch.setenv("FW_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("FW_BLUR_FACES", "0")
-    from formwright import config, db
+    from iamodelize3d import config, db
 
     config.settings.cache_clear()
     db._db = None
@@ -39,8 +39,8 @@ def jpeg_with_exif(img_bgr: np.ndarray, f35: float | None = None) -> bytes:
 
 
 async def test_ingest_strips_metadata_and_keeps_focal(env):
-    from formwright.vision import ingest
-    from formwright.vision.common import abs_path
+    from iamodelize3d.vision import ingest
+    from iamodelize3d.vision.common import abs_path
 
     img, *_ = syn.scene()
     row = await ingest.ingest_asset("p1", "photo", "IMG_1.jpg", jpeg_with_exif(img, 28), "image/jpeg")
@@ -52,17 +52,17 @@ async def test_ingest_strips_metadata_and_keeps_focal(env):
 
 
 async def test_ingest_rejects_garbage(env):
-    from formwright.vision import ingest
+    from iamodelize3d.vision import ingest
 
     with pytest.raises(ValueError):
         await ingest.ingest_asset("p1", "photo", "x.jpg", b"not an image", "image/jpeg")
 
 
 async def test_select_measures_in_mm(env, monkeypatch):
-    from formwright.db import get_db
-    from formwright.models import Point, SelectRequest
-    from formwright.vision import ingest, scene
-    from formwright.vision.sam import Mask
+    from iamodelize3d.db import get_db
+    from iamodelize3d.models import Point, SelectRequest
+    from iamodelize3d.vision import ingest, scene
+    from iamodelize3d.vision.sam import Mask
 
     img, sheet, part, R, t = syn.scene()
     calls = []
@@ -98,10 +98,10 @@ async def test_select_measures_in_mm(env, monkeypatch):
 
 
 async def test_select_never_returns_the_reference_sheet(env, monkeypatch):
-    from formwright.db import get_db
-    from formwright.models import SelectRequest
-    from formwright.vision import ingest, scene
-    from formwright.vision.sam import Mask
+    from iamodelize3d.db import get_db
+    from iamodelize3d.models import SelectRequest
+    from iamodelize3d.vision import ingest, scene
+    from iamodelize3d.vision.sam import Mask
 
     img, sheet, part, R, t = syn.scene()
 
@@ -123,10 +123,10 @@ async def test_select_never_returns_the_reference_sheet(env, monkeypatch):
 
 
 async def test_select_says_when_only_the_sheet_matches(env, monkeypatch):
-    from formwright.db import get_db
-    from formwright.models import SelectRequest
-    from formwright.vision import ingest, scene
-    from formwright.vision.sam import Mask
+    from iamodelize3d.db import get_db
+    from iamodelize3d.models import SelectRequest
+    from iamodelize3d.vision import ingest, scene
+    from iamodelize3d.vision.sam import Mask
 
     img, sheet, part, R, t = syn.scene()
     ys, xs = np.nonzero(sheet)
@@ -149,7 +149,7 @@ async def test_select_says_when_only_the_sheet_matches(env, monkeypatch):
 
 
 def test_overlay_blend():
-    from formwright.vision.overlay import blend
+    from iamodelize3d.vision.overlay import blend
 
     photo = np.full((10, 10, 3), 100, np.uint8)
     render = np.zeros((10, 10, 4), np.uint8)
@@ -159,7 +159,7 @@ def test_overlay_blend():
 
 
 def test_visual_hull_of_a_box():
-    from formwright.vision import hull
+    from iamodelize3d.vision import hull
 
     box = np.array([[x, y, z] for x in (-20, 20) for y in (-15, 15) for z in (0, 20)], float)
     views = []
@@ -182,7 +182,7 @@ def test_visual_hull_of_a_box():
 
 
 def test_turntable_pose_from_aruco_ring():
-    from formwright.vision import hull
+    from iamodelize3d.vision import hull
 
     sheet = hull.ring_sheet()
     px_per_mm = 300 / 25.4
@@ -200,7 +200,7 @@ def test_turntable_pose_from_aruco_ring():
 
 
 async def test_ingest_video_and_audio(env, monkeypatch, tmp_path):
-    from formwright.vision import ingest
+    from iamodelize3d.vision import ingest
 
     if not ingest.ffmpeg_bin():
         pytest.skip("ffmpeg not installed")  # a video is stored only once ffmpeg has removed its metadata
@@ -233,7 +233,7 @@ async def test_ingest_video_and_audio(env, monkeypatch, tmp_path):
 
 
 def test_blur_regions_only_touches_masks():
-    from formwright.vision.privacy import blur_regions
+    from iamodelize3d.vision.privacy import blur_regions
 
     rng = np.random.default_rng(0)
     img = rng.integers(0, 255, (200, 200, 3), dtype=np.uint8)

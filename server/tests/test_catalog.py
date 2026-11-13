@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from formwright import catalog
+from iamodelize3d import catalog
 
 FIX = Path(__file__).parent / "fixtures" / "catalog"
 JLC = json.loads((FIX / "jlc.json").read_text(encoding="utf-8"))

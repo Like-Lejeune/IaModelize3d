@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-from formwright import db as dbmod
-from formwright.config import settings
-from formwright.integrations import telegram
+from iamodelize3d import db as dbmod
+from iamodelize3d.config import settings
+from iamodelize3d.integrations import telegram
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ async def test_text_message_starts_a_job_and_links_login(fresh_db, monkeypatch):
 
     monkeypatch.setattr(telegram.Bot, "call", fake_call)
     monkeypatch.setattr(telegram.Bot, "follow", no_follow)
-    import formwright.agent.runner as runner
+    import iamodelize3d.agent.runner as runner
 
     monkeypatch.setattr(runner, "start_design_job", fake_start)
     bot = telegram.Bot("TOKEN")
@@ -65,10 +65,10 @@ async def test_new_command_switches_project(fresh_db, monkeypatch):
     await bot.http.aclose()
 
 
-# ------------------------------------------------------------------ orders through Formwright Parts
+# ------------------------------------------------------------------ orders through IaModelize3d Parts
 def _chat(monkeypatch) -> tuple[list[tuple[str, dict]], list[str]]:
     """The bot's outgoing calls, and the shop steps it started (not run: no slicer or model here)."""
-    from formwright.shop import autoquote
+    from iamodelize3d.shop import autoquote
 
     sent: list[tuple[str, dict]] = []
     spawned: list[str] = []
@@ -92,7 +92,7 @@ def _chat(monkeypatch) -> tuple[list[tuple[str, dict]], list[str]]:
 
 
 async def _model(db, user_id: str = "tg_9", pid: str = "p_tg") -> None:
-    from formwright.db import now
+    from iamodelize3d.db import now
 
     await db.insert("users", {"id": user_id, "tier": "free", "created_at": now()})
     await db.insert("projects", {"id": pid, "user_id": user_id, "title": "Shelf hook", "version": 1, "brief": {"telegram_chat": 42},
@@ -126,9 +126,9 @@ async def test_order_button_makes_a_shop_order(fresh_db, monkeypatch):
 
 
 async def test_part_command_orders_from_the_chat_photos(fresh_db, monkeypatch):
-    from formwright.db import new_id, now
-    from formwright.shop import store
-    from formwright.vision import ingest
+    from iamodelize3d.db import new_id, now
+    from iamodelize3d.shop import store
+    from iamodelize3d.vision import ingest
 
     sent, spawned = _chat(monkeypatch)
 
@@ -151,7 +151,7 @@ async def test_part_command_orders_from_the_chat_photos(fresh_db, monkeypatch):
     assert sent[-1][1]["text"] == telegram.t("en", "got_it")
     chat_project = (await fresh_db.one("SELECT project_id FROM tg_chats WHERE chat_id = 7"))["project_id"]
     # the second photo carries the command in its caption
-    await bot.on_message({**base, "photo": [{"file_id": "f2"}], "caption": "/part@FormwrightBot dishwasher basket wheel, 4 pcs"})
+    await bot.on_message({**base, "photo": [{"file_id": "f2"}], "caption": "/part@IaModelize3dBot dishwasher basket wheel, 4 pcs"})
     o = await store.get(fresh_db, (await fresh_db.one("SELECT id FROM shop_orders"))["id"])
     assert o and o["user_id"] == "tg_55" and o["project_id"] != chat_project and spawned == [o["id"]]
     req = o["intake"]["request"]
@@ -165,7 +165,7 @@ async def test_part_command_orders_from_the_chat_photos(fresh_db, monkeypatch):
 
 
 async def test_follow_order_tells_the_price_and_the_stops(fresh_db, monkeypatch):
-    from formwright.shop import store
+    from iamodelize3d.shop import store
 
     sent: list[tuple[str, dict]] = []
 
@@ -200,9 +200,9 @@ async def test_follow_order_tells_the_price_and_the_stops(fresh_db, monkeypatch)
 async def test_a_part_orders_question_comes_into_the_chat(fresh_db, monkeypatch):
     """/part order in needs_info: the designer's question with its options as buttons; a tap or a reply to the message
     answers it through the shop (deliver_answer, kept in the order's intake); a stale button is told so."""
-    from formwright import events
-    from formwright.db import now
-    from formwright.shop import routes as shop, store
+    from iamodelize3d import events
+    from iamodelize3d.db import now
+    from iamodelize3d.shop import routes as shop, store
 
     sent: list[tuple[str, dict]] = []
 
@@ -275,7 +275,7 @@ async def test_a_part_orders_question_comes_into_the_chat(fresh_db, monkeypatch)
 
 
 def test_quota_and_language():
-    from formwright.quotas import QuotaExceeded
+    from iamodelize3d.quotas import QuotaExceeded
 
     assert telegram.lang_of({"language_code": "kk"}) == "ru" and telegram.lang_of({"language_code": "de"}) == "en" and telegram.lang_of(None) == "en"
     assert telegram.quota_text(QuotaExceeded("daily limit $0.50 reached", code="daily_limit"), "ru").startswith("Дневной лимит")

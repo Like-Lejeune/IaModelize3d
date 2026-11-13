@@ -7,11 +7,11 @@ import subprocess
 import httpx
 import pytest
 
-from formwright import db as dbmod, quotas, sessions
-from formwright.app import app
-from formwright.config import settings
-from formwright.vision import ingest
-from formwright.vision.common import abs_path
+from iamodelize3d import db as dbmod, quotas, sessions
+from iamodelize3d.app import app
+from iamodelize3d.config import settings
+from iamodelize3d.vision import ingest
+from iamodelize3d.vision.common import abs_path
 
 
 @pytest.fixture
@@ -98,7 +98,7 @@ async def test_a_days_uploads_are_capped_per_person_and_per_network(fresh_db, mo
 async def test_a_studio_message_shows_the_words_that_were_sent(fresh_db, monkeypatch):
     """SendMessage.shown is for the server's own callers (a shop order's English brief): a browser cannot make its
     project show words the model never read."""
-    from formwright.agent import runner
+    from iamodelize3d.agent import runner
 
     await _project(fresh_db, "p_s", "u_s")
     seen = []

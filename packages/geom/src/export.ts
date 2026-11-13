@@ -10,7 +10,7 @@ export function toStl(solid: Manifold): Uint8Array {
   const n = I.length / 3;
   const out = new Uint8Array(84 + n * 50);
   const dv = new DataView(out.buffer);
-  const header = 'formwright';
+  const header = 'iamodelize3d';
   for (let i = 0; i < header.length; i++) out[i] = header.charCodeAt(i);
   dv.setUint32(80, n, true);
   let o = 84;
@@ -91,7 +91,7 @@ export function to3mf(all: Part[], o: ThreeMfOptions = {}): Uint8Array {
   const tx = cx - (minX + maxX) / 2, ty = cy - (minY + maxY) / 2;
   const model = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="${NS}" xmlns:p="${PNS}" requiredextensions="p">
-<metadata name="Application">Formwright</metadata>
+<metadata name="Application">IaModelize3d</metadata>
 <metadata name="Title">${esc(o.title ?? 'model')}</metadata>
 <resources><object id="${parentId}" p:UUID="${uuid(1, parentId)}" type="model"><components>${components}</components></object></resources>
 <build p:UUID="${uuid(3, 1)}"><item objectid="${parentId}" p:UUID="${uuid(4, 1)}" transform="1 0 0 0 1 0 0 0 1 ${tx.toFixed(4)} ${ty.toFixed(4)} 0" printable="1"/></build>

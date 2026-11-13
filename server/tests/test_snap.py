@@ -11,10 +11,10 @@ import httpx
 import numpy as np
 import pytest
 
-from formwright import db as dbmod, quotas
-from formwright.config import settings
-from formwright.vision import ingest, snap
-from formwright.vision.sam import Mask
+from iamodelize3d import db as dbmod, quotas
+from iamodelize3d.config import settings
+from iamodelize3d.vision import ingest, snap
+from iamodelize3d.vision.sam import Mask
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ def stubs(monkeypatch):
 
 @pytest.fixture
 async def client(fresh_db):
-    from formwright.app import app
+    from iamodelize3d.app import app
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         yield c
@@ -147,7 +147,7 @@ async def test_retake_removes_the_draft(client, stubs, fresh_db):
 
 
 async def test_second_snap_waits_behind_the_running_job(client, stubs, fresh_db, monkeypatch):
-    import formwright.agent.runner as runner
+    import iamodelize3d.agent.runner as runner
 
     started: list[str] = []
 
@@ -218,7 +218,7 @@ async def test_a_whole_other_object_is_not_grown_into(client, stubs, fresh_db, m
 
 
 async def test_a_job_left_over_from_a_restart_does_not_queue_snaps(client, stubs, fresh_db, monkeypatch):
-    import formwright.agent.runner as runner
+    import iamodelize3d.agent.runner as runner
 
     started: list[str] = []
 
@@ -263,7 +263,7 @@ async def test_a_huge_photo_is_refused_cleanly(client, stubs, fresh_db, monkeypa
 
 
 async def test_face_blur_is_paid_from_the_daily_budget(fresh_db, monkeypatch):
-    from formwright.vision import privacy
+    from iamodelize3d.vision import privacy
 
     blurred = []
 
@@ -299,7 +299,7 @@ async def test_a_failed_transcription_is_reported(monkeypatch):
 
 
 async def test_a_queued_snap_survives_losing_a_start_race(client, stubs, fresh_db, monkeypatch):
-    import formwright.agent.runner as runner
+    import iamodelize3d.agent.runner as runner
 
     started: list[str] = []
 

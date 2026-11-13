@@ -1,4 +1,4 @@
-// The designer's reference board (server/formwright/agent/pcb_prompt.py EXAMPLE, the same code with comments for the
+// The designer's reference board (server/iamodelize3d/agent/pcb_prompt.py EXAMPLE, the same code with comments for the
 // model): a carrier for a Raspberry Pi Pico with USB-C power input, user button, status LED and a 4-pin I2C header.
 // A different board from the home page's XIAO example, so a XIAO brief is designed, not copied. 0 DRC errors, 0 warnings.
 // Only offline footprinter strings are used (no jlcpcb:/kicad: footprints, no network).

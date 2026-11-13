@@ -18,8 +18,8 @@ archive's copy (its rows are replaced, its files rewritten; files the archive do
     python scripts/ship_runs.py import runs.zip --user u_... --data-dir D:/other/data --replace --apply
 
 On the live server (deploy/compose.yaml; the user id is the one /api/me shows in your browser there):
-    docker compose cp runs.zip formwright:/tmp/runs.zip
-    docker compose exec formwright python scripts/ship_runs.py import /tmp/runs.zip --user u_... --apply
+    docker compose cp runs.zip iamodelize3d:/tmp/runs.zip
+    docker compose exec iamodelize3d python scripts/ship_runs.py import /tmp/runs.zip --user u_... --apply
 Then order the home page with scripts/curate_demo.py --feature <id> ... --apply.
 """
 from __future__ import annotations
@@ -219,17 +219,17 @@ def _write_files(archive: Archive, files: Path, pid: str, paths: list[str]) -> t
 
 
 def _ensure_pcb_table(conn: sqlite3.Connection) -> None:
-    """pcb_boards as the server creates it on first use (formwright.pcb_store.SCHEMA)."""
+    """pcb_boards as the server creates it on first use (iamodelize3d.pcb_store.SCHEMA)."""
     if not has_table(conn, "pcb_boards"):
-        from formwright.pcb_store import SCHEMA
+        from iamodelize3d.pcb_store import SCHEMA
 
         conn.execute(SCHEMA)
 
 
 def _ensure_device_tables(conn: sqlite3.Connection) -> None:
-    """device_docs as the server creates it on first use (formwright.device_store.SCHEMA)."""
+    """device_docs as the server creates it on first use (iamodelize3d.device_store.SCHEMA)."""
     if not has_table(conn, "device_docs"):
-        from formwright.device_store import SCHEMA
+        from iamodelize3d.device_store import SCHEMA
 
         conn.executescript(SCHEMA)
 
@@ -317,7 +317,7 @@ def main(argv: list[str] | None = None) -> None:
         show(Archive(args.archive))
         return
     data = args.data_dir or data_dir_default()
-    path = data / "formwright.db"
+    path = data / "iamodelize3d.db"
     if args.cmd == "export":
         conn = connect(path, write=False)
         ids = list(dict.fromkeys(args.ids))

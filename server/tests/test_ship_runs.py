@@ -11,9 +11,9 @@ import zipfile
 import httpx
 import pytest
 
-from formwright import db as dbmod, pcb_store, sessions, storage
-from formwright.app import app
-from formwright.config import SERVER_DIR, settings
+from iamodelize3d import db as dbmod, pcb_store, sessions, storage
+from iamodelize3d.app import app
+from iamodelize3d.config import SERVER_DIR, settings
 
 FOUNDER = "u_founder0123456789"
 BOARD = {"schema": "fw.board/1", "id": "pcb", "name": "carrier", "source": {"kind": "pcb"}, "frame": "mm",
@@ -86,7 +86,7 @@ async def dirs(tmp_path, monkeypatch):
 
 
 def _rows(path, sql, *args):
-    conn = sqlite3.connect(path / "formwright.db")
+    conn = sqlite3.connect(path / "iamodelize3d.db")
     conn.row_factory = sqlite3.Row
     try:
         return [dict(r) for r in conn.execute(sql, args)]

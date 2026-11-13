@@ -4,8 +4,8 @@ Results are built with the tools' own brief() functions from the shapes the real
 import copy
 import re
 
-from formwright.agent import elec_tools as et, loop, narrate as n, pcb_tools as pt
-from formwright.models import SendMessage
+from iamodelize3d.agent import elec_tools as et, loop, narrate as n, pcb_tools as pt
+from iamodelize3d.models import SendMessage
 
 from test_loop_handover import FakeMeta, _events, _project, _use, call, fresh_db, offline, say  # noqa: F401 (fixtures)
 

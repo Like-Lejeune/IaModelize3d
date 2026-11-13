@@ -13,16 +13,16 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from formwright import db as dbmod, events, storage
-from formwright.agent import critic, loop, tools
-from formwright.agent.runner import JobContext
-from formwright.agent.tools import DesignState
-from formwright.config import settings
-from formwright.llm import client
-from formwright.llm.client import CostMeter, MetaClient
-from formwright.models import SendMessage
-from formwright.quotas import ModelChoice
-from formwright.vision.relief import STICKER_SOURCE
+from iamodelize3d import db as dbmod, events, storage
+from iamodelize3d.agent import critic, loop, tools
+from iamodelize3d.agent.runner import JobContext
+from iamodelize3d.agent.tools import DesignState
+from iamodelize3d.config import settings
+from iamodelize3d.llm import client
+from iamodelize3d.llm.client import CostMeter, MetaClient
+from iamodelize3d.models import SendMessage
+from iamodelize3d.quotas import ModelChoice
+from iamodelize3d.vision.relief import STICKER_SOURCE
 
 OPEN = "meta-models/muse-spark-open-1026"
 SPARK = "muse-spark-1.3-contributor"
@@ -104,7 +104,7 @@ async def test_an_answer_without_the_schemas_keys_counts_as_none_and_says_why(of
     mc = MetaClient()
     mc.open, _ = _open_stub([answer])
     meter = CostMeter()
-    with caplog.at_level(logging.WARNING, logger="formwright.llm.client"):
+    with caplog.at_level(logging.WARNING, logger="iamodelize3d.llm.client"):
         out = await mc.json(meter, model=OPEN, system="s", content=[], schema=critic.SCHEMA, name="critic", fallback=False)
     assert out == {}
     line = next(r.getMessage() for r in caplog.records if "no usable critic answer" in r.getMessage())

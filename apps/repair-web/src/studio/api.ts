@@ -1,4 +1,4 @@
-// The project API the studio talks to (server/formwright/app.py): a project, its conversation with the designer
+// The project API the studio talks to (server/iamodelize3d/app.py): a project, its conversation with the designer
 // agent, its program versions. Same session cookie as the shop.
 import { ApiError } from "../api";
 import type { AssetOut, ProgramOut, ProjectDetail, VersionRow } from "../geom/types";

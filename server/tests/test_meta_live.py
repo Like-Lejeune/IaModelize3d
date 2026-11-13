@@ -16,8 +16,8 @@ import wave
 import pytest
 from PIL import Image
 
-from formwright.config import Settings, settings
-from formwright.llm.client import CostMeter, MetaClient
+from iamodelize3d.config import Settings, settings
+from iamodelize3d.llm.client import CostMeter, MetaClient
 
 
 def _live() -> bool:

@@ -18,7 +18,7 @@ checks (--force features it anyway),
 and a PCB run whose latest board, built again offline in the sandboxed PCB worker (no model), has DRC errors such as
 pcb_button_short_error (no --force for that). Standard library only, except that rebuild (it needs the server package
 and packages/pcb/dist), so it runs in the container too:
-    docker exec formwright python scripts/curate_demo.py
+    docker exec iamodelize3d python scripts/curate_demo.py
 """
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ def env_setting(name: str) -> str | None:
 
 def default_db() -> Path:
     data = Path(env_setting("FW_DATA_DIR") or REPO_DIR / "data")
-    return (data if data.is_absolute() else SERVER_DIR / data) / "formwright.db"
+    return (data if data.is_absolute() else SERVER_DIR / data) / "iamodelize3d.db"
 
 
 def connect(path: Path, write: bool) -> sqlite3.Connection:
@@ -276,7 +276,7 @@ def rebuild_board(source: str, intent: dict | None) -> dict:
     """A stored circuit built again by today's engine, offline in the sandboxed PCB worker (no model is called): the
     stored checks are what the engine said then, and a featured replay must not show a board that fails now."""
     sys.path.insert(0, str(SERVER_DIR))
-    from formwright.pcb import PcbPool
+    from iamodelize3d.pcb import PcbPool
 
     async def build() -> dict:
         pool = PcbPool(1)
@@ -296,7 +296,7 @@ def board_errors(conn: sqlite3.Connection, p: sqlite3.Row) -> tuple[list[str], s
         return (["it has no PCB version"], None) if p["pack"] == "pcb" else ([], None)
     stored = len(loads(row["checks"]).get("errors") or [])
     sys.path.insert(0, str(SERVER_DIR))
-    from formwright.pcb import PcbError
+    from iamodelize3d.pcb import PcbError
 
     try:
         intent = json.loads(row["intent"]) if row["intent"] else None
@@ -476,7 +476,7 @@ def stats(conn: sqlite3.Connection) -> None:
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")  # titles are in the user's language
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--db", type=Path, default=None, help="formwright.db (default: FW_DATA_DIR or data/ in the repo)")
+    ap.add_argument("--db", type=Path, default=None, help="iamodelize3d.db (default: FW_DATA_DIR or data/ in the repo)")
     ap.add_argument("--apply", action="store_true", help="write the changes (without it nothing is written)")
     ap.add_argument("--force", action="store_true", help="--feature a run the reviewer did not approve or whose checks fail "
                                                          "(never a board with DRC errors)")

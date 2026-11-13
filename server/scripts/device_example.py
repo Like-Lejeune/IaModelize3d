@@ -1,4 +1,4 @@
-"""Keep a finished device run as a home page example: its project in one data dir becomes server/formwright/example_devices/<key>/
+"""Keep a finished device run as a home page example: its project in one data dir becomes server/iamodelize3d/example_devices/<key>/
 (showcase.py opens it as a visitor's own project, free and at once).
 
 What travels is what the device studio reads when the run has ended: the latest device document, program and PCB version
@@ -21,11 +21,11 @@ from typing import Any
 
 SERVER_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DATA = SERVER_DIR.parent / "data"
-DEFAULT_OUT = SERVER_DIR / "formwright" / "example_devices"
+DEFAULT_OUT = SERVER_DIR / "iamodelize3d" / "example_devices"
 
 
 def connect(data_dir: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(f"file:{(data_dir / 'formwright.db').as_posix()}?mode=ro", uri=True)
+    conn = sqlite3.connect(f"file:{(data_dir / 'iamodelize3d.db').as_posix()}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     return conn
 

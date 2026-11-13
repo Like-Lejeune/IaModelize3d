@@ -35,7 +35,7 @@
 
   let { store, readonly = false }: { store: ProjectStore; readonly?: boolean } = $props();
 
-  // what the Axo farm prints (server/formwright/shop/quote.py)
+  // what the Axo farm prints (server/iamodelize3d/shop/quote.py)
   const MATERIALS = ['PLA', 'PETG', 'ASA', 'TPU'];
   let busy = $state<string | null>(null);
   let error = $state<string | null>(null);
@@ -48,7 +48,7 @@
   });
   let instant = $state<Quote | null>(null);
 
-  // Formwright Parts: the kernel's instant range for this version; the binding price comes from OrcaSlicer on /parts/new
+  // IaModelize3d Parts: the kernel's instant range for this version; the binding price comes from OrcaSlicer on /parts/new
   $effect(() => {
     const v = store.version;
     const m = material;

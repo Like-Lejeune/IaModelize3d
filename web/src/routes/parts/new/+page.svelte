@@ -180,7 +180,7 @@
   const secs = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 </script>
 
-<svelte:head><title>{st(projectId ? 'new.from_project' : 'new.title')} · Formwright</title></svelte:head>
+<svelte:head><title>{st(projectId ? 'new.from_project' : 'new.title')} · IaModelize3d</title></svelte:head>
 
 <div class="page">
   <Header />

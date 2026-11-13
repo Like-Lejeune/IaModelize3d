@@ -7,8 +7,8 @@ import copy
 import json
 from pathlib import Path
 
-from formwright import catalog, device, device_rules
-from formwright.agent import device_prompt
+from iamodelize3d import catalog, device, device_rules
+from iamodelize3d.agent import device_prompt
 
 FIX = Path(__file__).parent / "fixtures" / "device_rules"
 CARDS = json.loads((FIX / "cards.json").read_text(encoding="utf-8"))

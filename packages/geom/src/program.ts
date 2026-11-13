@@ -1,4 +1,4 @@
-// A Formwright program is plain JavaScript written by the agent (or a person):
+// A IaModelize3d program is plain JavaScript written by the agent (or a person):
 //
 //   const meta = { title: 'Bag hook', pack: 'household' };
 //   const params = { shelf_t: { value: 18.2, min: 5, max: 40, unit: 'mm', source: 'caliper' } };

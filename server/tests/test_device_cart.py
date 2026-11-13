@@ -12,9 +12,9 @@ from email.policy import HTTP
 import httpx
 import pytest
 
-from formwright import catalog, db as dbmod, deviceapi, device_package, device_store, geom as geommod, pcb as pcbmod
-from formwright.config import settings
-from formwright.integrations import axo
+from iamodelize3d import catalog, db as dbmod, deviceapi, device_package, device_store, geom as geommod, pcb as pcbmod
+from iamodelize3d.config import settings
+from iamodelize3d.integrations import axo
 
 DESIGN = "0123456789abcdef0123456789abcdef"
 OLD = "fedcba9876543210fedcba9876543210"
@@ -37,7 +37,7 @@ def quote(pcb_version: int, program_version: int, qty: int = 5) -> dict:
 
 @pytest.fixture
 async def env(tmp_path, monkeypatch):
-    from formwright.app import app
+    from iamodelize3d.app import app
 
     monkeypatch.setattr(settings(), "data_dir", tmp_path)
     monkeypatch.setattr(settings(), "public_url", "https://fw.example")

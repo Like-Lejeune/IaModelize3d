@@ -6,7 +6,7 @@ import pytest
 pytest.importorskip("ziglang")
 pytest.importorskip("wasmtime")
 
-from formwright import device, device_rules, firmware_sim as fs  # noqa: E402
+from iamodelize3d import device, device_rules, firmware_sim as fs  # noqa: E402
 
 XIAO = {"id": "U1", "kind": "module", "module": "113991054"}
 CELL = {"id": "BT1", "kind": "accessory", "accessory": "lipo_1s_500"}
@@ -256,7 +256,7 @@ async def test_a_requirement_test_catches_a_pause_that_starts_over():
 def test_a_test_keeps_what_it_checked_and_says_when_it_was_changed():
     from types import SimpleNamespace
 
-    from formwright.agent import device_tools as dt
+    from iamodelize3d.agent import device_tools as dt
 
     sleep = {"expect": [{"from_s": 35, "to_s": 40, "asleep": True}]}
     doc = _doc(BUTTON_LED, BUTTON_NETS, [{"id": "R3", "text": "sleeps after 30 s", "parts": ["SW1"], "firmware": True, "test": sleep}])
@@ -279,7 +279,7 @@ def test_a_test_keeps_what_it_checked_and_says_when_it_was_changed():
 async def test_finish_asks_once_for_the_tests_of_firmware_requirements():
     from types import SimpleNamespace
 
-    from formwright.agent import device_tools as dt
+    from iamodelize3d.agent import device_tools as dt
 
     doc = _doc(BUTTON_LED, BUTTON_NETS, [{"id": "R1", "text": "lights", "parts": ["LED1"], "firmware": True}])
     fw = {"lang": "arduino", "files": {"a.ino": "x"}}

@@ -8,9 +8,9 @@ import httpx
 import numpy as np
 import pytest
 
-from formwright import db as dbmod
-from formwright.config import settings
-from formwright.vision import ingest, snap
+from iamodelize3d import db as dbmod
+from iamodelize3d.config import settings
+from iamodelize3d.vision import ingest, snap
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ async def client(tmp_path, monkeypatch):
     monkeypatch.setattr(settings(), "data_dir", tmp_path)
     (tmp_path / "files").mkdir()
     await dbmod.close_db()
-    from formwright.app import app
+    from iamodelize3d.app import app
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         yield c
