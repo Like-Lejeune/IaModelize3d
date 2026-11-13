@@ -16,7 +16,7 @@ PRIVATE = {"error", "detail"}  # exception text and server-side details: operato
 def _quoted(p: dict[str, Any]) -> str:
     by = "OrcaSlicer" if p.get("by") == "orca" else "the operator"
     usd = p.get("total_usd")
-    return (f"{p.get('grams')} g, {p.get('minutes')} min each x{p.get('quantity')}: {float(p.get('total') or 0):,.0f} KZT"
+    return (f"{p.get('grams')} g, {p.get('minutes')} min each x{p.get('quantity')}: {float(p.get('total') or 0):,.0f} {p.get('currency') or 'KZT'}"
             + (f" (${float(usd):.2f})" if usd is not None else "") + f", by {by}")
 
 
@@ -46,6 +46,10 @@ EN: dict[str, Callable[[dict[str, Any]], str]] = {
     "problem": lambda p: f"{p.get('code')}: {p['detail']}" if p.get("detail") else str(p.get("code") or "stopped"),
     "expired": lambda p: "the quote expired; a fresh quote brings the order back",
     "paid_test": lambda p: "test payment",
+    # G1: declared by the customer, checked by hand by the workshop (shop.routes.PayIn)
+    "paid_mobile_money": lambda p: f"paid by Mobile Money ({p.get('operator') or '?'}), reference {p.get('reference') or '?'}, to verify",
+    "paid_on_pickup": lambda p: "to be paid in cash on pickup",
+    "payment_verified": _with("Mobile Money payment checked by the workshop", "reference"),
     "assigned": lambda p: f"on {p.get('printer')}" + (f", sliced again: {p.get('grams')} g (quoted {p.get('quoted')} g), the paid price holds"
                                                       if p.get("resliced") else ""),
     "printed": lambda p: "off the plate, waiting for the QC photo",

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 import shutil
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,6 +25,19 @@ def _default_orca() -> str:
     return ""
 
 
+# The AI providers the server can talk to. Every one of them speaks the OpenAI Responses API (text, vision, tools,
+# structured output), which is what the designer, the intake desk and the critic use. What only Meta's API offers:
+# SAM 3.1 (measuring a part on its A4 sheet, face blur, QC photos), Voice Transcribe and Muse Image. On another
+# provider those features are switched off: the designer works from the photos as an image model sees them and asks the
+# customer for the dimensions it cannot read, voice notes are refused, uploads are kept without a face pass.
+PROVIDERS: dict[str, dict[str, Any]] = {
+    "meta": {"base_url": "https://api.meta.ai/v1", "sam": True, "voice": True, "image": True},
+    "openai": {"base_url": "https://api.openai.com/v1", "sam": False, "voice": False, "image": False},
+    # any other endpoint that serves /v1/responses (a gateway, vLLM, a self-hosted model): FW_LLM_BASE_URL is required
+    "custom": {"base_url": "", "sam": False, "voice": False, "image": False},
+}
+
+
 class Settings(BaseSettings):
     # The key may live in the repo .env or one level up (kept outside the repo).
     model_config = SettingsConfigDict(
@@ -31,8 +46,43 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # which provider serves the models (PROVIDERS above); FW_LLM_BASE_URL / FW_LLM_API_KEY override its address and key
+    llm_provider: str = "meta"
+    llm_base_url: str = ""
+    llm_api_key: str = ""
+    # prices per million tokens for models the built-in table (llm/pricing.py) does not know, so budgets still count
+    llm_price_in_per_m: float = 0.0
+    llm_price_cached_per_m: float = 0.0
+    llm_price_out_per_m: float = 0.0
+
     meta_api_key: str = Field(default="", validation_alias=AliasChoices("META_API_KEY", "META_KEY", "FW_META_API_KEY"))
     meta_base_url: str = "https://api.meta.ai/v1"
+
+    @property
+    def provider(self) -> dict[str, Any]:
+        """The provider's preset: its default address and what it offers beyond the Responses API."""
+        name = (self.llm_provider or "meta").strip().lower()
+        if name not in PROVIDERS:
+            raise ValueError(f"FW_LLM_PROVIDER={self.llm_provider!r}: expected one of {', '.join(PROVIDERS)}")
+        return {"name": name, **PROVIDERS[name]}
+
+    @property
+    def api_base_url(self) -> str:
+        """Where the models are called: FW_LLM_BASE_URL, else the Meta address (FW_META_BASE_URL) on Meta, else the preset's."""
+        p = self.provider
+        if self.llm_base_url:
+            return self.llm_base_url.rstrip("/")
+        return self.meta_base_url if p["name"] == "meta" else p["base_url"]
+
+    @property
+    def api_key(self) -> str:
+        """The provider's key: FW_LLM_API_KEY, else META_API_KEY on Meta (the original setting keeps working)."""
+        return self.llm_api_key or (self.meta_api_key if self.provider["name"] == "meta" else "")
+
+    def can(self, feature: str) -> bool:
+        """Whether this server can use a provider-specific feature ('sam', 'voice', 'image'): the provider offers it
+        and a key is set."""
+        return bool(self.api_key) and bool(self.provider.get(feature))
 
     data_dir: Path = REPO_DIR / "data"
     public_url: str = "http://localhost:5400"
@@ -110,6 +160,16 @@ class Settings(BaseSettings):
 @lru_cache
 def settings() -> Settings:
     s = Settings()
+    p = s.provider  # an unknown FW_LLM_PROVIDER stops the server here, not at the first model call
+    if p["name"] == "custom" and not s.llm_base_url:
+        raise ValueError("FW_LLM_PROVIDER=custom needs FW_LLM_BASE_URL (an endpoint that serves /v1/responses)")
+    if p["name"] != "meta":
+        meta_models = [k for k in ("model_designer", "model_designer_hard", "model_fast", "model_free")
+                       if str(getattr(s, k)).startswith("muse-")]
+        if meta_models:
+            logging.getLogger(__name__).warning(
+                "FW_LLM_PROVIDER=%s but %s still name Meta models: set FW_MODEL_DESIGNER, FW_MODEL_DESIGNER_HARD, FW_MODEL_FAST "
+                "and FW_MODEL_FREE to this provider's models", p["name"], ", ".join(m.upper() for m in meta_models))
     s.data_dir.mkdir(parents=True, exist_ok=True)
     (s.data_dir / "files").mkdir(exist_ok=True)
     return s

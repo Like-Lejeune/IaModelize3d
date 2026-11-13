@@ -68,6 +68,9 @@ def _quote_ok(o: dict[str, Any]) -> str | None:
 
 
 def _assigned(o: dict[str, Any]) -> str | None:
+    pay = o.get("payment") or {}
+    if pay.get("mode") == "mobile_money" and not pay.get("verified"):
+        return "check the Mobile Money payment first"
     if not o.get("printer_id"):
         return "assign a printer first"
     if not ((o.get("slice") or {}).get("files") or {}).get("gcode"):

@@ -1,4 +1,4 @@
-"""Meta Model API prices (USD), from the public pricing page."""
+"""Model prices (USD): Meta's from its public pricing page; another provider's from FW_LLM_PRICE_*_PER_M."""
 from __future__ import annotations
 
 from ..config import settings
@@ -31,7 +31,11 @@ def open_prices() -> tuple[float, float, float] | None:
 
 
 def token_cost(model: str, input_tokens: int, cached_tokens: int, output_tokens: int) -> float:
-    row = TOKEN_PRICES.get(model) or (open_prices() if model == settings().open_model else None)
+    s = settings()
+    row = TOKEN_PRICES.get(model) or (open_prices() if model == s.open_model else None)
+    if row is None and (s.llm_price_in_per_m or s.llm_price_out_per_m):
+        # a model of another provider (FW_LLM_PROVIDER): the prices set for it, cached input at its own price if given
+        row = (s.llm_price_in_per_m, s.llm_price_cached_per_m or s.llm_price_in_per_m, s.llm_price_out_per_m)
     if row is None:
         return 0.0
     p_in, p_cached, p_out = row

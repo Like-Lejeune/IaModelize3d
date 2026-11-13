@@ -17,7 +17,7 @@ from formwright import idempotency, quotas
 from formwright.db import Database, get_db, new_id, now
 
 from . import autoquote, flow, notes, quote, store
-from .intake import UNNAMED, title_for, titles
+from .intake import UNNAMED, title_for, title_fr, titles
 
 log = logging.getLogger("formwright.shop")
 router = APIRouter(prefix="/api/shop", tags=["shop"])
@@ -215,6 +215,8 @@ async def present(db: Database, o: dict[str, Any], actor: str, *, timeline: bool
         en, ru = titles(data, out["title"])
         both = (en, out["title"]) if CYRILLIC.search(out["title"] or "") else (out["title"], ru)
     out["title_en"], out["title_ru"] = both
+    # the French title (the G1 front): a catalog card has none yet and shows its English one
+    out["title_fr"] = both[0] if li else title_fr(data, both[0])
     out["own_listing"] = await store.own_listing(db, o["user_id"], o["project_id"])
     out["working"] = autoquote.running(o["id"])
     if out["working"] and o["status"] == "quoted":
@@ -280,14 +282,15 @@ async def me(user=Depends(user_dep)):
     db = await store.shop_db()
     org = await store.org_of(db, user["id"])
     return {"user": {"id": user["id"], "tier": user["tier"], "name": user.get("name")}, "org": org,
-            "is_operator": bool(org and org["kind"] == "farm"), "currency": quote.DEFAULT.currency, "usd_kzt": quote.shop_settings().usd_kzt}
+            "is_operator": bool(org and org["kind"] == "farm"), "currency": quote.DEFAULT.currency, "usd_kzt": quote.shop_settings().usd_kzt,
+            "usd_rate": quote.usd_rate()}
 
 
 @router.get("/tariff")
 async def tariff():
     """The price list's public part (materials and delivery), for the order form."""
     t = quote.DEFAULT
-    return {"currency": t.currency, "usd_kzt": quote.shop_settings().usd_kzt, "materials": list(quote.MATERIALS),
+    return {"currency": t.currency, "usd_kzt": quote.shop_settings().usd_kzt, "usd_rate": quote.usd_rate(), "materials": list(quote.MATERIALS),
             "delivery": {k: {"price": v[0], "days": v[1], "price_usd": quote.usd(v[0])} for k, v in t.delivery.items()}}
 
 
@@ -500,7 +503,7 @@ async def public_view(db: Database, o: dict[str, Any]) -> dict[str, Any]:
                    "request": {"kind": (data.get("request") or {}).get("kind") or "listing"},
                    "part": {k: part[k] for k in PUBLIC_PART if k in part},
                    "appliance": {k: app[k] for k in ("kind", "brand", "model") if k in app},
-                   "classify": {k: cls[k] for k in ("category", "safety_critical", "title_en", "title_ru", "model") if k in cls} if cls else None},
+                   "classify": {k: cls[k] for k in ("category", "safety_critical", "title_en", "title_ru", "title_fr", "model") if k in cls} if cls else None},
         "quote": q,
         "payment": {k: pay[k] for k in ("mode", "amount", "currency", "amount_usd", "at") if k in pay},
         "slice": {k: sl[k] for k in ("printer", "material", "stats") if k in sl},
@@ -514,7 +517,7 @@ async def public_view(db: Database, o: dict[str, Any]) -> dict[str, Any]:
         "project": {"cover": file_url(store.shipped_cover(o, p)), "version": o.get("version"),
                     **({"id": o["project_id"]} if p and p["public"] else {})},
         "listing_id": li["id"] if li and li["public"] and not li["flagged"] else None,
-        "title": named[0], "title_en": named[1], "title_ru": named[2],
+        "title": named[0], "title_en": named[1], "title_ru": named[2], "title_fr": seen.get("title_fr") or named[1],
         "next": [], "actor": "public", "working": False, "safety": seen["safety"], "showcase": True,
         "timeline": timeline,
     }
@@ -530,6 +533,7 @@ async def showcase_latest():
         return None
     v = await public_view(db, o)
     return {"id": o["id"], "ref": o["ref"], "status": o["status"], "title": v["title"], "title_en": v["title_en"], "title_ru": v["title_ru"],
+            "title_fr": v["title_fr"],
             "cover": v["project"]["cover"], "qc_pass": bool((o.get("qc") or {}).get("pass"))}
 
 
@@ -597,10 +601,26 @@ async def quote_again(order_id: str, body: QuoteRequest, view: View = None, user
     return await present(db, o, _viewer(o, user, actor, view))
 
 
+class PayIn(BaseModel):
+    """How the customer paid. 'test': no money moves (the original demo). 'mobile_money': the customer sent the amount
+    by MTN MoMo or Orange Money and gives the transaction reference, which the workshop checks against its account
+    before printing (no payment API is called yet). 'on_pickup': paid in cash when the part is collected."""
+    method: Literal["test", "mobile_money", "on_pickup"] = "test"
+    operator: Literal["mtn", "orange", ""] = ""
+    reference: str = Field(default="", max_length=60)
+
+
 @router.post("/orders/{order_id}/pay")
-async def pay(order_id: str, user=Depends(user_dep)):
-    """Test mode: no money moves and no card is asked for. A real deployment puts a payment provider's checkout here."""
+async def pay(order_id: str, body: PayIn | None = None, user=Depends(user_dep)):
+    """Test mode by default: no money moves and no card is asked for. A Mobile Money payment is declared with its
+    transaction reference (checked by hand by the workshop); payment on pickup needs the pickup delivery. A real
+    deployment puts a payment provider's checkout here."""
+    body = body or PayIn()
+    if body.method == "mobile_money" and (not body.operator or not body.reference.strip()):
+        raise _fail(400, "a Mobile Money payment needs its operator and transaction reference", "payment_reference")
     db, o, _ = await _order_for(user, order_id, operator_ok=False)
+    if body.method == "on_pickup" and (o.get("delivery") or {}).get("method") != "pickup":
+        raise _fail(409, "payment on pickup is only for parts collected at the workshop", "payment_method")
     q = o.get("quote") or {}
     if q.get("valid_until") and q["valid_until"] < now():
         raise _fail(409, "the quote expired; quote again", "quote_expired")
@@ -616,9 +636,13 @@ async def pay(order_id: str, user=Depends(user_dep)):
     if o["status"] == "quoted" and (m := flow.material_due(o)):
         raise _fail(409, f"the price in {m}, the material picked for this part, is not ready yet", "material_pending")
     try:
-        o = await store.move(db, order_id, "paid", "customer", user["id"], code="paid_test",
-                             fields={"payment": {"mode": "test", "amount": q.get("total"), "currency": q.get("currency"),
-                                                 "amount_usd": (q.get("usd") or {}).get("total"), "at": now()}})
+        payment = {"mode": body.method, "amount": q.get("total"), "currency": q.get("currency"),
+                   "amount_usd": (q.get("usd") or {}).get("total"), "at": now()}
+        if body.method == "mobile_money":
+            payment |= {"operator": body.operator, "reference": body.reference.strip(), "verified": False}
+        code, params = {"mobile_money": ("paid_mobile_money", {"operator": body.operator, "reference": body.reference.strip()}),
+                        "on_pickup": ("paid_on_pickup", {})}.get(body.method, ("paid_test", {}))
+        o = await store.move(db, order_id, "paid", "customer", user["id"], code=code, params=params, fields={"payment": payment})
     except flow.FlowError as e:
         raise _err(e) from e
     if o.get("listing_id"):
@@ -846,6 +870,19 @@ async def printer_fingerprint(printer_id: str, file: UploadFile = File(...), use
 
 class AssignIn(BaseModel):
     printer_id: str
+
+
+@router.post("/orders/{order_id}/payment-verified")
+async def payment_verified(order_id: str, user=Depends(operator_dep)):
+    """The workshop found the customer's Mobile Money transfer on its account: the order may go to a printer."""
+    db, o, _ = await _order_for(user, order_id)
+    pay = o.get("payment") or {}
+    if o["status"] != "paid" or pay.get("mode") != "mobile_money":
+        raise _fail(409, "no Mobile Money payment waits for a check on this order", "order_guard")
+    o = await store.patch(db, order_id, {"payment": {**pay, "verified": True, "verified_at": now(), "verified_by": user["id"]}})
+    await store.log(db, order_id, "paid", "paid", "operator", user["id"], code="payment_verified",
+                    params={"reference": pay.get("reference") or ""})
+    return await present(db, o, "operator")
 
 
 @router.post("/orders/{order_id}/assign")

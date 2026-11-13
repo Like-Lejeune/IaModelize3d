@@ -9,9 +9,10 @@ Calibration (the same 17 models from the local DB, PLA, Orca default process, 20
   (the A1 bedslinger prints the same file about 23 % slower; kernel MAPE 11 % on grams, 34 % on minutes)
 So the instant price is never binding: it is a range, and the order can be paid only on a firm quote.
 
-Money: the farm (Axo, Kazakhstan) prices in tenge. Every amount also comes in US dollars at a fixed demo rate
-(FW_USD_KZT, default 520 KZT per USD) for readers outside Kazakhstan; the tenge figure is the binding one.
-The tariff is the prototype's USD tariff at 520 KZT/USD, rounded to tenge amounts a price tag would show.
+Money: the tariff is a preset chosen by FW_SHOP_TARIFF. 'kz' (the default) is the original farm's (Axo, Kazakhstan),
+in tenge: the prototype's USD tariff at 520 KZT/USD, rounded to tenge amounts a price tag would show. 'cm' is the G1
+repair service in Cameroon, in FCFA (XAF). Every amount also comes in US dollars at a fixed rate (FW_USD_RATE, local
+currency per USD; FW_USD_KZT still sets it for 'kz'); the local figure is the binding one.
 """
 from __future__ import annotations
 
@@ -35,7 +36,11 @@ class ShopSettings(BaseSettings):
     """Shop settings, read like formwright.config.Settings (FW_ prefix, the same .env files)."""
     model_config = SettingsConfigDict(env_file=(REPO_DIR.parent / ".env", REPO_DIR / ".env"), env_prefix="FW_", extra="ignore")
 
-    usd_kzt: float = 520.0  # tenge per US dollar, for the USD figures next to every price
+    usd_kzt: float = 520.0  # tenge per US dollar, for the USD figures next to every price (tariff 'kz')
+    # which tariff preset prices the parts (TARIFFS below): 'kz' tenge, 'cm' FCFA
+    shop_tariff: str = "kz"  # FW_SHOP_TARIFF
+    # local currency per US dollar; 0: the preset's own (usd_kzt for 'kz', Tariff.usd_rate for the others)
+    usd_rate: float = 0.0
     # the farm's Orca preset when no farm printer is registered yet (Axo prints on a Bambu Lab A1)
     farm_preset: str = "bambu-lab-a1-0-4-nozzle"
 
@@ -47,7 +52,7 @@ def shop_settings() -> ShopSettings:
 
 @dataclass(frozen=True)
 class Material:
-    kzt_per_kg: float
+    kzt_per_kg: float  # the price of a kilogram in the tariff's currency (the name is the original tenge one)
     density: float  # g/cm3, same table as printing/service.py DENSITY
 
 
@@ -75,15 +80,63 @@ class Tariff:
     delivery: dict[str, tuple[float, int]] = field(default_factory=lambda: {
         "pickup": (0.0, 0), "courier": (2000.0, 1), "post": (1500.0, 4),
     })
+    # prices are rounded up to a multiple of this; 0: the tenge rule (ending in 90, see _round_price)
+    round_to: int = 0
+    # local currency per US dollar when FW_USD_RATE is not set (0: FW_USD_KZT, the tenge rate)
+    usd_rate: float = 0.0
 
 
-DEFAULT = Tariff()
+# G1 Réparation, Cameroon (FCFA, XAF). Every figure is a business assumption to check against real costs before
+# launch: filament bought locally or imported, a printer at the workshop, a moto courier in Yaoundé or Douala, a parcel
+# sent by a travel agency between cities. Prices are rounded up to 100 FCFA. The USD rate is a rough one (XAF is pegged
+# to the euro at 655.957 XAF/EUR, so its dollar rate moves with EUR/USD): set FW_USD_RATE to the day's rate.
+CAMEROON = Tariff(
+    currency="XAF",
+    materials={"PLA": Material(22000.0, 1.24), "PETG": Material(25000.0, 1.27), "ASA": Material(32000.0, 1.07),
+               "TPU": Material(38000.0, 1.21)},
+    machine_per_h=300.0,
+    handling_per_order=1000.0,
+    handling_per_extra_unit=150.0,
+    packaging=300.0,
+    failure_rate=0.07,
+    margin={"consumer": 0.60, "repair_shop": 0.45},
+    min_unit={"consumer": 2500.0, "repair_shop": 1500.0},
+    new_part_fee={"consumer": 2500.0, "repair_shop": 1500.0},
+    royalty_share=0.10,
+    printers_online=1,
+    hours_per_day=16.0,
+    qc_hours=2.0,
+    delivery={"pickup": (0.0, 0), "courier": (1500.0, 1), "post": (3000.0, 3)},
+    round_to=100,
+    usd_rate=600.0,
+)
+
+TARIFFS: dict[str, Tariff] = {"kz": Tariff(), "cm": CAMEROON}
+
+
+def _tariff() -> Tariff:
+    name = (shop_settings().shop_tariff or "kz").strip().lower()
+    if name not in TARIFFS:
+        raise ValueError(f"FW_SHOP_TARIFF={name!r}: expected one of {', '.join(TARIFFS)}")
+    return TARIFFS[name]
+
+
+DEFAULT = _tariff()
 MATERIALS = tuple(DEFAULT.materials)
 DELIVERY = tuple(DEFAULT.delivery)
 
 
-def _round_price(x: float) -> float:
-    """Tenge prices end in 90 (whole tens below 1000 KZT)."""
+def usd_rate(t: Tariff | None = None) -> float:
+    """Local currency per US dollar: FW_USD_RATE, else the tariff's own, else FW_USD_KZT (the tenge rate)."""
+    t = t or DEFAULT
+    return shop_settings().usd_rate or t.usd_rate or shop_settings().usd_kzt
+
+
+def _round_price(x: float, t: Tariff | None = None) -> float:
+    """Tenge prices end in 90 (whole tens below 1000 KZT); a tariff with round_to rounds up to a multiple of it."""
+    step = (t or DEFAULT).round_to
+    if step:
+        return float(math.ceil(x / step) * step)
     if x < 1000:
         return float(math.ceil(x / 10) * 10)
     up = math.ceil(x / 100) * 100
@@ -91,10 +144,12 @@ def _round_price(x: float) -> float:
 
 
 def usd(kzt: float, rate: float | None = None) -> float:
-    return round(kzt / (rate or shop_settings().usd_kzt), 2)
+    """An amount in the tariff's currency, in US dollars."""
+    return round(kzt / (rate or usd_rate()), 2)
 
 
-def unit_cost(grams: float, minutes: float, material: str, t: Tariff = DEFAULT) -> dict[str, float]:
+def unit_cost(grams: float, minutes: float, material: str, t: Tariff | None = None) -> dict[str, float]:
+    t = t or DEFAULT
     m = t.materials.get(material.upper(), t.materials["PLA"])
     mat = grams * m.kzt_per_kg / 1000
     machine = minutes / 60 * t.machine_per_h
@@ -103,16 +158,18 @@ def unit_cost(grams: float, minutes: float, material: str, t: Tariff = DEFAULT) 
 
 def price(*, grams: float, minutes: float, material: str = "PLA", quantity: int = 1, customer: str = "consumer",
           new_part: bool = True, delivery: str = "courier", listing_royalty: bool = False, queue_hours: float = 0.0,
-          printers: int | None = None, today: dt.date | None = None, rate: float | None = None, t: Tariff = DEFAULT) -> dict[str, Any]:
-    """Price breakdown for `quantity` copies of one part. Deterministic: the same inputs give the same quote."""
+          printers: int | None = None, today: dt.date | None = None, rate: float | None = None, t: Tariff | None = None) -> dict[str, Any]:
+    """Price breakdown for `quantity` copies of one part. Deterministic: the same inputs give the same quote.
+    `t`: the tariff, read at call time (DEFAULT, the FW_SHOP_TARIFF preset) when not given."""
+    t = t or DEFAULT
     q = max(1, int(quantity))
-    rate = rate or shop_settings().usd_kzt
+    rate = rate or usd_rate(t)
     u = unit_cost(grams, minutes, material, t)
     variable = (u["material"] + u["machine"]) * q
     handling = t.handling_per_order + t.handling_per_extra_unit * (q - 1)
     cost = (variable + handling + t.packaging) / (1 - t.failure_rate)
     margin = t.margin.get(customer, t.margin["consumer"])
-    unit_price = _round_price(max(t.min_unit.get(customer, t.min_unit["consumer"]), cost / q / (1 - margin)))
+    unit_price = _round_price(max(t.min_unit.get(customer, t.min_unit["consumer"]), cost / q / (1 - margin)), t)
     parts = round(unit_price * q, 2)
     fee = t.new_part_fee.get(customer, t.new_part_fee["consumer"]) if new_part else 0.0
     ship, ship_days = t.delivery.get(delivery, t.delivery["courier"])

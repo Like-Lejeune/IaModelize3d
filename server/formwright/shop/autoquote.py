@@ -202,6 +202,7 @@ async def requote(order_id: str, *, material: str | None = None, quantity: int |
     if sl is not None:
         fields["slice"] = sl
     said = {"grams": q["grams_each"], "minutes": q["minutes_each"], "quantity": quantity, "total": q["total"], "total_usd": q["usd"]["total"],
+            "currency": q.get("currency") or "KZT",
             "by": "orca" if q["source"] == "orca" else "operator"}
     if o["status"] == "quoted":
         # the slice took seconds: a customer who paid meanwhile keeps the quote they paid for
@@ -274,7 +275,8 @@ async def _read_request(db: Database, o: dict[str, Any], user: dict[str, Any]) -
     o = await store.patch(db, order_id, fields)
     en, ru = intake_mod.titles(data, intake_mod.title_for(data))
     said = ({"code": "intake_unread", "params": {"error": str(data["error"])[:200]}} if data.get("error") else
-            {"code": "intake_read", "params": {"model": data.get("model") or "", "title": intake_mod.title_for(data), "title_en": en, "title_ru": ru}})
+            {"code": "intake_read", "params": {"model": data.get("model") or "", "title": intake_mod.title_for(data), "title_en": en, "title_ru": ru,
+                                          "title_fr": intake_mod.title_fr(data, en)}})
     await store.log(db, order_id, "requested", "requested", "system", None, data={"refuse": data.get("refuse"), "review": data.get("review")}, **said)
     if req.get("kind") != "project" and (title := intake_mod.title_for(data, "")):
         await db.update("projects", "id", o["project_id"], {"title": title, "updated_at": now()})

@@ -143,7 +143,7 @@ async def _blur(img: np.ndarray, user: dict[str, Any] | None = None) -> tuple[np
     """The photo with its faces blurred and how many there were. `user`: whose daily budget pays for it; when that is
     spent the photo is refused, not kept unblurred, and so it is while the model service is down (app.model_busy answers
     503). Faces None: the pass ran into anything else, so the photo is stored as it came and marked meta.blur_skipped."""
-    if not settings().blur_faces or not settings().meta_api_key:
+    if not settings().blur_faces or not settings().can("sam"):  # the face pass is SAM 3.1 (Meta only)
         return img, 0
     from .privacy import blur_people
 
@@ -228,13 +228,13 @@ async def upload_quota(project_id: str, size: int) -> None:
 async def transcribe(wav: bytes, user: dict[str, Any] | None = None) -> str:
     """The spoken text; raises when the speech could not be transcribed (or `user`, who pays for it, has
     spent today's budget)."""
-    if not settings().meta_api_key:
+    if not settings().can("voice"):
         raise RuntimeError("speech recognition is not set up on this server")
     if user:
         await quotas.check_light(user, 0.005)
     meter = CostMeter(budget_usd=0.05)
     try:
-        return await meta().transcribe(meter, wav, keywords=PRINT_KEYWORDS, languages=["English", "Russian"])
+        return await meta().transcribe(meter, wav, keywords=PRINT_KEYWORDS, languages=["English", "French", "Russian"])
     except Exception:  # noqa: BLE001 — retry without language bias (names may not be accepted)
         return await meta().transcribe(meter, wav, keywords=PRINT_KEYWORDS)
     finally:

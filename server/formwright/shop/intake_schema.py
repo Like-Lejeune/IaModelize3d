@@ -10,10 +10,10 @@ SCHEMA = {
             "kind": {"type": "string"}, "brand": {"type": "string"}, "model": {"type": "string"}, "serial_or_enr": {"type": "string"}},
             "required": ["kind", "brand", "model", "serial_or_enr"]},
         "part": {"type": "object", "additionalProperties": False, "properties": {
-            "name_en": {"type": "string"}, "name_user": {"type": "string"}, "part_number": {"type": "string"},
+            "name_en": {"type": "string"}, "name_fr": {"type": "string"}, "name_user": {"type": "string"}, "part_number": {"type": "string"},
             "quantity": {"type": "integer"}, "condition": {"type": "string", "enum": ["broken", "missing", "worn", "other"]},
             "failure": {"type": "string"}},
-            "required": ["name_en", "name_user", "part_number", "quantity", "condition", "failure"]},
+            "required": ["name_en", "name_fr", "name_user", "part_number", "quantity", "condition", "failure"]},
         "environment": {"type": "object", "additionalProperties": False, "properties": {
             "max_temp_c": {"type": "number"}, "wet": {"type": "boolean"}, "food_contact": {"type": "boolean"}, "load": {"type": "string"}},
             "required": ["max_temp_c", "wet", "food_contact", "load"]},
@@ -39,6 +39,7 @@ CLASSIFY_SCHEMA = {
         "why": {"type": "string"},
         "title_en": {"type": "string"},
         "title_ru": {"type": "string"},
+        "title_fr": {"type": "string"},
     },
-    "required": ["category", "safety_critical", "why", "title_en", "title_ru"],
+    "required": ["category", "safety_critical", "why", "title_en", "title_ru", "title_fr"],
 }

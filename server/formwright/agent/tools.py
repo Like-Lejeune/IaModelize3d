@@ -239,7 +239,7 @@ def tools_for(pack: str, *, photos: bool, prints: bool, engine: str = "cad") -> 
         tools.append(SET_PROCESS)
     if engine == "mesh":
         tools = [MESH_WRITE, MESH_EDIT] + tools
-    if photos:
+    if photos and settings().provider["sam"]:  # measuring on the A4 sheet is SAM 3.1: Meta only (config.PROVIDERS)
         tools += [MEASURE, FIT]
     if pack == "enclosure" and elec_tools:
         tools += elec_tools.tools(photos)

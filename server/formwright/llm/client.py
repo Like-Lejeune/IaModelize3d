@@ -1,5 +1,6 @@
-"""Meta Model API client: Responses API for text/vision/tools/search and SAM,
-images for Muse Image, multipart for Voice Transcribe.
+"""Model API client: the Responses API for text/vision/tools/search, on the provider set by FW_LLM_PROVIDER (Meta by
+default, OpenAI, or any endpoint serving /v1/responses); on Meta also SAM, images for Muse Image and multipart for
+Voice Transcribe (config.PROVIDERS says which provider offers what).
 
 Every call is metered into a CostMeter (per job) so budgets are enforced before a
 request is sent and usage is exact afterwards. Rate limits are respected with an
@@ -29,6 +30,20 @@ log = logging.getLogger(__name__)
 
 class BudgetExceeded(Exception):
     pass
+
+
+class FeatureUnavailable(RuntimeError):
+    """The configured provider does not offer this (SAM, voice, images are Meta's), or no key is set."""
+
+    def __init__(self, feature: str):
+        s = settings()
+        super().__init__(f"{feature} is not available with FW_LLM_PROVIDER={s.provider['name']}")
+        self.feature = feature
+
+
+def _need(feature: str) -> None:
+    if not settings().can(feature):
+        raise FeatureUnavailable(feature)
 
 
 # a stuck provider must not park a job: no single read waits longer than this, and no call as a whole
@@ -223,7 +238,7 @@ class MetaClient:
     def __init__(self) -> None:
         s = settings()
         self.s = s
-        self.oai = AsyncOpenAI(base_url=s.meta_base_url, api_key=s.meta_api_key or "missing", max_retries=0, timeout=META_TIMEOUT)
+        self.oai = AsyncOpenAI(base_url=s.api_base_url, api_key=s.api_key or "missing", max_retries=0, timeout=META_TIMEOUT)
         # open weights answer one-shot reviews: a cold or stuck endpoint gets a short leash, then Spark takes over
         self.open_timeout = float(getattr(s, "open_timeout_s", 60.0) or 60.0)
         self.open = (
@@ -464,6 +479,7 @@ class MetaClient:
     # ---------------------------------------------------------------- SAM
     async def sam(self, meter: CostMeter, image_data_url: str, prompt: str, *, include_confidence: bool = True, purpose: str | None = None) -> str:
         """Returns SAM's raw token text (decode with vision.sam)."""
+        _need("sam")
         meter.check(pricing.SAM_PER_IMAGE)
         kwargs = {
             "model": self.s.model_sam,
@@ -479,6 +495,7 @@ class MetaClient:
         return resp.output_text or ""
 
     async def sam_video(self, meter: CostMeter, file_id: str, prompt: str, frames_estimate: int) -> str:
+        _need("sam")
         cost = max(frames_estimate, pricing.SAM_MIN_FRAMES) * pricing.SAM_PER_FRAME
         meter.check(cost)
         kwargs = {
@@ -501,6 +518,7 @@ class MetaClient:
     # ---------------------------------------------------------------- images
     async def image(self, meter: CostMeter, prompt: str, *, images: list[str] | None = None, n: int = 1, size: str | None = None,
                     purpose: str | None = None) -> list[bytes]:
+        _need("image")
         meter.check(pricing.IMAGE_PER_IMAGE * n)
         if images:
             body: dict[str, Any] = {"model": self.s.model_image, "prompt": prompt, "n": n, "images": [{"image_url": u} for u in images], "output_format": "png"}
@@ -509,7 +527,7 @@ class MetaClient:
 
             async def edit() -> dict[str, Any]:
                 async with httpx.AsyncClient(timeout=META_TIMEOUT) as h:
-                    r = await h.post(f"{self.s.meta_base_url}/images/edits", json=body, headers={"Authorization": f"Bearer {self.s.meta_api_key}"})
+                    r = await h.post(f"{self.s.api_base_url}/images/edits", json=body, headers={"Authorization": f"Bearer {self.s.api_key}"})
                     r.raise_for_status()
                     return r.json()
 
@@ -529,6 +547,7 @@ class MetaClient:
     # ---------------------------------------------------------------- voice
     async def transcribe(self, meter: CostMeter, wav: bytes, *, keywords: list[str] | None = None, languages: list[str] | None = None,
                          purpose: str | None = "voice") -> str:
+        _need("voice")
         req = {"model": self.s.model_voice, "audioEncoding": "WAV", "mode": "PUSH_TO_TALK"}
         if keywords:
             req["keywords"] = keywords
@@ -538,8 +557,8 @@ class MetaClient:
         async def post() -> dict[str, Any]:
             async with httpx.AsyncClient(timeout=META_TIMEOUT) as h:
                 r = await h.post(
-                    f"{self.s.meta_base_url}/asr/transcribe",
-                    headers={"Authorization": f"Bearer {self.s.meta_api_key}", "Accept": "application/json"},
+                    f"{self.s.api_base_url}/asr/transcribe",
+                    headers={"Authorization": f"Bearer {self.s.api_key}", "Accept": "application/json"},
                     files={"request": (None, json.dumps(req), "application/json"), "audio": ("audio.wav", wav, "audio/wav")},
                 )
                 r.raise_for_status()
@@ -559,3 +578,7 @@ def meta() -> MetaClient:
     if _client is None:
         _client = MetaClient()
     return _client
+
+
+# a provider-neutral name for the same client (the original name stays: it is used across the code)
+llm = meta

@@ -15,6 +15,7 @@ import re
 from typing import Any
 
 from formwright import quotas, storage
+from formwright.config import settings
 from formwright.llm.client import CostMeter, meta
 
 from .intake_schema import CLASSIFY_SCHEMA, SCHEMA
@@ -26,6 +27,7 @@ household items. Read the request (text, a voice-note transcript, or photos) and
 Rules:
 - Copy brand, model and part numbers exactly as written or as printed on a rating plate; never invent them. Unknown -> "".
 - part.name_en: a short English name a segmenter can find in a photo (e.g. "dishwasher lower basket wheel").
+- part.name_fr: the same short name in French, for French-speaking customers (e.g. "roulette du panier inférieur de lave-vaisselle").
 - refuse=true only for parts where a print failure can hurt someone: gas, pressure vessels, mains-voltage insulation or
   enclosures that carry live parts, brakes, steering, child seats, helmets, medical devices, food contact above 70 C.
   Otherwise refuse=false and explain constraints in notes.
@@ -42,8 +44,9 @@ CLASSIFY_SYSTEM = """You sort requests that reach a farm of 3D printers making r
   mains-voltage insulation or enclosures around live parts, brakes, steering, child seats, helmets, medical devices,
   food contact above 70 C. A mechanical part of an appliance (a wheel, clip, hinge, knob of a washing machine) is not.
 - why: one sentence.
-- title_en, title_ru: a short catalog title for the part itself in English and in Russian, without any brand name
-  (e.g. "Dishwasher lower basket wheel" / "Колёсико нижней корзины посудомойки").
+- title_en, title_ru, title_fr: a short catalog title for the part itself in English, in Russian and in French, without any
+  brand name (e.g. "Dishwasher lower basket wheel" / "Колёсико нижней корзины посудомойки" / "Roulette du panier inférieur
+  de lave-vaisselle").
 """
 
 PHOTO_ROLE = {"part": "the part (on an A4 sheet when the customer followed the hint)", "plate": "the appliance rating plate"}
@@ -172,6 +175,24 @@ def titles(intake: dict[str, Any], fallback: str) -> tuple[str, str]:
             one((own if lang == "ru" else "") or cls.get("title_ru") or "", fallbacks[1]))
 
 
+UNNAMED_FR = "Pièce détachée"  # a part nothing has named yet, in French
+
+
+def title_fr(intake: dict[str, Any], fallback: str = UNNAMED_FR) -> str:
+    """The title in French (the G1 front's language): the customer's own words when they wrote French, else the open
+    model's French catalog title, else the intake's French name, else `fallback`; with the appliance it fits."""
+    part, app = intake.get("part") or {}, intake.get("appliance") or {}
+    cls = intake.get("classify") or {}
+    if cls.get("error") or (intake.get("review") or {}).get("code") == "safety_disagreement":
+        cls = {}
+    lang = str(intake.get("language") or "")[:2].lower()
+    name = ((part.get("name_user") if lang == "fr" else "") or cls.get("title_fr") or part.get("name_fr") or "").strip()
+    if not name:
+        return fallback[:80]
+    fits = " ".join(x for x in (app.get("brand"), app.get("model")) if x).strip()
+    return (f"{name[:1].upper()}{name[1:]} · {fits}" if fits else f"{name[:1].upper()}{name[1:]}")[:80]
+
+
 def design_brief(intake: dict[str, Any], request_text: str, ref: str, *, quantity: int | None = None, material: str | None = None) -> str:
     """What the designer agent gets (English): the part, what it fits, how it lives, what not to copy. `quantity` and
     `material` are the order's (the form's, else what the intake read): the quantity is the order's to set, never a
@@ -202,7 +223,12 @@ def design_brief(intake: dict[str, Any], request_text: str, ref: str, *, quantit
     questions = [q for q in intake.get("questions") or [] if q and not asks_quantity(q)]
     if questions:
         lines.append("The intake desk could not tell: " + " / ".join(questions) + " If the photos do not answer it, ask the customer.")
-    lines.append("Measure the part from the photo on the A4 sheet, keep every mating dimension, and check that it prints.")
+    if settings().provider["sam"]:
+        lines.append("Measure the part from the photo on the A4 sheet, keep every mating dimension, and check that it prints.")
+    else:
+        # another provider than Meta: no SAM, so no measure/fit_to_photo tools (agent/tools.tools_for)
+        lines.append("No measuring tool runs on this server: read the part against the A4 sheet in the photo (210 x 297 mm), "
+                     "ask the customer for any mating dimension you cannot read with confidence, and check that it prints.")
     # the form's own 'Quantity: N' line is said above as the order's (an operator's 'Let through' may have changed it)
     request_text = "\n".join(x for x in request_text.splitlines() if not x.startswith("Quantity: "))
     if request_text.strip():
