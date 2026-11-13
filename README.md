@@ -4,6 +4,10 @@ Décrivez un objet ou photographiez une pièce : l'IA vous pose les bonnes quest
 vous-même (cotes, versions), puis vous le téléchargez ou le faites imprimer par l'atelier, avec un prix en FCFA et un
 paiement Mobile Money.
 
+Les captures des écrans sont dans [`docs/interfaces/`](docs/interfaces/README.md).
+
+![Le studio](docs/interfaces/05-studio-modification.png)
+
 ## Ce que contient le dépôt
 
 | Dossier | Rôle |
