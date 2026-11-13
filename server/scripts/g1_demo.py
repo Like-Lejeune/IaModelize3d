@@ -4,7 +4,12 @@ played by stand-ins, so the React front (apps/repair-web) can be tried end to en
     cd server && .venv/bin/python scripts/g1_demo.py            # API on http://127.0.0.1:8400, data in <repo>/data-demo
     cd apps/repair-web && npm run dev                           # the front on http://localhost:5410
 
-What is played: the intake (a French reading of the request; a request that mentions gas is refused, one that says
+In the studio (/studio/<id>), the designer agent is played too (scripts/demo_designs.py): it picks one of five real
+parametric models from the words of the request (a box, a stand, a wall hook, a knob, a pot), asks its first question
+when no size was given, and reads a change asked in the chat with keywords ("plus haut", "largeur 90 mm", "plus
+solide"...). The model is built in the browser by the real geometry kernel, the sliders and versions are real.
+
+What is played in the shop: the intake (a French reading of the request; a request that mentions gas is refused, one that says
 "vérifier" is held for the workshop), the designer (a version appears about 8 s later), the slicer (fixed grams and
 minutes), the QC photo (passes at 0.3 mm). Everything else is the real code: prices in FCFA (FW_SHOP_TARIFF=cm),
 the order's moves and their guards, Mobile Money checks, the journal.
@@ -36,6 +41,10 @@ from formwright.app import app  # noqa: E402
 from formwright.db import get_db, new_id, now  # noqa: E402
 from formwright.shop import routes, store  # noqa: E402
 from formwright.shop.intake import combine  # noqa: E402
+from formwright.agent import loop as agent_loop  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from demo_designs import DESIGNS, adjust, defaults, pick  # noqa: E402
 
 DESIGN_SECONDS = 8.0
 FARM = ("org_demo_atelier", "Atelier de démonstration")
@@ -107,6 +116,79 @@ class DemoHooks(routes.Hooks):
 
 
 routes.hooks = DemoHooks()
+
+
+# ------------------------------------------------------------------ the studio's designer, played
+async def _save_version(ctx, source: str, params: dict[str, Any], summary: str, title: str | None = None) -> int:
+    db = await get_db()
+    version = (await db.one("SELECT COALESCE(MAX(version), 0) AS v FROM programs WHERE project_id = ?", ctx.project_id))["v"] + 1
+    await db.insert("programs", {"project_id": ctx.project_id, "version": version, "source": source, "params": params, "inputs": {},
+                                 "summary": summary, "checks": None, "author": "agent", "created_at": now()})
+    await db.update("projects", "id", ctx.project_id, {"version": version, "updated_at": now(), **({"title": title} if title else {})})
+    await ctx.emit("program.updated", {"version": version, "source": source, "inputs": {}, "params": params, "summary": summary, "author": "agent"})
+    return version
+
+
+async def _step(ctx, name: str, summary: str, seconds: float = 1.2) -> None:
+    tid = new_id("t_")
+    await ctx.emit("tool.call", {"id": tid, "name": name})
+    await asyncio.sleep(seconds)
+    await ctx.emit("tool.result", {"id": tid, "name": name, "ok": True, "summary": summary})
+
+
+def _key_of(source: str) -> str:
+    return next((k for k, d in DESIGNS.items() if d["source"].strip() == source.strip()), "box")
+
+
+async def demo_design(ctx, body) -> str:
+    db = await get_db()
+    text = body.text or ""
+    prog = await db.one("SELECT * FROM programs WHERE project_id = ? ORDER BY version DESC LIMIT 1", ctx.project_id)
+    if not prog:
+        await ctx.status("Je lis votre demande…")
+        await asyncio.sleep(1.0)
+        key = pick(f"{text} {ctx.project.get('title') or ''}")
+        d = DESIGNS[key]
+        values = defaults(key)
+        said: list[str] = []
+        if any(ch.isdigit() for ch in text):
+            values, said = adjust(key, values, text)
+        else:
+            await ctx.status("Une précision avant de dessiner.")
+            answer = await ctx.ask(d["ask"], list(d["options"]), True, timeout=900)
+            if answer in d["options"]:
+                values.update(d["options"][answer])
+                said.append(answer)
+            elif answer:
+                values, said = adjust(key, values, answer)
+        await ctx.status("Je dessine une première version.")
+        await _step(ctx, "write_program", "modèle paramétrique écrit", 2.0)
+        await _step(ctx, "look", "vérifié sous six angles", 1.2)
+        await _step(ctx, "finish", "imprimable sans support", 1.0)
+        title = d["source"].split("title: '")[1].split("'")[0]
+        version = await _save_version(ctx, d["source"], values, f"Première version{f' : {said[0]}' if said else ''}", title)
+        await ctx.emit("agent.message", {"text": (
+            f"Voici une première version ({title.lower()}). Ajustez les cotes dans « Réglages » : le modèle se met à jour "
+            "tout de suite. Vous pouvez aussi me demander une modification, par exemple « plus haut », « largeur 90 mm » "
+            "ou « plus solide ».")})
+        return f"version {version}"
+    key = _key_of(prog["source"])
+    await ctx.status("Je reprends le modèle.")
+    await asyncio.sleep(0.8)
+    values, said = adjust(key, prog["params"] or {}, text)
+    if not said:
+        await ctx.emit("agent.message", {"text": (
+            "Je n'ai pas trouvé quoi changer dans ce message (cette démonstration ne comprend que des demandes simples : "
+            "« plus grand », « plus haut », « hauteur 60 mm », « plus solide », « coins arrondis »...). "
+            "Les réglages à droite permettent aussi d'ajuster chaque cote.")})
+        return "rien à changer"
+    await _step(ctx, "edit_program", ", ".join(said), 1.5)
+    version = await _save_version(ctx, prog["source"], values, "Modifié : " + ", ".join(said))
+    await ctx.emit("agent.message", {"text": f"C'est fait : {', '.join(said)}. La version {version} est affichée."})
+    return f"version {version}"
+
+
+agent_loop.design = demo_design
 
 
 @app.get("/api/demo/operator", include_in_schema=False)

@@ -215,8 +215,10 @@ async def present(db: Database, o: dict[str, Any], actor: str, *, timeline: bool
         en, ru = titles(data, out["title"])
         both = (en, out["title"]) if CYRILLIC.search(out["title"] or "") else (out["title"], ru)
     out["title_en"], out["title_ru"] = both
-    # the French title (the G1 front): a catalog card has none yet and shows its English one
-    out["title_fr"] = both[0] if li else title_fr(data, both[0])
+    # the French title (the G1 front): a catalog card has none yet and shows its English one; a studio part keeps the
+    # name its project has (the customer's own words or the designer's title), like title_en above
+    kind = (data.get("request") or {}).get("kind")
+    out["title_fr"] = both[0] if li else out["title"] if kind == "project" and out["title"] else title_fr(data, both[0])
     out["own_listing"] = await store.own_listing(db, o["user_id"], o["project_id"])
     out["working"] = autoquote.running(o["id"])
     if out["working"] and o["status"] == "quoted":

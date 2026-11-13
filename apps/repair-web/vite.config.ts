@@ -7,8 +7,12 @@ const API = process.env.FW_API_URL ?? "http://127.0.0.1:8400";
 
 export default defineConfig({
   plugins: [react()],
+  // the geometry kernel (packages/geom, TypeScript sources and the manifold WASM) lives outside this app
+  worker: { format: "es" },
+  optimizeDeps: { exclude: ["@formwright/geom", "manifold-3d"] },
   server: {
     port: 5410,
+    fs: { allow: ["../.."] },
     proxy: {
       "/api": { target: API, changeOrigin: false },
       "/files": { target: API, changeOrigin: false },

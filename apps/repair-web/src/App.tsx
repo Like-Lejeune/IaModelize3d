@@ -1,11 +1,15 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, lazy, Suspense, useContext, useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
 import { api } from "./api";
 import type { Me, Tariff } from "./types";
+import Home from "./pages/Home";
 import NewRequest from "./pages/NewRequest";
 import Orders from "./pages/Orders";
 import OrderPage from "./pages/OrderPage";
 import Workshop from "./pages/Workshop";
+
+// the studio brings three.js and the geometry worker: loaded when a studio opens
+const Studio = lazy(() => import("./pages/Studio"));
 
 interface Session {
   me: Me | null;
@@ -31,17 +35,19 @@ export default function App() {
         <div className="bar-inner">
           <NavLink to="/" className="brand" end>
             <span className="brand-mark" aria-hidden="true" />
-            Réparation
+            Atelier 3D
           </NavLink>
           <nav aria-label="Navigation principale">
-            <NavLink to="/" end>Nouvelle demande</NavLink>
+            <NavLink to="/" end>Créer</NavLink>
             <NavLink to="/commandes">Mes commandes</NavLink>
             {session.me?.is_operator && <NavLink to="/ops">Atelier</NavLink>}
           </nav>
         </div>
       </header>
       <Routes>
-        <Route path="/" element={<NewRequest />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/studio/:id" element={<Suspense fallback={<main><p className="empty">Ouverture du studio…</p></main>}><Studio /></Suspense>} />
+        <Route path="/reparation" element={<NewRequest />} />
         <Route path="/commandes" element={<Orders />} />
         <Route path="/commandes/:id" element={<OrderPage />} />
         {/* /ops: where the API's operator sign-in link lands (scripts/shop_operator.py) */}
