@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     llm_price_in_per_m: float = 0.0
     llm_price_cached_per_m: float = 0.0
     llm_price_out_per_m: float = 0.0
+    # one model name for every role (designer, strong designer, fast, free) on another provider: FW_LLM_MODEL=<model>
+    # fills the ones still naming a Meta model, FW_MODEL_* set one by one still win
+    llm_model: str = ""
+    # the deepest reasoning effort the provider accepts: the designer asks up to "max" (Meta's scale); on another provider
+    # it is lowered to this one. Empty: no limit on Meta, "high" elsewhere. FW_LLM_REASONING=0 for a model that does not
+    # reason at all (no reasoning settings are sent)
+    llm_max_effort: str = ""
+    llm_reasoning: bool = True
 
     meta_api_key: str = Field(default="", validation_alias=AliasChoices("META_API_KEY", "META_KEY", "FW_META_API_KEY"))
     meta_base_url: str = "https://api.meta.ai/v1"
@@ -164,12 +172,16 @@ def settings() -> Settings:
     if p["name"] == "custom" and not s.llm_base_url:
         raise ValueError("FW_LLM_PROVIDER=custom needs FW_LLM_BASE_URL (an endpoint that serves /v1/responses)")
     if p["name"] != "meta":
+        if s.llm_model:
+            for k in ("model_designer", "model_designer_hard", "model_fast", "model_free"):
+                if str(getattr(s, k)).startswith("muse-"):
+                    setattr(s, k, s.llm_model)
         meta_models = [k for k in ("model_designer", "model_designer_hard", "model_fast", "model_free")
                        if str(getattr(s, k)).startswith("muse-")]
         if meta_models:
             logging.getLogger(__name__).warning(
                 "FW_LLM_PROVIDER=%s but %s still name Meta models: set FW_MODEL_DESIGNER, FW_MODEL_DESIGNER_HARD, FW_MODEL_FAST "
-                "and FW_MODEL_FREE to this provider's models", p["name"], ", ".join(m.upper() for m in meta_models))
+                "and FW_MODEL_FREE (or FW_LLM_MODEL for all four) to this provider's models", p["name"], ", ".join(m.upper() for m in meta_models))
     s.data_dir.mkdir(parents=True, exist_ok=True)
     (s.data_dir / "files").mkdir(exist_ok=True)
     return s

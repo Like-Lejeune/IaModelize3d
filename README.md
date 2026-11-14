@@ -31,9 +31,43 @@ cd server && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 cd apps/repair-web && npm install && npm run dev    # http://localhost:5410
 ```
 
-Avec une vraie IA, copiez `.env.example` en `.env` et réglez au minimum `FW_LLM_PROVIDER` et sa clé
-(`META_API_KEY` ou `FW_LLM_API_KEY`), puis `FW_SHOP_TARIFF=cm` pour les prix en FCFA. Les variables d'environnement
-gardent le préfixe `FW_` hérité de Formwright.
+## Brancher une vraie IA
+
+La démo (`g1_demo.py`) simule l'IA. Pour la vraie, créez un fichier `.env` à la racine du dépôt (modèle complet :
+`.env.example`). Exemple avec OpenAI :
+
+```ini
+FW_LLM_PROVIDER=openai
+FW_LLM_API_KEY=sk-...
+FW_LLM_MODEL=gpt-5-mini          # un modèle de votre compte, pour tous les rôles
+FW_LLM_PRICE_IN_PER_M=0.25       # prix du modèle en USD par million de jetons, pour que le budget compte
+FW_LLM_PRICE_OUT_PER_M=2.00
+FW_DAILY_BUDGET_USD=2            # plafond de dépense par jour, tous utilisateurs
+FW_SHOP_TARIFF=cm                # prix en FCFA
+```
+
+Le nom du modèle et ses prix sont ceux de votre compte (page des tarifs du fournisseur) : vérifiez-les avant de lancer.
+Avec Meta : `FW_LLM_PROVIDER=meta` et `META_API_KEY=...` suffisent. Avec un autre service compatible (passerelle,
+modèle hébergé) : `FW_LLM_PROVIDER=custom` et `FW_LLM_BASE_URL=https://.../v1`. Les variables gardent le préfixe `FW_`
+hérité de Formwright.
+
+Vérifiez la configuration avant de lancer (cinq petits appels, une fraction de centime) :
+
+```powershell
+cd server
+.\.venv\Scripts\python.exe scripts\check_llm.py     # Linux/macOS : .venv/bin/python scripts/check_llm.py
+```
+
+Puis lancez le vrai serveur à la place de la démo :
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn iamodelize3d.app:app --port 8400
+```
+
+Hors Meta, trois fonctions sont coupées : la mesure automatique de la pièce sur la feuille A4 (SAM), les notes vocales et
+la génération d'images ; le concepteur demande alors les cotes qu'il ne peut pas lire sur la photo. Les niveaux de
+réflexion propres à Meta (« xhigh », « max ») sont ramenés à « high » (`FW_LLM_MAX_EFFORT`), et un modèle qui refuse
+les réglages de réflexion est rappelé sans eux (`FW_LLM_REASONING=0` évite cet appel en trop).
 
 ## Tests
 

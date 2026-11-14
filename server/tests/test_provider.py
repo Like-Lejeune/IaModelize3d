@@ -104,3 +104,60 @@ def test_another_providers_tokens_are_priced_from_the_settings(use):
     assert pricing.token_cost("some-model", 1_000_000, 1_000_000, 0) == pytest.approx(2.0)
     # Meta's own models keep their table price
     assert pricing.token_cost("muse-spark-1.3", 1_000_000, 0, 0) == pytest.approx(1.25)
+
+
+def test_efforts_meta_does_not_know_are_lowered_elsewhere():
+    meta = make(meta_api_key="mk")
+    openai = make(llm_provider="openai", llm_api_key="k")
+    assert client.provider_effort(meta, "max") == "max"
+    assert client.provider_effort(openai, "max") == "high"
+    assert client.provider_effort(openai, "xhigh") == "high"
+    assert client.provider_effort(openai, "low") == "low"
+    assert client.provider_effort(make(llm_provider="openai", llm_max_effort="xhigh"), "max") == "xhigh"
+    # a model that does not reason gets no reasoning settings at all
+    assert client.provider_effort(make(llm_provider="openai", llm_reasoning=False), "medium") is None
+
+
+def test_one_model_name_fills_every_role_left_on_meta(monkeypatch, tmp_path):
+    monkeypatch.setattr(config.Settings, "model_config", {**config.Settings.model_config, "env_file": None})
+    for k, v in {"FW_LLM_PROVIDER": "openai", "FW_LLM_MODEL": "gpt-x", "FW_MODEL_FAST": "gpt-x-mini", "FW_DATA_DIR": str(tmp_path)}.items():
+        monkeypatch.setenv(k, v)
+    config.settings.cache_clear()
+    try:
+        s = config.settings()
+        assert (s.model_designer, s.model_designer_hard, s.model_fast, s.model_free) == ("gpt-x", "gpt-x", "gpt-x-mini", "gpt-x")
+    finally:
+        config.settings.cache_clear()
+
+
+async def test_a_model_that_refuses_reasoning_is_called_again_without_it(use):
+    import httpx
+    from openai import AsyncOpenAI
+
+    s = use(make(llm_provider="custom", llm_base_url="http://fake/v1", llm_api_key="k"))
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+        body = json.loads(request.content)
+        seen.append(body)
+        if "reasoning" in body:
+            return httpx.Response(400, json={"error": {"message": "reasoning.effort is not supported with this model", "type": "invalid_request_error"}})
+        return httpx.Response(200, json={"id": "r", "object": "response", "created_at": 0, "model": body["model"], "status": "completed",
+                                         "output": [{"type": "message", "id": "m", "role": "assistant", "status": "completed",
+                                                     "content": [{"type": "output_text", "text": "ok", "annotations": []}]}],
+                                         "parallel_tool_calls": True, "tool_choice": "auto", "tools": [],
+                                         "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2,
+                                                   "input_tokens_details": {"cached_tokens": 0}, "output_tokens_details": {"reasoning_tokens": 0}}})
+
+    c = MetaClient()
+    c.oai = AsyncOpenAI(base_url=s.api_base_url, api_key="k", max_retries=0, http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    msg = [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}]
+    client._NO_REASONING.clear()
+    r = await c.respond(CostMeter(), model="plain", input=msg, effort="max")
+    assert r.output_text == "ok"
+    assert seen[0]["reasoning"]["effort"] == "high" and "reasoning" not in seen[1] and "include" not in seen[1]
+    # remembered: the next call goes without reasoning at once
+    await c.respond(CostMeter(), model="plain", input=msg, effort="max")
+    assert len(seen) == 3 and "reasoning" not in seen[2]
+    client._NO_REASONING.clear()

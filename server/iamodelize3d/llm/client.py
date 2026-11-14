@@ -61,6 +61,33 @@ OPEN_JSON_RULES = ("\n\nAnswer with one JSON object and nothing else: no code fe
                    "and enum values copied exactly:\n")
 
 
+# reasoning efforts from the lightest to the deepest; "max" is Meta's own top
+EFFORTS = ("minimal", "low", "medium", "high", "xhigh", "max")
+
+
+def provider_effort(s: Any, effort: str | None) -> str | None:
+    """The effort sent to the provider: none when FW_LLM_REASONING=0, else at most FW_LLM_MAX_EFFORT ("high" by default
+    outside Meta, whose "xhigh"/"max" another provider refuses)."""
+    if not effort or not getattr(s, "llm_reasoning", True):
+        return None
+    top = (getattr(s, "llm_max_effort", "") or ("" if s.provider["name"] == "meta" else "high")).strip().lower()
+    if top in EFFORTS and effort in EFFORTS and EFFORTS.index(effort) > EFFORTS.index(top):
+        return top
+    return effort
+
+
+# (model, effort) pairs the provider refused: later calls go without reasoning settings straight away
+_NO_REASONING: set[tuple[str, str]] = set()
+
+
+def _reasoning_refused(e: APIStatusError) -> bool:
+    """A 400 about the reasoning settings: a model that does not reason, or an effort it does not know."""
+    if e.status_code != 400:
+        return False
+    text = str(getattr(e, "body", None) or e.message or "").lower()
+    return any(w in text for w in ("reasoning", "effort", "encrypted_content"))
+
+
 def _retryable(status: int) -> bool:
     return status in (408, 409, 425, 429) or status >= 500
 
@@ -312,6 +339,11 @@ class MetaClient:
         OPEN_MAX_IMAGES images per request."""
         meter.check(0.002)
         is_open = model == self.s.open_model and self.open is not None
+        requested = effort
+        if not is_open:
+            effort = provider_effort(self.s, effort)
+            if effort and (model, effort) in _NO_REASONING:
+                effort = None
         client = self.open if is_open else self.oai
         kwargs: dict[str, Any] = {"model": model, "input": _last_images(input, OPEN_MAX_IMAGES) if is_open else input,
                                   "max_output_tokens": max_output_tokens, "store": False}
@@ -333,12 +365,25 @@ class MetaClient:
                 kwargs["include"] = include
         if cache_key and not is_open:
             kwargs["prompt_cache_key"] = cache_key
-        if effort in ("xhigh", "max") or is_open:
+        if requested in ("xhigh", "max") or is_open:
             # the deepest reasoning answers in one piece after a long silence: give that read more room (the open
             # client's own short leash is for one-shot reviews, not a designer turn that writes a whole program)
             kwargs["timeout"] = httpx.Timeout(connect=10, read=RESPOND_DEADLINE_S - 10, write=60, pool=10)
         async with _deadline(RESPOND_DEADLINE_S, f"{model}/responses"):
-            resp = await self._retry(model, lambda: client.responses.with_raw_response.create(**kwargs))  # type: ignore[union-attr]
+            try:
+                resp = await self._retry(model, lambda: client.responses.with_raw_response.create(**kwargs))  # type: ignore[union-attr]
+            except APIStatusError as e:
+                if is_open or "reasoning" not in kwargs or not _reasoning_refused(e):
+                    raise
+                # a model that does not reason (or not at this effort): the same call without reasoning settings
+                log.warning("%s refused the reasoning settings (%s), retrying without them; FW_LLM_REASONING=0 or "
+                            "FW_LLM_MAX_EFFORT avoids the extra call", model, str(e)[:200])
+                _NO_REASONING.add((model, kwargs["reasoning"]["effort"]))
+                kwargs.pop("reasoning", None)
+                kwargs["include"] = [i for i in kwargs.get("include", []) if i != "reasoning.encrypted_content"]
+                if not kwargs["include"]:
+                    kwargs.pop("include")
+                resp = await self._retry(model, lambda: client.responses.with_raw_response.create(**kwargs))  # type: ignore[union-attr]
         tin, tout, cached = _usage(resp)
         searches = sum(1 for o in (resp.output or []) if getattr(o, "type", "") == "web_search_call")
         usd = pricing.token_cost(model, tin, cached, tout) + searches * pricing.WEB_SEARCH_PER_CALL
