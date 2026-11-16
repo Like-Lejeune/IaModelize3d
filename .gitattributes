@@ -3,3 +3,5 @@
 *.wasm binary
 *.3mf binary
 *.stl binary
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
