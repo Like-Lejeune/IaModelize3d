@@ -31,6 +31,11 @@ cd server && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 cd apps/repair-web && npm install && npm run dev    # http://localhost:5410
 ```
 
+## Lancer en local (Windows)
+
+Double-cliquez sur `lancer-local.cmd` (démo, IA simulée) ou lancez `lancer-local.cmd -Ia` (vraie IA, fichier `.env`).
+Le guide complet est dans [`LANCER-EN-LOCAL.md`](LANCER-EN-LOCAL.md).
+
 ## Brancher une vraie IA
 
 La démo (`g1_demo.py`) simule l'IA. Pour la vraie, créez un fichier `.env` à la racine du dépôt (modèle complet :
